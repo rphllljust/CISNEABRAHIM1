@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { getContract } from '../../contracts/api/contracts-api';
 import {
   cancelServiceOrder,
   getServiceOrder,
@@ -58,6 +59,7 @@ export function ServiceOrderEngineDetailPage() {
    * ordem veio e sob qual contrato ela corre — então o payload autorizado é preservado aqui.
    */
   const [detail, setDetail] = useState<ServiceOrderDetail | null>(null);
+  const [authorizedContractId, setAuthorizedContractId] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [rowStatus, setRowStatus] = useState<'loading' | 'ready' | 'denied' | 'missing' | 'error'>(
@@ -107,6 +109,21 @@ export function ServiceOrderEngineDetailPage() {
     void load(controller.signal);
     return () => controller.abort();
   }, [load]);
+
+  // Um direito de ler a OS NÃO implica direito de ler o contrato. Confirma-se pelo PDP do
+  // módulo Comercial antes de criar um destino navegável, sem expor status de negação.
+  useEffect(() => {
+    const id = detail?.contractId;
+    setAuthorizedContractId(null);
+    if (!id) return;
+    const controller = new AbortController();
+    void getContract(id, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted && result.contract.id === id) setAuthorizedContractId(id);
+      })
+      .catch(() => { /* Falta de permissão/registro: sem relação e sem metadados vazados. */ });
+    return () => controller.abort();
+  }, [detail?.contractId]);
 
   /**
    * Despacha o comando que a ENGINE ofereceu.
@@ -210,6 +227,9 @@ export function ServiceOrderEngineDetailPage() {
   const deadline = toDisplayText(row['deadline_at']);
   const stateFlowSteps = stateStepsFromSchema(schema);
   const relations = relationsFromRow(row);
+  if (authorizedContractId) {
+    relations.unshift({ id: 'contract', label: 'Contrato', count: 1, to: `/app/contracts/${authorizedContractId}` });
+  }
   const nextAction = nextActionFromControlCenter(controlCenter, row.id);
 
   /*
@@ -224,6 +244,7 @@ export function ServiceOrderEngineDetailPage() {
     { label: 'Unidade operacional', value: detail?.unitId ?? toDisplayText(row['unit_id']) },
     { label: 'Situação', value: currentState },
     { label: 'Origem', value: detail?.origin ?? null },
+    { label: 'Versão do registro', value: detail?.rowVersion ?? null },
   ];
 
   /*
@@ -234,7 +255,11 @@ export function ServiceOrderEngineDetailPage() {
    * seria mentir sobre a origem do dinheiro.
    */
   const originFields: ObjectContextField[] = [
-    { label: 'Contrato', value: detail?.contractReference ?? null },
+    {
+      label: 'Contrato',
+      value: detail?.contractReference ?? null,
+      ...(authorizedContractId ? { to: `/app/contracts/${authorizedContractId}` } : {}),
+    },
     {
       label: 'Solicitação',
       value: detail?.serviceRequestId ? 'Vinculada à ordem' : null,
@@ -324,6 +349,7 @@ export function ServiceOrderEngineDetailPage() {
             { label: 'Cliente', value: client },
             { label: 'Unidade', value: toDisplayText(row['unit_id']) },
             { label: 'Prazo', value: deadline, emphasis: true },
+            { label: 'Versão', value: detail?.rowVersion ?? null },
           ]}
           secondaryActions={[
             { id: 'planning', label: 'Planejamento', to: `/app/service-orders/${row.id}/planning` },

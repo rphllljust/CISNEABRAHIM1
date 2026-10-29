@@ -278,6 +278,9 @@ export function ServiceOrdersEngineListPage() {
   const statusFilter = (searchParams.get('status') ?? '') as ServiceOrderStatus | '';
   const queueFilter = parseQueueFilter(searchParams.get('filter'));
   const queueOrder = parseQueueOrder(searchParams.get('order'));
+  const contractId = searchParams.get('contractId') || undefined;
+  const clientId = searchParams.get('clientId') || undefined;
+  const unitId = searchParams.get('unitId') || undefined;
 
   /*
    * SÓ VIEW PROVADA FUNCIONAL VIRA ABA.
@@ -334,6 +337,9 @@ export function ServiceOrdersEngineListPage() {
             status: statusFilter || undefined,
             filter: queueFilter,
             order: queueOrder,
+            contractId,
+            clientId,
+            unitId,
             q: search || undefined,
             advanced: advancedPayload,
           },
@@ -365,7 +371,7 @@ export function ServiceOrdersEngineListPage() {
         setPageBusy(false);
       }
     },
-    [advancedPayload, pageOffset, queueFilter, queueOrder, search, statusFilter],
+    [advancedPayload, pageOffset, queueFilter, queueOrder, search, statusFilter, contractId, clientId, unitId],
   );
 
   /**
@@ -424,6 +430,13 @@ export function ServiceOrdersEngineListPage() {
    * continua sem aparecer como filtro — a barra lê `in_filter` do metadado e a busca cobre o
    * que `q` resolve no servidor.
    */
+  // Uma troca de contrato / cliente / unidade nunca deixa a página antiga selecionada.
+  useEffect(() => {
+    setPageOffset(0);
+    setSelectedIds([]);
+    setContextRow(null);
+  }, [contractId, clientId, unitId]);
+
   const visibleRows = rows;
 
   const items = rows;
@@ -485,6 +498,10 @@ export function ServiceOrdersEngineListPage() {
 
   const clearFilters = (): void => {
     const next = filtersToSearchParams({});
+    // Limpar filtros de análise NÃO desfaz o recorte empresarial que abriu a carteira.
+    if (contractId) next.set('contractId', contractId);
+    if (clientId) next.set('clientId', clientId);
+    if (unitId) next.set('unitId', unitId);
     if (activeViewType !== 'list') {
       next.set('view', activeViewType);
     }
@@ -795,10 +812,20 @@ export function ServiceOrdersEngineListPage() {
             views={savedViews.views}
             persistedLocally={savedViews.persistedLocally}
             persistable={savedViews.persistable}
-            onSave={(name) => savedViews.save(name, filters, activeViewType)}
+            onSave={(name) => {
+              const viewFilters = { ...filters };
+              delete viewFilters.contractId;
+              delete viewFilters.clientId;
+              delete viewFilters.unitId;
+              savedViews.save(name, viewFilters, activeViewType);
+            }}
             onDelete={savedViews.remove}
             onApply={(view) => {
               const next = filtersToSearchParams(view.filters);
+              // Saved Views não podem substituir o contrato originador deste drill-down.
+              if (contractId) next.set('contractId', contractId);
+              if (clientId) next.set('clientId', clientId);
+              if (unitId) next.set('unitId', unitId);
               next.set('view', view.viewType);
               setSearchParams(next, { replace: true });
             }}

@@ -130,6 +130,7 @@ export type ServiceOrderSummary = {
   status: ServiceOrderStatus;
   origin: string;
   clientId: string | null;
+  contractId?: string | null;
   clientSnapshot: Record<string, unknown> | null;
   description: string | null;
   location?: Record<string, unknown>;
@@ -152,6 +153,7 @@ export async function listServiceOrders(
     order?: ServiceOrderListOrder;
     unitId?: string;
     clientId?: string;
+    contractId?: string;
     q?: string;
     from?: string;
     to?: string;
@@ -181,6 +183,9 @@ export async function listServiceOrders(
   }
   if (query.clientId) {
     params.set('clientId', query.clientId);
+  }
+  if (query.contractId) {
+    params.set('contractId', query.contractId);
   }
   if (query.q) {
     params.set('q', query.q);

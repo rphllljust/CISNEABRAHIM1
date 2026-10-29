@@ -19,6 +19,8 @@ import { ServiceOrdersEngineListPage } from './ServiceOrdersEngineListPage';
  */
 
 const PAGE_SIZE = 20;
+const CONTRACT_A1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+const CONTRACT_A2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
 
 /** 25 ordens: a primeira página enche (25 > 20) e a segunda fica incompleta. */
 const ORDERS = Array.from({ length: 25 }, (_, index) => {
@@ -28,6 +30,7 @@ const ORDERS = Array.from({ length: 25 }, (_, index) => {
     orderNumber: `OS-${number}`,
     // Metade liberada, metade em execução: dá recorte real de situação.
     status: index % 2 === 0 ? 'RELEASED' : 'IN_EXECUTION',
+    contractId: index < 12 ? CONTRACT_A1 : CONTRACT_A2,
     clientSnapshot: { legalName: `Cliente ${number}` },
   };
 });
@@ -111,9 +114,13 @@ function createOrdersMock(dataset = ORDERS) {
       const limit = Number(searchParams.get('limit') ?? String(PAGE_SIZE));
       const offset = Number(searchParams.get('offset') ?? '0');
       const status = searchParams.get('status');
+      const contractId = searchParams.get('contractId');
       const q = searchParams.get('q')?.trim().toLowerCase() ?? '';
 
       let items = dataset;
+      if (contractId) {
+        items = items.filter((order) => order.contractId === contractId);
+      }
       if (status) {
         items = items.filter((order) => order.status === status);
       }
@@ -146,8 +153,8 @@ function listCalls(fetchMock: ReturnType<typeof createOrdersMock>): string[] {
     .filter((url) => url.includes('/api/v1/service-orders?'));
 }
 
-async function renderPage() {
-  renderWithProviders(<ServiceOrdersEngineListPage />, { metadata: true });
+async function renderPage(initialPath = '/app/service-orders') {
+  renderWithProviders(<ServiceOrdersEngineListPage />, { metadata: true, router: { initialEntries: [initialPath] } });
   await waitFor(() => {
     expect(screen.getByTestId('dynamic-list')).toBeInTheDocument();
   });
@@ -275,6 +282,19 @@ describe('ServiceOrdersEngineListPage — recorte e paginação server-side', ()
     expect(screen.queryByTestId('dynamic-list')).not.toBeInTheDocument();
     expect(screen.queryByText('0 registros')).not.toBeInTheDocument();
     expect(document.querySelector('.cisne-engine-signal-strip')).not.toBeInTheDocument();
+  });
+
+  it('deep-link contractId restringe a carteira no servidor e total, sem navegar pelo cliente', async () => {
+    const mock = createOrdersMock();
+    vi.stubGlobal('fetch', mock);
+    await renderPage(`/app/service-orders?contractId=${CONTRACT_A1}`);
+    expect(screen.getByText('OS-0001')).toBeInTheDocument();
+    expect(screen.queryByText('OS-0020')).not.toBeInTheDocument();
+    expect(screen.getByText(/1–12 de 12 no recorte/)).toBeInTheDocument();
+    await waitFor(() => {
+      const urls = listCalls(mock);
+      expect(urls.some((url) => new URL(url, 'http://127.0.0.1').searchParams.get('contractId') === CONTRACT_A1)).toBe(true);
+    });
   });
 
   it('pede a primeira página com limit e offset explícitos', async () => {

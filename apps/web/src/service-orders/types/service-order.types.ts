@@ -58,6 +58,8 @@ export type ServiceOrderDetail = {
   status: ServiceOrderStatus;
   origin: string;
   clientId: string | null;
+  /** FK persistida; opcional durante transição de contratos da API antiga. */
+  contractId?: string | null;
   clientSnapshot: Record<string, unknown> | null;
   /**
    * Vinculo de ORIGEM da ordem: a solicitacao que a originou.

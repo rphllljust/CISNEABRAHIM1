@@ -40,6 +40,7 @@ function requireExactlyOne<T>(
 
 type Origin = {
   client_id: string;
+  contract_id: string;
   service_order_id: string;
   measurement_id: string;
   billing_record_id: string;
@@ -72,7 +73,7 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
 
   for (const scenario of scenarios) {
     const origin = requireExactlyOne('ORIGIN', scenario, (await pool.query<Origin>(
-      `SELECT c.id AS client_id, so.id AS service_order_id, m.id AS measurement_id,
+      `SELECT c.id AS client_id, ct.id AS contract_id, so.id AS service_order_id, m.id AS measurement_id,
               br.id AS billing_record_id, bd.id AS billing_document_id, r.id AS receivable_id,
               bd.total_amount::text AS document_amount, r.principal::text AS principal,
               r.currency_code, so.unit_id, so.contract_snapshot, so.service_snapshot,
@@ -80,6 +81,8 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
          FROM pty.clients c
          JOIN so.service_orders so ON so.client_id = c.id AND so.status = 'COMPLETED'
            AND so.contract_snapshot->>'status' = 'ACTIVE'
+         JOIN com.contracts ct ON ct.id = so.contract_id
+           AND ct.client_id = c.id AND ct.unit_id = so.unit_id AND ct.status = 'ACTIVE'
          JOIN msr.measurements m ON m.service_order_id = so.id AND m.status = 'APPROVED'
          JOIN bil.billing_records br ON br.service_order_id = so.id AND br.measurement_id = m.id
          JOIN bil.billing_documents bd ON bd.billing_record_id = br.id AND bd.status = 'FINALIZED'
@@ -219,6 +222,7 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
     evidence.push({
       scenario,
       clientId: origin.client_id,
+      contractId: origin.contract_id,
       serviceOrderId: origin.service_order_id,
       measurementId: origin.measurement_id,
       billingRecordId: origin.billing_record_id,

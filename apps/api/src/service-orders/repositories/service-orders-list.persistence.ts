@@ -11,7 +11,7 @@ export async function listServiceOrders(pool: Pool,
     const result = await pool.query<ServiceOrderRow>(
       `SELECT
          so.id, so.internal_code, so.order_number, so.unit_id, so.status::text AS status, so.origin::text AS origin,
-         so.client_id, so.client_snapshot, so.service_definition_id, so.service_definition_version_id,
+         so.client_id, so.contract_id, so.client_snapshot, so.service_definition_id, so.service_definition_version_id,
          so.service_snapshot, so.description, so.location, so.priority, so.operational_notes,
          so.service_request_id, so.proposal_id, so.proposal_snapshot, so.purchase_order_id, so.purchase_order_snapshot,
          so.rc_number, so.contract_reference, so.contract_snapshot,

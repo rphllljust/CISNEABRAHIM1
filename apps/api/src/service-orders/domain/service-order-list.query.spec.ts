@@ -10,6 +10,37 @@ import {
 } from './service-order-list.query';
 
 describe('service-order-list.query', () => {
+  const CONTRACT_A1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+  const CONTRACT_A2 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
+
+  it('aplica contractId à MESMA consulta e contagem, em conjunção com PDP, cliente, unidade e estado', () => {
+    const query = parseListServiceOrdersQuery({
+      contractId: CONTRACT_A1,
+      clientId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      unitId: 'unit-a',
+      status: SERVICE_ORDER_STATUSES.Completed,
+      limit: '5',
+      offset: '5',
+    });
+    const sql = buildServiceOrderListSqlParts(query, 'unit_id = $1', ['unit-a']);
+    expect(sql.whereClause).toContain('so.unit_id = $1');
+    expect(sql.whereClause).toContain('so.client_id = $2::uuid');
+    expect(sql.whereClause).toContain('so.contract_id = $3::uuid');
+    expect(sql.whereClause).toContain('so.unit_id = $4');
+    expect(sql.whereClause).toContain('so.status = $5::so.service_order_status');
+    expect(sql.params).toEqual(['unit-a','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',CONTRACT_A1,'unit-a',SERVICE_ORDER_STATUSES.Completed]);
+    expect(query.limit).toBe(5);
+    expect(query.offset).toBe(5);
+  });
+
+  it('recusa contractId inválido ou vazio, em vez de ampliar silenciosamente a carteira', () => {
+    expect(() => parseListServiceOrdersQuery({contractId:'invalid-uuid'})).toThrow();
+    expect(() => parseListServiceOrdersQuery({contractId:''})).toThrow();
+    expect(() => parseListServiceOrdersQuery({contractId:' '})).toThrow();
+    const query = parseListServiceOrdersQuery({contractId:CONTRACT_A2});
+    expect(buildServiceOrderListSqlParts(query, 'TRUE', []).params).toEqual([CONTRACT_A2]);
+  });
+
   it('parses pagination defaults and confirmed filters', () => {
     const parsed = parseListServiceOrdersQuery({
       limit: '10',

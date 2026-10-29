@@ -1,6 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
 import { useCallback, useEffect, useState } from 'react';
 import { listClients } from '../../clients/api/clients-api';
+import { listServiceOrders, ServiceOrdersApiError, type ServiceOrderSummary } from '../../service-orders/api/service-orders-api';
+import { ServiceOrderStatusBadge } from '../../service-orders/components/ServiceOrderStatusBadge';
 import {
   activateContract,
   closeContract,
@@ -75,6 +77,12 @@ type DetailState =
   | { phase: 'not_found' }
   | { phase: 'error'; message: string }
   | { phase: 'ready'; detail: ContractDetail };
+
+type LinkedOrders =
+  | { phase: 'loading' }
+  | { phase: 'denied' }
+  | { phase: 'error' }
+  | { phase: 'ready'; rows: ServiceOrderSummary[]; total: number | null };
 
 type ActionKind = 'update' | 'activate' | 'close' | 'expire';
 
@@ -165,6 +173,26 @@ export function ContractsDetailPage() {
   const [editValues, setEditValues] = useState<ContractFormValues | null>(null);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [clientsLoading, setClientsLoading] = useState(true);
+  const [linkedOrders, setLinkedOrders] = useState<LinkedOrders>({ phase: 'loading' });
+  // Uma única consulta autorizada serve ao painel de OS e à relação numerada.
+  useEffect(() => {
+    if (!contractId) return;
+    const controller = new AbortController();
+    setLinkedOrders({ phase: 'loading' });
+    void listServiceOrders({ limit: 10, offset: 0, contractId }, controller.signal)
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        const total = typeof response.total === 'number' && Number.isSafeInteger(response.total) && response.total >= 0
+          ? response.total : null;
+        setLinkedOrders({ phase: 'ready', rows: response.items, total });
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          setLinkedOrders({ phase: error instanceof ServiceOrdersApiError && error.kind === 'denied' ? 'denied' : 'error' });
+        }
+      });
+    return () => controller.abort();
+  }, [contractId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -430,6 +458,13 @@ export function ContractsDetailPage() {
       allowed: Boolean(contract.clientId),
     },
     {
+      id: 'contract-orders',
+      label: 'Ordens de serviço',
+      count: linkedOrders.phase === 'ready' ? linkedOrders.total ?? 0 : 0,
+      to: `/app/service-orders?contractId=${encodeURIComponent(contract.id)}`,
+      allowed: linkedOrders.phase === 'ready' && linkedOrders.total !== null,
+    },
+    {
       id: 'contract-items',
       label: 'Itens',
       count: items.length,
@@ -602,6 +637,49 @@ export function ContractsDetailPage() {
           ("passa a produzir efeito", "encerra e exige motivo"), e quando nao ha comando o bloco diz
           por que — porque a ausencia de botao e uma informacao de processo, nao um vazio.
         */}
+        {linkedOrders.phase !== 'denied' ? (
+          <ObjectPanel title="Ordens vinculadas">
+            {linkedOrders.phase === 'loading' ? (
+              <p className="m-0 text-sm text-gray-600" role="status">Carregando ordens vinculadas…</p>
+            ) : linkedOrders.phase === 'error' ? (
+              <p className="m-0 text-sm text-red-700" role="alert">
+                Não foi possível consultar as ordens do contrato. A ausência de resposta não indica carteira vazia.
+              </p>
+            ) : linkedOrders.rows.length === 0 ? (
+              <p className="m-0 text-sm text-gray-600">Nenhuma ordem vinculada ao contrato no escopo autorizado.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm" aria-label="Ordens vinculadas ao contrato">
+                  <thead><tr>
+                    <th scope="col" className="py-2 pr-3">Ordem de serviço</th>
+                    <th scope="col" className="py-2 pr-3">Situação</th>
+                    <th scope="col" className="py-2 pr-3">Prazo</th>
+                    <th scope="col" className="py-2 pr-3">Unidade</th>
+                  </tr></thead>
+                  <tbody>
+                    {linkedOrders.rows.map((order) => (
+                      <tr key={order.id} className="border-t border-gray-200">
+                        <td className="py-2 pr-3"><Link className="font-semibold text-brand-700 no-underline hover:underline" to={`/app/service-orders/${order.id}`}>{order.orderNumber}</Link></td>
+                        <td className="py-2 pr-3"><ServiceOrderStatusBadge status={order.status} /></td>
+                        <td className="py-2 pr-3">{order.deadlineAt ? formatDateTime(order.deadlineAt) : 'Prazo não publicado'}</td>
+                        <td className="py-2 pr-3"><UnitScopeLabel unitId={order.unitId} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {linkedOrders.phase === 'ready' ? (
+              <div className="mt-2 flex items-center justify-between gap-3 border-t border-gray-200 pt-2 text-xs text-gray-600">
+                <span>{linkedOrders.total === null ? 'Total não publicado pelo servidor' : `${linkedOrders.total} ordens no recorte autorizado`}</span>
+                <Link to={`/app/service-orders?contractId=${encodeURIComponent(contract.id)}`} className="font-semibold text-brand-700 no-underline hover:underline">
+                  Ver carteira do contrato
+                </Link>
+              </div>
+            ) : null}
+          </ObjectPanel>
+        ) : null}
+
         <ObjectPanel title="Comandos disponíveis">
           {availableActions.length === 0 ? (
             <p className="m-0 text-sm text-gray-600">
@@ -771,18 +849,12 @@ export function ContractsDetailPage() {
         {/*
           CAMADAS DE PROFUNDIDADE NÃO PUBLICADAS — declaradas, nunca inventadas.
 
-          O contrato de leitura do contrato (`ContractDetailResponse`) publica três coisas: o
-          contrato, os itens e os vínculos de documento. As camadas abaixo são do VOCABULÁRIO do
-          domínio — o operador as procura numa ficha de contrato — mas não têm fonte nesta leitura.
-          Esconder cada uma faria o operador concluir "este contrato não tem OS", que é a leitura
-          errada; declará-las diz a verdade: elas existem no produto e não estão publicadas aqui.
+          A carteira de OS agora é carregada pelo endpoint autoritativo ?contractId
+          e exposta acima, sem inferência por cliente. Somente Medições e Contexto
+          Financeiro ainda não possuem read model agregado no detalhe do contrato.
         */}
         <ObjectPanel title="Profundidade não publicada nesta leitura">
           <div className="flex flex-col gap-2">
-            <UnavailableCapability
-              title="Ordens de serviço relacionadas"
-              reason="A OS persiste o vínculo com o contrato, mas a listagem de ordens não publica filtro por contrato — não há leitura que devolva as OS deste contrato sem inferi-las pelo cliente."
-            />
             <UnavailableCapability
               title="Medições"
               reason="A medição pertence ao ciclo da ordem de serviço e não é publicada no detalhe do contrato."

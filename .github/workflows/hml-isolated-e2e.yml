@@ -6,6 +6,7 @@ on:
     branches:
       - 'hml/isolated-e2e-runner'
       - 'test/hml-economic-spine-proof'
+      - 'feat/contract-service-order-360'
       - main
 
 concurrency:
@@ -93,9 +94,18 @@ jobs:
           pnpm --filter @cisne/api test:hml
           pnpm --filter @cisne/api test:synthetic-seed
 
+      - name: HML financial economic spine ALFA/BETA 2/2
+        run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export CISNE_ENV=hml
+          export HML_INTEGRATIONS_SANDBOX=true
+          mkdir -p artifacts/hml
+          pnpm --filter @cisne/api exec tsx src/synthetic-seed/cli/verify-hml-economic-spine.ts | tee artifacts/hml/economic-navigation.json
+
       - name: Chromium HML real browser gate
         env:
           HML_WEB_URL: http://127.0.0.1:5174
+          HML_NAVIGATION_EVIDENCE: ../../artifacts/hml/economic-navigation.json
         run: |
           set -a
           . .env.hml
@@ -104,7 +114,7 @@ jobs:
           test -n "$HML_SMOKE_LOGIN"
           test -n "$HML_SMOKE_PASSWORD"
           pnpm --filter @cisne/web exec playwright install --with-deps chromium
-          pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts
+          pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts e2e/hml/contract-os-enterprise-hml.spec.ts
 
       - name: HML authoritative business verdict
         run: |
@@ -112,13 +122,6 @@ jobs:
           export CISNE_ENV=hml
           export HML_INTEGRATIONS_SANDBOX=true
           pnpm --filter @cisne/api exec tsx src/synthetic-seed/cli/verify-hml-business.ts
-
-      - name: HML financial economic spine ALFA/BETA 2/2
-        run: |
-          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
-          export CISNE_ENV=hml
-          export HML_INTEGRATIONS_SANDBOX=true
-          pnpm --filter @cisne/api exec tsx src/synthetic-seed/cli/verify-hml-economic-spine.ts
 
       - name: Upload HML evidence
         if: always()
@@ -131,6 +134,7 @@ jobs:
             tmp/**
             artifacts/**
             test-results-hml/**
+            apps/web/test-results-hml/**
             playwright-report/**
             docker/hml/**
             .env.hml.example

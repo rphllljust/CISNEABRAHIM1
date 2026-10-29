@@ -9,6 +9,7 @@ export type ContractsFetchMockOptions = {
   probeAllowed?: boolean;
   listAllowed?: boolean;
   createAllowed?: boolean;
+  linkedOrdersAccess?: 'allowed' | 'denied' | 'error' | 'unknown-total';
   /** Próxima mutação responde 409 COMMERCIAL_CONTRACT_VERSION_CONFLICT (uma vez). */
   versionConflictOnNext?: boolean;
 };
@@ -129,6 +130,7 @@ export function createContractsFetchMock(options: ContractsFetchMockOptions = {}
       if (pathname === '/api/v1/me' && method === 'GET') {
         const permissions = [
           ...(listAllowed ? ['commercial:contract:list', 'commercial:contract:read'] : []),
+          ...(options.linkedOrdersAccess === 'denied' ? [] : ['service-orders:service-order:list']),
           ...(createAllowed ? ['commercial:contract:create'] : []),
           'commercial:contract:update',
           'commercial:contract:activate',
@@ -165,6 +167,32 @@ export function createContractsFetchMock(options: ContractsFetchMockOptions = {}
           // `total`/`totalPages` fazem parte do contrato publicado da listagem de Clientes.
           total: 1,
           totalPages: 1,
+        });
+      }
+
+      if (pathname === '/api/v1/service-orders' && method === 'GET') {
+        const auth = init?.headers ? new Headers(init.headers).get('authorization') : null;
+        if (!auth?.startsWith('Bearer ')) return contractError('AUTH_UNAUTHORIZED', 401);
+        if (options.linkedOrdersAccess === 'denied') return contractError('SERVICE_ORDERS_DENIED', 403);
+        if (options.linkedOrdersAccess === 'error') return contractError('SERVICE_ORDERS_INTERNAL', 500);
+        const contractId = searchParams.get('contractId');
+        const limit = Number(searchParams.get('limit') ?? '10');
+        const offset = Number(searchParams.get('offset') ?? '0');
+        const list = contractId === CONTRACT_A_ID
+          ? Array.from({ length: options.linkedOrdersAccess === 'unknown-total' ? 10 : 1 },
+              (_, index) => ({
+                id: `77777777-7777-4777-8777-${String(index + 1).padStart(12, '0')}`,
+                orderNumber: `OS-CTR-${String(index + 1).padStart(4, '0')}`,
+                unitId: 'UNIT-A',
+                status: 'COMPLETED',
+                contractId,
+                deadlineAt: null,
+              }))
+          : [];
+        const total = options.linkedOrdersAccess === 'unknown-total' ? undefined : list.length;
+        return jsonResponse({
+          items: list.slice(offset, offset + limit),
+          limit, offset, ...(total === undefined ? {} : { total }),
         });
       }
 
