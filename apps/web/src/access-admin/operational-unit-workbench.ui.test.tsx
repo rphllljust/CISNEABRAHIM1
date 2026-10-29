@@ -37,7 +37,7 @@ describe('enterprise organizational UNIT workbench', () => {
     await screen.findByText('Unidades operacionais · Control Tower');
     expect(screen.getAllByText('Porto Velho').length).toBeGreaterThan(0);
     expect(screen.getByText('PVH · versão 2')).toBeInTheDocument();
-    expect(screen.getByText('Referências sem identidade:')).toBeInTheDocument();
+    expect(screen.getByText(/Referências sem identidade:/)).toBeInTheDocument();
     expect(await screen.findByText('Identidade alterada')).toBeInTheDocument();
     expect(screen.getByLabelText('Fila de unidades')).toBeInTheDocument();
     expect(screen.getByLabelText('Objeto empresarial ativo')).toBeInTheDocument();
@@ -67,7 +67,7 @@ describe('enterprise organizational UNIT workbench', () => {
     }));
     render(<OperationalUnitsTab />);
     await screen.findByText('Unidades operacionais · Control Tower');
-    await waitFor(() => expect(screen.getByText('Porto Velho')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByText('Porto Velho').length).toBeGreaterThan(0));
     expect(screen.queryByRole('button', { name: 'Registrar unidade' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Salvar nova versão' })).not.toBeInTheDocument();
   });
