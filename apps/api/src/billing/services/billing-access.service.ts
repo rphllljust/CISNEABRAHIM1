@@ -488,6 +488,14 @@ export class BillingAccessService {
       throw this.mapPurchaseOrderConsumptionError(error);
     }
 
+    if (result.outcome === 'measurement_changed') {
+      throw new BillingHttpException(
+        HttpStatus.CONFLICT,
+        BILLING_ERROR_CODES.BILLING_MEASUREMENT_CHANGED,
+        'Approved measurement changed while preparing billing. Reload the authoritative basis.',
+      );
+    }
+
     if (result.outcome === 'already_exists') {
       throw new BillingHttpException(
         HttpStatus.CONFLICT,
