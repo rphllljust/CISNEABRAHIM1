@@ -137,7 +137,7 @@ describe('Operational UNIT master — real business and authorization E2E', () =
     });
     expect(noCreate.statusCode).toBe(403);
     const dispatch = await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM so.service_orders WHERE unit_id = $1', [refId]);
-    expect(dispatch.rows[0].total).toBe(0);
+    expect(dispatch.rows[0]?.total).toBe(0);
 
     // An authorization-reference deletion MUST NOT delete the business master.
     await pool.query('DELETE FROM "authorization".scope_refs WHERE scope_type = $1 AND ref_id = $2', ['UNIT', refId]);
@@ -149,7 +149,7 @@ describe('Operational UNIT master — real business and authorization E2E', () =
     const administrator = await login([masterGrant(AUTHZ_ACTIONS.OperationalUnitManage)]);
     const code = `E2E-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
     const createBody = { code, name: 'Unidade Original', idempotencyKey: 'idempotent-create-01' };
-    const sendCreate = (payload: unknown) => app.inject({
+    const sendCreate = (payload: Record<string, string>) => app.inject({
       method: 'POST', url: api, headers: { authorization: administrator.authorization }, payload,
     });
     const first = await sendCreate(createBody);
@@ -166,7 +166,7 @@ describe('Operational UNIT master — real business and authorization E2E', () =
     expect(duplicateCode.statusCode).toBe(409);
 
     const updateBody = { name: 'Unidade Atualizada', expectedVersion: 1, idempotencyKey: 'version-update-01' };
-    const sendUpdate = (payload: unknown) => app.inject({
+    const sendUpdate = (payload: { name: string; expectedVersion: number; idempotencyKey: string }) => app.inject({
       method: 'PATCH', url: `${api}/${original.id}`,
       headers: { authorization: administrator.authorization }, payload,
     });
@@ -199,8 +199,8 @@ describe('Operational UNIT master — real business and authorization E2E', () =
     ]);
     expect(versions.map((response) => response.statusCode).sort()).toEqual([200, 409]);
     const rows = await pool.query<{ version: number }>('SELECT version FROM pty.operational_units WHERE id = $1', [unit.id]);
-    expect(rows.rows[0].version).toBe(2);
+    expect(rows.rows[0]?.version).toBe(2);
     const events = await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM pty.operational_unit_history WHERE unit_id = $1', [unit.id]);
-    expect(events.rows[0].total).toBe(2);
+    expect(events.rows[0]?.total).toBe(2);
   });
 });
