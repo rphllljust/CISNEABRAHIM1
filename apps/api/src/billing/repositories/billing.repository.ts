@@ -243,9 +243,9 @@ export class BillingRepository {
                     AND lower(regexp_replace(trim(br.payment_terms), '\\s+', ' ', 'g')) <> lower(regexp_replace(trim(br.payment_terms_authoritative), '\\s+', ' ', 'g')) THEN 'COMMERCIAL_TERMS_DIVERGE'
                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                     AND (${CONTRACTUAL_AMOUNT_SQL}) !~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN 'BILLING_BASIS_MISSING'
-                  WHEN m.status = 'APPROVED' AND (item_totals.currency_count = 0 OR item_totals.invalid_currency_count > 0)
+                  WHEN m.status = 'APPROVED' AND item_totals.item_count > 0 AND (item_totals.currency_count = 0 OR item_totals.invalid_currency_count > 0)
                     THEN 'BILLING_CURRENCY_UNVERIFIED'
-                  WHEN m.status = 'APPROVED' AND (
+                  WHEN m.status = 'APPROVED' AND item_totals.item_count > 0 AND (
                     item_totals.currency_count > 1
                     OR (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NOT NULL
                         AND UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) <> item_totals.currency_code)
@@ -261,9 +261,9 @@ export class BillingRepository {
                   WHEN doc.status = 'CANCELLED' THEN COALESCE(doc.cancel_reason, 'Documento interno cancelado')
                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                     AND (${CONTRACTUAL_AMOUNT_SQL}) !~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN 'O snapshot comercial não contém uma base de faturamento válida para esta política.'
-                  WHEN m.status = 'APPROVED' AND (item_totals.currency_count = 0 OR item_totals.invalid_currency_count > 0)
+                  WHEN m.status = 'APPROVED' AND item_totals.item_count > 0 AND (item_totals.currency_count = 0 OR item_totals.invalid_currency_count > 0)
                     THEN 'Há itens aprovados sem moeda comercial válida: verificar o snapshot do preço.'
-                  WHEN m.status = 'APPROVED' AND (
+                  WHEN m.status = 'APPROVED' AND item_totals.item_count > 0 AND (
                     item_totals.currency_count > 1
                     OR (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NOT NULL
                         AND UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) <> item_totals.currency_code)
