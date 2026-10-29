@@ -44,7 +44,7 @@ import type { DispatchBoardItem, DispatchBoardReadModel } from '../types/operati
  * habilita botão por formulação local — o comando `DISPATCH` já chega com
  * `enabled` e `reasons` decididos pelo servidor. Não calcula SLA.
  */
-export function DispatchBoardPage({ unitId, onSelectOrder }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void }) {
+export function DispatchBoardPage({ unitId, onSelectOrder, onCommandSettled }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void; onCommandSettled?: () => void }) {
   const [state, setState] = useState<
     | { phase: 'loading' }
     | { phase: 'denied' }
@@ -120,6 +120,7 @@ export function DispatchBoardPage({ unitId, onSelectOrder }: { unitId: string | 
           message: `Ordem ${overview.identity.orderNumber} despachada.`,
         });
         reload();
+        onCommandSettled?.();
       } catch (error) {
         const reasons = error instanceof OperationsApiError ? error.blockingReasons : [];
         setFeedback({
@@ -130,11 +131,12 @@ export function DispatchBoardPage({ unitId, onSelectOrder }: { unitId: string | 
               : describeOperationsError(error),
         });
         reload();
+        onCommandSettled?.();
       } finally {
         setBusyOrderId(null);
       }
     },
-    [busyOrderId, reload, unitId],
+    [busyOrderId, reload, unitId, onCommandSettled],
   );
 
   const board = state.phase === 'ready' ? state.board : null;
