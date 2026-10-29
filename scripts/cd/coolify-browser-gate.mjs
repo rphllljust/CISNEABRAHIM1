@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 15065)
+Total output lines: 1235
+
 /**
  * BROWSER GATE DE PRODUÇÃO — valida a INTERFACE RENDERIZADA no runtime real.
  *
@@ -66,6 +69,16 @@ if (!chromium) {
 }
 
 const OUT = process.env['BROWSER_GATE_OUT'] ?? 'artifacts/browser-gate';
+
+const BUSINESS_CHECK_NAMES = new Set([
+  'MEDIÇÃO expõe aceite do cliente',
+  'MEDIÇÃO expõe elegibilidade de faturamento',
+  'MEDIÇÃO não mede em unidade física (HOUR/KM)',
+]);
+
+export function isBusinessCheckName(name) {
+  return BUSINESS_CHECK_NAMES.has(name);
+}
 
 const results = [];
 /**
@@ -595,9 +608,7 @@ async function main() {
      *
      * A asserção anterior procurava a string "Resumo da contabilização" no texto da
      * página. Esse é o `aria-label` do elemento — rótulo de acessibilidade, não conteúdo
-     * visível. A faixa renderiza os NÚMEROS: `UNIDADE / UN-PROD-001 / N FALHARAM /
-     * N PENDENTES / N ESTORNADAS`. A busca nunca podia casar, e o gate reprovava uma tela
-     * CORRETA por um seletor errado — um falso negativo que corrói a confiança no gate.
+     * v…65 tokens truncated…te.
      *
      * Medido em produção: a faixa exibia `1 FALHARAM · 0 PENDENTES · 0 ESTORNADAS` e a
      * asserção reprovava.
@@ -1170,12 +1181,7 @@ async function main() {
    *
    * A saída agora é a CONJUNÇÃO das três condições, nunca a contagem.
    */
-  const businessCheckNames = new Set([
-    'MEDIÇÃO publica resultado autoritativo de aceite',
-    'MEDIÇÃO publica resultado autoritativo de elegibilidade',
-    'MEDIÇÃO não mede em unidade física (HOUR/KM)',
-  ]);
-  const technicalResults = results.filter((result) => !businessCheckNames.has(result.name));
+  const technicalResults = results.filter((result) => !isBusinessCheckName(result.name));
   const technicalPassed = technicalResults.filter((result) => result.passed === true).length;
   const verdict = decideReleaseVerdict({
     passed: technicalPassed,

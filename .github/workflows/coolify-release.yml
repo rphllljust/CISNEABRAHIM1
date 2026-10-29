@@ -290,6 +290,7 @@ jobs:
           BROWSER_GATE_OUT: artifacts/browser-gate
         run: |
           set -euo pipefail
+          mkdir -p artifacts/browser-gate
           node scripts/cd/install-playwright-chromium.mjs
           node scripts/cd/coolify-browser-gate.mjs | tee artifacts/browser-gate/verdict.log
           grep -Fq '[coolify-browser-gate] runtimeVerified=true' artifacts/browser-gate/verdict.log
