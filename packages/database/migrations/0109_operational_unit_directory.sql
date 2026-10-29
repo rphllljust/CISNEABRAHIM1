@@ -17,5 +17,5 @@ CREATE TABLE "authorization".operational_unit_directory (
   CONSTRAINT operational_unit_directory_scope_ref_fk
     FOREIGN KEY (scope_type, ref_id)
     REFERENCES "authorization".scope_refs(scope_type, ref_id)
-    ON DELETE RESTRICT
+    ON DELETE CASCADE
 );
