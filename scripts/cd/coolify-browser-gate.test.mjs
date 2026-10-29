@@ -87,7 +87,7 @@ describe('browser gate — cobertura da vertical de medição', () => {
       identity: { customerId: 'cust-1', measurementId: 'measurement-1', serviceOrderId: 'so-1' },
       businessContext: { customerId: 'cust-1', contract: 'contract-1' },
       statuses: { execution: 'CLOSED', measurement: 'APPROVED', billing: 'PREPARED' },
-      acceptance: { state: 'ACCEPTED', latest: { result: 'ACCEPTED' } },
+      acceptance: { state: 'ACCEPTED', blocksBilling: false, latest: { result: 'ACCEPTED' } },
       billingEligibility: { result: 'READY' },
       quantities: { lines: [{ unitOfMeasure: 'DAY', actual: '1' }] },
       measurementBasis: { lines: [{ unitCode: 'DAY' }] },
@@ -111,6 +111,33 @@ describe('browser gate — cobertura da vertical de medição', () => {
     assert.equal(proof.economicTraceVerified, true);
     assert.equal(proof.outcome, 'BUSINESS_VALIDATED');
     assert.equal(proof.verified, true);
+  });
+
+  it('aceite contraditório ou bloqueado nunca valida a empresa, mesmo com demais provas íntegras', () => {
+    const accepted = {
+      identity: { measurementId: 'm1', serviceOrderId: 'so1' },
+      businessContext: { customerId: 'c1', contract: 'ct1' },
+      statuses: { execution: 'COMPLETED', measurement: 'APPROVED', billing: 'PREPARED' },
+      acceptance: { state: 'ACCEPTED', blocksBilling: false, latest: { result: 'ACCEPTED' } },
+      billingEligibility: { result: 'READY' },
+      quantities: { lines: [{ unitOfMeasure: 'DAY', actual: '1' }] },
+      measurementBasis: { lines: [{ unitCode: 'DAY' }] },
+      items: [{ unitCode: 'DAY', measuredQuantity: '1', lineAmount: '100' }],
+      evidence: [{ id: 'e1' }],
+      documentFlow: [{ kind: 'BILLING_RECORD', state: 'EXISTS', reference: 'br1' }],
+      economicTrace: { complete: true },
+    };
+    assert.equal(evaluateMeasurementBusinessProof(accepted).verified, true);
+    for (const acceptance of [
+      { state: 'ACCEPTED', blocksBilling: false, latest: { result: 'REJECTED' } },
+      { state: 'REJECTED', blocksBilling: false, latest: { result: 'ACCEPTED' } },
+      { state: 'ACCEPTED', blocksBilling: true, latest: { result: 'ACCEPTED' } },
+      { state: 'ACCEPTED', latest: { result: 'ACCEPTED' } },
+    ]) {
+      const proof = evaluateMeasurementBusinessProof({ ...accepted, acceptance });
+      assert.equal(proof.acceptanceVerified, false);
+      assert.equal(proof.verified, false);
+    }
   });
 
   it('títulos sem estado autoritativo nunca aprovam negócio', () => {

@@ -215,7 +215,10 @@ export function evaluateMeasurementBusinessProof(workbench) {
 
   // A pending acceptance or a merely evaluable billing decision is operational
   // evidence, never proof of a completed business chain.
-  const acceptanceVerified = acceptanceState === 'ACCEPTED' || acceptanceResult === 'ACCEPTED';
+  const acceptanceVerified =
+    acceptanceState === 'ACCEPTED' &&
+    acceptanceResult === 'ACCEPTED' &&
+    workbench?.acceptance?.blocksBilling === false;
   const eligibilityVerified = eligibilityResult === 'READY';
   const commercialUnitVerified = hasOnlyCommercialMeasurementUnits(workbench);
   const authoritativeCustomerVerified =
@@ -239,6 +242,7 @@ export function evaluateMeasurementBusinessProof(workbench) {
   const explicitBusinessFailure =
     acceptanceState === 'REJECTED' ||
     acceptanceResult === 'REJECTED' ||
+    workbench?.acceptance?.blocksBilling === true ||
     eligibilityResult === 'BLOCKED' ||
     normalizedCode(statuses.measurement) === 'REJECTED' ||
     prohibitedCommercialUnit;
