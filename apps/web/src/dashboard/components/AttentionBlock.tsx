@@ -71,7 +71,7 @@ export function AttentionBlock({ items }: AttentionBlockProps) {
 
   return (
     <section className="dashboard-decision" aria-labelledby="attention-heading">
-      <header className="dashboard-section-head">
+      <div className="dashboard-section-head">
         <h2 id="attention-heading" className="dashboard-section-head__title">
           Central de decisão
         </h2>
@@ -79,7 +79,7 @@ export function AttentionBlock({ items }: AttentionBlockProps) {
           {ordered.length} {ordered.length === 1 ? 'exceção' : 'exceções'} · {criticalCount}{' '}
           {criticalCount === 1 ? 'crítica' : 'críticas'} · mais urgente primeiro
         </p>
-      </header>
+      </div>
 
       <ul className="dashboard-decision__list">
         {ordered.map((item) => {
