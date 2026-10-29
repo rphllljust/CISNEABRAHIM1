@@ -105,8 +105,11 @@ describe('Service orders E2E', () => {
 
   it('lists only units authorized for service-order creation and accepts that unit on POST', async () => {
     await insertScopeRef(pool, { scopeType: 'UNIT', refId: UNIT_B });
+    // The organizational master is independent from access scope refs.
+    // Test cleanup cannot remove existing unit identities by revoking grants.
+    await pool.query('DELETE FROM pty.operational_units WHERE id = ANY($1::text[])', [[UNIT_A, UNIT_B]]);
     await pool.query(
-      `INSERT INTO "authorization".operational_unit_directory (ref_id, code, business_name)
+      `INSERT INTO pty.operational_units (id, code, business_name)
        VALUES ($1, 'PVH', 'Porto Velho'), ($2, 'GUA', 'Guajará-Mirim')`,
       [UNIT_A, UNIT_B],
     );
@@ -148,7 +151,7 @@ describe('Service orders E2E', () => {
       details: [{ id: UNIT_A, code: 'PVH', name: 'Porto Velho', configured: true }],
     });
     // A missing directory record must not produce a fictitious business name.
-    await pool.query('DELETE FROM "authorization".operational_unit_directory WHERE ref_id = $1', [UNIT_A]);
+    await pool.query('DELETE FROM pty.operational_units WHERE id = $1', [UNIT_A]);
     const unconfiguredResponse = await app.inject({
       method: 'GET',
       url: '/api/v1/service-orders/operational-unit-options',
