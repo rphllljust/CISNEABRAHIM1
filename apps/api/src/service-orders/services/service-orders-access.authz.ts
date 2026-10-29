@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { OperationalUnitDirectoryService } from '../../establishments/services/operational-unit-directory.service';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { ScopeContextRepository } from '../../authorization/repositories/scope-context.repository';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
@@ -32,6 +33,7 @@ export class ServiceOrdersAccessAuthz {
     private readonly scopeContextRepository: ScopeContextRepository,
     private readonly policyDecisionPoint: PolicyDecisionPointService,
     private readonly scopeEnforcement: ScopeEnforcementService,
+    private readonly operationalUnits: OperationalUnitDirectoryService,
   ) {}
 
   async getListScopeFilter(actor: IdentityAuthzContext) {
@@ -111,11 +113,50 @@ export class ServiceOrdersAccessAuthz {
     details: Array<{ id: string; code: string | null; name: string | null; configured: boolean }>;
   }> {
     const items = await this.listCreateAuthorizedUnitIds(actor);
-    const directory = await this.scopeContextRepository.listOperationalUnitDetails(items);
+    const directory = await this.operationalUnits.listDetails(items);
     const byId = new Map(directory.map((unit) => [unit.id, unit]));
     return {
       items,
       details: items.map((id) => {
+        const unit = byId.get(id);
+        return { id, code: unit?.code ?? null, name: unit?.name ?? null, configured: unit !== undefined };
+      }),
+    };
+  }
+
+  /** Operational discovery uses LIST/read grants, NEVER create or dispatch grants. */
+  async listOperationAuthorizedUnitOptions(actor: IdentityAuthzContext): Promise<{
+    items: string[];
+    details: Array<{ id: string; code: string | null; name: string | null; configured: boolean }>;
+  }> {
+    const [direct, roleDerived, registered] = await Promise.all([
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      ),
+      this.authorizationRepository.findRoleDerivedActionRows(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+      ),
+      this.scopeContextRepository.listUnitScopeRefs(),
+    ]);
+    if (direct.length === 0 && roleDerived.length === 0) throw serviceOrdersAccessDenied();
+    const decisions = await this.policyDecisionPoint.decideBatch(
+      actor,
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      },
+      registered.map(unitId => ({ unitId })),
+      { audit: false },
+    );
+    const items = registered.filter((_, i) => decisions[i]?.result === 'ALLOW');
+    const directory = await this.operationalUnits.listDetails(items);
+    const byId = new Map(directory.map(unit => [unit.id, unit]));
+    return {
+      items,
+      details: items.map(id => {
         const unit = byId.get(id);
         return { id, code: unit?.code ?? null, name: unit?.name ?? null, configured: unit !== undefined };
       }),
