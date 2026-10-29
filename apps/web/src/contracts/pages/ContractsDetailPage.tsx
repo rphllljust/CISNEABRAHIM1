@@ -849,18 +849,12 @@ export function ContractsDetailPage() {
         {/*
           CAMADAS DE PROFUNDIDADE NÃO PUBLICADAS — declaradas, nunca inventadas.
 
-          O contrato de leitura do contrato (`ContractDetailResponse`) publica três coisas: o
-          contrato, os itens e os vínculos de documento. As camadas abaixo são do VOCABULÁRIO do
-          domínio — o operador as procura numa ficha de contrato — mas não têm fonte nesta leitura.
-          Esconder cada uma faria o operador concluir "este contrato não tem OS", que é a leitura
-          errada; declará-las diz a verdade: elas existem no produto e não estão publicadas aqui.
+          A carteira de OS agora é carregada pelo endpoint autoritativo ?contractId
+          e exposta acima, sem inferência por cliente. Somente Medições e Contexto
+          Financeiro ainda não possuem read model agregado no detalhe do contrato.
         */}
         <ObjectPanel title="Profundidade não publicada nesta leitura">
           <div className="flex flex-col gap-2">
-            <UnavailableCapability
-              title="Ordens de serviço relacionadas"
-              reason="A OS persiste o vínculo com o contrato, mas a listagem de ordens não publica filtro por contrato — não há leitura que devolva as OS deste contrato sem inferi-las pelo cliente."
-            />
             <UnavailableCapability
               title="Medições"
               reason="A medição pertence ao ciclo da ordem de serviço e não é publicada no detalhe do contrato."
