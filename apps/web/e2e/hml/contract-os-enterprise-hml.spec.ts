@@ -144,8 +144,8 @@ test.describe('HML Enterprise Journey — Cliente → Contrato → OS → Financ
       const authorizedContractLink = page.getByRole("region", { name: "Relações" })
         .locator(`a[href="/app/contracts/${verified.contractId}"]`);
       await expect(authorizedContractLink).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByRole('link', { name: /abrir medição/i })).toBeVisible();
-      await expect(page.getByRole('link', { name: /abrir faturamento/i })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Abrir medição', exact: true })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Abrir faturamento', exact: true })).toBeVisible();
       await page.screenshot({ path: test.info().outputPath(`${label.toLowerCase()}-os-after.png`), fullPage: true });
 
       await page.setViewportSize({ width: 1024, height: 768 });
@@ -154,7 +154,7 @@ test.describe('HML Enterprise Journey — Cliente → Contrato → OS → Financ
 
       // Próximos documentos são fatos já persistidos e conferidos no arquivo
       // de prova, NUNCA IDs deduzidos do número da OS ou do cliente.
-      await page.getByRole('link', { name: /abrir medição/i }).click();
+      await page.getByRole('link', { name: 'Abrir medição', exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`/app/service-orders/${verified.serviceOrderId}/measurement`));
       await page.goto(`${root}/app/service-orders/${verified.serviceOrderId}/billing`, { waitUntil: 'domcontentloaded' });
       await expect(page.locator('#main-content')).toBeVisible();
