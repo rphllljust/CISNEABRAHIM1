@@ -78,3 +78,7 @@ Registro normativo e blocos copiaveis: [`prompt-pack-erp-nativo.md`](prompt-pack
 | ERP-N-10 | Uma flag em HML (ordem nominada) | `NOT_STARTED` |
 
 Este apendice **nao** executa ERP-N-00.
+
+## Atualização de execução — contrato de validação (2026-10-29)
+
+A execução autorizada de validação de produção separa runtime, release e evidência empresarial (ED-007). Esta atualização não inicia nem conclui qualquer prompt preliminar do roadmap, não altera regra de negócio e não substitui o gate oficial de produção. O readiness oficial permanece NO-GO até os blockers registrados serem resolvidos por evidência autorizada. Detalhes e limites estão no `prompt-execution-log.md`.

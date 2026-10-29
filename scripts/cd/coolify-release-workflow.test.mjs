@@ -167,4 +167,20 @@ describe('coolify-release.yml — comandos de shell portaveis', () => {
       'evidencia de falha e exatamente a que se precisa ver: o upload nao pode ser condicional ao sucesso',
     );
   });
+
+  it('separa release técnica de ausência empresarial sem aprovar business', () => {
+    const source = readWorkflow();
+    const gateIndex = source.indexOf('Browser gate against production');
+    const uploadIndex = source.indexOf('Upload browser gate evidence');
+    const gateBlock = source.slice(gateIndex, uploadIndex);
+    assert.match(gateBlock, /CISNE_RELEASE_PREREQUISITES_VERIFIED: 'true'/);
+    assert.match(gateBlock, /productionRuntimeValidated=true/);
+    assert.match(gateBlock, /businessEvidenceAvailable=false/);
+    assert.match(gateBlock, /businessVerified=false/);
+    assert.match(gateBlock, /productionBusinessValidated=NOT_APPLICABLE/);
+    assert.match(gateBlock, /productionValidated=CONDITIONAL/);
+    assert.match(gateBlock, /businessEvidenceAvailable=true/);
+    assert.match(gateBlock, /productionValidated=true/);
+    assert.doesNotMatch(gateBlock, /echo "PRODUCTION_VALIDATED=true"/);
+  });
 });

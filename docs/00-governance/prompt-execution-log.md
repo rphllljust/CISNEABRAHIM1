@@ -21303,3 +21303,36 @@ Evidência de execução: `master-business-bypass.e2e.spec.ts` 5/5 PASS; `advers
 
 Commit `07960ba7` no PR #120. Sondas temporárias de diagnóstico removidas; `packages/database/scripts/tmp-u.mjs` excluído.
 
+
+## ORDEM DIRETA — ERP TIER 1 EXPERIENCE — 2026-10-29
+
+STATUS: **IN_PROGRESS**.
+
+Autorização: ordem explícita do responsável, recebida em 2026-10-29, para inspecionar, corrigir e validar a experiência ERP Tier 1 nas superfícies do monorepo, seguindo a ordem de módulos fornecida. Esta entrada cria a etapa ativa solicitada; não declara regra de negócio nova nem altera a Definition of Ready.
+
+Escopo: delta dirigido por evidência em `apps/web`, `apps/api`, `packages/database`, testes e workflows. Reutilizar contratos, estados, capabilities, auditoria e comandos existentes; registrar lacunas sem preencher dados ou decisões empresariais ausentes. Preservar gates fail-closed e readiness NO-GO até as evidências oficiais permitirem promoção.
+
+Critério de conclusão: correções do delta com testes correspondentes concluídos; CI/Release Ready do SHA exato; publicação por digest apenas após gates; smoke e Chromium autenticado; prova empresarial existente e autorizada. Nenhum estado `N/A`, `UNKNOWN`, `SKIPPED` ou `UNPROVEN` equivale a PASS.
+
+Início: 2026-10-29T13:37:30+12:00. Arquivos de código, testes, CI e deploy: ainda não alterados nesta etapa. Quality gate: pendente. Próxima etapa: finalizar baseline local, corrigir achados reproduzíveis e validar o mesmo delta.
+
+## ORDEM FINAL — CONTRATO DE VALIDAÇÃO DE PRODUÇÃO — 2026-10-29
+
+STATUS: `LOCAL_IMPLEMENTATION_VALIDATED`; publicação e validação remota pendentes neste registro.
+
+Autorização: ordem explícita do responsável para corrigir o contrato do browser gate e separar validação de runtime, release e negócio. Cinco arquivos de UI já modificados antes desta etapa foram preservados e não foram incluídos no delta desta correção.
+
+Causa raiz: o gate antigo não modelava a ausência empresarial como estado próprio e usava semântica permissiva: `PENDING`/`BLOCKED` podiam contar como evidência positiva; cliente, contrato, OS concluída, medição aprovada, quantidade, evidência, billing referenciado e Economic Trace não eram requisitos do veredito. O workflow não publicava `productionValidated=CONDITIONAL` como resultado separado.
+
+Correção: o gate separa `runtimeVerified`, `releaseVerified`, `businessEvidenceAvailable`, `businessVerified`, `productionRuntimeValidated`, `productionBusinessValidated` e `productionValidated`. Só classifica ausência quando as fontes foram lidas; operação encontrada sem cadeia completa reprova. A prova empresarial exige estados finais e vínculos explícitos, inclusive referência de billing e `economicTrace.complete=true`. O read model atual não contém essa prova completa; portanto o verificador permanece fail-closed. O workflow aceita a classificação condicional somente depois dos pré-requisitos técnicos e preserva o NO-GO oficial de go-live.
+
+Causa dos três testes da tentativa anterior: assertions esperavam contrato antigo (filtro exclusivo por OS COMPLETED, texto de estado vazio legado e release acoplada à prova empresarial). Atualizados para o contrato correto, sem remover casos nem reduzir assertions. A regra empresarial foi ainda endurecida para que `PENDING`/`BLOCKED` nunca validem cadeia.
+
+Validação local: browser gate structure 16/16; browser gate behavior 17/17; verdict 8/8; workflow 6/6; suite `scripts/cd/*.test.mjs` 132/132 PASS com `TMPDIR` no workspace. Execução sem `TMPDIR` falhou porque o sandbox não disponibiliza `/tmp`; repetição com diretório temporário gravável passou. `git diff --check` e Prettier nos arquivos de código/workflow alterados: PASS. Gate de scripts PASS (75 scripts; 13 self-tests). Web typecheck e ESLint executados diretamente pelos binários locais: PASS; o orchestrator Turbo falhou porque o pnpm disponível é 11.25.0, incompatível com a versão exigida 10.x, e os typechecks de API/database vieram do cache como PASS. Build Web (`npm run build`): PASS (Vite concluiu; aviso de bundle principal >500 kB). CI remoto, Release Ready, GHCR, Coolify, smoke e Chromium de produção ainda não executados nesta etapa.
+
+Readiness: `production-readiness-gate.md` permanece NO-GO por blockers de go-live independentes; `productionValidated=CONDITIONAL` não é GO. Evidência empresarial real observada previamente permanece ausente no recorte de produção; nenhum dado foi criado ou removido.
+
+Próxima ação: executar gates de lint/typecheck e validar o workflow no CI após publicar o delta. Não promover produção empresarial enquanto o read model não puder provar billing e Economic Trace completos.
+
+
+Atualização de publicação (2026-10-29): correção commitada localmente sobre `ca1b6e143ff76d485b9217c3a1d72b87fa3c5e80`, após rebase da branch de trabalho sobre o `main` que já continha a contribuição dos cinco arquivos UI. `git push -u origin HEAD` foi tentado e recusado pelo ambiente por falta de credencial GitHub interativa (`could not read Username for 'https://github.com': No such device or address`). CI/Release Ready/GHCR/Coolify/smoke/Chromium remotos não iniciados; produção não alterada. A classificação local condicional não constitui release publicada.

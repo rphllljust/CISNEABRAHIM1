@@ -56,3 +56,14 @@ Lacunas usam `UNKNOWN`, `NOT_PROVIDED`, `PENDING_VALIDATION` ou `TBD` conforme o
 ## Bloqueio
 
 Ausência de fonte para regra crítica ⇒ `NOT_READY_FOR_IMPLEMENTATION`.
+
+## Evidência de release sem operação empresarial
+
+Runtime, release e negócio são dimensões independentes. Ausência de operação empresarial
+observável após leitura autoritativa deve ser registrada como
+`BUSINESS_EVIDENCE_NOT_AVAILABLE`, com `businessEvidenceAvailable=false` e
+`businessVerified=false`. Isso pode produzir `productionValidated=CONDITIONAL` quando
+runtime e release forem verdadeiros; não equivale a PASS empresarial, sign-off ou GO de
+produção. Operação existente sem cadeia completa é `BUSINESS_EVIDENCE_INCOMPLETE` ou
+`BUSINESS_VALIDATION_FAILED` e reprova a validação empresarial. Somente evidência completa
+e vinculada pode produzir `BUSINESS_VALIDATED`.

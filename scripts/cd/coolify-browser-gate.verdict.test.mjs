@@ -27,34 +27,74 @@ import { decideReleaseVerdict } from './coolify-browser-gate.mjs';
  *
  * Estes quatro casos exercitam a DECISÃO.
  */
-describe('decideReleaseVerdict — NOT_APPLICABLE nunca vira PASS', () => {
-  it('CASO 1: todas as três condições verdadeiras → exit 0', () => {
+describe('decideReleaseVerdict — runtime, release e business independentes', () => {
+  it('cadeia empresarial completa valida a produção', () => {
     const verdict = decideReleaseVerdict({
       passed: 20,
       total: 20,
       runtimeVerified: true,
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: true,
       businessVerified: true,
     });
 
     assert.equal(verdict.assertionsPass, true);
     assert.equal(verdict.releaseVerified, true);
+    assert.equal(verdict.businessEvidenceAvailable, true);
+    assert.equal(verdict.productionRuntimeValidated, true);
+    assert.equal(verdict.productionBusinessValidated, true);
+    assert.equal(verdict.productionValidated, true);
     assert.equal(verdict.exitCode, 0);
   });
 
-  it('CASO 2: runtime OK, negócio NÃO provado → exit != 0', () => {
-    // É exatamente o estado medido em produção: 19/20 assertivas, runtime
-    // saudável, capability não observada. Antes isso saía com exit 0.
+  it('sem evidência operacional, runtime/release ficam condicionais sem aprovar negócio', () => {
     const verdict = decideReleaseVerdict({
       passed: 20,
       total: 20,
       runtimeVerified: true,
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: false,
       businessVerified: false,
     });
 
     assert.equal(verdict.assertionsPass, true);
     assert.equal(verdict.businessVerified, false);
+    assert.equal(verdict.releaseVerified, true);
+    assert.equal(verdict.productionRuntimeValidated, true);
+    assert.equal(verdict.productionBusinessValidated, 'NOT_APPLICABLE');
+    assert.equal(verdict.productionValidated, 'CONDITIONAL');
+    assert.equal(verdict.exitCode, 0);
+  });
+
+  it('evidência incompleta reprova o bloco empresarial', () => {
+    const verdict = decideReleaseVerdict({
+      passed: 20,
+      total: 20,
+      runtimeVerified: true,
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: true,
+      businessVerified: false,
+    });
+
+    assert.equal(verdict.productionRuntimeValidated, true);
+    assert.equal(verdict.productionBusinessValidated, false);
+    assert.equal(verdict.productionValidated, false);
+    assert.equal(verdict.exitCode, 1);
+  });
+
+  it('release inválida reprova mesmo com runtime e negócio válidos', () => {
+    const verdict = decideReleaseVerdict({
+      passed: 20,
+      total: 20,
+      runtimeVerified: true,
+      releasePrerequisitesVerified: false,
+      businessEvidenceAvailable: true,
+      businessVerified: true,
+    });
+
     assert.equal(verdict.releaseVerified, false);
-    assert.notEqual(verdict.exitCode, 0);
+    assert.equal(verdict.productionRuntimeValidated, false);
+    assert.equal(verdict.exitCode, 1);
   });
 
   it('CASO 3: runtime NÃO verificado → exit != 0, mesmo com assertivas verdes', () => {
@@ -62,6 +102,8 @@ describe('decideReleaseVerdict — NOT_APPLICABLE nunca vira PASS', () => {
       passed: 20,
       total: 20,
       runtimeVerified: false,
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: false,
       businessVerified: false,
     });
 
@@ -74,6 +116,8 @@ describe('decideReleaseVerdict — NOT_APPLICABLE nunca vira PASS', () => {
       passed: 19,
       total: 20,
       runtimeVerified: true,
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: true,
       businessVerified: true,
     });
 
@@ -88,6 +132,8 @@ describe('decideReleaseVerdict — NOT_APPLICABLE nunca vira PASS', () => {
       passed: 0,
       total: 0,
       runtimeVerified: true,
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: false,
       businessVerified: true,
     });
 
@@ -101,6 +147,8 @@ describe('decideReleaseVerdict — NOT_APPLICABLE nunca vira PASS', () => {
       passed: 20,
       total: 20,
       runtimeVerified: 'true',
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: true,
       businessVerified: 1,
     });
 

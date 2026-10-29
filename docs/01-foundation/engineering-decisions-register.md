@@ -90,3 +90,18 @@ Ver [`../11-technology/adr/`](../11-technology/adr/) — ADR-TECH-001..007, todo
 ## Não decidido (exemplos explícitos)
 
 Cloud provider, IdP, object storage, message broker, CI platform: **não decidido** — ver TECH-DDP em [`../11-technology/technology-decisions-pending.md`](../11-technology/technology-decisions-pending.md).
+
+## ED-007 — Estados independentes para validação de runtime, release e negócio
+
+| Campo | Valor |
+| --- | --- |
+| ID | ED-007 |
+| Title | Contrato fail-closed de validação técnica e evidência empresarial em produção |
+| Status | `ACCEPTED` |
+| Decision | Runtime e release são avaliados independentemente da disponibilidade de operação empresarial. Sem evidência empresarial após leitura autoritativa, `businessEvidenceAvailable=false`, `businessVerified=false`, `productionBusinessValidated=NOT_APPLICABLE` e `productionValidated=CONDITIONAL`, desde que runtime e release estejam verificados. Evidência existente incompleta ou inválida reprova o gate. Evidência completa somente aprova com cliente, contrato, OS concluída, execução/evidência, medição aprovada e comercialmente válida, aceite, billing elegível/documentado e Economic Trace completo. |
+| Why | Ordem explícita do responsável em 2026-10-29 para eliminar ambiguidade entre os gates técnico, de release e empresarial sem fabricar fatos nem alterar regras de negócio. |
+| Consequences | Browser gate e workflow publicam os estados separados. `CONDITIONAL` não altera o NO-GO oficial de go-live. O workbench atual não prova Economic Trace completo; ausência desse vínculo mantém negócio não validado. |
+| Alternatives rejected | Tratar `N/A` ou ausência como PASS; tratar ausência de negócio como falha de infraestrutura; promover readiness oficial a GO. |
+| SOURCE / prompt | Ordem executiva do responsável recebida em 2026-10-29; sem promoção de regra empresarial. |
+| Date | 2026-10-29 |
+| Revisit when | Workbench autoritativo publicar vínculos verificáveis de billing/documento e Economic Trace, ou o contrato de validação mudar por decisão autorizada. |

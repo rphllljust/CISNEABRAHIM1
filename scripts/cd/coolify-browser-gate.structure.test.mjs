@@ -162,7 +162,9 @@ describe('o gate executa — código útil não pode estar comentado', () => {
   it('a worklist é lida DEPOIS da navegação, não antes', () => {
     const code = executableSource(readGate());
     const navIndex = code.indexOf('/app/accounting/economic-posting');
-    const worklistIndex = code.indexOf("const worklistText = await page.locator('body').innerText();");
+    const worklistIndex = code.indexOf(
+      "const worklistText = await page.locator('body').innerText();",
+    );
     assert.ok(navIndex > 0 && worklistIndex > 0, 'trechos ausentes');
     assert.ok(
       navIndex < worklistIndex,
@@ -183,28 +185,46 @@ describe('o gate executa — código útil não pode estar comentado', () => {
   it('medição espera sessão e fila por estrutura, nunca por vocabulário', () => {
     const code = executableSource(readGate());
     const measurementIndex = code.indexOf('const measurementUrl =');
-    const queuePromiseIndex = code.indexOf('const measurementQueueResponsePromise =', measurementIndex);
+    const queuePromiseIndex = code.indexOf(
+      'const measurementQueueResponsePromise =',
+      measurementIndex,
+    );
     const gotoIndex = code.indexOf('await page.goto(measurementUrl', measurementIndex);
     const shellWaitIndex = code.indexOf("locator('main#main-content')", measurementIndex);
     const queueAwaitIndex = code.indexOf(
       'const measurementQueueResponse = await measurementQueueResponsePromise;',
       measurementIndex,
     );
-    const textIndex = code.indexOf(
-      "const measurementText = await page.locator('body').innerText()",
-      measurementIndex,
-    );
+    const textIndex = code.indexOf('const measurementText = await page', measurementIndex);
     const queueCountIndex = code.indexOf('const queueCount =', measurementIndex);
 
     assert.ok(
-      [measurementIndex, queuePromiseIndex, gotoIndex, shellWaitIndex, queueAwaitIndex, textIndex, queueCountIndex]
-        .every((index) => index >= 0),
+      [
+        measurementIndex,
+        queuePromiseIndex,
+        gotoIndex,
+        shellWaitIndex,
+        queueAwaitIndex,
+        textIndex,
+        queueCountIndex,
+      ].every((index) => index >= 0),
       'trechos estruturais da medição ausentes',
     );
-    assert.ok(queuePromiseIndex < gotoIndex, 'a espera da fila precisa ser armada antes da navegação');
+    assert.match(
+      code.slice(textIndex, queueCountIndex),
+      /locator\('body'\)\s*\.innerText\(\)/,
+      'a leitura do texto deve continuar vindo do body real após a navegação',
+    );
+    assert.ok(
+      queuePromiseIndex < gotoIndex,
+      'a espera da fila precisa ser armada antes da navegação',
+    );
     assert.ok(gotoIndex < shellWaitIndex, 'o shell só pode ser esperado depois da navegação');
     assert.ok(shellWaitIndex < textIndex, 'o corpo não pode ser lido antes do App Shell');
-    assert.ok(queueAwaitIndex < queueCountIndex, 'a fila não pode ser contada antes da resposta da API');
+    assert.ok(
+      queueAwaitIndex < queueCountIndex,
+      'a fila não pode ser contada antes da resposta da API',
+    );
 
     const measurementBootstrap = code.slice(measurementIndex, textIndex);
     assert.doesNotMatch(
@@ -214,15 +234,15 @@ describe('o gate executa — código útil não pode estar comentado', () => {
     );
   });
 
-  it('fila vazia procura OS concluída read-only e prova o candidato no Chromium', () => {
+  it('fila vazia inspeciona todas as OS read-only e só abre workbench para COMPLETED', () => {
     const code = executableSource(readGate());
-    assert.match(code, /serviceOrdersUrl\.searchParams\.set\('status', 'COMPLETED'\)/);
     assert.match(code, /serviceOrdersUrl\.searchParams\.set\('unitId', resolvedUnitId\)/);
     assert.match(code, /context\.request\s*\.get\(serviceOrdersUrl\.toString\(\)/);
     assert.match(code, /extractMeasurementCandidateServiceOrderIds/);
     assert.match(code, /while \(serviceOrdersHasMore\)/);
     assert.match(code, /serviceOrdersPayload\?\.hasMore === true/);
     assert.match(code, /serviceOrdersOffset \+= pageItems\.length/);
+    assert.match(code, /normalizedCode\(item\?\.status\) === 'COMPLETED'/);
     assert.doesNotMatch(
       code,
       /extractMeasurementCandidateServiceOrderIds\([\s\S]*?resolvedUnitId,\s*25\s*,?\s*\)/,
