@@ -25,9 +25,9 @@ export function OperationsDispatchWorkspacePage({
   const [refreshToken, setRefreshToken] = useState(0);
   const requestGeneration = useRef(0);
   const [selection, setSelection] = useState<
-    | { phase: 'idle' | 'loading' }
+    | { phase: 'idle' | 'loading'; key?: string }
     | { phase: 'ready'; key: string; data: ServiceOrderOverview }
-    | { phase: 'denied' | 'error' }
+    | { phase: 'denied' | 'error'; key: string }
   >({ phase: 'idle' });
   const switchTab = (nextTab: 'dispatch' | 'execution') => {
     setSearchParams(previous => {
@@ -58,17 +58,17 @@ export function OperationsDispatchWorkspacePage({
       return;
     }
     const controller = new AbortController();
-    setSelection({ phase: 'loading' });
+    setSelection({ phase: 'loading', key: selectionKey });
     void getServiceOrderOverview(selectedOrderId, controller.signal)
       .then(data => {
         if (controller.signal.aborted || generation !== requestGeneration.current) return;
         setSelection(data.identity.serviceOrderId === selectedOrderId && data.identity.unitId === unitId
           ? { phase: 'ready', key: selectionKey, data }
-          : { phase: 'denied' });
+          : { phase: 'denied', key: selectionKey });
       })
       .catch(error => {
         if (controller.signal.aborted || generation !== requestGeneration.current) return;
-        setSelection({ phase: error instanceof OperationsApiError && error.kind === 'denied' ? 'denied' : 'error' });
+        setSelection({ phase: error instanceof OperationsApiError && error.kind === 'denied' ? 'denied' : 'error', key: selectionKey });
       });
     return () => {
       requestGeneration.current++;
@@ -77,7 +77,7 @@ export function OperationsDispatchWorkspacePage({
   }, [selectionKey, selectedOrderId, unitId, status, refreshToken]);
 
   const currentSelection = selection.phase === 'ready' && selection.key === selectionKey ? selection.data : null;
-  const selectionPhase = currentSelection ? 'ready' : selection.phase === 'ready' ? 'loading' : selection.phase;
+  const selectionPhase = currentSelection ? 'ready' : selectionKey && selection.key === selectionKey ? selection.phase : 'loading';
 
   return (
     <ModulePage layout="workspace">
@@ -167,15 +167,15 @@ export function OperationsDispatchWorkspacePage({
             {currentSelection ? (
               <div className="space-y-3">
                 <h2 className="text-base font-semibold">{currentSelection.identity.orderNumber}</h2>
-                <p className="text-xs">{selection.data.identity.clientLabel} · {selection.data.businessContext.contractReference ?? 'Contrato não publicado'}</p>
-                <p className="text-xs">Estado: {selection.data.statuses.operational} · Versão {selection.data.identity.rowVersion}</p>
-                <p className="text-xs">Próxima ação: {selection.data.nextAction.label ?? 'Não publicada'}</p>
-                {selection.data.nextAction.explanation ? <p className="text-xs">{selection.data.nextAction.explanation}</p> : null}
-                <p className="text-xs">Despacho: {selection.data.dispatch.readiness.summary}</p>
-                {selection.data.dispatch.readiness.blockingReasons.map(reason => (
+                <p className="text-xs">{currentSelection.identity.clientLabel} · {currentSelection.businessContext.contractReference ?? 'Contrato não publicado'}</p>
+                <p className="text-xs">Estado: {currentSelection.statuses.operational} · Versão {currentSelection.identity.rowVersion}</p>
+                <p className="text-xs">Próxima ação: {currentSelection.nextAction.label ?? 'Não publicada'}</p>
+                {currentSelection.nextAction.explanation ? <p className="text-xs">{currentSelection.nextAction.explanation}</p> : null}
+                <p className="text-xs">Despacho: {currentSelection.dispatch.readiness.summary}</p>
+                {currentSelection.dispatch.readiness.blockingReasons.map(reason => (
                   <p key={reason.dimension} className="text-xs">{reason.dimension}: {reason.reason ?? reason.reasonCode}</p>
                 ))}
-                <p className="text-xs">Recursos planejados: {selection.data.planning.plannedResourceCount}; alocações ativas: {selection.data.planning.activeAllocationCount}</p>
+                <p className="text-xs">Recursos planejados: {currentSelection.planning.plannedResourceCount}; alocações ativas: {currentSelection.planning.activeAllocationCount}</p>
                 <nav aria-label="Operar a OS" className="flex flex-wrap gap-3 text-sm">
                   <Link to={`/app/service-orders/${selectedOrderId}`}>OS 360</Link>
                   <Link to={`/app/service-orders/${selectedOrderId}/planning`}>Planejamento</Link>
