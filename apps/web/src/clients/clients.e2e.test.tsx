@@ -62,8 +62,9 @@ describe('clients administrative flow e2e (frontend)', () => {
     // ação primária e a operação destrutiva vive no menu "Mais ações". Os fatos verificados (abrir
     // o formulário, desativar, reativar e ver o estado mudar) são os mesmos.
     await user.click(screen.getByRole('button', { name: 'Editar' }));
-    await user.clear(screen.getByLabelText(/raz.o social/i));
-    await user.type(screen.getByLabelText(/raz.o social/i), 'Fluxo E2E Atualizado LTDA');
+    const legalName = await screen.findByLabelText(/raz.o social/i);
+    await user.clear(legalName);
+    await user.type(legalName, 'Fluxo E2E Atualizado LTDA');
     await user.click(screen.getByRole('button', { name: /salvar altera/i }));
 
     await waitFor(() => {
