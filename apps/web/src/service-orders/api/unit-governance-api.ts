@@ -12,6 +12,7 @@ export type EnterpriseOperationalUnit = {
 export type UnitGovernanceDirectory = {
   items: Array<EnterpriseOperationalUnit & { canManage: boolean }>;
   canCreate: boolean;
+  unconfigured?: string[];
 };
 
 export class UnitGovernanceError extends Error {
@@ -48,7 +49,7 @@ export function listGovernedUnits(signal?: AbortSignal): Promise<UnitGovernanceD
 }
 
 export function createGovernedUnit(input: {
-  code: string; name: string; idempotencyKey: string;
+  code: string; name: string; idempotencyKey: string; refId?: string;
 }): Promise<EnterpriseOperationalUnit> {
   return request('/api/v1/organization/operational-units', {
     method: 'POST', headers: authHeaders(), body: JSON.stringify(input),
