@@ -130,6 +130,7 @@ export type PrepareBillingPersistenceInput = {
 export type PrepareBillingPersistenceResult =
   | { outcome: 'created'; billingRecord: BillingRecordRow }
   | { outcome: 'already_exists' }
+  | { outcome: 'measurement_changed' }
   | { outcome: 'idempotent'; billingRecord: BillingRecordRow };
 
 export type VoidBillingPersistenceInput = {
