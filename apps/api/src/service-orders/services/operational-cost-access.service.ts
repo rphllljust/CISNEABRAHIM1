@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { DatabaseService } from '../../infrastructure/database/database.service';
 import {
   SECURITY_AUDIT_ACTIONS,
   SECURITY_AUDIT_CLASSIFICATIONS,
@@ -43,27 +44,48 @@ export class OperationalCostAccessService {
     private readonly approvedMeasurementRevenueReader: ApprovedMeasurementRevenueReader,
     private readonly authz: ServiceOrdersAccessAuthz,
     private readonly securityAudit: SecurityAuditService,
+    private readonly databaseService: DatabaseService,
   ) {}
 
   async listByServiceOrder(
     actor: IdentityAuthzContext,
     serviceOrderId: string,
   ): Promise<OperationalCostBundleResponse> {
-    const order = await this.requireServiceOrder(
+    // Cost and measurement data must be captured at the same database snapshot,
+    // AFTER PDP has authorized this actor for the OS operational-cost surface.
+    await this.requireServiceOrder(
       actor,
       serviceOrderId,
       AUTHZ_ACTIONS.ServiceOrdersOperationalCostRead,
     );
-    const [entries, revenue] = await Promise.all([
-      this.operationalCostRepository.listByServiceOrder(serviceOrderId),
-      this.approvedMeasurementRevenueReader.readForServiceOrder(serviceOrderId),
-    ]);
-    return toOperationalCostBundleResponse(
-      serviceOrderId,
-      order.row_version,
-      entries,
-      this.buildSummary(entries, revenue),
-    );
+    const connection = this.databaseService.getConnection();
+    if (!connection) throw new Error('DATABASE_URL is not configured.');
+    const client = await connection.pool.connect();
+    let evictConnection = false;
+    try {
+      await client.query('BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      const versions = await client.query<{ row_version: number }>(
+        'SELECT row_version FROM so.service_orders WHERE id = $1',
+        [serviceOrderId],
+      );
+      const rowVersion = versions.rows[0]?.row_version;
+      if (rowVersion === undefined) throw serviceOrdersAccessNotFound();
+      const entries = await this.operationalCostRepository.listByServiceOrder(serviceOrderId, client);
+      const revenue = await this.approvedMeasurementRevenueReader.readForServiceOrder(serviceOrderId, client);
+      await client.query('COMMIT');
+      return toOperationalCostBundleResponse(
+        serviceOrderId, rowVersion, entries, this.buildSummary(entries, revenue),
+      );
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        evictConnection = true;
+      }
+      throw error;
+    } finally {
+      client.release(evictConnection);
+    }
   }
 
   async recordCost(
