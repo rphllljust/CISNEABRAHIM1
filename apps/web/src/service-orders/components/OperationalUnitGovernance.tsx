@@ -190,7 +190,7 @@ export function OperationalUnitGovernance({
             ) : null}
             {canEdit ? (
               <button type="button" className="underline" onClick={() => chooseEdit(active!.id)}>
-                Atualizar identidade
+                Editar cadastro
               </button>
             ) : null}
           </div>
