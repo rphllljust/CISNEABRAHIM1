@@ -5,6 +5,7 @@ import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { OperationsApiError, listOperationUnitOptions } from '../api/operations-api';
 import { DispatchBoardPage } from './DispatchBoardPage';
 import { ExecutionConsolePage } from './ExecutionConsolePage';
+import { OperationalUnitGovernance } from '../components/OperationalUnitGovernance';
 
 /**
  * Operations reads authorized units from its own directory contract.
@@ -39,6 +40,8 @@ export function OperationsDispatchWorkspacePage({
               Execução
             </TabButton>
           </nav>
+
+          <OperationalUnitGovernance onChanged={reload} />
 
           {status === 'ready' && options.length > 0 ? (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
