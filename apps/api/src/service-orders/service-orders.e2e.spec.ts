@@ -105,6 +105,11 @@ describe('Service orders E2E', () => {
 
   it('lists only units authorized for service-order creation and accepts that unit on POST', async () => {
     await insertScopeRef(pool, { scopeType: 'UNIT', refId: UNIT_B });
+    await pool.query(
+      `INSERT INTO "authorization".operational_unit_directory (ref_id, code, business_name)
+       VALUES ($1, 'PVH', 'Porto Velho'), ($2, 'GUA', 'Guajará-Mirim')`,
+      [UNIT_A, UNIT_B],
+    );
 
     const login = normalizeLoginIdentifier(`so-unit-scope-${crypto.randomUUID()}@cisne.invalid`);
     const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
@@ -132,6 +137,26 @@ describe('Service orders E2E', () => {
     });
     expect(unitsResponse.statusCode).toBe(200);
     expect(JSON.parse(unitsResponse.body)).toEqual({ items: [UNIT_A] });
+    const optionsResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/service-orders/operational-unit-options',
+      headers: { authorization: `Bearer ${unitScopedToken}` },
+    });
+    expect(optionsResponse.statusCode).toBe(200);
+    expect(JSON.parse(optionsResponse.body)).toEqual({
+      items: [UNIT_A],
+      details: [{ id: UNIT_A, code: 'PVH', name: 'Porto Velho', configured: true }],
+    });
+    // A missing directory record must not produce a fictitious business name.
+    await pool.query('DELETE FROM "authorization".operational_unit_directory WHERE ref_id = $1', [UNIT_A]);
+    const unconfiguredResponse = await app.inject({
+      method: 'GET',
+      url: '/api/v1/service-orders/operational-unit-options',
+      headers: { authorization: `Bearer ${unitScopedToken}` },
+    });
+    expect(JSON.parse(unconfiguredResponse.body).details).toEqual([
+      { id: UNIT_A, code: null, name: null, configured: false },
+    ]);
 
     const createResponse = await app.inject({
       method: 'POST',
