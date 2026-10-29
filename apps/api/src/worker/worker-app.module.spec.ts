@@ -11,9 +11,9 @@ describe('Worker application composition', () => {
     try {
       const consumer = module.get(EconomicPostingService);
       expect(module.get(ECONOMIC_EVENT_CONSUMER)).toBe(consumer);
-      const publisher = module.get(OutboxPublisherService) as unknown as {
+      const publisher = module.get<{
         economicConsumer?: unknown;
-      };
+      }>(OutboxPublisherService);
       expect(publisher.economicConsumer).toBe(consumer);
     } finally {
       await module.close();
