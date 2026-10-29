@@ -31,6 +31,25 @@ export function subtractMoney(left: string, right: string): string {
   return fromScaledAmount(toScaledAmount(left) - toScaledAmount(right));
 }
 
+/**
+ * Deviation of actual vs estimated cost, in percent with four decimals.
+ * The calculation is exact (BigInt scale); when the estimated denominator
+ * is absent or zero no percentage can be inferred.
+ */
+export function computeCostVariancePercent(
+  actualCost: string | null,
+  estimatedCost: string | null,
+): string | null {
+  if (actualCost === null || estimatedCost === null) return null;
+  const actual = toScaledAmount(actualCost);
+  const estimate = toScaledAmount(estimatedCost);
+  if (estimate === 0n) return null;
+  const delta = actual - estimate;
+  const magnitude = delta < 0n ? -delta : delta;
+  const rounded = (magnitude * 100n * MONEY_SCALE_FACTOR + estimate / 2n) / estimate;
+  return fromScaledAmount(delta < 0n ? -rounded : rounded);
+}
+
 export function sumNullableMoneyAmounts(values: Array<string | null | undefined>): string | null {
   const present = values.filter((value): value is string => Boolean(value));
   return present.length > 0 ? sumMoneyAmounts(present) : null;
