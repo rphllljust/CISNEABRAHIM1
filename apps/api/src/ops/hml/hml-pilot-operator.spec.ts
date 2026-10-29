@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import { resolveResourceType } from '../../uat/uat-vertical-runner';
-import { listHmlPilotOperatorActions } from './hml-pilot-operator';
+import { listHmlPilotOperatorActions, resolveHmlPilotResourceTypes } from './hml-pilot-operator';
 
 describe('hml-pilot-operator', () => {
   it('includes list and diagnostics actions for HML smoke', () => {
@@ -12,6 +12,18 @@ describe('hml-pilot-operator', () => {
     expect(actions).toContain(AUTHZ_ACTIONS.ServiceOrdersServiceOrderList);
     expect(actions).toContain(AUTHZ_ACTIONS.DocumentsDocumentList);
     expect(actions).toContain(AUTHZ_ACTIONS.PlatformDiagnosticsRead);
+    expect(actions).toContain(AUTHZ_ACTIONS.CommercialContractList);
+    expect(actions).toContain(AUTHZ_ACTIONS.CommercialContractRead);
+  });
+
+  it('grants HML receivable detail and Economic Trace reads on their actual resource types only', () => {
+    expect(resolveHmlPilotResourceTypes(AUTHZ_ACTIONS.FinanceReceivableRead)).toEqual([
+      AUTHZ_RESOURCE_TYPES.FinanceReceivable,
+      AUTHZ_RESOURCE_TYPES.AccountingLedger,
+    ]);
+    expect(resolveHmlPilotResourceTypes(AUTHZ_ACTIONS.FinanceReceivableList)).toEqual([
+      AUTHZ_RESOURCE_TYPES.FinanceReceivable,
+    ]);
   });
 
   it('maps platform and people grants to the correct resource types', () => {

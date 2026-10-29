@@ -10,6 +10,27 @@ import {
 } from './service-order-list.query';
 
 describe('service-order-list.query', () => {
+  it('filtra o vínculo persistido por contractId sem ampliar o escopo da consulta e do COUNT', () => {
+    const a1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+    const client = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
+    const parsed = parseListServiceOrdersQuery({ contractId: a1, clientId: client, unitId: 'UNIT-A', status: SERVICE_ORDER_STATUSES.Completed, limit: 1, offset: 1 });
+    expect(parsed.contractId).toBe(a1);
+    const sql = buildServiceOrderListSqlParts(parsed, 'unit_id = $1', ['UNIT-A']);
+    expect(sql.whereClause).toContain('so.contract_id = $3::uuid');
+    expect(sql.whereClause).toContain('so.client_id = $2::uuid');
+    expect(sql.whereClause).toContain('so.unit_id = $1');
+    expect(sql.whereClause).toContain('so.unit_id = $4');
+    expect(sql.params).toEqual(['UNIT-A', client, a1, 'UNIT-A', SERVICE_ORDER_STATUSES.Completed]);
+    expect(sql.orderBy).toBe('so.created_at DESC, so.id DESC');
+  });
+
+  it('rejeita contractId inválido, vazio e com tipo incorreto em vez de listar toda a carteira', () => {
+    for (const contractId of ['not-a-uuid', '', '  ', null, 123, ['uuid']]) {
+      expect(() => parseListServiceOrdersQuery({ contractId })).toThrow();
+    }
+    expect(parseListServiceOrdersQuery({}).contractId).toBeUndefined();
+  });
+
   it('parses pagination defaults and confirmed filters', () => {
     const parsed = parseListServiceOrdersQuery({
       limit: '10',

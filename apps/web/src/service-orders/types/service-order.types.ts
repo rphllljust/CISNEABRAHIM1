@@ -58,6 +58,8 @@ export type ServiceOrderDetail = {
   status: ServiceOrderStatus;
   origin: string;
   clientId: string | null;
+  /** Vínculo autoritativo de so.service_orders.contract_id. Nunca derivar de texto ou clientId. */
+  contractId: string | null;
   clientSnapshot: Record<string, unknown> | null;
   /**
    * Vinculo de ORIGEM da ordem: a solicitacao que a originou.

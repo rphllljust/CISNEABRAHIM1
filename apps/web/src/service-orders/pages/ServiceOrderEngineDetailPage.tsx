@@ -209,7 +209,7 @@ export function ServiceOrderEngineDetailPage() {
   const client = toDisplayText(row['client_snapshot']);
   const deadline = toDisplayText(row['deadline_at']);
   const stateFlowSteps = stateStepsFromSchema(schema);
-  const relations = relationsFromRow(row);
+  const relations = relationsFromRow(row, detail);
   const nextAction = nextActionFromControlCenter(controlCenter, row.id);
 
   /*
@@ -234,7 +234,11 @@ export function ServiceOrderEngineDetailPage() {
    * seria mentir sobre a origem do dinheiro.
    */
   const originFields: ObjectContextField[] = [
-    { label: 'Contrato', value: detail?.contractReference ?? null },
+    { label: 'Contrato', value: detail?.contractId ? (
+      <Link className="text-brand-700 no-underline hover:underline" to={`/app/contracts/${detail.contractId}`}>
+        {detail.contractReference || 'Abrir contrato vinculado'}
+      </Link>
+    ) : detail?.contractReference ?? null },
     {
       label: 'Solicitação',
       value: detail?.serviceRequestId ? 'Vinculada à ordem' : null,
@@ -324,6 +328,8 @@ export function ServiceOrderEngineDetailPage() {
             { label: 'Cliente', value: client },
             { label: 'Unidade', value: toDisplayText(row['unit_id']) },
             { label: 'Prazo', value: deadline, emphasis: true },
+            { label: 'Versão', value: detail?.rowVersion === undefined ? null : String(detail.rowVersion) },
+            { label: 'Contrato', value: detail?.contractReference ?? null },
           ]}
           secondaryActions={[
             { id: 'planning', label: 'Planejamento', to: `/app/service-orders/${row.id}/planning` },
@@ -605,8 +611,14 @@ function stateStepsFromSchema(schema: NonNullable<ReturnType<typeof useEntitySch
   }));
 }
 
-function relationsFromRow(row: ServiceOrderEngineRow): SmartRelation[] {
+function relationsFromRow(row: ServiceOrderEngineRow, detail: ServiceOrderDetail | null): SmartRelation[] {
   const relations: SmartRelation[] = [];
+  if (detail?.clientId) {
+    relations.push({ id: 'client', label: 'Cliente', count: 1, to: `/app/clients/${detail.clientId}` });
+  }
+  if (detail?.contractId) {
+    relations.push({ id: 'contract', label: 'Contrato', count: 1, to: `/app/contracts/${detail.contractId}` });
+  }
   const serviceRequestId = toDisplayText(row['service_request_id']);
   const proposalId = toDisplayText(row['proposal_id']);
   const purchaseOrderId = toDisplayText(row['purchase_order_id']);

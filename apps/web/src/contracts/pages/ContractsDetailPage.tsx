@@ -11,6 +11,7 @@ import {
 } from '../api/contracts-api';
 import { CONTRACT_VERSION_CONFLICT_MESSAGE, mapContractErrorToMessage } from '../api/contracts-error-messages';
 import { ContractFormFields, type ClientOption } from '../components/ContractFormFields';
+import { ContractServiceOrdersPanel } from '../components/ContractServiceOrdersPanel';
 import { useContractCapabilities } from '../hooks/useContractCapabilities';
 import { CONTRACT_STATUSES, type ContractDetail } from '../types';
 import {
@@ -777,12 +778,9 @@ export function ContractsDetailPage() {
           Esconder cada uma faria o operador concluir "este contrato não tem OS", que é a leitura
           errada; declará-las diz a verdade: elas existem no produto e não estão publicadas aqui.
         */}
+        <ContractServiceOrdersPanel contractId={contract.id} />
         <ObjectPanel title="Profundidade não publicada nesta leitura">
           <div className="flex flex-col gap-2">
-            <UnavailableCapability
-              title="Ordens de serviço relacionadas"
-              reason="A OS persiste o vínculo com o contrato, mas a listagem de ordens não publica filtro por contrato — não há leitura que devolva as OS deste contrato sem inferi-las pelo cliente."
-            />
             <UnavailableCapability
               title="Medições"
               reason="A medição pertence ao ciclo da ordem de serviço e não é publicada no detalhe do contrato."

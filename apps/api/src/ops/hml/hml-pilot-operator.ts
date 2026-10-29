@@ -2,12 +2,18 @@ import { insertGrant } from '@cisne/database';
 import type { Pool } from 'pg';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { AUTHZ_SCOPES } from '../../authorization/types/authz-scopes';
+import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import { grantsForProfile } from '../../uat/uat-profiles';
 import { resolveResourceType } from '../../uat/uat-vertical-runner';
 import { assertHmlIsolation } from './hml-config';
 
 export const HML_PILOT_OPERATOR_EXTRA_ACTIONS = [
   AUTHZ_ACTIONS.PlatformDiagnosticsRead,
+  // Browser HML only: allow the pilot to read Contract 360 without mutation grants.
+  AUTHZ_ACTIONS.CommercialContractList,
+  AUTHZ_ACTIONS.CommercialContractRead,
+  AUTHZ_ACTIONS.FinanceReceivableRead,
+  AUTHZ_ACTIONS.FinanceReceivableList,
   AUTHZ_ACTIONS.AccountingJournalRead,
   AUTHZ_ACTIONS.AccountingJournalList,
   AUTHZ_ACTIONS.AccountingChartManage,
@@ -17,6 +23,21 @@ export const HML_PILOT_OPERATOR_EXTRA_ACTIONS = [
   AUTHZ_ACTIONS.FiscalTaxAssessmentRead,
   AUTHZ_ACTIONS.FiscalPeriodRead,
 ] as const;
+
+/**
+ * Exact resource contracts for HML-only financial read:
+ * Finance detail uses FinanceReceivable while Economic Trace authorizes the
+ * same read action against AccountingLedger. Do not grant a fake SO resource.
+ */
+export function resolveHmlPilotResourceTypes(action: string): readonly string[] {
+  if (action === AUTHZ_ACTIONS.FinanceReceivableRead) {
+    return [AUTHZ_RESOURCE_TYPES.FinanceReceivable, AUTHZ_RESOURCE_TYPES.AccountingLedger];
+  }
+  if (action === AUTHZ_ACTIONS.FinanceReceivableList) {
+    return [AUTHZ_RESOURCE_TYPES.FinanceReceivable];
+  }
+  return [resolveResourceType(action)];
+}
 
 export function listHmlPilotOperatorActions(): readonly string[] {
   return [...new Set([...grantsForProfile('control_admin'), ...HML_PILOT_OPERATOR_EXTRA_ACTIONS])];
@@ -54,31 +75,33 @@ export async function grantHmlPilotOperator(
     throw new Error(`HML pilot operator identity not found for login ${login}`);
   }
 
-  const existing = await pool.query<{ action: string }>(
-    `SELECT action
+  const existing = await pool.query<{ action: string; resource_type: string }>(
+    `SELECT action, resource_type
      FROM "authorization".grants
      WHERE identity_id = $1
        AND revoked_at IS NULL`,
     [identityId],
   );
-  const present = new Set(existing.rows.map((row) => row.action));
+  const present = new Set(existing.rows.map((row) => `${row.action}:${row.resource_type}`));
   const actions = listHmlPilotOperatorActions();
   let granted = 0;
   let alreadyPresent = 0;
 
   for (const action of actions) {
-    if (present.has(action)) {
-      alreadyPresent += 1;
-      continue;
+    for (const resourceType of resolveHmlPilotResourceTypes(action)) {
+      if (present.has(`${action}:${resourceType}`)) {
+        alreadyPresent += 1;
+        continue;
+      }
+      await insertGrant(pool, {
+        identityId,
+        action,
+        resourceType,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: identityId,
+      });
+      granted += 1;
     }
-    await insertGrant(pool, {
-      identityId,
-      action,
-      resourceType: resolveResourceType(action),
-      scopeType: AUTHZ_SCOPES.Global,
-      grantedByIdentityId: identityId,
-    });
-    granted += 1;
   }
 
   return { login, identityId, granted, alreadyPresent, actions: [...actions] };

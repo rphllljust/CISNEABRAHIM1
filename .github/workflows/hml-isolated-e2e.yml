@@ -6,6 +6,7 @@ on:
     branches:
       - 'hml/isolated-e2e-runner'
       - 'test/hml-economic-spine-proof'
+      - 'feat/contract-os-authoritative-360'
       - main
 
 concurrency:
@@ -93,6 +94,13 @@ jobs:
           pnpm --filter @cisne/api test:hml
           pnpm --filter @cisne/api test:synthetic-seed
 
+      - name: Export ALFA/BETA Contract → OS browser origins (read only)
+        run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export CISNE_ENV=hml
+          export HML_INTEGRATIONS_SANDBOX=true
+          pnpm --filter @cisne/api exec tsx src/ops/hml/cli/export-contract-os-browser-origins.ts
+
       - name: Chromium HML real browser gate
         env:
           HML_WEB_URL: http://127.0.0.1:5174
@@ -104,7 +112,7 @@ jobs:
           test -n "$HML_SMOKE_LOGIN"
           test -n "$HML_SMOKE_PASSWORD"
           pnpm --filter @cisne/web exec playwright install --with-deps chromium
-          pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts
+          pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts e2e/hml/contract-os-360.hml.spec.ts
 
       - name: HML authoritative business verdict
         run: |
@@ -131,6 +139,7 @@ jobs:
             tmp/**
             artifacts/**
             test-results-hml/**
+            apps/web/test-results-hml/**
             playwright-report/**
             docker/hml/**
             .env.hml.example
