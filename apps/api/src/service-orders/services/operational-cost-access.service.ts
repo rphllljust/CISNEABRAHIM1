@@ -15,7 +15,7 @@ import {
   OperationalCostError,
 } from '../domain/operational-cost';
 import { buildOperationalMarginSummary } from '../domain/operational-margin';
-import type { ApprovedMeasurementRevenueEvidence } from '../domain/approved-measurement-revenue';
+import type { ApprovedMeasurementRevenueEvidence } from '../../measurements/domain/approved-measurement-revenue';
 import { ApprovedMeasurementRevenueReader } from '../../measurements/application/approved-measurement-revenue.reader';
 import type { RecordOperationalCostInput } from '../domain/operational-cost.validation';
 import { OperationalCostRepository } from '../repositories/operational-cost.repository';
