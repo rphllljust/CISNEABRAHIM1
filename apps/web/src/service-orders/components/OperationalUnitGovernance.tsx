@@ -58,7 +58,7 @@ export function OperationalUnitGovernance({
   }
   if (!directory) return null;
   const active = directory.items.find(unit => unit.id === selection) ?? directory.items[0] ?? null;
-  const canEdit = active?.canEdit === true;
+  const canEdit = active?.canManage === true;
   const allowCreate = directory.canCreate;
 
   function chooseEdit(id: string) {
