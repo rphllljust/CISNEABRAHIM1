@@ -398,6 +398,17 @@ export async function runUatVerticalScenario(
       if (!services.contractsAccess || !services.measurementsCapability) {
         throw new Error('HML_SYNTHETIC_ACCEPTANCE_CAPABILITY_UNAVAILABLE');
       }
+      stage = 'contract:grant-synthetic-capabilities';
+      for (const action of [
+        AUTHZ_ACTIONS.CommercialContractCreate,
+        AUTHZ_ACTIONS.CommercialContractActivate,
+      ]) {
+        await insertGrant(services.pool, {
+          identityId: actor.identityId, action,
+          resourceType: AUTHZ_RESOURCE_TYPES.CommercialContract,
+          scopeType: AUTHZ_SCOPES.Global, grantedByIdentityId: actor.identityId,
+        });
+      }
       stage = 'contract:create-and-activate';
       const contractNumber = `CTR-HML-${suffix}`;
       const draftContract = await services.contractsAccess.create(actor, {
