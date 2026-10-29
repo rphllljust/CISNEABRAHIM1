@@ -29,6 +29,7 @@ import {
   type ServiceOrderEngineRow,
 } from './service-order-engine-rows';
 import { OperationsControlCenter } from '../components/OperationsControlCenter';
+import { ServiceOrderCostToServePanel } from '../components/ServiceOrderCostToServePanel';
 import type { ServiceOrderControlCenter, ServiceOrderDetail } from '../types/service-order.types';
 
 /**
@@ -396,6 +397,7 @@ export function ServiceOrderEngineDetailPage() {
         */}
         <ObjectContextBlock title="Identidade da ordem" fields={identityFields} columns={3} />
         <ObjectContextBlock title="Origem e vínculos" fields={originFields} columns={3} />
+        <ServiceOrderCostToServePanel serviceOrderId={row.id} />
 
         <section aria-label="Operação" className="service-order-operational-canvas border-b border-gray-200 pb-6">
           <div className="service-order-section-heading mb-3 flex items-end gap-3">
