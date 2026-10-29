@@ -62,9 +62,11 @@ describe('Enterprise dispatch unit discovery', () => {
   });
 
   it('never maps access denied into a blank worklist', async () => {
-    vi.mocked(listOperationUnitOptions).mockRejectedValue(
-      new OperationsApiError(403, 'SERVICE_ORDERS_DENIED', 'denied'),
-    );
+    // Reject when requested, not at mock configuration time:
+    // eagerly rejected promises may be considered unhandled before the effect runs.
+    vi.mocked(listOperationUnitOptions).mockImplementation(async () => {
+      throw new OperationsApiError(403, 'SERVICE_ORDERS_DENIED', 'denied');
+    });
     mount();
     expect(await screen.findByRole('alert')).toHaveTextContent('Acesso negado');
     expect(screen.queryByText('Nenhuma unidade autorizada para consulta')).not.toBeInTheDocument();
