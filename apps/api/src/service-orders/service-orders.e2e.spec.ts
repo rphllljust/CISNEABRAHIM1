@@ -172,7 +172,7 @@ describe('Service orders E2E', () => {
       url: '/api/v1/service-orders/operational-unit-options',
       headers: { authorization: `Bearer ${unitScopedToken}` },
     });
-    expect(JSON.parse(unconfiguredResponse.body).details).toEqual([
+    expect((JSON.parse(unconfiguredResponse.body) as { details: unknown[] }).details).toEqual([
       { id: UNIT_A, code: null, name: null, configured: false },
     ]);
 
@@ -280,14 +280,14 @@ describe('Service orders E2E', () => {
       method: 'GET', url: '/api/v1/query/operations/units', headers: readHeaders,
     });
     expect(units.statusCode).toBe(200);
-    expect(JSON.parse(units.body).details).toEqual([
+    expect((JSON.parse(units.body) as { details: unknown[] }).details).toEqual([
       { id: original.id, code: 'PVH-TEST', name: 'Porto Velho Central', configured: true },
     ]);
     const emptyBoard = await app.inject({
       method: 'GET', url: `/api/v1/query/operations/dispatch?unitId=${original.id}`, headers: readHeaders,
     });
     expect(emptyBoard.statusCode).toBe(200);
-    expect(JSON.parse(emptyBoard.body).items).toEqual([]);
+    expect((JSON.parse(emptyBoard.body) as { items: unknown[] }).items).toEqual([]);
     const forbiddenCreate = await app.inject({
       method: 'POST', url: '/api/v1/service-orders', headers: readHeaders,
       payload: { origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect, unitId: original.id },
