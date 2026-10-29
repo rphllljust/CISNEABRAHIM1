@@ -6,6 +6,7 @@ export {
   findMeasurementForBilling,
   listMeasurementItemsForBilling,
   lockMeasurementForBilling,
+  customerAcceptanceBlockForBilling,
   type MeasurementForBillingRow,
   type MeasurementItemForBillingRow,
 } from '../repositories/measurement-billing.persistence';

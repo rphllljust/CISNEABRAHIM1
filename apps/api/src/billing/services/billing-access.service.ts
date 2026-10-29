@@ -488,6 +488,19 @@ export class BillingAccessService {
       throw this.mapPurchaseOrderConsumptionError(error);
     }
 
+    if (result.outcome === 'acceptance_blocked') {
+      const codes = {
+        CUSTOMER_ACCEPTANCE_PENDING: BILLING_ERROR_CODES.CUSTOMER_ACCEPTANCE_PENDING,
+        CUSTOMER_ACCEPTANCE_REJECTED: BILLING_ERROR_CODES.CUSTOMER_ACCEPTANCE_REJECTED,
+        CUSTOMER_ACCEPTANCE_EVIDENCE_MISSING: BILLING_ERROR_CODES.CUSTOMER_ACCEPTANCE_EVIDENCE_MISSING,
+      } as const;
+      throw new BillingHttpException(
+        HttpStatus.CONFLICT,
+        codes[result.reason],
+        `Customer acceptance blocks billing preparation: ${result.reason}.`,
+      );
+    }
+
     if (result.outcome === 'measurement_changed') {
       throw new BillingHttpException(
         HttpStatus.CONFLICT,
