@@ -7,6 +7,7 @@ import {
   evaluateMeasurementBusinessProof,
   extractMeasurementCandidateServiceOrderIds,
   hasOnlyCommercialMeasurementUnits,
+  isBusinessCheckName,
 } from './coolify-browser-gate.mjs';
 
 /**
@@ -35,6 +36,13 @@ function readGate() {
 }
 
 describe('browser gate — cobertura da vertical de medição', () => {
+  it('separa apenas os três checks empresariais do placar técnico', () => {
+    assert.equal(isBusinessCheckName('MEDIÇÃO expõe aceite do cliente'), true);
+    assert.equal(isBusinessCheckName('MEDIÇÃO expõe elegibilidade de faturamento'), true);
+    assert.equal(isBusinessCheckName('MEDIÇÃO não mede em unidade física (HOUR/KM)'), true);
+    assert.equal(isBusinessCheckName('MEDIÇÃO fila da unidade carregada'), false);
+  });
+
   it('abre a página de medição e não apenas a trilha econômica', () => {
     const source = readGate();
     assert.ok(

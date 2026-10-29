@@ -183,4 +183,15 @@ describe('coolify-release.yml — comandos de shell portaveis', () => {
     assert.match(gateBlock, /productionValidated=true/);
     assert.doesNotMatch(gateBlock, /echo "PRODUCTION_VALIDATED=true"/);
   });
+
+  it('cria o diretório de evidências antes de abrir o tee do Chromium', () => {
+    const source = readWorkflow();
+    const gateIndex = source.indexOf('Browser gate against production');
+    const uploadIndex = source.indexOf('Upload browser gate evidence');
+    const gateBlock = source.slice(gateIndex, uploadIndex);
+    assert.match(
+      gateBlock,
+      /mkdir -p artifacts\/browser-gate[\s\S]*tee artifacts\/browser-gate\/verdict\.log/,
+    );
+  });
 });
