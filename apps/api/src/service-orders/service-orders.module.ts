@@ -22,6 +22,7 @@ import { ServiceOrderExecutionRepository } from './repositories/service-order-ex
 import { OperationsRepository } from './repositories/operations.repository';
 import { OperationsService } from './services/operations.service';
 import { OperationalCostRepository } from './repositories/operational-cost.repository';
+import { ApprovedMeasurementRevenueReader } from '../measurements/application/approved-measurement-revenue.reader';
 import { ServiceOrdersRepository } from './repositories/service-orders.repository';
 import { ResourcePlanningRepository } from './repositories/resource-planning.repository';
 import { ServiceOrdersAccessAuthz } from './services/service-orders-access.authz';
@@ -54,6 +55,7 @@ import { ServiceRequestConversionService } from './services/service-request-conv
     OperationsRepository,
     OperationsService,
     OperationalCostRepository,
+    ApprovedMeasurementRevenueReader,
     ServiceOrdersAccessAuthz,
     ServiceOrderMetadataRepository,
     ServiceOrderMetadataService,
