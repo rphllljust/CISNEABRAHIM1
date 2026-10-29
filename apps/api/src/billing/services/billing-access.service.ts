@@ -264,6 +264,7 @@ export class BillingAccessService {
 
     let itemDrafts: ItemDraft[];
     let measurementId: string | null = validated.measurementId ?? null;
+    let measurementVersion: number | null = null;
     let computedTotal: string;
     let currencyCode: string;
     let commercialReferenceSnapshot: Record<string, unknown>;
@@ -362,6 +363,7 @@ export class BillingAccessService {
         }),
       };
       measurementId = measurement.id;
+      measurementVersion = measurement.row_version;
     } else {
       try {
         assertBillingRight({
@@ -462,6 +464,7 @@ export class BillingAccessService {
       result = await this.billingRepository.prepareBillingRecord({
         serviceOrderId: order.id,
         measurementId,
+        measurementVersion,
         entitlementPolicy: policy,
         clientId: order.client_id,
         unitId: order.unit_id,
