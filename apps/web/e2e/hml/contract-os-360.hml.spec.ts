@@ -56,7 +56,8 @@ test.describe('HML isolada — Customer 360 → Contract 360 ↔ OS 360 (API rea
   });
 
   for (const scenario of scenarios) {
-    test(`${scenario.label}: Cliente → Contrato → OS por vínculo persistido → medição e Billing`, async (_fixtures, testInfo) => {
+    test(`${scenario.label}: Cliente → Contrato → OS por vínculo persistido → medição e Billing`, async ({ browserName }, testInfo) => {
+      expect(browserName).toBe('chromium');
       const { clientId, contractId, serviceOrderId, label } = scenario;
       await page.goto(`${baseUrl}/app/clients/${clientId}`);
       const customerLink = page.locator(`a[href="/app/contracts?clientId=${clientId}"]`);
