@@ -277,6 +277,8 @@ export function ServiceOrdersEngineListPage() {
   const activeViewType = searchParams.get('view') ?? 'list';
   const statusFilter = (searchParams.get('status') ?? '') as ServiceOrderStatus | '';
   const contractIdFilter = searchParams.get('contractId');
+  const clientIdFilter = searchParams.get('clientId');
+  const unitIdFilter = searchParams.get('unitId');
   const queueFilter = parseQueueFilter(searchParams.get('filter'));
   const queueOrder = parseQueueOrder(searchParams.get('order'));
 
@@ -334,6 +336,8 @@ export function ServiceOrdersEngineListPage() {
             offset: pageOffset,
             status: statusFilter || undefined,
             contractId: contractIdFilter ?? undefined,
+            clientId: clientIdFilter ?? undefined,
+            unitId: unitIdFilter ?? undefined,
             filter: queueFilter,
             order: queueOrder,
             q: search || undefined,
@@ -367,7 +371,7 @@ export function ServiceOrdersEngineListPage() {
         setPageBusy(false);
       }
     },
-    [advancedPayload, contractIdFilter, pageOffset, queueFilter, queueOrder, search, statusFilter],
+    [advancedPayload, clientIdFilter, contractIdFilter, unitIdFilter, pageOffset, queueFilter, queueOrder, search, statusFilter],
   );
 
   /**
@@ -410,6 +414,18 @@ export function ServiceOrdersEngineListPage() {
     [commandReason, contextId, contextRow, loadRows],
   );
 
+
+  // Contrato/cliente/unidade mudaram no histórico ou num deep-link.
+  // Limpar a fila anterior antes do paint evita mostrar OS de outro contexto,
+  // inclusive quando a nova API demora a responder ou devolve 403/5xx.
+  useEffect(() => {
+    setRows([]);
+    setRowsStatus('loading');
+    setRecutTotal(null);
+    setHasMore(null);
+    setPageOffset(0);
+    setContextRow(null);
+  }, [contractIdFilter, clientIdFilter, unitIdFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -487,8 +503,9 @@ export function ServiceOrdersEngineListPage() {
 
   const clearFilters = (): void => {
     const next = filtersToSearchParams({});
-    // Limpar os filtros operacionais não perde o contexto da carteira contratual.
+    // Limpar filtros operacionais não perde o contrato ou cliente focalizado.
     if (contractIdFilter !== null) next.set('contractId', contractIdFilter);
+    if (clientIdFilter !== null) next.set('clientId', clientIdFilter);
     if (activeViewType !== 'list') {
       next.set('view', activeViewType);
     }
@@ -805,6 +822,7 @@ export function ServiceOrdersEngineListPage() {
               const next = filtersToSearchParams(view.filters);
               // Saved Views não podem alargar silenciosamente o contrato focalizado.
               if (contractIdFilter !== null) next.set('contractId', contractIdFilter);
+              if (clientIdFilter !== null) next.set('clientId', clientIdFilter);
               next.set('view', view.viewType);
               setSearchParams(next, { replace: true });
             }}
