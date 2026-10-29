@@ -328,6 +328,151 @@ describe('Billing PostgreSQL integration', () => {
     return { client, completed, approved };
   }
 
+  async function declareAcceptanceRequired(serviceOrderId: string, requiresEvidence = false) {
+    await pool.query(
+      `UPDATE so.service_orders
+          SET contract_snapshot = jsonb_build_object(
+            'acceptanceRequired', true,
+            'acceptanceEvidenceRequired', $2::boolean
+          )
+        WHERE id = $1`,
+      [serviceOrderId, requiresEvidence],
+    );
+  }
+
+  async function insertAcceptanceDecision(input: {
+    measurementId: string;
+    serviceOrderId: string;
+    actorIdentityId: string;
+    result: 'ACCEPTED' | 'REJECTED';
+    evidenceRequired?: boolean;
+    cycle?: number;
+  }) {
+    await pool.query(
+      `INSERT INTO msr.customer_acceptances (
+        measurement_id, service_order_id, unit_id, policy, result, observation,
+        rejection_reason, accepted_by_identity_id, occurred_at, cycle_number
+      ) VALUES (
+        $1, $2, $3, $4::msr.acceptance_policy, $5::msr.acceptance_result,
+        'Decisão real persistida no banco de testes', $6, $7, NOW(), $8
+      )`,
+      [
+        input.measurementId,
+        input.serviceOrderId,
+        UNIT_A,
+        input.evidenceRequired ? 'REQUIRED_WITH_EVIDENCE' : 'REQUIRED_BEFORE_BILLING',
+        input.result,
+        input.result === 'REJECTED' ? 'Entrega recusada pelo cliente' : null,
+        input.actorIdentityId,
+        input.cycle ?? 1,
+      ],
+    );
+  }
+
+  it('blocks approved measurement without required customer acceptance inside Billing transaction', async () => {
+    const { actor } = await seedActor();
+    const { completed, approved } = await seedApprovedMeasurement(actor);
+    await declareAcceptanceRequired(completed.id);
+
+    await expect(
+      billingAccess.prepare(actor, completed.id, {
+        measurementId: approved.id, paymentTerms: '30 DDL',
+      }),
+    ).rejects.toMatchObject({ code: BILLING_ERROR_CODES.CUSTOMER_ACCEPTANCE_PENDING });
+
+    const created = await pool.query<{ count: number }>(
+      'SELECT count(*)::integer AS count FROM bil.billing_records WHERE service_order_id = $1',
+      [completed.id],
+    );
+    expect(created.rows[0]?.count).toBe(0);
+  });
+
+  it('blocks approved measurement when the customer rejected the current acceptance cycle', async () => {
+    const { actor } = await seedActor();
+    const { completed, approved } = await seedApprovedMeasurement(actor);
+    await declareAcceptanceRequired(completed.id);
+    await insertAcceptanceDecision({
+      measurementId: approved.id,
+      serviceOrderId: completed.id,
+      actorIdentityId: actor.identityId,
+      result: 'REJECTED',
+    });
+
+    await expect(
+      billingAccess.prepare(actor, completed.id, {
+        measurementId: approved.id, paymentTerms: '30 DDL',
+      }),
+    ).rejects.toMatchObject({ code: BILLING_ERROR_CODES.CUSTOMER_ACCEPTANCE_REJECTED });
+    const created = await pool.query<{ count: number }>(
+      'SELECT count(*)::integer AS count FROM bil.billing_records WHERE service_order_id = $1',
+      [completed.id],
+    );
+    expect(created.rows[0]?.count).toBe(0);
+  });
+
+  it('prepares billing when the required customer acceptance is persisted as ACCEPTED', async () => {
+    const { actor } = await seedActor();
+    const { completed, approved } = await seedApprovedMeasurement(actor);
+    await declareAcceptanceRequired(completed.id);
+    await insertAcceptanceDecision({
+      measurementId: approved.id,
+      serviceOrderId: completed.id,
+      actorIdentityId: actor.identityId,
+      result: 'ACCEPTED',
+    });
+
+    const billing = await billingAccess.prepare(actor, completed.id, {
+      measurementId: approved.id, paymentTerms: '30 DDL',
+    });
+    expect(billing.status).toBe(BILLING_RECORD_STATUSES.Prepared);
+    expect(billing.measurementId).toBe(approved.id);
+  });
+
+  it('blocks an ACCEPTED decision missing the evidence required by the contract', async () => {
+    const { actor } = await seedActor();
+    const { completed, approved } = await seedApprovedMeasurement(actor);
+    await declareAcceptanceRequired(completed.id, true);
+    await insertAcceptanceDecision({
+      measurementId: approved.id,
+      serviceOrderId: completed.id,
+      actorIdentityId: actor.identityId,
+      result: 'ACCEPTED',
+      evidenceRequired: true,
+    });
+
+    await expect(
+      billingAccess.prepare(actor, completed.id, {
+        measurementId: approved.id, paymentTerms: '30 DDL',
+      }),
+    ).rejects.toMatchObject({ code: BILLING_ERROR_CODES.CUSTOMER_ACCEPTANCE_EVIDENCE_MISSING });
+    const created = await pool.query<{ count: number }>(
+      'SELECT count(*)::integer AS count FROM bil.billing_records WHERE service_order_id = $1',
+      [completed.id],
+    );
+    expect(created.rows[0]?.count).toBe(0);
+  });
+
+  it('does not bypass required customer acceptance for FIXED_PRICE entitlement', async () => {
+    const { actor } = await seedActor();
+    const { completed } = await seedDraftMeasurement(actor);
+    await pool.query(
+      `UPDATE so.service_orders
+          SET service_snapshot = $2::jsonb,
+              proposal_snapshot = $3::jsonb
+        WHERE id = $1`,
+      [
+        completed.id,
+        JSON.stringify({ billingEntitlementPolicy: 'FIXED_PRICE' }),
+        JSON.stringify({ globalSalePrice: '1000.0000', currencyCode: 'BRL' }),
+      ],
+    );
+    await declareAcceptanceRequired(completed.id);
+
+    await expect(
+      billingAccess.prepare(actor, completed.id, { paymentTerms: '30 DDL' }),
+    ).rejects.toMatchObject({ code: BILLING_ERROR_CODES.CUSTOMER_ACCEPTANCE_PENDING });
+  });
+
   it('rejects billing preparation without approved measurement', async () => {
     const { actor } = await seedActor();
     const { completed, measurement } = await seedDraftMeasurement(actor);
