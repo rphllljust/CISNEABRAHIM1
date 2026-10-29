@@ -6,11 +6,11 @@ export type EnterpriseOperationalUnit = {
   code: string;
   name: string;
   version: number;
-  canEdit?: boolean;
+  canManage?: boolean;
 };
 
 export type UnitGovernanceDirectory = {
-  items: Array<EnterpriseOperationalUnit & { canEdit: boolean }>;
+  items: Array<EnterpriseOperationalUnit & { canManage: boolean }>;
   canCreate: boolean;
 };
 
