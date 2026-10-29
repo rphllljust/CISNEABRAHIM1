@@ -79,6 +79,7 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
               c.purchase_order_requirement
          FROM pty.clients c
          JOIN so.service_orders so ON so.client_id = c.id AND so.status = 'COMPLETED'
+           AND so.contract_snapshot->>'status' = 'ACTIVE'
          JOIN msr.measurements m ON m.service_order_id = so.id AND m.status = 'APPROVED'
          JOIN bil.billing_records br ON br.service_order_id = so.id AND br.measurement_id = m.id
          JOIN bil.billing_documents bd ON bd.billing_record_id = br.id AND bd.status = 'FINALIZED'
@@ -125,7 +126,7 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
         occurredAt: acceptance.occurred_at,
       },
     });
-    if (policy.policy === 'NOT_REQUIRED' ||
+    if (policy.source !== 'CONTRACT' || policy.policy === 'NOT_REQUIRED' ||
         decision.state !== 'ACCEPTED' || decision.blocksBilling ||
         acceptance.result !== 'ACCEPTED') {
       throw new Error(`HML_ECONOMIC_ACCEPTANCE_NOT_APPROVED:${scenario}`);
@@ -183,7 +184,7 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
               COALESCE(SUM(l.amount) FILTER (WHERE l.direction = 'CREDIT'), 0)::text AS credit_total,
               COUNT(l.id)::text AS journal_lines
          FROM plt.economic_events e
-         JOIN evt.outbox_events outbox ON outbox.id = e.outbox_event_id
+         JOIN evt.outbox_events outbox ON outbox.id = e.outbox_event_id AND outbox.status = 'PUBLISHED'
          JOIN acc.accounting_posting_requests p
            ON p.source_id = e.source_id AND p.event_kind::text = e.event_kind
           AND p.unit_id = e.unit_id AND p.status = 'POSTED'
