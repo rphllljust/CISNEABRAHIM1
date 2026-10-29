@@ -59,9 +59,9 @@ const EXPECTED_TABLES = [
   'authorization.approval_matrix_versions',
   'authorization.approval_matrix_rules',
   'authorization.approval_role_assignments',
-  'plt.operational_units',
-  'plt.operational_unit_commands',
-  'plt.operational_unit_history',
+  'pty.operational_units',
+  'pty.operational_unit_commands',
+  'pty.operational_unit_history',
   'audit.security_audit_events',
   'pty.clients',
   'pty.suppliers',
@@ -1498,7 +1498,7 @@ async function assertPreDeltaState(connectionString, deltaFile) {
     }
 
     if (deltaFile === '0109_operational_unit_directory.sql') {
-      const master = await client.query("SELECT to_regclass('plt.operational_units') AS reg");
+      const master = await client.query("SELECT to_regclass('pty.operational_units') AS reg");
       if (master.rows[0]?.reg !== null) {
         throw new Error('Incremental baseline incorrectly contains plt.operational_units before 0109');
       }
