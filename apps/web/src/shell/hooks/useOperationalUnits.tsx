@@ -59,7 +59,10 @@ export function useOperationalUnits(
     setStatus('loading');
     setError(null);
 
-    void loader(controller.signal)
+    // Normalize synchronous loader failures and rejected transport promises to
+    // the same fail-closed UI state; an exception must not escape the effect.
+    void Promise.resolve()
+      .then(() => loader(controller.signal))
       .then((response) => {
         if (controller.signal.aborted) {
           return;
