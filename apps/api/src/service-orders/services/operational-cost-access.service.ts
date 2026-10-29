@@ -15,6 +15,7 @@ import {
 } from '../domain/operational-cost';
 import { buildOperationalMarginSummary } from '../domain/operational-margin';
 import type { ApprovedMeasurementRevenueEvidence } from '../domain/approved-measurement-revenue';
+import { ApprovedMeasurementRevenueReader } from '../../measurements/application/approved-measurement-revenue.reader';
 import type { RecordOperationalCostInput } from '../domain/operational-cost.validation';
 import { OperationalCostRepository } from '../repositories/operational-cost.repository';
 import type { OperationalCostEntryRow } from '../repositories/operational-cost.repository.types';
@@ -39,6 +40,7 @@ export class OperationalCostAccessService {
   constructor(
     private readonly serviceOrdersRepository: ServiceOrdersRepository,
     private readonly operationalCostRepository: OperationalCostRepository,
+    private readonly approvedMeasurementRevenueReader: ApprovedMeasurementRevenueReader,
     private readonly authz: ServiceOrdersAccessAuthz,
     private readonly securityAudit: SecurityAuditService,
   ) {}
@@ -54,7 +56,7 @@ export class OperationalCostAccessService {
     );
     const [entries, revenue] = await Promise.all([
       this.operationalCostRepository.listByServiceOrder(serviceOrderId),
-      this.operationalCostRepository.findApprovedMeasurementRevenueEvidence(serviceOrderId),
+      this.approvedMeasurementRevenueReader.readForServiceOrder(serviceOrderId),
     ]);
     return toOperationalCostBundleResponse(
       serviceOrderId,
