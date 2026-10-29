@@ -62,3 +62,20 @@ export function updateGovernedUnit(id: string, input: {
     method: 'PATCH', headers: authHeaders(), body: JSON.stringify(input),
   });
 }
+
+/** Read-only append-only master history; no UUID is required in the operator surface. */
+export type UnitGovernanceHistory = {
+  unit: EnterpriseOperationalUnit;
+  events: Array<{
+    version: number;
+    action: 'CREATED' | 'UPDATED';
+    actorIdentityId: string;
+    occurredAt: string;
+  }>;
+};
+
+export function readGovernedUnitHistory(id: string, signal?: AbortSignal): Promise<UnitGovernanceHistory> {
+  return request(`/api/v1/organization/operational-units/${encodeURIComponent(id)}/history`, {
+    method: 'GET', headers: authHeaders(), signal,
+  });
+}
