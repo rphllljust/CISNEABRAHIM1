@@ -27,6 +27,7 @@ export type OperationalMarginSummary = {
   actualMargin: string | null;
   /** Actual less estimated: a positive variance is an overrun, not profit. */
   estimatedToActualVariance: string | null;
+  estimatedToActualVariancePercent: string | null;
   /** Every reason is derived from authority/evidence, never a placeholder KPI. */
   blockingReasons: string[];
   disclaimer: string;
