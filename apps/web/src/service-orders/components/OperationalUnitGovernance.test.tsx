@@ -82,6 +82,25 @@ describe('Enterprise unit governance context', () => {
     }
   });
 
+  it('completes an authorized legacy unit identity without inventing a second technical unit', async () => {
+    vi.mocked(listGovernedUnits).mockResolvedValue({
+      items: [], canCreate: true, unconfigured: ['UN-PROD-001'],
+    });
+    vi.mocked(createGovernedUnit).mockResolvedValue({
+      id: 'UN-PROD-001', code: 'PVH', name: 'Porto Velho', version: 1,
+    });
+    render(<OperationalUnitGovernance onChanged={vi.fn()} />);
+    await userEvent.setup().click(await screen.findByText(/Contexto empresarial · Governança/));
+    expect(screen.queryByText('UN-PROD-001')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Cadastrar identidade pendente 1' }));
+    await userEvent.setup().type(screen.getByRole('textbox', { name: 'Código empresarial' }), 'PVH');
+    await userEvent.setup().type(screen.getByRole('textbox', { name: 'Nome empresarial' }), 'Porto Velho');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Registrar unidade' }));
+    await waitFor(() => expect(createGovernedUnit).toHaveBeenCalledWith(expect.objectContaining({
+      refId: 'UN-PROD-001', code: 'PVH', name: 'Porto Velho',
+    })));
+  });
+
   it('loads the append-only audit trail without presenting technical actor identifiers', async () => {
     vi.mocked(listGovernedUnits).mockResolvedValue({ items: [unit], canCreate: false });
     vi.mocked(readGovernedUnitHistory).mockResolvedValue({
