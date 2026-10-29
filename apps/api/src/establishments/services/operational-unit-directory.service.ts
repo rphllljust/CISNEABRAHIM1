@@ -200,10 +200,11 @@ export class OperationalUnitDirectoryService {
       const row = await this.repository.execute(
         actor.identityId, key, { operation: 'UPDATE', id, expectedVersion, code, name },
         async client => {
-          const current = await this.repository.findById(id);
-          if (!current) throw new HttpException({ code: 'UNIT_NOT_FOUND' }, HttpStatus.NOT_FOUND);
+          // PostgreSQL row lock in repository.update supplies the current
+          // value for omitted fields; an unlocked pre-read can lose concurrent
+          // changes to code/name.
           return this.repository.update(client, {
-            id, expectedVersion, code: code ?? current.code, name: name ?? current.business_name,
+            id, expectedVersion, code, name,
             actorId: actor.identityId,
           });
         },
