@@ -74,11 +74,17 @@ test.describe('HML isolada — Customer 360 → Contract 360 ↔ OS 360 (API rea
       const osLink = table.locator(`a[href="/app/service-orders/${serviceOrderId}"]`);
       await expect(osLink).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath(`${label}-contract360-desktop.png`), fullPage: true });
+      await page.setViewportSize({ width: 900, height: 1100 });
+      await page.screenshot({ path: testInfo.outputPath(`${label}-contract360-tablet.png`), fullPage: true });
+      await page.setViewportSize({ width: 1440, height: 900 });
       await osLink.click();
 
       await expect(page).toHaveURL(new RegExp(`/app/service-orders/${serviceOrderId}`));
       await expect(page.locator(`a[href="/app/contracts/${contractId}"]`).first()).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath(`${label}-os360-desktop.png`), fullPage: true });
+      await page.setViewportSize({ width: 900, height: 1100 });
+      await page.screenshot({ path: testInfo.outputPath(`${label}-os360-tablet.png`), fullPage: true });
+      await page.setViewportSize({ width: 1440, height: 900 });
 
       const measurement = page.getByRole('link', { name: 'Abrir medição' });
       const billing = page.getByRole('link', { name: 'Abrir faturamento' });

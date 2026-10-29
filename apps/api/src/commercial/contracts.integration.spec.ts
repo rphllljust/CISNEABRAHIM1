@@ -37,6 +37,7 @@ import { ContractsAccessService } from './services/contracts-access.service';
 import { ContractsOperationalValidationService } from './services/contracts-operational-validation.service';
 import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { SERVICE_ORDER_ORIGINS } from '../service-orders/domain/service-order';
+import { SERVICE_ORDERS_ERROR_CODES } from '../service-orders/errors/service-orders-error-codes';
 import { parseListServiceOrdersQuery } from '../service-orders/domain/service-order-list.query';
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 
@@ -265,7 +266,7 @@ describe('Commercial contracts PostgreSQL integration', () => {
     );
     await expect(
       serviceOrdersAccess.list({ identityId: other.identityId, sessionId: 'sid' }, query),
-    ).rejects.toBeDefined();
+    ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.DENIED });
   });
 
   it('rejects operational use when contract is outside validity window', async () => {
