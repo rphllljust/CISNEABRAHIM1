@@ -52,9 +52,13 @@ describe('Enterprise unit governance context', () => {
     await userEvent.setup().clear(screen.getByRole('textbox', { name: 'Nome empresarial' }));
     await userEvent.setup().type(screen.getByRole('textbox', { name: 'Nome empresarial' }), 'Porto Velho Centro');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Atualizar identidade' }));
-    await waitFor(() => expect(updateGovernedUnit).toHaveBeenCalledWith('unit-a', expect.objectContaining({
-      code: 'PVH', name: 'Porto Velho Centro', expectedVersion: 2, idempotencyKey: expect.any(String),
-    })));
+    await waitFor(() => expect(updateGovernedUnit).toHaveBeenCalledTimes(1));
+    const updateRequest = vi.mocked(updateGovernedUnit).mock.calls[0];
+    expect(updateRequest?.[0]).toBe('unit-a');
+    expect(updateRequest?.[1]).toMatchObject({
+      code: 'PVH', name: 'Porto Velho Centro', expectedVersion: 2,
+    });
+    expect(typeof updateRequest?.[1].idempotencyKey).toBe('string');
     await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
   });
 
