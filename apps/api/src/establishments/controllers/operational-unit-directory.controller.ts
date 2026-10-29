@@ -24,7 +24,7 @@ export class OperationalUnitDirectoryController {
   @Post()
   create(@CurrentAuth() auth: AccessTokenClaims, @Req() request: FastifyRequest) {
     return this.directory.create({ identityId: auth.sub, sessionId: auth.sid },
-      (request.body ?? {}) as Record<string, unknown>);
+      request.body ?? {});
   }
 
   @Patch(':id')
