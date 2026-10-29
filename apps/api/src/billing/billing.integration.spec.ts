@@ -468,6 +468,14 @@ describe('Billing PostgreSQL integration', () => {
         measurementId: approved.id, paymentTerms: '30 DDL',
       }),
     ).rejects.toMatchObject({ code: BILLING_ERROR_CODES.BILLING_CURRENCY_UNVERIFIED });
+    const worklist = await billingAccess.listWorklist(actor, { limit: 20, offset: 0 });
+    expect(worklist.items).toEqual([expect.objectContaining({
+      serviceOrderId: completed.id,
+      bucket: 'billing_basis_missing',
+      exceptionCode: 'BILLING_CURRENCY_UNVERIFIED',
+      amount: null,
+      currencyCode: null,
+    })]);
     const result = await pool.query<{ total: number }>(
       'SELECT COUNT(*)::integer AS total FROM bil.billing_records WHERE measurement_id = $1',
       [approved.id],
