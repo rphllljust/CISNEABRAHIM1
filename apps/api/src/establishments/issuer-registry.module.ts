@@ -9,6 +9,9 @@ import {
   LegalEntitiesController,
   TaxRegistrationsController,
 } from './controllers/issuer-registry.controller';
+import { OperationalUnitDirectoryController } from './controllers/operational-unit-directory.controller';
+import { OperationalUnitDirectoryRepository } from './repositories/operational-unit-directory.repository';
+import { OperationalUnitDirectoryService } from './services/operational-unit-directory.service';
 import { EstablishmentRegistryRepository } from './repositories/establishment-registry.repository';
 import { IssuerRegistryService } from './services/issuer-registry.service';
 
@@ -23,8 +26,9 @@ import { IssuerRegistryService } from './services/issuer-registry.service';
     EstablishmentsController,
     TaxRegistrationsController,
     CertificatesController,
+    OperationalUnitDirectoryController,
   ],
-  providers: [EstablishmentRegistryRepository, IssuerRegistryService],
-  exports: [IssuerRegistryService],
+  providers: [EstablishmentRegistryRepository, IssuerRegistryService, OperationalUnitDirectoryRepository, OperationalUnitDirectoryService],
+  exports: [IssuerRegistryService, OperationalUnitDirectoryService],
 })
 export class IssuerRegistryModule {}

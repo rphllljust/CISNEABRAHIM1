@@ -65,14 +65,22 @@ function createFetchMock(
       return jsonResponse({ comandos: [] });
     }
     // LOOKUP DE UNIDADE — a origem do dado é o servidor, não uma lista no frontend.
-    if (pathname === '/api/v1/service-orders/operational-units') {
+    if (pathname === '/api/v1/service-orders/operational-unit-options') {
       if (options.unitsStatus && options.unitsStatus >= 400) {
         return jsonResponse(
           { error: { code: 'SERVICE_ORDERS_DENIED', message: 'denied' } },
           options.unitsStatus,
         );
       }
-      return jsonResponse({ items: units });
+      return jsonResponse({
+        items: units,
+        details: units.map((id) => ({
+          id,
+          code: id === 'UNIDADE-A' ? 'PVH' : null,
+          name: id === 'UNIDADE-A' ? 'Porto Velho' : null,
+          configured: id === 'UNIDADE-A',
+        })),
+      });
     }
     /*
      * LOOKUP DAS RELAÇÕES DE ORIGEM — o vínculo deixou de ser texto livre e passou a ser escolha
@@ -260,6 +268,10 @@ describe('Nova OS — contrato de criação', () => {
     await waitFor(() => {
       const select = screen.getByTestId<HTMLSelectElement>('so-create-unit');
       expect([...select.options].map((o) => o.value)).toEqual(['UNIDADE-A', 'UNIDADE-B']);
+      expect([...select.options].map((o) => o.text)).toEqual([
+        'Porto Velho · PVH',
+        'Unidade autorizada 2',
+      ]);
     });
   });
 

@@ -62,6 +62,14 @@ export class ServiceOrdersController {
     });
   }
 
+  @Get('operational-unit-options')
+  listOperationalUnitOptions(@CurrentAuth() auth: AccessTokenClaims) {
+    return this.serviceOrdersAccess.listOperationalUnitOptions({
+      identityId: auth.sub,
+      sessionId: auth.sid,
+    });
+  }
+
   @Get(':serviceOrderId')
   getById(@CurrentAuth() auth: AccessTokenClaims, @Param('serviceOrderId') serviceOrderId: string) {
     return this.serviceOrdersAccess.getById(

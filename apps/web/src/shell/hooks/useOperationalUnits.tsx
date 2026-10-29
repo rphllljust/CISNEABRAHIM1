@@ -21,9 +21,16 @@ export type OperationalUnitOption = {
   label: string;
 };
 
+export type OperationalUnitDetail = {
+  id: string;
+  code: string | null;
+  name: string | null;
+  configured: boolean;
+};
+
 export type OperationalUnitsLoader = (
   signal?: AbortSignal,
-) => Promise<{ items: string[] }>;
+) => Promise<{ items: string[]; details?: OperationalUnitDetail[] }>;
 
 export type OperationalUnitsStatus = 'loading' | 'ready' | 'error';
 
@@ -40,6 +47,7 @@ export function useOperationalUnits(
 } {
   const [units, setUnits] = useState<string[]>([]);
   const [unitId, setUnitId] = useState('');
+  const [details, setDetails] = useState<OperationalUnitDetail[]>([]);
   const [status, setStatus] = useState<OperationalUnitsStatus>('loading');
   const [error, setError] = useState<unknown>(null);
   const [revision, setRevision] = useState(0);
@@ -51,12 +59,16 @@ export function useOperationalUnits(
     setStatus('loading');
     setError(null);
 
-    void loader(controller.signal)
+    // Normalize synchronous loader failures and rejected transport promises to
+    // the same fail-closed UI state; an exception must not escape the effect.
+    void Promise.resolve()
+      .then(() => loader(controller.signal))
       .then((response) => {
         if (controller.signal.aborted) {
           return;
         }
         setUnits(response.items);
+        setDetails(response.details ?? []);
         setUnitId((current) =>
           current && response.items.includes(current) ? current : response.items[0] || '',
         );
@@ -67,6 +79,7 @@ export function useOperationalUnits(
           return;
         }
         setUnits([]);
+        setDetails([]);
         setUnitId('');
         setError(reason);
         setStatus('error');
@@ -75,10 +88,14 @@ export function useOperationalUnits(
     return () => controller.abort();
   }, [loader, revision]);
 
-  const options: OperationalUnitOption[] = units.map((value, index) => ({
-    value,
-    label: units.length === 1 ? 'Unidade autorizada' : `Unidade autorizada ${index + 1}`,
-  }));
+  const detailById = new Map(details.map((detail) => [detail.id, detail]));
+  const options: OperationalUnitOption[] = units.map((value, index) => {
+    const detail = detailById.get(value);
+    const label = detail?.configured && detail.name?.trim() && detail.code?.trim()
+      ? `${detail.name} · ${detail.code}`
+      : units.length === 1 ? 'Unidade autorizada' : `Unidade autorizada ${index + 1}`;
+    return { value, label };
+  });
 
   return { units, options, unitId, setUnitId, status, error, reload };
 }

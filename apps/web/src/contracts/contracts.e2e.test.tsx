@@ -103,9 +103,12 @@ describe('contratos comerciais — fluxo de telas (frontend)', () => {
     await user.click(await screen.findByRole('link', { name: 'Novo contrato' }));
     await screen.findByRole('heading', { name: /^novo contrato$/i });
 
+    // The options are fetched asynchronously; the heading does not mean the
+    // client directory has finished loading. Assert the real option before selection.
+    const client = await screen.findByRole('option', { name: 'Demo' });
     await user.selectOptions(
       screen.getByLabelText(/^cliente/i),
-      'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      client,
     );
     await user.type(screen.getByLabelText(/^unidade operacional/i), 'UNIT-A');
     await user.type(screen.getByLabelText(/número do contrato/i), 'CTR-E2E-001');

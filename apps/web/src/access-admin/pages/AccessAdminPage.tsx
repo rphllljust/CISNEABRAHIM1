@@ -6,6 +6,7 @@ import { GrantsTab } from './GrantsTab';
 import { MatricesTab } from './MatricesTab';
 import { RolesTab } from './RolesTab';
 import { ScopesTab } from './ScopesTab';
+import { OperationalUnitsTab } from './OperationalUnitsTab';
 import { SodConflictsTab } from './SodConflictsTab';
 import { UsersTab } from './UsersTab';
 
@@ -17,6 +18,7 @@ const TAB_IDS = {
   approval: 'approval',
   capabilities: 'capabilities',
   scopes: 'scopes',
+  units: 'units',
   conflicts: 'conflicts',
 } as const;
 
@@ -31,6 +33,7 @@ export function AccessAdminPage() {
     { id: TAB_IDS.approval, label: 'Aprovações', panel: <MatricesTab /> },
     { id: TAB_IDS.capabilities, label: 'Capacidades', panel: <CapabilitiesTab /> },
     { id: TAB_IDS.scopes, label: 'Escopos', panel: <ScopesTab /> },
+    { id: TAB_IDS.units, label: 'Unidades', panel: <OperationalUnitsTab /> },
     { id: TAB_IDS.conflicts, label: 'Conflitos SoD', panel: <SodConflictsTab /> },
   ];
 

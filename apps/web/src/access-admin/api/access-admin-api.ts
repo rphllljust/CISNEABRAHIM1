@@ -38,6 +38,7 @@ type AccessAdminErrorBody = {
     code?: string;
     message?: string;
   };
+  code?: string;
 };
 
 const BASE = '/api/v1/authz/access-admin';
@@ -76,7 +77,7 @@ async function parseError(response: Response): Promise<AccessAdminApiError> {
   let code: string | undefined;
   try {
     const body = (await response.json()) as AccessAdminErrorBody;
-    code = body.error?.code;
+    code = body.error?.code ?? body.code;
   } catch {
     // ignore parse errors
   }
@@ -355,6 +356,82 @@ export async function assignApprovalRole(
     `${APPROVAL_MATRICES_BASE}/role-assignments`,
     {
       method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+/**
+ * Organizational UNIT master — distinct from fiscal establishments and from
+ * authorization scope_refs. Commands are versioned, idempotent and audited by
+ * the existing backend bounded context.
+ */
+export type OperationalUnitMaster = {
+  id: string;
+  code: string;
+  name: string;
+  version: number;
+  canManage?: boolean;
+};
+
+export type OperationalUnitDirectory = {
+  items: OperationalUnitMaster[];
+  unconfigured: string[];
+  canCreate: boolean;
+};
+
+export type OperationalUnitHistory = {
+  unit: OperationalUnitMaster;
+  events: Array<{
+    version: number;
+    action: 'CREATED' | 'UPDATED';
+    actorIdentityId: string;
+    occurredAt: string;
+    oldValue: unknown;
+    newValue: unknown;
+  }>;
+};
+
+const UNIT_MASTER_BASE = '/api/v1/organization/operational-units';
+
+export function listOrganizationalUnits(signal?: AbortSignal): Promise<OperationalUnitDirectory> {
+  return requestJson<OperationalUnitDirectory>(UNIT_MASTER_BASE, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export function getOrganizationalUnitHistory(id: string, signal?: AbortSignal): Promise<OperationalUnitHistory> {
+  return requestJson<OperationalUnitHistory>(
+    `${UNIT_MASTER_BASE}/${encodeURIComponent(id)}/history`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+export function createOrganizationalUnit(input: {
+  refId?: string;
+  code: string;
+  name: string;
+  idempotencyKey: string;
+}): Promise<OperationalUnitMaster> {
+  return requestJson<OperationalUnitMaster>(UNIT_MASTER_BASE, {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateOrganizationalUnit(id: string, input: {
+  code?: string;
+  name?: string;
+  expectedVersion: number;
+  idempotencyKey: string;
+}): Promise<OperationalUnitMaster> {
+  return requestJson<OperationalUnitMaster>(
+    `${UNIT_MASTER_BASE}/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
       headers: jsonHeaders(),
       body: JSON.stringify(input),
     },
