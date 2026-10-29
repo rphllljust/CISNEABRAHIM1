@@ -22,6 +22,7 @@ export function OperationalUnitGovernance({
   const [phase, setPhase] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
   const [directory, setDirectory] = useState<UnitGovernanceDirectory | null>(null);
   const [selection, setSelection] = useState('');
+  const [targetRef, setTargetRef] = useState<string | undefined>();
   const [mode, setMode] = useState<'view' | 'create' | 'edit'>('view');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -78,7 +79,8 @@ export function OperationalUnitGovernance({
     replay.current = null;
   }
 
-  function chooseCreate() {
+  function chooseCreate(refId?: string) {
+    setTargetRef(refId);
     setMode('create');
     setHistory(null);
     setHistoryState('idle');
@@ -93,7 +95,8 @@ export function OperationalUnitGovernance({
     if (busy || (mode === 'create' && !allowCreate) || (mode === 'edit' && !canEdit)) return;
     if (mode === 'edit' && !active) return;
     const signature = JSON.stringify({
-      mode, id: mode === 'edit' ? active?.id : null, expectedVersion: mode === 'edit' ? active?.version : null,
+      mode, targetRef: mode === 'create' ? targetRef ?? null : null,
+      id: mode === 'edit' ? active?.id : null, expectedVersion: mode === 'edit' ? active?.version : null,
       code: code.trim(), name: name.trim(),
     });
     const idempotencyKey = replay.current?.signature === signature
@@ -103,12 +106,13 @@ export function OperationalUnitGovernance({
     setMessage(null);
     try {
       const saved = mode === 'create'
-        ? await createGovernedUnit({ code, name, idempotencyKey })
+        ? await createGovernedUnit({ code, name, idempotencyKey, ...(targetRef ? { refId: targetRef } : {}) })
         : await updateGovernedUnit(active!.id, {
           code, name, expectedVersion: active!.version, idempotencyKey,
         });
       await refresh();
       setSelection(saved.id);
+      setTargetRef(undefined);
       setMode('view');
       setHistory(null);
       setHistoryState('idle');
@@ -163,6 +167,19 @@ export function OperationalUnitGovernance({
             ))}
           </div>
           {!directory.items.length ? <p>Nenhuma identidade empresarial cadastrada neste escopo.</p> : null}
+          {allowCreate && directory.unconfigured?.length ? (
+            <div className="mt-3" aria-label="Referências com identidade pendente">
+              <p className="text-gray-600">Unidades autorizadas aguardando identidade empresarial:</p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {directory.unconfigured.map((ref, index) => (
+                  <button type="button" key={ref} className="rounded border border-gray-300 px-2 py-1"
+                    onClick={() => chooseCreate(ref)}>
+                    Cadastrar identidade pendente {index + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {active ? (
             <div className="mt-3">
               <button type="button" className="underline" onClick={() => void showHistory()}>
@@ -186,7 +203,7 @@ export function OperationalUnitGovernance({
         <section aria-label="Comandos de identidade organizacional" className="min-w-0">
           <div className="mb-2 flex gap-2">
             {allowCreate ? (
-              <button type="button" className="underline" onClick={chooseCreate}>Cadastrar unidade</button>
+              <button type="button" className="underline" onClick={() => chooseCreate()}>Cadastrar unidade</button>
             ) : null}
             {canEdit ? (
               <button type="button" className="underline" onClick={() => chooseEdit(active!.id)}>
@@ -194,6 +211,9 @@ export function OperationalUnitGovernance({
               </button>
             ) : null}
           </div>
+          {mode === 'create' && targetRef ? (
+            <p>Este cadastro preservará a referência operacional existente, sem criar outra unidade técnica.</p>
+          ) : null}
           {(mode === 'create' && allowCreate) || (mode === 'edit' && canEdit) ? (
             <form onSubmit={event => void submit(event)} className="grid gap-2">
               <label className="grid gap-1">
