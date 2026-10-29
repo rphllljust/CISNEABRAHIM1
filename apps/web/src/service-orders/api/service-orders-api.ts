@@ -442,3 +442,55 @@ export async function probeServiceOrderPlanningCapabilities(
     canListAllocations: canRead,
   };
 }
+
+/**
+ * Cost-to-Serve reads the existing authorized operational-cost contract.
+ * The authoritative PostgreSQL/NestJS domain supplies totals and evidence;
+ * the UI must not sum paginated cost lines or invent financial positions.
+ */
+export type ServiceOrderCostEvidence = {
+  serviceOrderId: string;
+  rowVersion: number;
+  entries: Array<{
+    id: string;
+    category: string;
+    costKind: 'ESTIMATED' | 'ACTUAL';
+    origin: string;
+    description: string | null;
+    amount: string;
+    currencyCode: string;
+    sourceExecutionEntryId: string | null;
+    recordedAt: string;
+  }>;
+  summary: {
+    capturedAt: string;
+    currencyCode: string;
+    revenue: string | null;
+    totalEstimatedCost: string | null;
+    totalActualCost: string | null;
+    estimatedMargin: string | null;
+    actualMargin: string | null;
+    estimatedToActualVariance: string | null;
+    blockingReasons: string[];
+    disclaimer: string;
+    lines: Array<{
+      id: string;
+      category: string;
+      costKind: string;
+      origin: string;
+      amount: string;
+      currencyCode: string;
+      sourceExecutionEntryId: string | null;
+    }>;
+  };
+};
+
+export function getServiceOrderCostEvidence(
+  serviceOrderId: string,
+  signal?: AbortSignal,
+): Promise<ServiceOrderCostEvidence> {
+  return requestJson<ServiceOrderCostEvidence>(
+    `/api/v1/service-orders/${encodeURIComponent(serviceOrderId)}/operational-costs`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
