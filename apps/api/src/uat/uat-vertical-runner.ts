@@ -97,6 +97,7 @@ export function resolveResourceType(action: string): string {
   if (action.startsWith('commercial:proposal')) return AUTHZ_RESOURCE_TYPES.CommercialProposal;
   if (action.startsWith('commercial:purchase-order'))
     return AUTHZ_RESOURCE_TYPES.CommercialPurchaseOrder;
+  if (action.startsWith('commercial:contract')) return AUTHZ_RESOURCE_TYPES.CommercialContract;
   if (action.startsWith('requests:')) return AUTHZ_RESOURCE_TYPES.RequestsServiceRequest;
   if (action.startsWith('documents:')) return AUTHZ_RESOURCE_TYPES.DocumentsDocument;
   if (action.startsWith('resources:asset')) return AUTHZ_RESOURCE_TYPES.ResourcesAsset;
