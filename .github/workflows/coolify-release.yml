@@ -280,6 +280,7 @@ jobs:
         run: pnpm install --frozen-lockfile --ignore-scripts --filter @cisne/web...
 
       - name: Browser gate against production
+        id: production-verdict
         env:
           CISNE_PROD_WEB_URL: ${{ steps.prod-smoke.outputs.web_url }}
           PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
@@ -288,7 +289,14 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/cd/install-playwright-chromium.mjs
-          node scripts/cd/coolify-browser-gate.mjs
+          node scripts/cd/coolify-browser-gate.mjs | tee artifacts/browser-gate/verdict.log
+          grep -Fq '[coolify-browser-gate] runtimeVerified=true' artifacts/browser-gate/verdict.log
+          grep -Fq '[coolify-browser-gate] businessVerified=true' artifacts/browser-gate/verdict.log
+          grep -Fq '[coolify-browser-gate] releaseVerified=true' artifacts/browser-gate/verdict.log
+          echo "runtimeVerified=true" >> "$GITHUB_OUTPUT"
+          echo "businessVerified=true" >> "$GITHUB_OUTPUT"
+          echo "releaseVerified=true" >> "$GITHUB_OUTPUT"
+          echo "PRODUCTION_VALIDATED=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload browser gate evidence
         if: always()
