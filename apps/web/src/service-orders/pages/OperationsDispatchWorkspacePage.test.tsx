@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../test/render-with-providers';
 import { OperationsDispatchWorkspacePage } from './OperationsDispatchWorkspacePage';
 import { OperationsApiError, checkInServiceOrder, getServiceOrderOverview, listOperationUnitOptions } from '../api/operations-api';
+import type { ServiceOrderOverview } from '../types/operations.types';
 
 vi.mock('../api/operations-api', async (importOriginal) => {
   const real = await importOriginal<typeof import('../api/operations-api')>();
@@ -36,6 +37,58 @@ vi.mock('../../business-chain', () => ({
   BusinessChain: () => <div data-testid="station-chain" />,
   useBusinessChain: () => ({ chain: null, phase: 'idle', message: null, retry: vi.fn() }),
 }));
+
+function stationOverview(): ServiceOrderOverview {
+  return {
+    identity: {
+      serviceOrderId: 'os-1', unitId: 'unit-a', orderNumber: 'OS-001',
+      internalCode: null, serviceLabel: 'Serviço contratado', clientLabel: 'Cliente Alfa',
+      description: null, rowVersion: 7,
+    },
+    businessContext: {
+      origin: null, contractReference: 'CT-001',
+      customerPurchaseOrderNumber: null, priority: null,
+    },
+    statuses: {
+      operational: 'RELEASED', planning: 'READY', reservation: 'READY',
+      dispatch: 'READY', execution: 'PENDING', actuals: 'PENDING',
+      measurement: 'PENDING', billing: 'PENDING', accounting: 'PENDING',
+    },
+    process: [],
+    currentStage: 'DISPATCH',
+    planning: { plannedResourceCount: 1, activeAllocationCount: 1, activeResources: [] },
+    dispatch: {
+      dispatchedAt: null, checkedInAt: null, windowStart: null, windowEnd: null,
+      readiness: {
+        ready: true, status: 'READY', blockingReasons: [], warnings: [],
+        dimensions: [], nextAction: null, summary: 'Pronta',
+      },
+    },
+    execution: {
+      startedAt: null, pausedAt: null, completedAt: null,
+      executionClosedAt: null, measurementBasisPreparedAt: null,
+    },
+    actuals: {
+      comparison: { lines: [], substitutions: [], recordCount: 0, hasActuals: false, summary: 'Sem apontamentos' },
+      records: [], meters: [], fuel: [], evidence: [], signatures: [],
+    },
+    completionGate: {
+      canComplete: false, blockingReasons: [], nextAction: null,
+      nextActionLabel: null, consequences: [], summary: 'Não elegível',
+    },
+    economics: { plannedRevenue: null, plannedCost: null, currencyCode: null },
+    situations: [],
+    timeline: [],
+    nextAction: { code: 'CHECK_IN', label: 'Check-in', explanation: null },
+    availableCommands: [{
+      code: 'CHECK_IN', label: 'Registrar chegada', enabled: true,
+      reasons: [], reasonLabels: [], nextAction: null,
+      requiredPermission: 'operations:check-in', route: '/app/operations',
+    }],
+    decisionExplanation: { completionSummary: '', onCompletion: [], dispatchSummary: '' },
+    freshness: { readAt: '2026-10-29T20:00:00.000Z', authority: 'SERVER' },
+  };
+}
 
 function mount() {
   return renderWithProviders(
@@ -75,19 +128,7 @@ describe('Enterprise dispatch unit discovery', () => {
       items: ['unit-a'],
       details: [{ id: 'unit-a', code: 'PVH', name: 'Porto Velho', configured: true }],
     });
-    vi.mocked(getServiceOrderOverview).mockResolvedValue({
-      identity: { serviceOrderId: 'os-1', unitId: 'unit-a', orderNumber: 'OS-001', rowVersion: 4, clientLabel: 'Cliente Alfa' },
-      businessContext: { contractReference: 'CT-001' },
-      statuses: { operational: 'RELEASED' },
-      availableCommands: [],
-      dispatch: { readiness: { summary: 'Pendente', blockingReasons: [] } },
-      planning: { plannedResourceCount: 1, activeAllocationCount: 1 },
-      process: [],
-      actuals: { comparison: { recordCount: 0 } },
-      completionGate: { summary: 'Não elegível', blockingReasons: [] },
-      economics: { plannedCost: null, plannedRevenue: null, currencyCode: null },
-      nextAction: { label: 'Execução', explanation: null },
-    } as Awaited<ReturnType<typeof getServiceOrderOverview>>);
+    vi.mocked(getServiceOrderOverview).mockResolvedValue(stationOverview());
     mount();
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Selecionar OS' }));
     expect(await screen.findByTestId('station-planning')).toHaveTextContent('os-1');
@@ -105,16 +146,7 @@ describe('Enterprise dispatch unit discovery', () => {
       items: ['unit-a'],
       details: [{ id: 'unit-a', code: 'PVH', name: 'Porto Velho', configured: true }],
     });
-    const overview = {
-      identity: { serviceOrderId: 'os-1', unitId: 'unit-a', orderNumber: 'OS-001', rowVersion: 7, clientLabel: 'Cliente Alfa' },
-      businessContext: { contractReference: 'CT-001' }, statuses: { operational: 'RELEASED' },
-      availableCommands: [{ code: 'CHECK_IN', enabled: true, label: 'Registrar chegada' }],
-      dispatch: { readiness: { summary: 'Pronta', blockingReasons: [] } },
-      planning: { plannedResourceCount: 1, activeAllocationCount: 1 }, process: [],
-      actuals: { comparison: { recordCount: 0 } }, completionGate: { summary: 'Não elegível', blockingReasons: [] },
-      economics: { plannedCost: null, plannedRevenue: null, currencyCode: null },
-      nextAction: { label: 'Check-in', explanation: null },
-    } as Awaited<ReturnType<typeof getServiceOrderOverview>>;
+    const overview = stationOverview();
     vi.mocked(getServiceOrderOverview).mockResolvedValue(overview);
     vi.mocked(checkInServiceOrder).mockRejectedValueOnce(new OperationsApiError(0, undefined, 'network')).mockResolvedValueOnce(overview);
     mount();
@@ -132,16 +164,7 @@ describe('Enterprise dispatch unit discovery', () => {
       items: ['unit-a'],
       details: [{ id: 'unit-a', code: 'PVH', name: 'Porto Velho', configured: true }],
     });
-    vi.mocked(getServiceOrderOverview).mockResolvedValue({
-      identity: { serviceOrderId: 'os-1', unitId: 'unit-a', orderNumber: 'OS-001', rowVersion: 7, clientLabel: 'Cliente Alfa' },
-      businessContext: { contractReference: 'CT-001' }, statuses: { operational: 'RELEASED' },
-      availableCommands: [{ code: 'CHECK_IN', enabled: true, label: 'Registrar chegada' }],
-      dispatch: { readiness: { summary: 'Pronta', blockingReasons: [] } },
-      planning: { plannedResourceCount: 1, activeAllocationCount: 1 }, process: [],
-      actuals: { comparison: { recordCount: 0 } }, completionGate: { summary: 'Não elegível', blockingReasons: [] },
-      economics: { plannedCost: null, plannedRevenue: null, currencyCode: null },
-      nextAction: { label: 'Check-in', explanation: null },
-    } as Awaited<ReturnType<typeof getServiceOrderOverview>>);
+    vi.mocked(getServiceOrderOverview).mockResolvedValue(stationOverview());
     vi.mocked(checkInServiceOrder).mockRejectedValueOnce(new OperationsApiError(409, 'SERVICE_ORDERS_VERSION_CONFLICT', 'version_conflict'));
     mount();
     await userEvent.setup().click(await screen.findByRole('button', { name: 'Selecionar OS' }));
