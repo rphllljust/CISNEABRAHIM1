@@ -94,6 +94,7 @@ export class OperationalUnitDirectoryRepository {
   ): Promise<OperationalUnitRow> {
     const hash = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
     const client = await this.pool().connect();
+    let evictConnection = false;
     try {
       await client.query('BEGIN');
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [actorId + ':' + key]);
@@ -118,13 +119,18 @@ export class OperationalUnitDirectoryRepository {
       await client.query('COMMIT');
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Failed rollback leaves the connection in an unknown transaction state.
+        evictConnection = true;
+      }
       if ((error as { code?: string }).code === '23505') {
         throw new OperationalUnitCommandConflict('CODE_CONFLICT');
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictConnection);
     }
   }
 
