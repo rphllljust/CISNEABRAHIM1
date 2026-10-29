@@ -47,6 +47,12 @@ export function mapBillingErrorToMessage(code: string | undefined, status: numbe
       return 'A medição precisa estar aprovada antes da preparação de faturamento.';
     case BILLING_ERROR_CODES.BILLING_ALREADY_EXISTS:
       return 'Já existe uma preparação ativa para esta medição.';
+    case BILLING_ERROR_CODES.BILLING_CURRENCY_UNVERIFIED:
+      return 'Uma linha de medição aprovada não possui moeda comercial verificável. Revise a origem do preço antes de faturar.';
+    case BILLING_ERROR_CODES.BILLING_CURRENCY_MISMATCH:
+      return 'Os itens da medição possuem moedas diferentes ou incompatíveis com o contrato. Faturamento bloqueado.';
+    case BILLING_ERROR_CODES.BILLING_MEASUREMENT_CHANGED:
+      return 'A medição foi alterada durante a preparação. Recarregue os valores e repita o comando com a base atual.';
     case BILLING_ERROR_CODES.BILLING_AMOUNT_MISMATCH:
       return 'O total informado não confere com a soma dos itens da medição.';
     case BILLING_ERROR_CODES.COMMERCIAL_TERMS_MISMATCH:
