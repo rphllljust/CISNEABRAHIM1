@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ModulePage } from '../../ui/module-layout';
 import { WorklistHeader, WorklistStatePanel } from '../../ui/enterprise-list';
@@ -22,9 +22,11 @@ export function OperationsDispatchWorkspacePage({
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') === 'execution' ? 'execution' : searchParams.get('tab') === 'dispatch' ? 'dispatch' : initialTab;
   const selectedOrderId = searchParams.get('serviceOrderId');
+  const [refreshToken, setRefreshToken] = useState(0);
+  const requestGeneration = useRef(0);
   const [selection, setSelection] = useState<
     | { phase: 'idle' | 'loading' }
-    | { phase: 'ready'; data: ServiceOrderOverview }
+    | { phase: 'ready'; key: string; data: ServiceOrderOverview }
     | { phase: 'denied' | 'error' }
   >({ phase: 'idle' });
   const switchTab = (nextTab: 'dispatch' | 'execution') => {
@@ -46,8 +48,12 @@ export function OperationsDispatchWorkspacePage({
 
   const denied = error instanceof OperationsApiError && error.kind === 'denied';
 
+  const selectionKey = unitId && selectedOrderId ? `${unitId}:${selectedOrderId}` : null;
+  const refreshStation = useCallback(() => setRefreshToken(value => value + 1), []);
+
   useEffect(() => {
-    if (!selectedOrderId || status !== 'ready' || !unitId) {
+    const generation = ++requestGeneration.current;
+    if (!selectionKey || !selectedOrderId || status !== 'ready' || !unitId) {
       setSelection({ phase: 'idle' });
       return;
     }
@@ -55,15 +61,23 @@ export function OperationsDispatchWorkspacePage({
     setSelection({ phase: 'loading' });
     void getServiceOrderOverview(selectedOrderId, controller.signal)
       .then(data => {
-        if (controller.signal.aborted) return;
-        setSelection(data.identity.unitId === unitId ? { phase: 'ready', data } : { phase: 'denied' });
+        if (controller.signal.aborted || generation !== requestGeneration.current) return;
+        setSelection(data.identity.serviceOrderId === selectedOrderId && data.identity.unitId === unitId
+          ? { phase: 'ready', key: selectionKey, data }
+          : { phase: 'denied' });
       })
       .catch(error => {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || generation !== requestGeneration.current) return;
         setSelection({ phase: error instanceof OperationsApiError && error.kind === 'denied' ? 'denied' : 'error' });
       });
-    return () => controller.abort();
-  }, [selectedOrderId, unitId, status]);
+    return () => {
+      requestGeneration.current++;
+      controller.abort();
+    };
+  }, [selectionKey, selectedOrderId, unitId, status, refreshToken]);
+
+  const currentSelection = selection.phase === 'ready' && selection.key === selectionKey ? selection.data : null;
+  const selectionPhase = currentSelection ? 'ready' : selection.phase === 'ready' ? 'loading' : selection.phase;
 
   return (
     <ModulePage layout="workspace">
@@ -141,18 +155,18 @@ export function OperationsDispatchWorkspacePage({
           ) : null}
 
           {status === 'ready' && unitId && options.length > 0 ? (
-            tab === 'dispatch' ? <DispatchBoardPage unitId={unitId} onSelectOrder={selectOrder} /> :
-              <ExecutionConsolePage unitId={unitId} onSelectOrder={selectOrder} />
+            tab === 'dispatch' ? <DispatchBoardPage key={`dispatch:${unitId}`} unitId={unitId} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
+              <ExecutionConsolePage key={`execution:${unitId}`} unitId={unitId} onSelectOrder={selectOrder} />
           ) : null}
         </div>
         {selectedOrderId && status === 'ready' ? (
           <aside aria-label="Contexto da OS selecionada" className="mt-3 border-t border-gray-200 p-3 lg:border-l lg:border-t-0">
-            {selection.phase === 'loading' ? <p role="status">Carregando contexto autorizado…</p> : null}
-            {selection.phase === 'denied' ? <p role="alert">A OS não pertence ao escopo autorizado desta unidade.</p> : null}
-            {selection.phase === 'error' ? <p role="alert">Não foi possível consultar a OS selecionada.</p> : null}
-            {selection.phase === 'ready' ? (
+            {selectionPhase === 'loading' ? <p role="status">Carregando contexto autorizado…</p> : null}
+            {selectionPhase === 'denied' ? <p role="alert">A OS não pertence ao escopo autorizado desta unidade.</p> : null}
+            {selectionPhase === 'error' ? <p role="alert">Não foi possível consultar a OS selecionada.</p> : null}
+            {currentSelection ? (
               <div className="space-y-3">
-                <h2 className="text-base font-semibold">{selection.data.identity.orderNumber}</h2>
+                <h2 className="text-base font-semibold">{currentSelection.identity.orderNumber}</h2>
                 <p className="text-xs">{selection.data.identity.clientLabel} · {selection.data.businessContext.contractReference ?? 'Contrato não publicado'}</p>
                 <p className="text-xs">Estado: {selection.data.statuses.operational} · Versão {selection.data.identity.rowVersion}</p>
                 <p className="text-xs">Próxima ação: {selection.data.nextAction.label ?? 'Não publicada'}</p>
