@@ -33,6 +33,10 @@ import {
 } from './synthetic-business-scenarios';
 import { isSyntheticScenarioComplete } from './synthetic-scenario-completion';
 import { ensureTestDefaultIssuer } from '../test/ensure-test-issuer';
+import {
+  closeSyntheticFinancialChain, prepareHmlFinance,
+  type HmlFinanceActors,
+} from './synthetic-financial-close';
 
 export type SyntheticSeedCounts = {
   clients: number;
@@ -438,6 +442,7 @@ async function runScenario(
   scenario: SyntheticBusinessScenario,
   referenceDate: Date,
   options?: SyntheticBusinessSeedOptions,
+  financeActors?: HmlFinanceActors,
 ): Promise<SyntheticScenarioRunResult> {
   const existingId = await findSyntheticNamespaceClientId(services.pool, scenario.key);
   if (existingId) {
@@ -464,9 +469,22 @@ async function runScenario(
       poNumberOverride: syntheticPoNumber(scenario.key),
       clientExternalErpId: externalRef,
       vehiclePlateScenarioIndex: scenario.cnpjIndex,
+      syntheticRequireCustomerAcceptance:
+        financeActors !== undefined && (scenario.key === 'locacao-full' || scenario.key === 'transporte-full'),
     });
     if (result.status === 'FAIL') {
       return { key: scenario.key, outcome: 'failed', error: result.error ?? 'vertical scenario failed' };
+    }
+    if (financeActors &&
+        (scenario.key === 'locacao-full' || scenario.key === 'transporte-full')) {
+      if (!result.billingDocumentId || !result.serviceOrderId) {
+        throw new Error('HML_FINANCIAL_CHAIN_ORIGIN_MISSING');
+      }
+      await closeSyntheticFinancialChain(services, financeActors, {
+        key: scenario.key, unitId,
+        serviceOrderId: result.serviceOrderId,
+        billingDocumentId: result.billingDocumentId,
+      });
     }
     return { key: scenario.key, outcome: 'created' };
   }
@@ -505,13 +523,21 @@ export async function runSyntheticBusinessSeed(
     await ensureTestDefaultIssuer(pool);
   }
 
+  const financeActors =
+    process.env['CISNE_ENV'] === 'hml' &&
+    process.env['HML_INTEGRATIONS_SANDBOX'] === 'true' &&
+    scenarios.some((scenario) =>
+      scenario.key === 'locacao-full' || scenario.key === 'transporte-full')
+      ? await prepareHmlFinance(services, unitId)
+      : undefined;
+
   await withSyntheticSeedLock(pool, async (client) => {
     for (const scenario of scenarios) {
       if (options.failAfterScenarioKey === scenario.key) {
         throw new Error(`SYNTHETIC_SEED_INJECTED_FAILURE:${scenario.key}`);
       }
       try {
-        const result = await runScenario(services, actor, unitId, scenario, referenceDate, options);
+        const result = await runScenario(services, actor, unitId, scenario, referenceDate, options, financeActors);
         scenarioResults.push(result);
         if (result.outcome === 'failed') {
           throw new Error(result.error ?? `Scenario ${scenario.key} failed`);
