@@ -254,6 +254,7 @@ const MIGRATION_EFFECT_CHECKS = {
    * sondar a aceitação prova o controle comercial que a capability entrega.
    */
   '0108_measurement_acceptance_billing_readiness': { table: ['msr', 'customer_acceptances'] },
+  '0109_operational_unit_directory': { table: ['plt', 'operational_units'] },
 };
 
 /**
