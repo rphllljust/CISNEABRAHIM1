@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { getServiceRequestSummary, listServiceRequests } from '../../requests/api/service-requests-api';
 import { ServiceRequestStatusBadge } from '../../requests/components/ServiceRequestStatusBadge';
 import { listProposals } from '../../proposals/api/proposals-api';
+import { listContracts } from '../../contracts/api/contracts-api';
+import { ContractStatusBadge } from '../../contracts/components/ContractStatusBadge';
 import { listPurchaseOrders } from '../../purchase-orders/api/purchase-orders-api';
 import { PurchaseOrderStatusBadge } from '../../purchase-orders/components/PurchaseOrderStatusBadge';
 import {
@@ -53,6 +55,7 @@ export type ClientRelatedModuleKey =
   | 'requests'
   | 'proposals'
   | 'purchaseOrders'
+  | 'contracts'
   | 'serviceOrders';
 
 export type ClientRelatedModules = Record<ClientRelatedModuleKey, RelatedModule>;
@@ -68,6 +71,7 @@ const INITIAL_MODULES: ClientRelatedModules = {
   requests: LOADING_MODULE,
   proposals: LOADING_MODULE,
   purchaseOrders: LOADING_MODULE,
+  contracts: LOADING_MODULE,
   serviceOrders: LOADING_MODULE,
 };
 
@@ -163,10 +167,11 @@ async function loadModules(
   clientId: string,
   signal: AbortSignal,
 ): Promise<ClientRelatedModules> {
-  const [requests, proposals, purchaseOrders, serviceOrders, requestsSummary] = await Promise.all([
+  const [requests, proposals, purchaseOrders, contracts, serviceOrders, requestsSummary] = await Promise.all([
     settle(listServiceRequests({ limit: CLIENT_RELATION_PAGE_SIZE, offset: 0, clientId }, signal)),
     settle(listProposals({ limit: CLIENT_RELATION_PAGE_SIZE, offset: 0, clientId }, signal)),
     settle(listPurchaseOrders({ limit: CLIENT_RELATION_PAGE_SIZE, offset: 0, clientId }, signal)),
+    settle(listContracts({ limit: CLIENT_RELATION_PAGE_SIZE, offset: 0, clientId }, signal)),
     settle(listServiceOrders({ limit: CLIENT_RELATION_PAGE_SIZE, offset: 0, clientId }, signal)),
     settle(getServiceRequestSummary({ clientId }, signal)),
   ]);
@@ -212,6 +217,18 @@ async function loadModules(
           label: item.poNumber,
           meta: item.issueDate ? `Emissão ${formatShortDateTime(item.issueDate)}` : item.internalCode,
           badge: <PurchaseOrderStatusBadge status={item.status} />,
+        })),
+      completeCount,
+    ),
+    contracts: toModule(
+      contracts,
+      (response) =>
+        response.items.map((item) => ({
+          id: item.id,
+          href: `/app/contracts/${item.id}`,
+          label: item.contractNumber,
+          meta: item.title,
+          badge: <ContractStatusBadge status={item.status} />,
         })),
       completeCount,
     ),

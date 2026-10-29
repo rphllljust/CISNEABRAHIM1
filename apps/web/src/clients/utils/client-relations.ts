@@ -31,6 +31,7 @@ export function buildClientRelationSpecs(
       `/app/purchase-orders?clientId=${clientId}`,
       modules.purchaseOrders,
     ),
+    toSpec('contracts', 'Contratos', `/app/contracts?clientId=${encodeURIComponent(clientId)}`, modules.contracts),
     toSpec(
       'serviceOrders',
       'Ordens de serviço',
