@@ -42,6 +42,32 @@ jobs:
           set -euo pipefail
           test -n "$EXPECTED_SHA"
 
+          # Fail closed: every production SHA must first pass this exact HML workflow.
+          hml_runs_json=$(gh api "repos/${{ github.repository }}/actions/workflows/hml-isolated-e2e.yml/runs?branch=main&head_sha=$EXPECTED_SHA&status=success&per_page=100")
+          HML_RUN_ID=$(printf '%s' "$hml_runs_json" | EXPECTED_SHA="$EXPECTED_SHA" node --input-type=module -e '
+            let s=""; for await (const c of process.stdin) s+=c;
+            const sha=process.env.EXPECTED_SHA;
+            const runs=JSON.parse(s).workflow_runs ?? [];
+            const run=runs.filter((entry)=>entry.head_sha===sha && entry.status==="completed" && entry.conclusion==="success").sort((a,b)=>b.run_number-a.run_number)[0];
+            process.stdout.write(run ? String(run.id) : "");
+          ')
+          if [ -z "$HML_RUN_ID" ]; then
+            echo "::error::publication refused: no successful HML validation for sha=$EXPECTED_SHA"
+            exit 1
+          fi
+          hml_jobs_json=$(gh api "repos/${{ github.repository }}/actions/runs/$HML_RUN_ID/jobs?per_page=100")
+          hml_job=$(printf '%s' "$hml_jobs_json" | node --input-type=module -e '
+            let s=""; for await (const c of process.stdin) s+=c;
+            const jobs=JSON.parse(s).jobs ?? [];
+            const job=jobs.find((entry)=>entry.name==="HML Docker + synthetic business E2E");
+            process.stdout.write(job?.conclusion ?? job?.status ?? "MISSING");
+          ')
+          if [ "$hml_job" != "success" ]; then
+            echo "::error::publication refused: authoritative HML job=$hml_job (run $HML_RUN_ID)"
+            exit 1
+          fi
+          echo "HML_VALIDATED=true sha=$EXPECTED_SHA run=$HML_RUN_ID"
+
           # Contrato do seletor (fail-closed): workflow=CI, branch=main, sha=EXPECTED_SHA,
           # status=completed, conclusion=success; havendo varios, vale o success de maior
           # id. Depois exige o job `Release ready` = success. Qualquer outro conjunto
