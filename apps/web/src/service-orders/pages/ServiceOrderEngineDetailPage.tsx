@@ -429,8 +429,10 @@ export function ServiceOrderEngineDetailPage() {
                         Abrir medição
                       </Link>
                     </>
-                  ) : (
+                  ) : measurementDownstream?.count === 0 ? (
                     <span className="text-gray-600">Nenhuma medição registrada nesta ordem.</span>
+                  ) : (
+                    <span className="text-gray-600">Contagem de medições não disponível nesta leitura autorizada.</span>
                   )}
                 </dd>
               </div>
@@ -458,8 +460,10 @@ export function ServiceOrderEngineDetailPage() {
                         Abrir faturamento
                       </Link>
                     </>
-                  ) : (
+                  ) : billingDownstream?.count === 0 ? (
                     <span className="text-gray-600">Nenhum faturamento registrado nesta ordem.</span>
+                  ) : (
+                    <span className="text-gray-600">Contagem de faturamento não disponível nesta leitura autorizada.</span>
                   )}
                 </dd>
               </div>
