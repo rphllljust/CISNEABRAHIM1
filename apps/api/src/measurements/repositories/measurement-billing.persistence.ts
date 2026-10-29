@@ -8,6 +8,7 @@ export type MeasurementForBillingRow = {
   id: string;
   service_order_id: string;
   status: string;
+  row_version: number;
   commercial_reference_snapshot: Record<string, unknown>;
 };
 
