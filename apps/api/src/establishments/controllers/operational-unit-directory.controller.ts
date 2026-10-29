@@ -34,6 +34,6 @@ export class OperationalUnitDirectoryController {
     @Req() request: FastifyRequest,
   ) {
     return this.directory.update({ identityId: auth.sub, sessionId: auth.sid },
-      id, (request.body ?? {}) as Record<string, unknown>);
+      id, request.body ?? {});
   }
 }
