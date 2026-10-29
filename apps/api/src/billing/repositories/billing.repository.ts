@@ -200,7 +200,12 @@ export class BillingRepository {
                  END AS currency_code,
                 CASE WHEN br.status = 'PREPARED' THEN br.total_amount::text
                      WHEN m.status = 'APPROVED' AND item_totals.item_count > 0
-                       AND item_totals.priced_count = item_totals.item_count THEN item_totals.amount::text
+                       AND item_totals.priced_count = item_totals.item_count
+                       AND item_totals.currency_count = 1
+                       AND item_totals.invalid_currency_count = 0
+                       AND (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NULL
+                         OR UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) = item_totals.currency_code)
+                         THEN item_totals.amount::text
                      WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                        AND (${CONTRACTUAL_AMOUNT_SQL}) ~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN (${CONTRACTUAL_AMOUNT_SQL})
                      ELSE NULL END AS amount,
