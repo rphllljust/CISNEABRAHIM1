@@ -60,6 +60,22 @@ async function deleteBillingForServiceOrders(client: DbClient, serviceOrderIds: 
      )`,
     [serviceOrderIds],
   );
+  // The Commercial domain records a PO balance consumption at Billing prepare.
+  // It uses an intentionally RESTRICTED FK to the Billing record. Remove only
+  // entries whose originating Billing record AND PO belong to this same
+  // synthetic client's graph, before removing Billing records. An unrelated
+  // PO remains protected by RESTRICT instead of being deleted opportunistically.
+  // This executes inside the scenario compensation transaction; settled
+  // receivables are checked earlier and prevent the whole cleanup.
+  await client.query(
+    `DELETE FROM com.purchase_order_consumption_entries ce
+      USING bil.billing_records br, com.purchase_orders po
+      WHERE ce.billing_record_id = br.id
+        AND ce.purchase_order_id = po.id
+        AND br.service_order_id = ANY($1::uuid[])
+        AND po.client_id = br.client_id`,
+    [serviceOrderIds],
+  );
   await client.query(
     `DELETE FROM bil.billing_items
      WHERE billing_record_id IN (
