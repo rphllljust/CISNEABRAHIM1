@@ -38,6 +38,10 @@ import {
 } from '../domain/billing-entitlement';
 import { buildBillingCostSummaryFromMeasurementItems } from '../domain/billing-cost-summary';
 import {
+  MeasurementBillingCurrencyError,
+  resolveMeasurementBillingCurrency,
+} from '../domain/measurement-billing-currency';
+import {
   assertBillingItemsTraceable,
   buildBillingOriginSnapshot,
 } from '../domain/billing-invariants';
@@ -260,6 +264,7 @@ export class BillingAccessService {
 
     let itemDrafts: ItemDraft[];
     let measurementId: string | null = validated.measurementId ?? null;
+    let measurementVersion: number | null = null;
     let computedTotal: string;
     let currencyCode: string;
     let commercialReferenceSnapshot: Record<string, unknown>;
@@ -324,10 +329,23 @@ export class BillingAccessService {
       }
 
       computedTotal = sumMoneyAmounts(itemDrafts.map((item) => item.lineAmount));
-      const measurementCurrencyCode = measurement.commercial_reference_snapshot['currencyCode'];
-      currencyCode = assertCurrencyCode(
-        typeof measurementCurrencyCode === 'string' ? measurementCurrencyCode : 'BRL',
-      );
+      try {
+        currencyCode = resolveMeasurementBillingCurrency({
+          pricingLines: itemDrafts,
+          commercialReferenceSnapshot: measurement.commercial_reference_snapshot,
+        });
+      } catch (error) {
+        if (error instanceof MeasurementBillingCurrencyError) {
+          const code = error.code === 'BILLING_CURRENCY_MISMATCH'
+            ? BILLING_ERROR_CODES.BILLING_CURRENCY_MISMATCH
+            : BILLING_ERROR_CODES.BILLING_CURRENCY_UNVERIFIED;
+          throw new BillingHttpException(
+            HttpStatus.CONFLICT, code,
+            'Approved measurement pricing currencies are missing or inconsistent.',
+          );
+        }
+        throw error;
+      }
       commercialReferenceSnapshot = {
         ...measurement.commercial_reference_snapshot,
         costSummary: buildBillingCostSummaryFromMeasurementItems(measurementItems),
@@ -345,6 +363,7 @@ export class BillingAccessService {
         }),
       };
       measurementId = measurement.id;
+      measurementVersion = measurement.row_version;
     } else {
       try {
         assertBillingRight({
@@ -445,6 +464,7 @@ export class BillingAccessService {
       result = await this.billingRepository.prepareBillingRecord({
         serviceOrderId: order.id,
         measurementId,
+        measurementVersion,
         entitlementPolicy: policy,
         clientId: order.client_id,
         unitId: order.unit_id,
@@ -466,6 +486,14 @@ export class BillingAccessService {
       });
     } catch (error) {
       throw this.mapPurchaseOrderConsumptionError(error);
+    }
+
+    if (result.outcome === 'measurement_changed') {
+      throw new BillingHttpException(
+        HttpStatus.CONFLICT,
+        BILLING_ERROR_CODES.BILLING_MEASUREMENT_CHANGED,
+        'Approved measurement changed while preparing billing. Reload the authoritative basis.',
+      );
     }
 
     if (result.outcome === 'already_exists') {

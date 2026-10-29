@@ -8,6 +8,7 @@ export type MeasurementForBillingRow = {
   id: string;
   service_order_id: string;
   status: string;
+  row_version: number;
   commercial_reference_snapshot: Record<string, unknown>;
 };
 
@@ -25,8 +26,13 @@ export type MeasurementItemForBillingRow = {
 export async function lockMeasurementForBilling(
   client: PoolClient,
   measurementId: string,
-): Promise<void> {
-  await client.query(`SELECT id FROM msr.measurements WHERE id = $1 FOR UPDATE`, [measurementId]);
+): Promise<{ row_version: number; status: string } | null> {
+  const result = await client.query<{ row_version: number; status: string }>(
+    `SELECT row_version, status::text AS status
+       FROM msr.measurements WHERE id = $1 FOR UPDATE`,
+    [measurementId],
+  );
+  return result.rows[0] ?? null;
 }
 
 export async function findMeasurementForBilling(
@@ -35,7 +41,7 @@ export async function findMeasurementForBilling(
   serviceOrderId: string,
 ): Promise<MeasurementForBillingRow | null> {
   const result = await pool.query<MeasurementForBillingRow>(
-    `SELECT id, service_order_id, status::text AS status, commercial_reference_snapshot
+    `SELECT id, service_order_id, status::text AS status, row_version, commercial_reference_snapshot
      FROM msr.measurements
      WHERE id = $1 AND service_order_id = $2`,
     [measurementId, serviceOrderId],

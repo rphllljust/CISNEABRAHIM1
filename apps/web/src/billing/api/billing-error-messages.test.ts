@@ -39,6 +39,12 @@ describe('mapBillingErrorToMessage — códigos do registro de emissor', () => {
     );
   });
 
+  it('expõe causas comerciais e ações reais dos bloqueadores de moeda e concorrência', () => {
+    expect(mapBillingErrorToMessage('BILLING_CURRENCY_UNVERIFIED', 409)).toMatch(/moeda comercial verificável/i);
+    expect(mapBillingErrorToMessage('BILLING_CURRENCY_MISMATCH', 409)).toMatch(/faturamento bloqueado/i);
+    expect(mapBillingErrorToMessage('BILLING_MEASUREMENT_CHANGED', 409)).toMatch(/recarregue/i);
+  });
+
   it('continua genérica para código desconhecido — sem inventar causa', () => {
     expect(mapBillingErrorToMessage('ALGUM_CODIGO_NOVO', 500)).toBe(
       'Não foi possível concluir a operação de faturamento.',
