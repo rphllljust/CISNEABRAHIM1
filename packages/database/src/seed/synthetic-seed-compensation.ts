@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import {
   SYNTHETIC_SEED_DISPLAY_PREFIX,
   SYNTHETIC_SEED_NAMESPACE,
@@ -103,6 +103,19 @@ async function deleteMeasurementsForServiceOrders(client: DbClient, serviceOrder
   if (serviceOrderIds.length === 0) {
     return;
   }
+  // 0108 keeps acceptance and billing-readiness facts under RESTRICT FKs.
+  // Only the isolated synthetic OS graph may be compensated; production
+  // economic history is never removed by this harness.
+  for (const table of [
+    'msr.customer_acceptances',
+    'msr.billing_eligibility_evaluations',
+    'msr.revenue_leakage_positions',
+    'msr.measurement_variances',
+  ]) {
+    await client.query(`DELETE FROM ${table} WHERE service_order_id = ANY($1::uuid[])`, [
+      serviceOrderIds,
+    ]);
+  }
   await client.query(
     `DELETE FROM msr.measurement_history_events
      WHERE measurement_id IN (
@@ -139,6 +152,25 @@ async function deleteMeasurementsForServiceOrders(client: DbClient, serviceOrder
 async function deleteExecutionForServiceOrders(client: DbClient, serviceOrderIds: string[]): Promise<void> {
   if (serviceOrderIds.length === 0) {
     return;
+  }
+  // 0107 persists real dispatch, actuals, closure and measurement-basis facts
+  // with RESTRICT FKs. Remove descendants before evidence and legacy entries.
+  // Measurements (including basis-linked items) are already compensated.
+  for (const table of [
+    'so.measurement_basis',
+    'so.execution_closures',
+    'so.execution_actuals',
+    'so.execution_meter_readings',
+    'so.execution_fuel_records',
+    'so.execution_signatures',
+    'so.execution_events',
+    'so.execution_situations',
+    'so.service_order_dispatches',
+    'so.operational_cost_entries',
+  ]) {
+    await client.query(`DELETE FROM ${table} WHERE service_order_id = ANY($1::uuid[])`, [
+      serviceOrderIds,
+    ]);
   }
   await client.query(
     `DELETE FROM so.execution_entry_history_events
@@ -352,32 +384,40 @@ export async function compensateSyntheticScenario(
   client: DbClient,
   scenarioKey: string,
 ): Promise<SyntheticScenarioCompensationResult> {
-  const externalRef = syntheticExternalRef(scenarioKey);
-  const clientRow = await client.query<{ id: string }>(
-    `SELECT id FROM pty.clients WHERE external_erp_id = $1 LIMIT 1`,
-    [externalRef],
-  );
-  const clientId = clientRow.rows[0]?.id;
-
-  await client.query('BEGIN');
+  // A Pool does not pin successive query() calls to one connection.
+  // Use one dedicated client so BEGIN, deletes and ROLLBACK are atomic.
+  const connection = client instanceof Pool ? await client.connect() : client;
   try {
-    let clientRemoved = false;
-    if (clientId) {
-      await deleteClientGraph(client, clientId);
-      clientRemoved = true;
+    await connection.query('BEGIN');
+    try {
+      const externalRef = syntheticExternalRef(scenarioKey);
+      const clientRow = await connection.query<{ id: string }>(
+        `SELECT id FROM pty.clients WHERE external_erp_id = $1 LIMIT 1`,
+        [externalRef],
+      );
+      const clientId = clientRow.rows[0]?.id;
+      let clientRemoved = false;
+      if (clientId) {
+        await deleteClientGraph(connection, clientId);
+        clientRemoved = true;
+      }
+      const catalogArtifactsRemoved = await deleteScenarioCatalogArtifacts(connection, scenarioKey);
+      const assetsRemoved = await deleteScenarioAssets(connection, scenarioKey);
+      await connection.query('COMMIT');
+      return {
+        scenarioKey,
+        clientRemoved,
+        catalogArtifactsRemoved,
+        assetsRemoved,
+      };
+    } catch (error) {
+      await connection.query('ROLLBACK');
+      throw error;
     }
-    const catalogArtifactsRemoved = await deleteScenarioCatalogArtifacts(client, scenarioKey);
-    const assetsRemoved = await deleteScenarioAssets(client, scenarioKey);
-    await client.query('COMMIT');
-    return {
-      scenarioKey,
-      clientRemoved,
-      catalogArtifactsRemoved,
-      assetsRemoved,
-    };
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
+  } finally {
+    if (client instanceof Pool) {
+      connection.release();
+    }
   }
 }
 
