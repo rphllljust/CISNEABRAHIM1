@@ -82,26 +82,45 @@ export class OperationalUnitDirectoryService {
     }
   }
 
-  async listAdminVisible(actor: IdentityAuthzContext): Promise<{ items: OperationalUnitRead[] }> {
-    const [direct, roleDerived, ids] = await Promise.all([
+  async listAdminVisible(actor: IdentityAuthzContext) {
+    const [direct, roleDerived, ids, registeredRefs] = await Promise.all([
       this.authorization.findActiveGrants(
-        actor.identityId,
-        AUTHZ_ACTIONS.OperationalUnitRead,
-        AUTHZ_RESOURCE_TYPES.OperationalUnit,
+        actor.identityId, AUTHZ_ACTIONS.OperationalUnitRead, AUTHZ_RESOURCE_TYPES.OperationalUnit,
       ),
       this.authorization.findRoleDerivedActionRows(actor.identityId, AUTHZ_ACTIONS.OperationalUnitRead),
       this.repository.listAllIds(),
+      this.scopeRefs.listUnitScopeRefs(),
     ]);
     if (direct.length === 0 && roleDerived.length === 0) {
       throw new HttpException({ code: 'UNIT_DENIED', message: 'Access denied.' }, HttpStatus.FORBIDDEN);
     }
-    if (ids.length === 0) return { items: [] };
-    const decisions = await this.pdp.decideBatch(actor, {
-      action: AUTHZ_ACTIONS.OperationalUnitRead,
+    const allRefs = [...new Set([...ids, ...registeredRefs])];
+    const decisions = allRefs.length > 0
+      ? await this.pdp.decideBatch(actor, {
+          action: AUTHZ_ACTIONS.OperationalUnitRead,
+          resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
+        }, allRefs.map(unitId => ({ unitId })), { audit: false })
+      : [];
+    const allowed = new Set(allRefs.filter((_, i) => decisions[i]?.result === 'ALLOW'));
+    const masterIds = ids.filter(id => allowed.has(id));
+    const items = await this.listDetails(masterIds);
+    const managementDecisions = masterIds.length > 0
+      ? await this.pdp.decideBatch(actor, {
+          action: AUTHZ_ACTIONS.OperationalUnitManage,
+          resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
+        }, masterIds.map(unitId => ({ unitId })), { audit: false })
+      : [];
+    const createDecision = await this.pdp.decide(actor, {
+      action: AUTHZ_ACTIONS.OperationalUnitManage,
       resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
-    }, ids.map(unitId => ({ unitId })), { audit: false });
-    const authorized = ids.filter((_, i) => decisions[i]?.result === 'ALLOW');
-    return { items: await this.listDetails(authorized) };
+    }, { audit: false });
+    return {
+      items: items.map((item, index) => ({
+        ...item, canManage: managementDecisions[index]?.result === 'ALLOW',
+      })),
+      unconfigured: registeredRefs.filter(ref => allowed.has(ref) && !ids.includes(ref)),
+      canCreate: createDecision.result === 'ALLOW',
+    };
   }
 
   async getHistory(actor: IdentityAuthzContext, id: string) {
