@@ -145,7 +145,7 @@ export class OperationalUnitDirectoryRepository {
 
   async update(
     client: PoolClient,
-    input: { id: string; code: string; name: string; expectedVersion: number; actorId: string },
+    input: { id: string; code?: string; name?: string; expectedVersion: number; actorId: string },
   ): Promise<OperationalUnitRow> {
     const current = await client.query<OperationalUnitRow>(
       'SELECT id, code, business_name, version FROM pty.operational_units WHERE id = $1 FOR UPDATE',
@@ -163,7 +163,7 @@ export class OperationalUnitDirectoryRepository {
        SET code = $2, business_name = $3, version = version + 1, updated_at = now()
        WHERE id = $1 AND version = $4
        RETURNING id, code, business_name, version`,
-      [input.id, input.code, input.name, input.expectedVersion],
+      [input.id, input.code ?? before.code, input.name ?? before.business_name, input.expectedVersion],
     );
     const after = updated.rows[0];
     if (!after) throw new OperationalUnitCommandConflict('VERSION_CONFLICT');
