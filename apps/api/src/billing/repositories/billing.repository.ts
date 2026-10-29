@@ -185,9 +185,19 @@ export class BillingRepository {
                 COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') AS entitlement_policy,
                 m.id AS measurement_id, m.status::text AS measurement_status, m.row_version AS measurement_version,
                 br.id AS billing_record_id, br.status::text AS billing_status, br.row_version AS billing_version,
-                CASE WHEN br.id IS NULL AND m.id IS NULL THEN NULL
-                     ELSE COALESCE(br.currency_code, NULLIF(m.commercial_reference_snapshot->>'currencyCode', ''),
-                       NULLIF(so.proposal_snapshot->>'currencyCode', ''), NULLIF(so.purchase_order_snapshot->>'currencyCode', ''), 'BRL') END AS currency_code,
+                CASE
+                   WHEN br.id IS NOT NULL THEN br.currency_code
+                   WHEN m.status = 'APPROVED'
+                     AND item_totals.currency_count = 1
+                     AND item_totals.invalid_currency_count = 0
+                     AND (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NULL
+                       OR UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) = item_totals.currency_code)
+                     THEN item_totals.currency_code
+                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
+                     THEN COALESCE(NULLIF(so.proposal_snapshot->>'currencyCode', ''),
+                                   NULLIF(so.purchase_order_snapshot->>'currencyCode', ''), 'BRL')
+                   ELSE NULL
+                 END AS currency_code,
                 CASE WHEN br.status = 'PREPARED' THEN br.total_amount::text
                      WHEN m.status = 'APPROVED' AND item_totals.item_count > 0
                        AND item_totals.priced_count = item_totals.item_count THEN item_totals.amount::text
