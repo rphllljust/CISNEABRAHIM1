@@ -10,12 +10,16 @@ const scenarios = [
     clientId: process.env.HML_ALFA_CLIENT_ID,
     contractId: process.env.HML_ALFA_CONTRACT_ID,
     serviceOrderId: process.env.HML_ALFA_SERVICE_ORDER_ID,
+    receivableId: process.env.HML_ALFA_RECEIVABLE_ID,
+    settlementId: process.env.HML_ALFA_SETTLEMENT_ID,
   },
   {
     label: 'BETA',
     clientId: process.env.HML_BETA_CLIENT_ID,
     contractId: process.env.HML_BETA_CONTRACT_ID,
     serviceOrderId: process.env.HML_BETA_SERVICE_ORDER_ID,
+    receivableId: process.env.HML_BETA_RECEIVABLE_ID,
+    settlementId: process.env.HML_BETA_SETTLEMENT_ID,
   },
 ];
 
@@ -31,6 +35,8 @@ test.describe('HML isolada — Customer 360 → Contract 360 ↔ OS 360 (API rea
       expect(scenario.clientId, scenario.label + ': clientId').toBeTruthy();
       expect(scenario.contractId, scenario.label + ': contractId').toBeTruthy();
       expect(scenario.serviceOrderId, scenario.label + ': serviceOrderId').toBeTruthy();
+      expect(scenario.receivableId, scenario.label + ': receivableId').toBeTruthy();
+      expect(scenario.settlementId, scenario.label + ': settlementId').toBeTruthy();
     }
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     page = await context.newPage();
@@ -83,6 +89,15 @@ test.describe('HML isolada — Customer 360 → Contract 360 ↔ OS 360 (API rea
       await page.goto(`${baseUrl}/app/service-orders/${serviceOrderId}`);
       await page.getByRole('link', { name: 'Abrir faturamento' }).click();
       await expect(page).toHaveURL(new RegExp(`/app/service-orders/${serviceOrderId}/billing`));
+      // Navegação financeira vinculada pelos IDs autoritativos da HML. 
+      // O verificador econômico independente valida journal, outbox e somas em PostgreSQL.
+      await page.goto(`${baseUrl}/app/finance/receivables/${scenario.receivableId}`);
+      await expect(page.getByRole('heading', { name: /recebível|receber|título/i }).first()).toBeVisible({ timeout: 30_000 });
+      await page.screenshot({ path: testInfo.outputPath(`${label}-receivable360-desktop.png`), fullPage: true });
+      await page.goto(`${baseUrl}/app/accounting/economic-trace/settlement/${scenario.settlementId}`);
+      await expect(page.getByText('Trilha da liquidação').first()).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText('Contabilizado').first()).toBeVisible({ timeout: 30_000 });
+      await page.screenshot({ path: testInfo.outputPath(`${label}-economic-trace-desktop.png`), fullPage: true });
       expect(errors, `${label}: erros Javascript ou HTTP 5xx`).toEqual([]);
     });
   }

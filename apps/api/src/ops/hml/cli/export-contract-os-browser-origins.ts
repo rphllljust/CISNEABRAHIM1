@@ -32,6 +32,19 @@ async function main() {
         throw new Error(`HML_BROWSER_CONTRACT_ORIGIN_MISSING:${scenario}:found=${result.rows.length}`);
       }
       const origin = result.rows[0]!;
+      const finance = await pool.query<{ receivable_id: string; settlement_id: string }>(
+        `SELECT r.id::text AS receivable_id, s.id::text AS settlement_id
+           FROM fin.receivables r
+           JOIN fin.settlements s ON s.receivable_id = r.id AND s.status = 'POSTED'
+          WHERE r.origin_service_order_id = $1`,
+        [origin.service_order_id],
+      );
+      if (finance.rows.length !== 1) {
+        throw new Error(`HML_BROWSER_FINANCE_ORIGIN_MISSING:${scenario}:found=${finance.rows.length}`);
+      }
+      const monetary = finance.rows[0]!;
+      lines.push(`HML_${label}_RECEIVABLE_ID=${monetary.receivable_id}`);
+      lines.push(`HML_${label}_SETTLEMENT_ID=${monetary.settlement_id}`);
       lines.push(`HML_${label}_CLIENT_ID=${origin.client_id}`);
       lines.push(`HML_${label}_CONTRACT_ID=${origin.contract_id}`);
       lines.push(`HML_${label}_SERVICE_ORDER_ID=${origin.service_order_id}`);

@@ -11,6 +11,8 @@ export const HML_PILOT_OPERATOR_EXTRA_ACTIONS = [
   // Browser HML only: allow the pilot to read Contract 360 without mutation grants.
   AUTHZ_ACTIONS.CommercialContractList,
   AUTHZ_ACTIONS.CommercialContractRead,
+  AUTHZ_ACTIONS.FinanceReceivableRead,
+  AUTHZ_ACTIONS.FinanceReceivableList,
   AUTHZ_ACTIONS.AccountingJournalRead,
   AUTHZ_ACTIONS.AccountingJournalList,
   AUTHZ_ACTIONS.AccountingChartManage,
