@@ -268,6 +268,10 @@ describe('Nova OS — contrato de criação', () => {
     await waitFor(() => {
       const select = screen.getByTestId<HTMLSelectElement>('so-create-unit');
       expect([...select.options].map((o) => o.value)).toEqual(['UNIDADE-A', 'UNIDADE-B']);
+      expect([...select.options].map((o) => o.text)).toEqual([
+        'Porto Velho · PVH',
+        'Unidade autorizada 2',
+      ]);
     });
   });
 
