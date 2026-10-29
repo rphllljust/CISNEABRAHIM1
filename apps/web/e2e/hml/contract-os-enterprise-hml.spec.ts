@@ -51,8 +51,13 @@ async function signIn(page: Page): Promise<void> {
   expect(login, 'Login HML obrigatório').not.toBe('');
   expect(password, 'Senha HML obrigatória').not.toBe('');
   await page.goto(`${root}/login`, { waitUntil: 'domcontentloaded' });
-  const user = page.getByLabel(/^usuário/i);
-  if (await user.isVisible().catch(() => false)) {
+  const alreadySignedIn = await page
+    .getByRole('heading', { level: 1, name: /central de operações/i })
+    .isVisible().catch(() => false);
+  if (!alreadySignedIn) {
+    // Não confundir hidratação assíncrona com sessão já autenticada.
+    const user = page.getByLabel(/^usuário/i);
+    await user.waitFor({ state: 'visible', timeout: 30_000 });
     await user.fill(login);
     await page.getByLabel(/^senha/i).fill(password);
     await page.getByRole('button', { name: /^entrar/i }).click();
