@@ -33,7 +33,9 @@ describe('auth flow e2e (frontend)', () => {
 
     await loginAndReachApp(user);
 
-    expect(screen.getByRole('banner')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByRole('banner')).toHaveLength(1);
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/api/v1/auth/session'),
       expect.objectContaining({ method: 'GET' }),
