@@ -60,6 +60,8 @@ describe('Service orders E2E', () => {
   });
 
   beforeEach(async () => {
+    // Master identity has its own lifecycle. Clear owned history before identity fixtures.
+    await pool.query('TRUNCATE pty.operational_unit_history, pty.operational_unit_commands, pty.operational_units');
     await truncateServiceRequestTables(pool);
     await truncateServiceOrderTables(pool);
     await truncateCommercialPurchaseOrderTables(pool);
@@ -183,6 +185,106 @@ describe('Service orders E2E', () => {
       },
     });
     expect(deniedOtherUnit.statusCode).toBe(403);
+  });
+
+  it('keeps master writes idempotent, detects stale versions and publishes units with no OS', async () => {
+    const login = normalizeLoginIdentifier(`unit-admin-${crypto.randomUUID()}@cisne.invalid`);
+    const hash = await hashPassword(AUTH_TEST_PASSWORD);
+    const { identityId } = await insertIdentity(pool, login, hash);
+    for (const action of [AUTHZ_ACTIONS.OperationalUnitRead, AUTHZ_ACTIONS.OperationalUnitManage]) {
+      await insertGrant(pool, {
+        identityId, action,
+        resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
+        scopeType: AUTHZ_SCOPES.Global, grantedByIdentityId: identityId,
+      });
+    }
+    const auth = await app.inject({
+      method: 'POST', url: '/api/v1/auth/login',
+      payload: { login, password: AUTH_TEST_PASSWORD },
+    });
+    const headers = { authorization: `Bearer ${parseAuthTokenResponse(auth.body).accessToken}` };
+    const payload = { code: 'PVH-TEST', name: 'Porto Velho Operacional', idempotencyKey: 'create-pvh-001' };
+    const created = await app.inject({
+      method: 'POST', url: '/api/v1/organization/operational-units', headers, payload,
+    });
+    expect(created.statusCode).toBe(201);
+    const original = JSON.parse(created.body) as { id: string; version: number; code: string };
+    expect(original).toMatchObject({ code: 'PVH-TEST', version: 1 });
+    const replay = await app.inject({
+      method: 'POST', url: '/api/v1/organization/operational-units', headers, payload,
+    });
+    expect(JSON.parse(replay.body)).toEqual(original);
+    const keyReused = await app.inject({
+      method: 'POST', url: '/api/v1/organization/operational-units', headers,
+      payload: { ...payload, name: 'Alteração não autorizada com mesma chave' },
+    });
+    expect(keyReused.statusCode).toBe(409);
+    const duplicate = await app.inject({
+      method: 'POST', url: '/api/v1/organization/operational-units', headers,
+      payload: { ...payload, idempotencyKey: 'create-pvh-002' },
+    });
+    expect(duplicate.statusCode).toBe(409);
+
+    const change = {
+      name: 'Porto Velho Central', expectedVersion: 1, idempotencyKey: 'update-pvh-001',
+    };
+    const updated = await app.inject({
+      method: 'PATCH', url: `/api/v1/organization/operational-units/${original.id}`,
+      headers, payload: change,
+    });
+    expect(updated.statusCode).toBe(200);
+    expect(JSON.parse(updated.body)).toMatchObject({ id: original.id, version: 2, name: 'Porto Velho Central' });
+    const replayUpdate = await app.inject({
+      method: 'PATCH', url: `/api/v1/organization/operational-units/${original.id}`,
+      headers, payload: change,
+    });
+    expect(JSON.parse(replayUpdate.body)).toEqual(JSON.parse(updated.body));
+    const stale = await app.inject({
+      method: 'PATCH', url: `/api/v1/organization/operational-units/${original.id}`,
+      headers, payload: { ...change, idempotencyKey: 'update-pvh-002' },
+    });
+    expect(stale.statusCode).toBe(409);
+    const events = await pool.query<{ event_kind: string }>(
+      'SELECT event_kind FROM pty.operational_unit_history WHERE unit_id = $1 ORDER BY version', [original.id],
+    );
+    expect(events.rows.map(row => row.event_kind)).toEqual(['CREATED', 'UPDATED']);
+
+    const readLogin = normalizeLoginIdentifier(`unit-read-${crypto.randomUUID()}@cisne.invalid`);
+    const { identityId: readerId } = await insertIdentity(pool, readLogin, hash);
+    await insertGrant(pool, {
+      identityId: readerId, action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Unit, resourceId: original.id,
+      grantedByIdentityId: readerId,
+    });
+    const authReader = await app.inject({
+      method: 'POST', url: '/api/v1/auth/login',
+      payload: { login: readLogin, password: AUTH_TEST_PASSWORD },
+    });
+    const readHeaders = { authorization: `Bearer ${parseAuthTokenResponse(authReader.body).accessToken}` };
+    const units = await app.inject({
+      method: 'GET', url: '/api/v1/query/operations/units', headers: readHeaders,
+    });
+    expect(units.statusCode).toBe(200);
+    expect(JSON.parse(units.body).details).toEqual([
+      { id: original.id, code: 'PVH-TEST', name: 'Porto Velho Central', configured: true },
+    ]);
+    const emptyBoard = await app.inject({
+      method: 'GET', url: `/api/v1/query/operations/dispatch?unitId=${original.id}`, headers: readHeaders,
+    });
+    expect(emptyBoard.statusCode).toBe(200);
+    expect(JSON.parse(emptyBoard.body).items).toEqual([]);
+    const forbiddenCreate = await app.inject({
+      method: 'POST', url: '/api/v1/service-orders', headers: readHeaders,
+      payload: { origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect, unitId: original.id },
+    });
+    expect(forbiddenCreate.statusCode).toBe(403);
+    const forbiddenAdmin = await app.inject({
+      method: 'PATCH', url: `/api/v1/organization/operational-units/${original.id}`,
+      headers: readHeaders,
+      payload: { name: 'Sem permissão', expectedVersion: 2, idempotencyKey: 'update-pvh-003' },
+    });
+    expect(forbiddenAdmin.statusCode).toBe(403);
   });
 
   it('creates and reads a DRAFT service order via HTTP', async () => {
