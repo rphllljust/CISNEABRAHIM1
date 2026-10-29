@@ -2,6 +2,7 @@ import {
   OPERATIONAL_PROFITABILITY_DISCLAIMER,
   aggregateOperationalProfitability,
   computeOperationalMargin,
+  computeCostVariancePercent,
   sumNullableMoneyAmounts,
   subtractMoney,
 } from '../../commercial/domain/operational-financials';
