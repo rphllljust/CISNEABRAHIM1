@@ -119,23 +119,6 @@ export class ScopeContextRepository {
     await this.insertScopeRef(this.pool(), AUTHZ_SCOPES.Unit, refId);
   }
 
-  /** Scope must be enforced before looking up display metadata. */
-  async listOperationalUnitDetails(
-    authorizedIds: readonly string[],
-  ): Promise<Array<{ id: string; code: string; name: string }>> {
-    if (authorizedIds.length === 0) return [];
-    const result = await this.pool().query<{ id: string; code: string; name: string }>(
-      `SELECT d.ref_id AS id, d.code, d.business_name AS name
-       FROM "authorization".operational_unit_directory d
-       JOIN "authorization".scope_refs s
-         ON s.scope_type = 'UNIT' AND s.ref_id = d.ref_id
-       WHERE d.ref_id = ANY($1::text[])
-       ORDER BY d.code ASC, d.ref_id ASC`,
-      [[...authorizedIds]],
-    );
-    return result.rows;
-  }
-
   async listUnitScopeRefs(): Promise<string[]> {
     const result = await this.pool().query<{ ref_id: string }>(
       `SELECT ref_id
