@@ -1,4 +1,6 @@
+import { Suspense } from 'react';
 import { Link, Outlet, useParams } from 'react-router-dom';
+import { LoadingState } from '../../ui/LoadingState';
 import { serviceOrderStagePath } from '../utils/service-order-next-action';
 
 /**
@@ -35,7 +37,11 @@ export function ExecutionShellLayout() {
       </a>
       <header className="execution-shell__header">
         <Link
-          to={serviceOrderId ? serviceOrderStagePath(serviceOrderId, 'planning') : '/app/service-orders'}
+          to={
+            serviceOrderId
+              ? serviceOrderStagePath(serviceOrderId, 'planning')
+              : '/app/service-orders'
+          }
           className="execution-shell__back"
         >
           {serviceOrderId ? 'Ordem de serviço' : 'Ordens de serviço'}
@@ -55,7 +61,9 @@ export function ExecutionShellLayout() {
       ) : null}
 
       <main id="execution-main" className="execution-shell__main">
-        <Outlet />
+        <Suspense fallback={<LoadingState label="Carregando etapa da ordem…" />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );
