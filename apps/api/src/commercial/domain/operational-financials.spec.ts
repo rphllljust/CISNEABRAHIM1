@@ -26,10 +26,20 @@ describe('operational-financials', () => {
 
     expect(totals.operationalRevenue).toBe('1500');
     expect(totals.realizedCost).toBe('250');
-    expect(totals.operationalMargin).toBe('1250');
+    expect(totals.operationalMargin).toBeNull(); // Incomplete coverage is NOT a valid consolidated margin.
     expect(totals.revenueSupportedCount).toBe(2);
     expect(totals.costSupportedCount).toBe(2);
     expect(totals.marginComputableCount).toBe(1);
     expect(OPERATIONAL_PROFITABILITY_FORMULA).toContain('operational_margin');
+  });
+
+  it('computes a consolidated margin only for fully supported nonempty populations', () => {
+    const complete = aggregateOperationalProfitability([
+      { operationalRevenue: '7000.0000', realizedCost: '3000.0000' },
+      { operationalRevenue: '2000.0000', realizedCost: '500.0000' },
+    ]);
+    expect(complete.operationalMargin).toBe('5500');
+    expect(complete.marginComputableCount).toBe(2);
+    expect(aggregateOperationalProfitability([]).operationalMargin).toBeNull();
   });
 });
