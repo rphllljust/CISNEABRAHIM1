@@ -196,7 +196,7 @@ export class OperationalUnitDirectoryService {
     if (typeof input.expectedVersion !== 'number' || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
       return badInput('Expected version must be a positive integer.');
     }
-    const expectedVersion = input.expectedVersion as number;
+    const expectedVersion = input.expectedVersion;
     if (input.code === undefined && input.name === undefined) {
       return badInput('At least one business field is required.');
     }
