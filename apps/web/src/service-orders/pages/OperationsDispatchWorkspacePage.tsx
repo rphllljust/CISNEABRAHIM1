@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ModulePage } from '../../ui/module-layout';
 import { WorklistHeader, WorklistStatePanel } from '../../ui/enterprise-list';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
-import { OperationsApiError, getServiceOrderOverview, listOperationUnitOptions } from '../api/operations-api';
+import { OperationsApiError, checkInServiceOrder, createCommandKey, describeOperationsError, getServiceOrderOverview, listOperationUnitOptions } from '../api/operations-api';
 import type { ServiceOrderOverview } from '../types/operations.types';
 import { DispatchBoardPage } from './DispatchBoardPage';
 import { ExecutionConsolePage } from './ExecutionConsolePage';
@@ -23,6 +23,10 @@ export function OperationsDispatchWorkspacePage({
   const tab = searchParams.get('tab') === 'execution' ? 'execution' : searchParams.get('tab') === 'dispatch' ? 'dispatch' : initialTab;
   const selectedOrderId = searchParams.get('serviceOrderId');
   const [refreshToken, setRefreshToken] = useState(0);
+  const commandFlight = useRef(false);
+  const [commandFeedback, setCommandFeedback] = useState<string | null>(null);
+  const [commandBusy, setCommandBusy] = useState(false);
+  const [queueRefresh, setQueueRefresh] = useState(0);
   const requestGeneration = useRef(0);
   const [selection, setSelection] = useState<
     | { phase: 'idle' | 'loading'; key?: string }
@@ -49,7 +53,10 @@ export function OperationsDispatchWorkspacePage({
   const denied = error instanceof OperationsApiError && error.kind === 'denied';
 
   const selectionKey = unitId && selectedOrderId ? `${unitId}:${selectedOrderId}` : null;
-  const refreshStation = useCallback(() => setRefreshToken(value => value + 1), []);
+  const refreshStation = useCallback(() => {
+    setRefreshToken(value => value + 1);
+    setQueueRefresh(value => value + 1);
+  }, []);
 
   useEffect(() => {
     const generation = ++requestGeneration.current;
@@ -78,6 +85,42 @@ export function OperationsDispatchWorkspacePage({
 
   const currentSelection = selection.phase === 'ready' && selection.key === selectionKey ? selection.data : null;
   const selectionPhase = currentSelection ? 'ready' : selectionKey && selection.key === selectionKey ? selection.phase : 'loading';
+
+  // Commands never use a snapshot captured for another unit or OS.
+  const checkIn = useCallback(async () => {
+    if (commandFlight.current || !currentSelection || !selectionKey) return;
+    const allowed = currentSelection.availableCommands.find(command => command.code === 'CHECK_IN');
+    if (!allowed?.enabled) return;
+    const intendedKey = selectionKey;
+    const intendedGeneration = requestGeneration.current;
+    commandFlight.current = true;
+    setCommandBusy(true);
+    setCommandFeedback(null);
+    try {
+      const updated = await checkInServiceOrder(currentSelection.identity.serviceOrderId, {
+        rowVersion: currentSelection.identity.rowVersion,
+        idempotencyKey: createCommandKey(),
+      });
+      if (intendedKey === selectionKey && intendedGeneration === requestGeneration.current &&
+          updated.identity.unitId === unitId && updated.identity.serviceOrderId === selectedOrderId) {
+        setSelection({ phase: 'ready', key: selectionKey, data: updated });
+        setCommandFeedback('Chegada confirmada pelo servidor.');
+      }
+    } catch (error) {
+      if (intendedKey === selectionKey) {
+        const conflict = error instanceof OperationsApiError && error.kind === 'version_conflict';
+        setCommandFeedback(conflict
+          ? 'Conflito de versão: a OS será recarregada; o comando não foi repetido.'
+          : error instanceof OperationsApiError && error.kind === 'network'
+            ? 'Resultado indeterminado por falha de rede. Confira a OS antes de uma nova intenção.'
+            : describeOperationsError(error));
+      }
+    } finally {
+      commandFlight.current = false;
+      setCommandBusy(false);
+      refreshStation();
+    }
+  }, [currentSelection, selectionKey, unitId, selectedOrderId, refreshStation]);
 
   return (
     <ModulePage layout="workspace">
@@ -155,7 +198,7 @@ export function OperationsDispatchWorkspacePage({
           ) : null}
 
           {status === 'ready' && unitId && options.length > 0 ? (
-            tab === 'dispatch' ? <DispatchBoardPage key={`dispatch:${unitId}`} unitId={unitId} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
+            tab === 'dispatch' ? <DispatchBoardPage key={`dispatch:${unitId}:${queueRefresh}`} unitId={unitId} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
               <ExecutionConsolePage key={`execution:${unitId}`} unitId={unitId} onSelectOrder={selectOrder} />
           ) : null}
         </div>
@@ -166,6 +209,7 @@ export function OperationsDispatchWorkspacePage({
             {selectionPhase === 'error' ? <p role="alert">Não foi possível consultar a OS selecionada.</p> : null}
             {currentSelection ? (
               <div className="space-y-3">
+                {commandFeedback ? <p role="status" className="text-xs">{commandFeedback}</p> : null}
                 <h2 className="text-base font-semibold">{currentSelection.identity.orderNumber}</h2>
                 <p className="text-xs">{currentSelection.identity.clientLabel} · {currentSelection.businessContext.contractReference ?? 'Contrato não publicado'}</p>
                 <p className="text-xs">Estado: {currentSelection.statuses.operational} · Versão {currentSelection.identity.rowVersion}</p>
@@ -176,6 +220,27 @@ export function OperationsDispatchWorkspacePage({
                   <p key={reason.dimension} className="text-xs">{reason.dimension}: {reason.reason ?? reason.reasonCode}</p>
                 ))}
                 <p className="text-xs">Recursos planejados: {currentSelection.planning.plannedResourceCount}; alocações ativas: {currentSelection.planning.activeAllocationCount}</p>
+                <div aria-label="Processamento da OS" className="space-y-2 border-t border-gray-200 pt-2">
+                  <h3 className="text-sm font-semibold">Processamento autorizado</h3>
+                  <ol aria-label="Etapas operacionais" className="space-y-1 text-xs">
+                    {currentSelection.process.map(step => (
+                      <li key={step.stage}>{step.label}: {step.state}{step.detail ? ` · ${step.detail}` : ''}</li>
+                    ))}
+                  </ol>
+                  {currentSelection.availableCommands.filter(command => command.enabled && command.code === 'CHECK_IN').map(command => (
+                    <button key={command.code} type="button" disabled={commandBusy}
+                      onClick={() => void checkIn()} className="rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                      {commandBusy ? 'Registrando…' : command.label}
+                    </button>
+                  ))}
+                  <p className="text-xs">Apontamentos persistidos: {currentSelection.actuals.comparison.recordCount}</p>
+                  <p className="text-xs">Conclusão: {currentSelection.completionGate.summary}</p>
+                  {currentSelection.completionGate.blockingReasons.map(reason => (
+                    <p key={reason.reasonCode} className="text-xs">{reason.reason}</p>
+                  ))}
+                  <p className="text-xs">Custo previsto: {currentSelection.economics.plannedCost ?? 'Não publicado'} {currentSelection.economics.currencyCode ?? ''}</p>
+                  <p className="text-xs">Receita prevista: {currentSelection.economics.plannedRevenue ?? 'Não publicada'} {currentSelection.economics.currencyCode ?? ''}</p>
+                </div>
                 <nav aria-label="Operar a OS" className="flex flex-wrap gap-3 text-sm">
                   <Link to={`/app/service-orders/${selectedOrderId}`}>OS 360</Link>
                   <Link to={`/app/service-orders/${selectedOrderId}/planning`}>Planejamento</Link>
