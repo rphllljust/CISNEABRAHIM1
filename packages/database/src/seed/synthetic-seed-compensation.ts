@@ -387,10 +387,10 @@ export async function compensateSyntheticScenario(
   // A Pool does not pin successive query() calls to one connection.
   // Use one dedicated client so BEGIN, deletes and ROLLBACK are atomic.
   const connection = client instanceof Pool ? await client.connect() : client;
+  let evictWith: Error | undefined;
   try {
     await connection.query('BEGIN');
-    try {
-      const externalRef = syntheticExternalRef(scenarioKey);
+    const externalRef = syntheticExternalRef(scenarioKey);
       const clientRow = await connection.query<{ id: string }>(
         `SELECT id FROM pty.clients WHERE external_erp_id = $1 LIMIT 1`,
         [externalRef],
@@ -410,13 +410,20 @@ export async function compensateSyntheticScenario(
         catalogArtifactsRemoved,
         assetsRemoved,
       };
-    } catch (error) {
+  } catch (error) {
+    // Preserve the original transaction failure even if rollback also fails;
+    // evict a potentially broken connection instead of returning it to the pool.
+    try {
       await connection.query('ROLLBACK');
-      throw error;
+    } catch (rollbackError) {
+      evictWith = rollbackError instanceof Error
+        ? rollbackError
+        : new Error(String(rollbackError));
     }
+    throw error;
   } finally {
     if (client instanceof Pool) {
-      connection.release();
+      connection.release(evictWith);
     }
   }
 }
