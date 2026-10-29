@@ -108,6 +108,7 @@ describe('operational-margin domain', () => {
     expect(summary.estimatedMargin).toBe('800');
     expect(summary.actualMargin).toBe('750');
     expect(summary.estimatedToActualVariance).toBe('50');
+    expect(summary.estimatedToActualVariancePercent).toBe('25');
     expect(summary.blockingReasons).toEqual([]);
     expect(summary.disclaimer).toContain('not official accounting');
   });
