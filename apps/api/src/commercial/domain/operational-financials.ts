@@ -31,6 +31,25 @@ export function subtractMoney(left: string, right: string): string {
   return fromScaledAmount(toScaledAmount(left) - toScaledAmount(right));
 }
 
+/**
+ * Deviation of actual vs estimated cost, in percent with four decimals.
+ * The calculation is exact (BigInt scale); when the estimated denominator
+ * is absent or zero no percentage can be inferred.
+ */
+export function computeCostVariancePercent(
+  actualCost: string | null,
+  estimatedCost: string | null,
+): string | null {
+  if (actualCost === null || estimatedCost === null) return null;
+  const actual = toScaledAmount(actualCost);
+  const estimate = toScaledAmount(estimatedCost);
+  if (estimate === 0n) return null;
+  const delta = actual - estimate;
+  const magnitude = delta < 0n ? -delta : delta;
+  const rounded = (magnitude * 100n * MONEY_SCALE_FACTOR + estimate / 2n) / estimate;
+  return fromScaledAmount(delta < 0n ? -rounded : rounded);
+}
+
 export function sumNullableMoneyAmounts(values: Array<string | null | undefined>): string | null {
   const present = values.filter((value): value is string => Boolean(value));
   return present.length > 0 ? sumMoneyAmounts(present) : null;
@@ -70,7 +89,13 @@ export function aggregateOperationalProfitability(
 
   const operationalRevenue = sumNullableMoneyAmounts(rows.map((row) => row.operationalRevenue));
   const realizedCost = sumNullableMoneyAmounts(rows.map((row) => row.realizedCost));
-  const operationalMargin = computeOperationalMargin(operationalRevenue, realizedCost);
+  // Totals may describe different subsets (a revenue-only OS and a cost-only OS).
+  // Their difference is NOT consolidated profit. Publish a consolidated margin
+  // only if every OS in the requested scope has both authoritative inputs.
+  const completeCoverage = marginComputableCount === rows.length && rows.length > 0;
+  const operationalMargin = completeCoverage
+    ? computeOperationalMargin(operationalRevenue, realizedCost)
+    : null;
 
   return {
     operationalRevenue,

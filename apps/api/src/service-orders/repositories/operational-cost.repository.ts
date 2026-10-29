@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import {
   OPERATIONAL_COST_ENTRY_RETURNING,
@@ -42,31 +42,18 @@ export class OperationalCostRepository {
     return connection.pool;
   }
 
-  async listByServiceOrder(serviceOrderId: string): Promise<OperationalCostEntryRow[]> {
-    const result = await this.pool().query<OperationalCostEntryRow>(
-      `SELECT ${OPERATIONAL_COST_ENTRY_RETURNING}
+  async listByServiceOrder(
+    serviceOrderId: string,
+    client?: PoolClient,
+  ): Promise<OperationalCostEntryRow[]> {
+    const sql = `SELECT ${OPERATIONAL_COST_ENTRY_RETURNING}
        FROM so.operational_cost_entries
        WHERE service_order_id = $1
-       ORDER BY recorded_at ASC, id ASC`,
-      [serviceOrderId],
-    );
+       ORDER BY recorded_at ASC, id ASC`;
+    const result = client
+      ? await client.query<OperationalCostEntryRow>(sql, [serviceOrderId])
+      : await this.pool().query<OperationalCostEntryRow>(sql, [serviceOrderId]);
     return result.rows;
-  }
-
-  async findApprovedMeasurementRevenue(serviceOrderId: string): Promise<string | null> {
-    const result = await this.pool().query<{ total_revenue: string | null }>(
-      `SELECT COALESCE(SUM(mi.line_amount), 0)::text AS total_revenue
-       FROM msr.measurements m
-       INNER JOIN msr.measurement_items mi ON mi.measurement_id = m.id
-       WHERE m.service_order_id = $1
-         AND m.status = 'APPROVED'::msr.measurement_status`,
-      [serviceOrderId],
-    );
-    const total = result.rows[0]?.total_revenue;
-    if (!total || total === '0' || total === '0.0000') {
-      return null;
-    }
-    return total;
   }
 
   async recordCost(
