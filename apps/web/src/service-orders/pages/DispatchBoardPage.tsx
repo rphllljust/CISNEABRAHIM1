@@ -426,6 +426,7 @@ function BlockedRow({ item, onSelectOrder }: { item: DispatchBoardItem; onSelect
             ))}
           </ul>
         </details>
+        </div>
       }
     />
   );
