@@ -1128,7 +1128,7 @@ $$;`);
       await applySqlFile(pool, '0108_measurement_acceptance_billing_readiness.sql');
     }
 
-    if (!(await tableExists(pool, 'plt.operational_units'))) {
+    if (!(await tableExists(pool, 'pty.operational_units'))) {
       await applySqlFile(pool, '0109_operational_unit_directory.sql');
     }
 
