@@ -764,5 +764,12 @@
       "when": 179091150000000000,
       "tag": "0108_measurement_acceptance_billing_readiness",
       "breakpoints": true
+    },
+    {
+      "idx": 109,
+      "version": "7",
+      "when": 179091200000000000,
+      "tag": "0109_operational_unit_directory",
+      "breakpoints": true
     }  ]
 }
