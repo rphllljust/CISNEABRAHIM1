@@ -26,8 +26,13 @@ export type MeasurementItemForBillingRow = {
 export async function lockMeasurementForBilling(
   client: PoolClient,
   measurementId: string,
-): Promise<void> {
-  await client.query(`SELECT id FROM msr.measurements WHERE id = $1 FOR UPDATE`, [measurementId]);
+): Promise<{ row_version: number; status: string } | null> {
+  const result = await client.query<{ row_version: number; status: string }>(
+    `SELECT row_version, status::text AS status
+       FROM msr.measurements WHERE id = $1 FOR UPDATE`,
+    [measurementId],
+  );
+  return result.rows[0] ?? null;
 }
 
 export async function findMeasurementForBilling(
