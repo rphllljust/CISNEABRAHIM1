@@ -183,21 +183,44 @@ export async function closeSyntheticFinancialChain(
   if (settlement.rows.length !== 1) throw new Error('HML_SETTLEMENT_NOT_POSTED');
   const settlementId = settlement.rows[0]!.id;
 
-  const account = await treasuryService.openAccount(actors.bankOfficer, {
-    unitId: input.unitId, kind: FINANCIAL_ACCOUNT_KINDS.Bank,
-    code: `HML-BANK-${stage}`, name: `HML Banco - ${stage}`,
-    currencyCode: source.currency_code, overdraftAllowed: false,
-    bank: { bankCode: '999', agency: '0001', accountNumber: `HML-${stage}` },
-  });
-  await treasuryService.postMovement(actors.bankOfficer, account.id, {
-    rowVersion: account.rowVersion,
-    direction: 'CREDIT', amount: source.principal,
-    idempotencyKey: `HML-MOV-${stage}`,
-    reference: `HML-RECEIPT-${stage}`,
-    originKind: TREASURY_ORIGIN_KINDS.ReceivableSettlement,
-    originId: settlementId, originReference: input.billingDocumentId,
-    occurredAt: settledAt,
-  });
+  const existingAccount = await pool.query<{ id: string }>(
+    'SELECT id FROM fin.financial_accounts WHERE unit_id = $1 AND code = $2',
+    [input.unitId, `HML-BANK-${stage}`],
+  );
+  if (existingAccount.rows.length > 1) throw new Error('HML_BANK_ACCOUNT_NOT_UNIQUE');
+  const account = existingAccount.rows.length === 1
+    ? await treasuryService.getById(actors.bankOfficer, existingAccount.rows[0]!.id)
+    : await treasuryService.openAccount(actors.bankOfficer, {
+        unitId: input.unitId, kind: FINANCIAL_ACCOUNT_KINDS.Bank,
+        code: `HML-BANK-${stage}`, name: `HML Banco - ${stage}`,
+        currencyCode: source.currency_code, overdraftAllowed: false,
+        bank: { bankCode: '999', agency: '0001', accountNumber: `HML-${stage}` },
+      });
+  if (account.currencyCode !== source.currency_code || account.kind !== FINANCIAL_ACCOUNT_KINDS.Bank) {
+    throw new Error('HML_BANK_ACCOUNT_ORIGIN_MISMATCH');
+  }
+  const existingMovement = await pool.query<{ id: string; amount: string }>(
+    `SELECT id, amount::text AS amount FROM fin.financial_transactions
+      WHERE account_id = $1 AND origin_kind = 'RECEIVABLE_SETTLEMENT'
+        AND origin_id = $2 AND idempotency_key = $3`,
+    [account.id, settlementId, `HML-MOV-${stage}`],
+  );
+  if (existingMovement.rows.length > 1 ||
+      (existingMovement.rows.length === 1 &&
+       existingMovement.rows[0]!.amount !== source.principal)) {
+    throw new Error('HML_DUPLICATE_OR_MISMATCHED_BANK_MOVEMENT');
+  }
+  if (existingMovement.rows.length === 0) {
+    await treasuryService.postMovement(actors.bankOfficer, account.id, {
+      rowVersion: account.rowVersion,
+      direction: 'CREDIT', amount: source.principal,
+      idempotencyKey: `HML-MOV-${stage}`,
+      reference: `HML-RECEIPT-${stage}`,
+      originKind: TREASURY_ORIGIN_KINDS.ReceivableSettlement,
+      originId: settlementId, originReference: input.billingDocumentId,
+      occurredAt: settledAt,
+    });
+  }
 
   const movement = await pool.query<{ id: string }>(
     `SELECT id FROM fin.financial_transactions
@@ -222,11 +245,21 @@ export async function closeSyntheticFinancialChain(
     }],
   });
   if (statement.lines.length !== 1) throw new Error('HML_BANK_STATEMENT_LINES_INVALID');
-  const proposed = await reconciliation.matchManual(actors.bankOfficer, {
-    bankStatementLineId: statement.lines[0]!.id,
-    financialTransactionId: movement.rows[0]!.id,
-  });
-  const confirmed = await reconciliation.confirm(actors.reconciliationApprover, proposed.id);
+  const existingReconciliation = await pool.query<{ id: string }>(
+    `SELECT r.id FROM fin.reconciliations r
+      JOIN fin.reconciliation_matches m ON m.reconciliation_id = r.id
+     WHERE r.bank_statement_line_id = $1 AND m.financial_transaction_id = $2
+       AND m.is_active = true AND r.status = 'CONFIRMED'`,
+    [statement.lines[0]!.id, movement.rows[0]!.id],
+  );
+  if (existingReconciliation.rows.length > 1) throw new Error('HML_RECONCILIATION_DUPLICATED');
+  const reconciliationId = existingReconciliation.rows.length === 1
+    ? existingReconciliation.rows[0]!.id
+    : (await reconciliation.matchManual(actors.bankOfficer, {
+        bankStatementLineId: statement.lines[0]!.id,
+        financialTransactionId: movement.rows[0]!.id,
+      })).id;
+  const confirmed = await reconciliation.confirm(actors.reconciliationApprover, reconciliationId);
   if (confirmed.status !== 'CONFIRMED' ||
       confirmed.match?.financialTransactionId !== movement.rows[0]!.id) {
     throw new Error('HML_RECONCILIATION_NOT_CONFIRMED');
