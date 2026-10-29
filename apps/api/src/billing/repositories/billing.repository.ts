@@ -261,6 +261,13 @@ export class BillingRepository {
                   WHEN doc.status = 'CANCELLED' THEN COALESCE(doc.cancel_reason, 'Documento interno cancelado')
                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                     AND (${CONTRACTUAL_AMOUNT_SQL}) !~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN 'O snapshot comercial não contém uma base de faturamento válida para esta política.'
+                  WHEN m.status = 'APPROVED' AND (item_totals.currency_count = 0 OR item_totals.invalid_currency_count > 0)
+                    THEN 'Há itens aprovados sem moeda comercial válida: verificar o snapshot do preço.'
+                  WHEN m.status = 'APPROVED' AND (
+                    item_totals.currency_count > 1
+                    OR (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NOT NULL
+                        AND UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) <> item_totals.currency_code)
+                  ) THEN 'A moeda dos itens diverge entre linhas ou da referência comercial.'
                   WHEN m.status = 'APPROVED' AND (item_totals.item_count = 0 OR item_totals.priced_count <> item_totals.item_count) THEN 'A medição aprovada não possui valores apuráveis em todos os itens.'
                   WHEN m.id IS NULL AND br.status IS DISTINCT FROM 'PREPARED'
                     AND COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') = 'MEASUREMENT_APPROVED' THEN 'A ordem concluída ainda não possui medição.'
