@@ -51,7 +51,7 @@ describe('Enterprise unit governance context', () => {
     expect(screen.getByRole('textbox', { name: 'Nome empresarial' })).toHaveValue('Porto Velho');
     await userEvent.setup().clear(screen.getByRole('textbox', { name: 'Nome empresarial' }));
     await userEvent.setup().type(screen.getByRole('textbox', { name: 'Nome empresarial' }), 'Porto Velho Centro');
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Atualizar identidade', exact: true }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Atualizar identidade' }));
     await waitFor(() => expect(updateGovernedUnit).toHaveBeenCalledWith('unit-a', expect.objectContaining({
       code: 'PVH', name: 'Porto Velho Centro', expectedVersion: 2, idempotencyKey: expect.any(String),
     })));
