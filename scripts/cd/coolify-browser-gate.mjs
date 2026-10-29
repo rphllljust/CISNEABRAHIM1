@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 15065)
-Total output lines: 1235
+Warning: truncated output (original token count: 15117)
+Total output lines: 1237
 
 /**
  * BROWSER GATE DE PRODUÇÃO — valida a INTERFACE RENDERIZADA no runtime real.
@@ -326,10 +326,12 @@ export function extractMeasurementCandidateServiceOrderIds(payload, unitId) {
  * Extraída aqui, a regra passa a ser exercitada por COMPORTAMENTO: quatro
  * combinações de entrada, quatro saídas esperadas.
  *
- *   releaseVerified = assertionsPass && runtimeVerified && businessVerified
+ *   releaseVerified = assertionsPass && runtimeVerified && releasePrerequisitesVerified
+ *   businessVerified = available business evidence has a complete authoritative chain
  *
- * `NOT_APPLICABLE` não entra na conjunção como aprovado: ele mantém
- * `businessVerified = false`, e a entrega não é declarada validada.
+ * `NOT_APPLICABLE` nunca aprova negócio. Sem evidência empresarial, o release pode
+ * ser tecnicamente validado e o resultado de produção continua explicitamente
+ * `CONDITIONAL`; com evidência disponível, a cadeia empresarial completa é exigida.
  */
 export function decideReleaseVerdict(input) {
   const assertionsPass = input.passed === input.total && input.total > 0;
@@ -604,11 +606,7 @@ async function main() {
      */
     const noAuthorizedUnit = /Nenhuma unidade autorizada/i.test(worklistText);
     /**
-     * A FAIXA DE RESUMO NÃO REPETE O PRÓPRIO `aria-label` NO TEXTO.
-     *
-     * A asserção anterior procurava a string "Resumo da contabilização" no texto da
-     * página. Esse é o `aria-label` do elemento — rótulo de acessibilidade, não conteúdo
-     * v…65 tokens truncated…te.
+     * A FAIXA DE RESUMO NÃO REPETE O PRÓPRIO `aria-label` N…117 tokens truncated…te.
      *
      * Medido em produção: a faixa exibia `1 FALHARAM · 0 PENDENTES · 0 ESTORNADAS` e a
      * asserção reprovava.
