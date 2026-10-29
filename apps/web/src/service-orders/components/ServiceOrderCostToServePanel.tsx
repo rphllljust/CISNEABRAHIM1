@@ -63,7 +63,7 @@ export function ServiceOrderCostToServePanel({ serviceOrderId }: { serviceOrderI
         </div>
         {state.phase === 'ready' ? (
           <span className="text-xs text-gray-600">
-            Fonte: custos operacionais e medição aprovada
+            Fonte: custos operacionais e medição aprovada · {new Date(state.data.summary.capturedAt).toLocaleString('pt-BR')}
           </span>
         ) : null}
       </div>
@@ -97,6 +97,7 @@ export function ServiceOrderCostToServePanel({ serviceOrderId }: { serviceOrderI
               { label: 'Custo estimado', value: state.data.summary.totalEstimatedCost },
               { label: 'Custo realizado', value: state.data.summary.totalActualCost },
               { label: 'Desvio realizado − estimado', value: state.data.summary.estimatedToActualVariance },
+              { label: 'Desvio percentual', value: state.data.summary.estimatedToActualVariancePercent },
               { label: 'Receita de medição aprovada (indicativa)', value: state.data.summary.revenue },
               { label: 'Margem operacional indicativa', value: state.data.summary.actualMargin },
             ].map((position) => (
@@ -105,7 +106,9 @@ export function ServiceOrderCostToServePanel({ serviceOrderId }: { serviceOrderI
                 <dd className="m-0 text-sm font-semibold text-gray-900">
                   {position.value === null
                     ? 'Sem evidência suficiente'
-                    : `${state.data.summary.currencyCode} ${position.value}`}
+                    : position.label === 'Desvio percentual'
+                      ? `${position.value}%`
+                      : `${state.data.summary.currencyCode} ${position.value}`}
                 </dd>
               </div>
             ))}
@@ -120,6 +123,18 @@ export function ServiceOrderCostToServePanel({ serviceOrderId }: { serviceOrderI
               </ul>
             </div>
           ) : null}
+          <p className="mt-3 text-xs text-gray-600">
+            Posições de custo planejado, comprometido, apropriado, faturado,
+            recebido e contabilizado não são intercambiáveis com custo estimado
+            ou receita medida. Esta leitura não as presume.
+            {' '}
+            <Link
+              to={`/app/service-orders/${serviceOrderId}/measurement`}
+              className="text-brand-700 underline"
+            >
+              Examinar medição
+            </Link>
+          </p>
           <details className="mt-4">
             <summary className="cursor-pointer text-sm font-semibold text-gray-900">
               Documentos e registros que compõem os custos ({state.data.entries.length})
