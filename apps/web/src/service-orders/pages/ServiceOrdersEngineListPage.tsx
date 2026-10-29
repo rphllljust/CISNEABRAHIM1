@@ -276,6 +276,7 @@ export function ServiceOrdersEngineListPage() {
 
   const activeViewType = searchParams.get('view') ?? 'list';
   const statusFilter = (searchParams.get('status') ?? '') as ServiceOrderStatus | '';
+  const contractIdFilter = searchParams.get('contractId');
   const queueFilter = parseQueueFilter(searchParams.get('filter'));
   const queueOrder = parseQueueOrder(searchParams.get('order'));
 
@@ -332,6 +333,7 @@ export function ServiceOrdersEngineListPage() {
             limit: PAGE_SIZE,
             offset: pageOffset,
             status: statusFilter || undefined,
+            contractId: contractIdFilter ?? undefined,
             filter: queueFilter,
             order: queueOrder,
             q: search || undefined,
@@ -365,7 +367,7 @@ export function ServiceOrdersEngineListPage() {
         setPageBusy(false);
       }
     },
-    [advancedPayload, pageOffset, queueFilter, queueOrder, search, statusFilter],
+    [advancedPayload, contractIdFilter, pageOffset, queueFilter, queueOrder, search, statusFilter],
   );
 
   /**
@@ -485,6 +487,8 @@ export function ServiceOrdersEngineListPage() {
 
   const clearFilters = (): void => {
     const next = filtersToSearchParams({});
+    // Limpar os filtros operacionais não perde o contexto da carteira contratual.
+    if (contractIdFilter !== null) next.set('contractId', contractIdFilter);
     if (activeViewType !== 'list') {
       next.set('view', activeViewType);
     }
@@ -799,6 +803,8 @@ export function ServiceOrdersEngineListPage() {
             onDelete={savedViews.remove}
             onApply={(view) => {
               const next = filtersToSearchParams(view.filters);
+              // Saved Views não podem alargar silenciosamente o contrato focalizado.
+              if (contractIdFilter !== null) next.set('contractId', contractIdFilter);
               next.set('view', view.viewType);
               setSearchParams(next, { replace: true });
             }}
