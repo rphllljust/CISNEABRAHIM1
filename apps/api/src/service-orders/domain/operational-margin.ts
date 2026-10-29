@@ -71,6 +71,9 @@ export function buildOperationalMarginSummary(input: {
       totalEstimatedCost !== null && totalActualCost !== null
         ? subtractMoney(totalActualCost, totalEstimatedCost)
         : null,
+    estimatedToActualVariancePercent: computeCostVariancePercent(
+      totalActualCost, totalEstimatedCost,
+    ),
     blockingReasons,
     disclaimer: OPERATIONAL_PROFITABILITY_DISCLAIMER,
     lines: input.lines,
