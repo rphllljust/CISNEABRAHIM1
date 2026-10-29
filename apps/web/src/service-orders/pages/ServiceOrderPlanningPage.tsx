@@ -146,8 +146,12 @@ function formatAllocatedResource(
   return '-';
 }
 
-export function ServiceOrderPlanningPage() {
-  const { serviceOrderId = '' } = useParams();
+export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSettled }: {
+  embeddedServiceOrderId?: string;
+  onMutationSettled?: () => void;
+} = {}) {
+  const { serviceOrderId: routeServiceOrderId = '' } = useParams();
+  const serviceOrderId = embeddedServiceOrderId ?? routeServiceOrderId;
   const navigate = useNavigate();
   const { capabilities } = useServiceOrderPlanningCapabilities();
   /**
@@ -169,6 +173,9 @@ export function ServiceOrderPlanningPage() {
   const [state, setState] = useState<PageState>({ phase: 'loading' });
   const [feedback, setFeedback] = useState<{ tone: 'error' | 'success' | 'info'; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    if (feedback?.tone === 'success') onMutationSettled?.();
+  }, [feedback, onMutationSettled]);
   const [allocateOpen, setAllocateOpen] = useState(false);
   const [selectedPlannedId, setSelectedPlannedId] = useState('');
   const [operationalStart, setOperationalStart] = useState('');

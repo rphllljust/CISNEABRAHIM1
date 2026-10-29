@@ -5,22 +5,36 @@ import { Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '../../test/render-with-providers';
 import { OperationsDispatchWorkspacePage } from './OperationsDispatchWorkspacePage';
-import { OperationsApiError, listOperationUnitOptions } from '../api/operations-api';
+import { OperationsApiError, getServiceOrderOverview, listOperationUnitOptions } from '../api/operations-api';
 
 vi.mock('../api/operations-api', async (importOriginal) => {
   const real = await importOriginal<typeof import('../api/operations-api')>();
-  return { ...real, listOperationUnitOptions: vi.fn() };
+  return { ...real, listOperationUnitOptions: vi.fn(), getServiceOrderOverview: vi.fn() };
 });
 vi.mock('../components/OperationalUnitGovernance', () => ({
   OperationalUnitGovernance: () => null,
 }));
 vi.mock('./DispatchBoardPage', () => ({
-  DispatchBoardPage: ({ unitId }: { unitId: string | null }) =>
-    <div data-testid="dispatch-active-unit">{unitId}</div>,
+  DispatchBoardPage: ({ unitId, onSelectOrder }: { unitId: string | null; onSelectOrder?: (id: string) => void }) =>
+    <div data-testid="dispatch-active-unit">{unitId}<button type="button" onClick={() => onSelectOrder?.('os-1')}>Selecionar OS</button></div>,
 }));
 vi.mock('./ExecutionConsolePage', () => ({
   ExecutionConsolePage: ({ unitId }: { unitId: string | null }) =>
     <div data-testid="execution-active-unit">{unitId}</div>,
+}));
+
+vi.mock('./ServiceOrderPlanningPage', () => ({
+  ServiceOrderPlanningPage: ({ embeddedServiceOrderId }: { embeddedServiceOrderId?: string }) => <div data-testid="station-planning">{embeddedServiceOrderId}</div>,
+}));
+vi.mock('./ServiceOrderExecutionPage', () => ({
+  ServiceOrderExecutionPage: ({ embeddedServiceOrderId }: { embeddedServiceOrderId?: string }) => <div data-testid="station-execution">{embeddedServiceOrderId}</div>,
+}));
+vi.mock('./MeasurementWorkbenchPage', () => ({
+  MeasurementWorkbenchPage: ({ embeddedServiceOrderId, embeddedUnitId }: { embeddedServiceOrderId?: string; embeddedUnitId?: string }) => <div data-testid="station-measurement">{embeddedUnitId}:{embeddedServiceOrderId}</div>,
+}));
+vi.mock('../../business-chain', () => ({
+  BusinessChain: () => <div data-testid="station-chain" />,
+  useBusinessChain: () => ({ chain: null, phase: 'idle', message: null, retry: vi.fn() }),
 }));
 
 function mount() {
@@ -33,7 +47,7 @@ function mount() {
 }
 
 describe('Enterprise dispatch unit discovery', () => {
-  beforeEach(() => vi.mocked(listOperationUnitOptions).mockReset());
+  beforeEach(() => { vi.mocked(listOperationUnitOptions).mockReset(); vi.mocked(getServiceOrderOverview).mockReset(); });
 
   it('shows authorized names/codes without service orders and preserves the internal contract value', async () => {
     vi.mocked(listOperationUnitOptions).mockResolvedValue({
@@ -53,6 +67,37 @@ describe('Enterprise dispatch unit discovery', () => {
     expect(screen.getByTestId('dispatch-active-unit')).toHaveTextContent('unit-b');
     await userEvent.setup().click(screen.getByRole('button', { name: 'Execução' }));
     expect(screen.getByTestId('execution-active-unit')).toHaveTextContent('unit-b');
+  });
+
+
+  it('keeps the authorized OS and unit while switching between real processing surfaces', async () => {
+    vi.mocked(listOperationUnitOptions).mockResolvedValue({
+      items: ['unit-a'],
+      details: [{ id: 'unit-a', code: 'PVH', name: 'Porto Velho', configured: true }],
+    });
+    vi.mocked(getServiceOrderOverview).mockResolvedValue({
+      identity: { serviceOrderId: 'os-1', unitId: 'unit-a', orderNumber: 'OS-001', rowVersion: 4, clientLabel: 'Cliente Alfa' },
+      businessContext: { contractReference: 'CT-001' },
+      statuses: { operational: 'RELEASED' },
+      availableCommands: [],
+      dispatch: { readiness: { summary: 'Pendente', blockingReasons: [] } },
+      planning: { plannedResourceCount: 1, activeAllocationCount: 1 },
+      process: [],
+      actuals: { comparison: { recordCount: 0 } },
+      completionGate: { summary: 'Não elegível', blockingReasons: [] },
+      economics: { plannedCost: null, plannedRevenue: null, currencyCode: null },
+      nextAction: { label: 'Execução', explanation: null },
+    } as Awaited<ReturnType<typeof getServiceOrderOverview>>);
+    mount();
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Selecionar OS' }));
+    expect(await screen.findByTestId('station-planning')).toHaveTextContent('os-1');
+    expect(screen.getByTestId('dispatch-active-unit')).toHaveTextContent('unit-a');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Executar e apontar' }));
+    expect(screen.getByTestId('station-execution')).toHaveTextContent('os-1');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Medir e aceitar' }));
+    expect(screen.getByTestId('station-measurement')).toHaveTextContent('unit-a:os-1');
+    expect(screen.getByTestId('dispatch-active-unit')).toHaveTextContent('unit-a');
+    expect(screen.getByTestId('station-chain')).toBeInTheDocument();
   });
 
   it('separates absence of authorization from absence of operational orders', async () => {

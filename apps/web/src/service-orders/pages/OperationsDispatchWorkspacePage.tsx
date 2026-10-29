@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ModulePage } from '../../ui/module-layout';
+import { WorkbenchFloorplan } from '../../ui/workbench-floorplan';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import { WorklistHeader, WorklistStatePanel } from '../../ui/enterprise-list';
 import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { OperationsApiError, checkInServiceOrder, createCommandKey, describeOperationsError, getServiceOrderOverview, listOperationUnitOptions } from '../api/operations-api';
 import type { ServiceOrderOverview } from '../types/operations.types';
 import { DispatchBoardPage } from './DispatchBoardPage';
 import { ExecutionConsolePage } from './ExecutionConsolePage';
+import { ServiceOrderPlanningPage } from './ServiceOrderPlanningPage';
+import { ServiceOrderExecutionPage } from './ServiceOrderExecutionPage';
+import { MeasurementWorkbenchPage } from './MeasurementWorkbenchPage';
 import { OperationalUnitGovernance } from '../components/OperationalUnitGovernance';
 
 /**
@@ -22,6 +27,15 @@ export function OperationsDispatchWorkspacePage({
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get('tab') === 'execution' ? 'execution' : searchParams.get('tab') === 'dispatch' ? 'dispatch' : initialTab;
   const selectedOrderId = searchParams.get('serviceOrderId');
+  const focus = searchParams.get('focus') === 'execution' ? 'execution'
+    : searchParams.get('focus') === 'measurement' ? 'measurement' : 'planning';
+  const chooseFocus = (value: 'planning' | 'execution' | 'measurement') => {
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous);
+      next.set('focus', value);
+      return next;
+    });
+  };
   const [refreshToken, setRefreshToken] = useState(0);
   const commandFlight = useRef(false);
   const [commandFeedback, setCommandFeedback] = useState<string | null>(null);
@@ -171,7 +185,11 @@ export function OperationsDispatchWorkspacePage({
           ) : null}
         </div>
 
-        <div data-region="worklist-master">
+        <WorkbenchFloorplan
+          queueLabel="Fila operacional autorizada"
+          activeLabel="OS em processamento"
+          contextLabel="Contexto de decisão"
+          queue={<div data-region="worklist-master">
           {status === 'loading' ? (
             <WorklistStatePanel
               title="Lendo unidades operacionais"
@@ -201,8 +219,47 @@ export function OperationsDispatchWorkspacePage({
             tab === 'dispatch' ? <DispatchBoardPage unitId={unitId} refreshToken={queueRefresh} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
               <ExecutionConsolePage unitId={unitId} refreshToken={queueRefresh} onSelectOrder={selectOrder} />
           ) : null}
-        </div>
-        {selectedOrderId && status === 'ready' ? (
+        </div>}
+          active={
+            <div className="min-w-0 space-y-3">
+              {currentSelection && selectedOrderId && unitId ? (
+                <>
+                  <header className="border-b border-gray-200 pb-2">
+                    <h2 className="text-base font-semibold">Processar OS {currentSelection.identity.orderNumber}</h2>
+                    <p className="text-xs text-gray-600">
+                      {currentSelection.identity.clientLabel ?? 'Cliente não publicado'} · {currentSelection.businessContext.contractReference ?? 'Contrato não publicado'}
+                    </p>
+                    <p className="text-xs">Versão {currentSelection.identity.rowVersion} · {currentSelection.statuses.operational}</p>
+                  </header>
+                  <nav aria-label="Etapa de processamento" className="flex flex-wrap gap-2">
+                    {(['planning', 'execution', 'measurement'] as const).map(value => (
+                      <button key={value} type="button" aria-pressed={focus === value}
+                        onClick={() => chooseFocus(value)}
+                        className={focus === value ? 'rounded bg-brand-700 px-3 py-2 text-xs font-semibold text-white' : 'rounded bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-700'}>
+                        {value === 'planning' ? 'Planejar e alocar' : value === 'execution' ? 'Executar e apontar' : 'Medir e aceitar'}
+                      </button>
+                    ))}
+                  </nav>
+                  <div data-region="active-process" className="min-w-0 overflow-x-auto">
+                    {focus === 'planning' ? (
+                      <ServiceOrderPlanningPage key={'planning:' + selectionKey} embeddedServiceOrderId={selectedOrderId} onMutationSettled={refreshStation} />
+                    ) : focus === 'execution' ? (
+                      <ServiceOrderExecutionPage key={'execution:' + selectionKey} embeddedServiceOrderId={selectedOrderId} onMutationSettled={refreshStation} />
+                    ) : (
+                      <MeasurementWorkbenchPage key={'measurement:' + selectionKey} embeddedServiceOrderId={selectedOrderId} embeddedUnitId={unitId} onMutationSettled={refreshStation} />
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p role="status" className="p-3 text-sm text-gray-600">
+                  {selectedOrderId ? 'Aguardando leitura autorizada da OS selecionada…' : 'Selecione uma OS na fila para planejar, alocar, executar e medir sem perder a seleção.'}
+                </p>
+              )}
+            </div>
+          }
+          context={
+            <div className="min-w-0">
+              {selectedOrderId && status === 'ready' ? (
           <aside aria-label="Contexto da OS selecionada" className="mt-3 border-t border-gray-200 p-3 lg:border-l lg:border-t-0">
             {selectionPhase === 'loading' ? <p role="status">Carregando contexto autorizado…</p> : null}
             {selectionPhase === 'denied' ? <p role="alert">A OS não pertence ao escopo autorizado desta unidade.</p> : null}
@@ -251,6 +308,10 @@ export function OperationsDispatchWorkspacePage({
             ) : null}
           </aside>
         ) : null}
+              {currentSelection && selectedOrderId ? <StationBusinessChain serviceOrderId={selectedOrderId} /> : null}
+            </div>
+          }
+        />
       </div>
     </ModulePage>
   );
@@ -277,4 +338,9 @@ function TabButton({
       {children}
     </button>
   );
+}
+
+function StationBusinessChain({ serviceOrderId }: { serviceOrderId: string }) {
+  const { chain, phase, message, retry } = useBusinessChain('SERVICE_ORDER', serviceOrderId);
+  return <BusinessChain chain={chain} phase={phase} message={message} onRetry={retry} title="Linhagem empresarial autorizada" />;
 }

@@ -128,8 +128,12 @@ async function readFileAsBase64(file: File, onProgress: (progress: number) => vo
   });
 }
 
-export function ServiceOrderExecutionPage() {
-  const { serviceOrderId = '' } = useParams();
+export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSettled }: {
+  embeddedServiceOrderId?: string;
+  onMutationSettled?: () => void;
+} = {}) {
+  const { serviceOrderId: routeServiceOrderId = '' } = useParams();
+  const serviceOrderId = embeddedServiceOrderId ?? routeServiceOrderId;
   const feedbackId = useId();
   const requestSeq = useRef(0);
   const [state, setState] = useState<PageState>({ phase: 'loading' });
@@ -137,6 +141,9 @@ export function ServiceOrderExecutionPage() {
     null,
   );
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (feedback?.tone === 'success') onMutationSettled?.();
+  }, [feedback, onMutationSettled]);
   const [activityOpen, setActivityOpen] = useState(false);
   const [occurrenceOpen, setOccurrenceOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);

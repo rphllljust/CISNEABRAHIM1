@@ -59,10 +59,14 @@ import type { DetectedVariance } from '../types/measurement-workbench.types';
  * A página reage a esses fatos e apresenta. É a única forma de a tela e o
  * comando não divergirem.
  */
-export function MeasurementWorkbenchPage() {
+export function MeasurementWorkbenchPage({ embeddedServiceOrderId, embeddedUnitId, onMutationSettled }: {
+  embeddedServiceOrderId?: string;
+  embeddedUnitId?: string;
+  onMutationSettled?: () => void;
+} = {}) {
   const { serviceOrderId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedServiceOrderId = serviceOrderId || searchParams.get('serviceOrderId') || '';
+  const selectedServiceOrderId = embeddedServiceOrderId ?? (serviceOrderId || searchParams.get('serviceOrderId') || '');
 
   /**
    * UNIDADE — vem da URL porque a fila é escopada por unidade.
@@ -70,7 +74,7 @@ export function MeasurementWorkbenchPage() {
    * O backend recusa a fila sem unidade: sem escopo operacional não há projeção
    * a devolver. A página não inventa uma unidade padrão.
    */
-  const unitId = searchParams.get('unitId') ?? '';
+  const unitId = embeddedUnitId ?? (searchParams.get('unitId') ?? '');
 
   const queue = useMeasurementQueue(unitId, { limit: 100 });
   const workbench = useMeasurementWorkbench(selectedServiceOrderId);
@@ -167,6 +171,7 @@ export function MeasurementWorkbenchPage() {
         // O READ MODEL INTEIRO é trocado pelo que o backend recompôs — com a
         // elegibilidade REAVALIADA na mesma transação. Nenhum campo é mutado.
         workbench.replace(outcome.data);
+        onMutationSettled?.();
         setAcceptanceDialog(null);
         setFeedback({
           tone: 'success',
@@ -191,7 +196,7 @@ export function MeasurementWorkbenchPage() {
         message: outcome.kind === 'denied' ? 'Sem permissão para registrar aceite.' : outcome.message,
       });
     },
-    [acceptanceDialog, acceptanceKey, command, queue, workbench],
+    [acceptanceDialog, acceptanceKey, command, queue, workbench, onMutationSettled],
   );
 
   const kpiAndWork = useMemo(() => {
