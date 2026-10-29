@@ -225,7 +225,12 @@ export class BillingRepository {
                   WHEN br.status = 'PREPARED' AND NOT (${documentScopeClause}) THEN 'document_state_unknown'
                   WHEN doc.status = 'FINALIZED' THEN 'issued'
                   WHEN br.status = 'PREPARED' THEN 'prepared'
-                  WHEN m.status = 'APPROVED' AND (item_totals.item_count = 0 OR item_totals.priced_count <> item_totals.item_count) THEN 'billing_basis_missing'
+                  WHEN m.status = 'APPROVED' AND (
+                    item_totals.item_count = 0 OR item_totals.priced_count <> item_totals.item_count
+                    OR item_totals.currency_count <> 1 OR item_totals.invalid_currency_count > 0
+                    OR (NULLIF(UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')), '') IS NOT NULL
+                        AND UPPER(TRIM(m.commercial_reference_snapshot->>'currencyCode')) <> item_totals.currency_code)
+                  ) THEN 'billing_basis_missing'
                   WHEN m.status = 'APPROVED' THEN 'ready'
                   WHEN COALESCE(so.service_snapshot->>'billingEntitlementPolicy', 'MEASUREMENT_APPROVED') <> 'MEASUREMENT_APPROVED'
                     AND (${CONTRACTUAL_AMOUNT_SQL}) ~ '^[0-9]+(\\.[0-9]{1,4})?$' THEN 'ready'
