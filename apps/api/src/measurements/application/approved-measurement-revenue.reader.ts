@@ -5,7 +5,7 @@ import {
   resolveApprovedMeasurementRevenueEvidence,
   type ApprovedMeasurementRevenueEvidence,
   type ApprovedMeasurementRevenueRow,
-} from '../../service-orders/domain/approved-measurement-revenue';
+} from '../domain/approved-measurement-revenue';
 
 /**
  * Published, read-only Measurement projection for the Operations Cost-to-Serve
