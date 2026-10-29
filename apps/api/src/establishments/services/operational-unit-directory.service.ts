@@ -9,6 +9,7 @@ import {
 } from '../../audit/types/security-audit.types';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
 import { ScopeContextRepository } from '../../authorization/repositories/scope-context.repository';
+import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../../authorization/types/authz-scopes';
@@ -55,6 +56,7 @@ export class OperationalUnitDirectoryService {
   constructor(
     private readonly repository: OperationalUnitDirectoryRepository,
     private readonly scopeRefs: ScopeContextRepository,
+    private readonly authorization: AuthorizationRepository,
     private readonly pdp: PolicyDecisionPointService,
     private readonly audit: SecurityAuditService,
   ) {}
@@ -80,39 +82,38 @@ export class OperationalUnitDirectoryService {
     }
   }
 
-  async listAdminVisible(actor: IdentityAuthzContext): Promise<{
-    items: Array<OperationalUnitRead & { canEdit: boolean }>;
-    canCreate: boolean;
-  }> {
-    const ids = await this.scopeRefs.listUnitScopeRefs();
-    const createDecision = await this.pdp.decide(actor, {
-      action: AUTHZ_ACTIONS.OperationalUnitManage,
-      resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
-    }, { audit: false });
-    const canCreate = createDecision.result === 'ALLOW';
-    if (ids.length === 0) {
-      await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitRead);
-      return { items: [], canCreate };
-    }
-    const [reads, edits] = await Promise.all([
-      this.pdp.decideBatch(actor, {
-        action: AUTHZ_ACTIONS.OperationalUnitRead,
-        resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
-      }, ids.map(unitId => ({ unitId })), { audit: false }),
-      this.pdp.decideBatch(actor, {
-        action: AUTHZ_ACTIONS.OperationalUnitManage,
-        resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
-      }, ids.map(unitId => ({ unitId })), { audit: false }),
+  async listAdminVisible(actor: IdentityAuthzContext): Promise<{ items: OperationalUnitRead[] }> {
+    const [direct, roleDerived, ids] = await Promise.all([
+      this.authorization.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.OperationalUnitRead,
+        AUTHZ_RESOURCE_TYPES.OperationalUnit,
+      ),
+      this.authorization.findRoleDerivedActionRows(actor.identityId, AUTHZ_ACTIONS.OperationalUnitRead),
+      this.repository.listAllIds(),
     ]);
-    const allowed = ids.filter((_, i) => reads[i]?.result === 'ALLOW');
-    if (!allowed.length) {
-      await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitRead);
+    if (direct.length === 0 && roleDerived.length === 0) {
+      throw new HttpException({ code: 'UNIT_DENIED', message: 'Access denied.' }, HttpStatus.FORBIDDEN);
     }
-    const editable = new Set(ids.filter((_, i) => edits[i]?.result === 'ALLOW'));
-    const items = (await this.listDetails(allowed)).map(unit => ({
-      ...unit, canEdit: editable.has(unit.id),
-    }));
-    return { items, canCreate };
+    if (ids.length === 0) return { items: [] };
+    const decisions = await this.pdp.decideBatch(actor, {
+      action: AUTHZ_ACTIONS.OperationalUnitRead,
+      resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
+    }, ids.map(unitId => ({ unitId })), { audit: false });
+    const authorized = ids.filter((_, i) => decisions[i]?.result === 'ALLOW');
+    return { items: await this.listDetails(authorized) };
+  }
+
+  async getHistory(actor: IdentityAuthzContext, id: string) {
+    await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitRead, id);
+    const master = await this.repository.findById(id);
+    if (!master) {
+      throw new HttpException({ code: 'UNIT_NOT_FOUND' }, HttpStatus.NOT_FOUND);
+    }
+    return {
+      unit: toRead(master),
+      events: await this.repository.listHistory(id),
+    };
   }
 
   async create(
