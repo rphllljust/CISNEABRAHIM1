@@ -19,6 +19,10 @@ const REASONS: Record<string, string> = {
     'Ainda não há receita de medição aprovada para esta ordem. Não presumir faturamento ou recebimento.',
   ACTUAL_COST_EVIDENCE_MISSING:
     'Ainda não há custo realizado registrado. Ausência de custo não é custo zero.',
+  REVENUE_CURRENCY_UNVERIFIED:
+    'A medição aprovada contém moedas diferentes ou sem identificação. A receita não foi totalizada.',
+  APPROVED_MEASUREMENT_AMOUNT_INCOMPLETE:
+    'Há linhas de medição sem valor comercial confirmado. O total de receita não foi presumido.',
 };
 
 /**
