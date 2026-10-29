@@ -1,16 +1,5 @@
-import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  getServiceOrderCostEvidence,
-  ServiceOrdersApiError,
-  type ServiceOrderCostEvidence,
-} from '../api/service-orders-api';
-
-type State =
-  | { phase: 'loading' }
-  | { phase: 'denied' }
-  | { phase: 'error' }
-  | { phase: 'ready'; data: ServiceOrderCostEvidence };
+import { useServiceOrderCostEvidence } from '../hooks/useServiceOrderCostEvidence';
 
 const REASONS: Record<string, string> = {
   COST_CURRENCY_MISMATCH:
@@ -31,26 +20,7 @@ const REASONS: Record<string, string> = {
  * separate CRUD or a local calculation of economic facts.
  */
 export function ServiceOrderCostToServePanel({ serviceOrderId }: { serviceOrderId: string }) {
-  const [state, setState] = useState<State>({ phase: 'loading' });
-  const [revision, setRevision] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setState({ phase: 'loading' });
-    void getServiceOrderCostEvidence(serviceOrderId, controller.signal)
-      .then((data) => {
-        if (!controller.signal.aborted) setState({ phase: 'ready', data });
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        if (error instanceof ServiceOrdersApiError && error.kind === 'denied') {
-          setState({ phase: 'denied' });
-        } else {
-          setState({ phase: 'error' });
-        }
-      });
-    return () => controller.abort();
-  }, [serviceOrderId, revision]);
+  const { state, reload } = useServiceOrderCostEvidence(serviceOrderId);
 
   return (
     <section aria-label="Cost-to-Serve da ordem" className="service-order-record-canvas border-b border-gray-200 pb-6">
@@ -83,7 +53,7 @@ export function ServiceOrderCostToServePanel({ serviceOrderId }: { serviceOrderI
           <p>Falha ao consultar os custos. Não foi presumido saldo zero.</p>
           <button
             type="button"
-            onClick={() => setRevision((value) => value + 1)}
+            onClick={reload}
             className="underline"
           >
             Reconsultar fatos econômicos
