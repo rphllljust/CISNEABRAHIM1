@@ -60,7 +60,15 @@ export class ServiceOrdersAccessAuthz {
         AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
         AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
       );
-      if (!grants.some((grant) => grant.scope_type === AUTHZ_SCOPES.Assigned)) {
+      // The batch PDP has no UNIT context here; permit only a scoped-list
+      // mismatch backed by a real direct grant. The SQL scope filter still
+      // constrains every returned OS. Other DENY reasons remain fail-closed.
+      const scopedGrant = grants.some((grant) =>
+        grant.scope_type === AUTHZ_SCOPES.Unit ||
+        grant.scope_type === AUTHZ_SCOPES.Client ||
+        grant.scope_type === AUTHZ_SCOPES.Assigned
+      );
+      if (decision.reasonCode !== 'SCOPE_MISMATCH' || !scopedGrant) {
         throw serviceOrdersAccessDenied();
       }
     }
