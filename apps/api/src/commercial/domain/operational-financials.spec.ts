@@ -3,6 +3,7 @@ import {
   OPERATIONAL_PROFITABILITY_FORMULA,
   aggregateOperationalProfitability,
   computeOperationalMargin,
+  computeCostVariancePercent,
   subtractMoney,
 } from './operational-financials';
 
@@ -10,6 +11,14 @@ describe('operational-financials', () => {
   it('computes margin as revenue minus realized cost', () => {
     expect(computeOperationalMargin('1000.0000', '250.5000')).toBe('749.5');
     expect(subtractMoney('1000.0000', '250.5000')).toBe('749.5');
+  });
+
+  it('computes exact cost variance percentages and rejects unknown denominators', () => {
+    expect(computeCostVariancePercent('3000.0000', '2800.0000')).toBe('7.1429');
+    expect(computeCostVariancePercent('250.0000', '200.0000')).toBe('25');
+    expect(computeCostVariancePercent('180.0000', '200.0000')).toBe('-10');
+    expect(computeCostVariancePercent('0', '0')).toBeNull();
+    expect(computeCostVariancePercent('10', null)).toBeNull();
   });
 
   it('returns null margin when revenue or cost is missing', () => {
