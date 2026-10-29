@@ -38,6 +38,10 @@ import {
 } from '../domain/billing-entitlement';
 import { buildBillingCostSummaryFromMeasurementItems } from '../domain/billing-cost-summary';
 import {
+  MeasurementBillingCurrencyError,
+  resolveMeasurementBillingCurrency,
+} from '../domain/measurement-billing-currency';
+import {
   assertBillingItemsTraceable,
   buildBillingOriginSnapshot,
 } from '../domain/billing-invariants';
@@ -324,10 +328,23 @@ export class BillingAccessService {
       }
 
       computedTotal = sumMoneyAmounts(itemDrafts.map((item) => item.lineAmount));
-      const measurementCurrencyCode = measurement.commercial_reference_snapshot['currencyCode'];
-      currencyCode = assertCurrencyCode(
-        typeof measurementCurrencyCode === 'string' ? measurementCurrencyCode : 'BRL',
-      );
+      try {
+        currencyCode = resolveMeasurementBillingCurrency({
+          pricingLines: itemDrafts,
+          commercialReferenceSnapshot: measurement.commercial_reference_snapshot,
+        });
+      } catch (error) {
+        if (error instanceof MeasurementBillingCurrencyError) {
+          const code = error.code === 'BILLING_CURRENCY_MISMATCH'
+            ? BILLING_ERROR_CODES.BILLING_CURRENCY_MISMATCH
+            : BILLING_ERROR_CODES.BILLING_CURRENCY_UNVERIFIED;
+          throw new BillingHttpException(
+            HttpStatus.CONFLICT, code,
+            'Approved measurement pricing currencies are missing or inconsistent.',
+          );
+        }
+        throw error;
+      }
       commercialReferenceSnapshot = {
         ...measurement.commercial_reference_snapshot,
         costSummary: buildBillingCostSummaryFromMeasurementItems(measurementItems),
