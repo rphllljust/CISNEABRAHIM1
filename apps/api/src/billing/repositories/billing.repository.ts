@@ -18,6 +18,7 @@ import {
   findMeasurementForBilling,
   listMeasurementItemsForBilling,
   lockMeasurementForBilling,
+  customerAcceptanceBlockForBilling,
 } from '../../measurements/application/measurement-billing';
 import { BILLING_COMMANDS, BILLING_HISTORY_EVENTS } from '../domain/billing';
 import type {
@@ -492,6 +493,14 @@ export class BillingRepository {
       )) {
         await client.query('ROLLBACK');
         return { outcome: 'measurement_changed' };
+      }
+
+      const acceptanceBlock = await customerAcceptanceBlockForBilling(
+        client, input.serviceOrderId, input.measurementId,
+      );
+      if (acceptanceBlock) {
+        await client.query('ROLLBACK');
+        return { outcome: 'acceptance_blocked', reason: acceptanceBlock };
       }
 
       const existing = input.measurementId
