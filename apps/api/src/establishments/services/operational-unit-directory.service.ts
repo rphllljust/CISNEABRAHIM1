@@ -82,6 +82,7 @@ export class OperationalUnitDirectoryService {
 
   async listAdminVisible(actor: IdentityAuthzContext): Promise<{ items: OperationalUnitRead[] }> {
     const ids = await this.scopeRefs.listUnitScopeRefs();
+    await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitRead);
     if (ids.length === 0) return { items: [] };
     const decisions = await this.pdp.decideBatch(actor, {
       action: AUTHZ_ACTIONS.OperationalUnitRead,
@@ -136,7 +137,7 @@ export class OperationalUnitDirectoryService {
     await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitManage, id);
     if (!id.trim()) return badInput('Unit id is required.');
     const key = assertKey(input.idempotencyKey);
-    if (!Number.isSafeInteger(input.expectedVersion) || (input.expectedVersion as number) < 1) {
+    if (typeof input.expectedVersion !== 'number' || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
       return badInput('Expected version must be a positive integer.');
     }
     const expectedVersion = input.expectedVersion as number;
