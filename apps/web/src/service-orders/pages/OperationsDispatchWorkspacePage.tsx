@@ -198,8 +198,8 @@ export function OperationsDispatchWorkspacePage({
           ) : null}
 
           {status === 'ready' && unitId && options.length > 0 ? (
-            tab === 'dispatch' ? <DispatchBoardPage key={`dispatch:${unitId}:${queueRefresh}`} unitId={unitId} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
-              <ExecutionConsolePage key={`execution:${unitId}`} unitId={unitId} onSelectOrder={selectOrder} />
+            tab === 'dispatch' ? <DispatchBoardPage unitId={unitId} refreshToken={queueRefresh} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
+              <ExecutionConsolePage unitId={unitId} refreshToken={queueRefresh} onSelectOrder={selectOrder} />
           ) : null}
         </div>
         {selectedOrderId && status === 'ready' ? (

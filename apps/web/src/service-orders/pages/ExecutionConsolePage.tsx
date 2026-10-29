@@ -38,7 +38,7 @@ import { SLA_TONE, severityTone, stateLabel } from '../types/operations.types';
  * Não calcula SLA, não calcula progresso e não decide se uma ordem está "em risco".
  * `slaStatus` e `progress` chegam prontos do backend. Aqui só se desenha.
  */
-export function ExecutionConsolePage({ unitId, onSelectOrder }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void }) {
+export function ExecutionConsolePage({ unitId, onSelectOrder, refreshToken = 0 }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void; refreshToken?: number }) {
   const [state, setState] = useState<
     | { phase: 'loading' }
     | { phase: 'denied' }
@@ -81,7 +81,7 @@ export function ExecutionConsolePage({ unitId, onSelectOrder }: { unitId: string
       active = false;
       controller.abort();
     };
-  }, [unitId, reloadToken]);
+  }, [unitId, reloadToken, refreshToken]);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
   const data = state.phase === 'ready' ? state.console : null;

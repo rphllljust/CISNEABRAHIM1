@@ -44,7 +44,7 @@ import type { DispatchBoardItem, DispatchBoardReadModel } from '../types/operati
  * habilita botão por formulação local — o comando `DISPATCH` já chega com
  * `enabled` e `reasons` decididos pelo servidor. Não calcula SLA.
  */
-export function DispatchBoardPage({ unitId, onSelectOrder, onCommandSettled }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void; onCommandSettled?: () => void }) {
+export function DispatchBoardPage({ unitId, onSelectOrder, onCommandSettled, refreshToken = 0 }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void; onCommandSettled?: () => void; refreshToken?: number }) {
   const [state, setState] = useState<
     | { phase: 'loading' }
     | { phase: 'denied' }
@@ -103,7 +103,7 @@ export function DispatchBoardPage({ unitId, onSelectOrder, onCommandSettled }: {
       active = false;
       controller.abort();
     };
-  }, [unitId, reloadToken]);
+  }, [unitId, reloadToken, refreshToken]);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
