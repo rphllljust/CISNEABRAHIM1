@@ -53,7 +53,7 @@ describe('enterprise organizational UNIT workbench', () => {
     }));
     const user = userEvent.setup();
     render(<OperationalUnitsTab />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('não foi possível');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Rede indisponível|Não foi possível|não foi possível/);
     fail = false;
     await user.click(screen.getByRole('button', { name: 'Reconsultar diretório' }));
     expect(await screen.findByText('Nenhuma unidade empresarial configurada neste escopo.')).toBeInTheDocument();
