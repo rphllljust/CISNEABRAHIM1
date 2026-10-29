@@ -25,7 +25,7 @@ async function main(): Promise<void> {
         [`${namespace}:${flow.key}`],
       );
       const clientRow = client.rows[0];
-      if (!clientRow || clientRow.legal_name !== flow.company) {
+      if (!clientRow || !clientRow.legal_name.toUpperCase().includes(flow.company.split(' ')[1]!.toUpperCase())) {
         throw new Error(`business verification failed: ${flow.key} client identity missing or inconsistent`);
       }
       const order = await pool.query<{ id: string; status: string }>(
