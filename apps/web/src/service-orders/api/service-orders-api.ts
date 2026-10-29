@@ -471,6 +471,7 @@ export type ServiceOrderCostEvidence = {
     estimatedMargin: string | null;
     actualMargin: string | null;
     estimatedToActualVariance: string | null;
+    estimatedToActualVariancePercent: string | null;
     blockingReasons: string[];
     disclaimer: string;
     lines: Array<{
