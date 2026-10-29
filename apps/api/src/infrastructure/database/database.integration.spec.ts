@@ -64,6 +64,9 @@ const ALLOWED_PTY_TABLES = new Set([
   'legal_entity_history_events',
   'establishment_history_events',
   'establishment_tax_registration_history_events',
+  'operational_units',
+  'operational_unit_commands',
+  'operational_unit_history',
 ]);
 
 describe('PostgreSQL integration', () => {

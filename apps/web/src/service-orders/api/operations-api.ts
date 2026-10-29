@@ -201,6 +201,18 @@ export function createCommandKey(): string {
 // LEITURA
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** Read-only discovery for dispatch/execution (LIST permission, not CREATE). */
+export async function listOperationUnitOptions(signal?: AbortSignal): Promise<{
+  items: string[];
+  details: Array<{ id: string; code: string | null; name: string | null; configured: boolean }>;
+}> {
+  return requestJson('/api/v1/query/operations/units', {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export async function getDispatchBoard(
   input: { unitId: string; limit?: number },
   signal?: AbortSignal,

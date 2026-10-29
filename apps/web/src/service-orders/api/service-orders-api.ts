@@ -214,8 +214,14 @@ export async function listServiceOrders(
  */
 export async function listServiceOrderOperationalUnits(
   signal?: AbortSignal,
-): Promise<{ items: string[] }> {
-  return requestJson<{ items: string[] }>('/api/v1/service-orders/operational-units', {
+): Promise<{
+  items: string[];
+  details: Array<{ id: string; code: string | null; name: string | null; configured: boolean }>;
+}> {
+  return requestJson<{
+    items: string[];
+    details: Array<{ id: string; code: string | null; name: string | null; configured: boolean }>;
+  }>('/api/v1/service-orders/operational-unit-options', {
     method: 'GET',
     headers: authHeaders(),
     signal,

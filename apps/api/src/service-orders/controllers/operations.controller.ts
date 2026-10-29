@@ -7,6 +7,7 @@ import { resolveCorrelationId } from '../../infrastructure/http/correlation-id';
 import { SERVICE_ORDERS_ERROR_CODES } from '../errors/service-orders-error-codes';
 import { ServiceOrdersHttpException } from '../errors/service-orders-http.exception';
 import { OperationsService } from '../services/operations.service';
+import { ServiceOrdersAccessService } from '../services/service-orders-access.service';
 
 /**
  * OPERAÇÕES — dispatch board, execution console, object page e comandos.
@@ -41,7 +42,15 @@ import { OperationsService } from '../services/operations.service';
 @Controller('query/operations')
 @UseGuards(JwtAuthGuard)
 export class OperationsQueryController {
-  constructor(private readonly operations: OperationsService) {}
+  constructor(
+    private readonly operations: OperationsService,
+    private readonly serviceOrders: ServiceOrdersAccessService,
+  ) {}
+
+  @Get('units')
+  listOperationalUnits(@CurrentAuth() auth: AccessTokenClaims) {
+    return this.serviceOrders.listOperationUnitOptions({ identityId: auth.sub, sessionId: auth.sid });
+  }
 
   /**
    * DISPATCH BOARD — o que está pronto, o que está bloqueado e por quê.
