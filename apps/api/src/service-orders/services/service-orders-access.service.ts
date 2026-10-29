@@ -316,6 +316,13 @@ export class ServiceOrdersAccessService {
     return { items: await this.authz.listCreateAuthorizedUnitIds(actor) };
   }
 
+  async listOperationalUnitOptions(actor: IdentityAuthzContext): Promise<{
+    items: string[];
+    details: Array<{ id: string; code: string | null; name: string | null; configured: boolean }>;
+  }> {
+    return this.authz.listCreateAuthorizedUnitOptions(actor);
+  }
+
   async list(
     actor: IdentityAuthzContext,
     query: ListServiceOrdersQuery,
