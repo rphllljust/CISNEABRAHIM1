@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccountingModule } from '../accounting/accounting.module';
 import { ObservabilityModule } from '../observability/observability.module';
 import { IntegrationsInboxModule } from '../integrations/inbox/integrations-inbox.module';
 import { IntegrationInboxProcessorWorkerService } from '../integrations/inbox/services/integration-inbox-processor.worker.service';
@@ -18,6 +19,7 @@ import { DatabaseModule } from '../infrastructure/database/database.module';
     ReportsModule,
     BackgroundJobsModule,
     OutboxModule,
+    AccountingModule,
     IntegrationsInboxModule,
   ],
   providers: [BackgroundWorkerBootstrapService, OutboxPublisherWorkerService, IntegrationInboxProcessorWorkerService],
