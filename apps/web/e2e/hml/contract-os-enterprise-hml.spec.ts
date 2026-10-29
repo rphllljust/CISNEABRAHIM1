@@ -141,7 +141,8 @@ test.describe('HML Enterprise Journey — Cliente → Contrato → OS → Financ
 
       await orderLink.click();
       await expect(page).toHaveURL(new RegExp(`/app/service-orders/${verified.serviceOrderId}$`));
-      const authorizedContractLink = page.locator(`a[href="/app/contracts/${verified.contractId}"]`);
+      const authorizedContractLink = page.getByRole("region", { name: "Relações" })
+        .locator(`a[href="/app/contracts/${verified.contractId}"]`);
       await expect(authorizedContractLink).toBeVisible({ timeout: 30_000 });
       await expect(page.getByRole('link', { name: /abrir medição/i })).toBeVisible();
       await expect(page.getByRole('link', { name: /abrir faturamento/i })).toBeVisible();
