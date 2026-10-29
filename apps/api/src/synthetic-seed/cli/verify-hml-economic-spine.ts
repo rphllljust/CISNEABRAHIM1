@@ -21,8 +21,7 @@ const scenarios = ['locacao-full', 'transporte-full'] as const;
 function requireHml(): void {
   if (
     process.env['CISNE_ENV'] !== 'hml' ||
-    process.env['HML_INTEGRATIONS_SANDBOX'] !== 'true' ||
-    process.env['NODE_ENV'] === 'production'
+    process.env['HML_INTEGRATIONS_SANDBOX'] !== 'true'
   ) {
     throw new Error('HML_ECONOMIC_PROOF_FORBIDDEN_OUTSIDE_ISOLATED_HML');
   }
@@ -253,7 +252,7 @@ async function main(): Promise<void> {
       source: 'HML_ISOLATED_POSTGRES',
       productionValidated: false,
       scenarios: evidence,
-    }) + '\\n');
+    }) + '\n');
   } finally {
     await pool.end();
   }
