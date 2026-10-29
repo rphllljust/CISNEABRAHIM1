@@ -18,6 +18,14 @@ async function deleteBillingForServiceOrders(client: DbClient, serviceOrderIds: 
   if (serviceOrderIds.length === 0) {
     return;
   }
+  // The HML harness composes Finance: issuing a synthetic document creates a
+  // real receivable. Remove only titles tied to these synthetic OS identities
+  // before deleting their Billing origins; installments cascade. A settlement
+  // keeps its FK and deliberately prevents silent erasure of economic history.
+  await client.query(
+    `DELETE FROM fin.receivables WHERE origin_service_order_id = ANY($1::uuid[])`,
+    [serviceOrderIds],
+  );
   await client.query(
     `DELETE FROM bil.billing_document_items
      WHERE billing_document_id IN (
