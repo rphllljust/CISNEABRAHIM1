@@ -48,11 +48,11 @@ export function MetricStrip({
 
   return (
     <section aria-labelledby="kpi-heading" className="dashboard-block dashboard-block--compact">
-      <header className="dashboard-section-head">
+      <div className="dashboard-section-head">
         <h2 id="kpi-heading" className="dashboard-section-head__title">
           Saúde da empresa
         </h2>
-      </header>
+      </div>
 
       {/*
         INDICADORES COMPACTOS: rótulo curto acima, número grande abaixo. Nao e uma tag nem um

@@ -853,12 +853,12 @@ function OperationalContextRail({
   return (
     <div className="dashboard-rail">
       <section className="dashboard-rail__section" aria-labelledby="rail-context">
-        <header className="dashboard-rail__head">
+        <div className="dashboard-rail__head">
           <span className="dashboard-rail__mark dashboard-rail__mark--info" aria-hidden />
           <h2 id="rail-context" className="dashboard-rail__title">
             Contexto operacional
           </h2>
-        </header>
+        </div>
         <dl className="dashboard-rail__facts">
           <div className="dashboard-rail__fact">
             <dt>Escopo</dt>
@@ -894,12 +894,12 @@ function OperationalContextRail({
       </section>
 
       <section className="dashboard-rail__section" aria-labelledby="rail-process">
-        <header className="dashboard-rail__head">
+        <div className="dashboard-rail__head">
           <span className="dashboard-rail__mark dashboard-rail__mark--identity" aria-hidden />
           <h2 id="rail-process" className="dashboard-rail__title">
             Processo atual
           </h2>
-        </header>
+        </div>
         <ol className="dashboard-rail__process">
           {FLOW_LABELS.map((label) => (
             <li key={label} className="dashboard-rail__process-step">
@@ -913,12 +913,12 @@ function OperationalContextRail({
       </section>
 
       <section className="dashboard-rail__section" aria-labelledby="rail-shortcuts">
-        <header className="dashboard-rail__head">
+        <div className="dashboard-rail__head">
           <span className="dashboard-rail__mark dashboard-rail__mark--neutral" aria-hidden />
           <h2 id="rail-shortcuts" className="dashboard-rail__title">
             Atalhos contextuais
           </h2>
-        </header>
+        </div>
         <ul className="dashboard-rail__links">
           {OPERATIONAL_SHORTCUTS.map((shortcut) => (
             <li key={shortcut.id}>
@@ -983,7 +983,7 @@ function WorkQueue({
       aria-label="Fila de trabalho do recorte"
       data-layout="priority-work-queue"
     >
-      <header className="dashboard-queue__head">
+      <div className="dashboard-queue__head">
         <h2 className="dashboard-queue__title">Fila de trabalho</h2>
         {typeof total === 'number' ? (
           <span className="dashboard-queue__count tabular-nums">
@@ -1003,7 +1003,7 @@ function WorkQueue({
             <ArrowUpRight className="dashboard-queue__all-icon" strokeWidth={2.2} aria-hidden />
           </Link>
         ) : null}
-      </header>
+      </div>
 
       {phase === 'loading' ? (
         <div className="dashboard-queue__state" role="status" aria-busy="true">
@@ -1309,12 +1309,12 @@ function OperationDistribution({
 
   return (
     <div className="dashboard-analytics__panel" aria-labelledby="status-heading">
-      <header className="dashboard-analytics__head">
+      <div className="dashboard-analytics__head">
         <h2 id="status-heading" className="dashboard-analytics__title">
           Ordens por situação
         </h2>
         <span className="dashboard-analytics__meta">Escopo autorizado</span>
-      </header>
+      </div>
 
       <div className="dashboard-donut">
         <div className="dashboard-donut__ring" style={{ backgroundImage: ring }} aria-hidden>
@@ -1385,12 +1385,12 @@ function AgingDistribution({
 
   return (
     <div className="dashboard-analytics__panel" aria-labelledby="aging-heading">
-      <header className="dashboard-analytics__head">
+      <div className="dashboard-analytics__head">
         <h2 id="aging-heading" className="dashboard-analytics__title">
           Atraso por faixa
         </h2>
         <span className="dashboard-analytics__meta">Carteira vencida no escopo</span>
-      </header>
+      </div>
 
       <ul className="dashboard-dist">
         {aging.buckets.map((bucket) => (
@@ -1449,14 +1449,14 @@ function ExceptionSurface({ items }: { items: ExecutiveDashboardSnapshot['attent
 
   return (
     <section className="dashboard-exceptions" aria-labelledby="exceptions-heading">
-      <header className="dashboard-analytics__head">
+      <div className="dashboard-analytics__head">
         <h2 id="exceptions-heading" className="dashboard-analytics__title">
           Alertas e exceções
         </h2>
         <Link className="dashboard-exceptions__all" to="/app/work-inbox">
           Ver todos
         </Link>
-      </header>
+      </div>
 
       {/*
         SEM EXCECAO PUBLICADA — ESTADO POSITIVO COMPACTO DENTRO DA SUPERFICIE.

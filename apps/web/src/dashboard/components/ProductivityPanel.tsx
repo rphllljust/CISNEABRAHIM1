@@ -93,14 +93,14 @@ export function ProductivityPanel({ productivity }: ProductivityPanelProps) {
 
   return (
     <section aria-labelledby="productivity-heading" className="dashboard-block">
-      <header className="dashboard-section-head">
+      <div className="dashboard-section-head">
         <h2 id="productivity-heading" className="dashboard-section-head__title">
           Produtividade
         </h2>
         <p className="dashboard-section-head__meta">
           Desempenho do período no escopo autorizado. Nenhuma métrica é recalculada aqui.
         </p>
-      </header>
+      </div>
 
       <ul className="dashboard-dense">
         {metrics.map((metric) => (

@@ -24,14 +24,14 @@ export function DashboardKpiStrip({ kpis }: DashboardKpiStripProps) {
 
   return (
     <section aria-labelledby="kpi-heading" className="dashboard-kpi-strip">
-      <header className="dashboard-section-head">
+      <div className="dashboard-section-head">
         <h2 id="kpi-heading" className="dashboard-section-head__title">
           Saúde da empresa
         </h2>
         <p className="dashboard-section-head__meta">
           {kpis.length} indicadores · cada número abre a lista que o produziu
         </p>
-      </header>
+      </div>
 
       <ul className="dashboard-kpi-strip__list">
         {kpis.map((kpi) => (
@@ -102,14 +102,14 @@ export function BusinessFlowStrip({ stages }: { stages: BusinessFlowStage[] }) {
 
   return (
     <section aria-labelledby="flow-heading" className="dashboard-flow">
-      <header className="dashboard-section-head">
+      <div className="dashboard-section-head">
         <h2 id="flow-heading" className="dashboard-section-head__title">
           Fluxo empresa → caixa
         </h2>
         <p className="dashboard-section-head__meta">
           Volume em cada etapa autorizada. Nenhuma etapa é somada a outra.
         </p>
-      </header>
+      </div>
 
       <ol className="dashboard-flow__list">
         {stages.map((stage, index) => (

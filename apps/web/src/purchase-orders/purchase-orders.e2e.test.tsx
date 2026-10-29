@@ -167,7 +167,7 @@ describe('purchase orders administrative flow e2e (frontend)', () => {
     // A edicao e acao secundaria no contrato: vive no menu de acoes do cabecalho.
     await user.click(await screen.findByRole('button', { name: 'Mais ações' }));
     await user.click(await screen.findByRole('menuitem', { name: /editar rascunho/i }));
-    await user.click(screen.getByRole('button', { name: /salvar alterações/i }));
+    await user.click(await screen.findByRole('button', { name: /salvar alterações/i }));
     await waitFor(() => {
       expect(screen.getAllByText(/alterado por outro usuário/i).length).toBeGreaterThan(0);
     });

@@ -37,14 +37,14 @@ export function BusinessChainFlow({
 
   return (
     <section aria-labelledby="flow-heading" className="dashboard-chain">
-      <header className="dashboard-chain__head">
+      <div className="dashboard-chain__head">
         <h2 id="flow-heading" className="dashboard-chain__title">
           Fluxo operacional
         </h2>
         <p className="dashboard-chain__meta">
           {stages.map((stage) => stage.label).join(' → ')} · {domainLabel}
         </p>
-      </header>
+      </div>
 
       <ol className="dashboard-chain__stages">
         {stages.map((stage, index) => {

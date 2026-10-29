@@ -39,7 +39,7 @@ describe('service requests administrative flow e2e (frontend)', () => {
 
     await user.click(screen.getByRole('link', { name: /nova solicita/i }));
     await user.selectOptions(
-      screen.getByLabelText(/^origem/i, { selector: 'select' }),
+      await screen.findByLabelText(/^origem/i, { selector: 'select' }),
       SERVICE_REQUEST_ORIGINS.Phone,
     );
     await user.type(

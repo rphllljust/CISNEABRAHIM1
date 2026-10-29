@@ -30,13 +30,13 @@ export function SituationPanel({ situation }: { situation: OperationalSituation 
     const ordered = sortAttentionBySeverity(situation.criticalItems);
     return (
       <section className="dashboard-situation dashboard-situation--critical" aria-labelledby="situation-heading">
-        <header className="dashboard-situation__head">
+        <div className="dashboard-situation__head">
           <CircleAlert className="dashboard-situation__icon" strokeWidth={2.2} aria-hidden />
           <h2 id="situation-heading" className="dashboard-situation__title">
             {situation.title}
           </h2>
           <p className="dashboard-situation__detail">{situation.detail}</p>
-        </header>
+        </div>
 
         <ul className="dashboard-situation__list">
           {ordered.map((item) => {

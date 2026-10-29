@@ -24,26 +24,27 @@ describe('protected application shell', () => {
     await loginAndReachApp(user);
 
     expect(screen.getByRole('banner')).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: /navegação principal/i })).toBeInTheDocument();
+    const primaryNavigation = screen.getByRole('navigation', { name: /navegação principal/i });
+    expect(primaryNavigation).toBeInTheDocument();
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /ir para o conteúdo principal/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /menu do usuário/i })).toBeInTheDocument();
     expect(screen.getByText('Minha conta')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /contas a receber/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /documentos fiscais/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /plano de contas/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^despesas$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^fornecedores$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^compras$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^estoque$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^folha$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^pessoas$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^locações$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^transporte$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^alertas$/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /contas a receber/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /documentos fiscais/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /plano de contas/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /^despesas$/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /^fornecedores$/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /^compras$/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /^estoque$/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /^folha$/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /^pessoas$/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /^locações$/i })).not.toBeInTheDocument();
+    expect(within(primaryNavigation).queryByRole('link', { name: /^transporte$/i })).not.toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /^relatórios$/i })).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /^rentabilidade operacional$/i })).toBeInTheDocument();
+      expect(within(primaryNavigation).getByRole('link', { name: /^alertas$/i })).toBeInTheDocument();
+      expect(within(primaryNavigation).getByRole('link', { name: /^relatórios$/i })).toBeInTheDocument();
+      expect(within(primaryNavigation).getByRole('link', { name: /^rentabilidade operacional$/i })).toBeInTheDocument();
     });
   });
 

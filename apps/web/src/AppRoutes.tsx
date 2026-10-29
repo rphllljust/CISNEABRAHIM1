@@ -1,149 +1,148 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { LoadingState } from './ui/LoadingState';
 import { ProtectedRoute } from './auth/components/ProtectedRoute';
 import { CapabilityRoute } from './shell/CapabilityRoute';
 import { AppShellLayout } from './shell/AppShellLayout';
 import { ClientsRoute } from './clients/ClientsRoute';
-import { ClientCreatePage } from './clients/pages/ClientCreatePage';
-import { ClientDetailPage } from './clients/pages/ClientDetailPage';
-import { ClientEditPage } from './clients/pages/ClientEditPage';
-import { ClientsListPage } from './clients/pages/ClientsListPage';
 import { PeopleRoute } from './people/PeopleRoute';
-import { PeopleListPage } from './people/pages/PeopleListPage';
-import { PersonCreatePage } from './people/pages/PersonCreatePage';
-import { PersonDetailPage } from './people/pages/PersonDetailPage';
-import { PersonEditPage } from './people/pages/PersonEditPage';
 import { CatalogRoute } from './catalog/CatalogRoute';
-import { ServiceDefinitionComparePage } from './catalog/pages/ServiceDefinitionComparePage';
-import { ServiceDefinitionCreatePage } from './catalog/pages/ServiceDefinitionCreatePage';
-import { ServiceDefinitionDetailPage } from './catalog/pages/ServiceDefinitionDetailPage';
-import { ServiceDefinitionDraftEditPage } from './catalog/pages/ServiceDefinitionDraftEditPage';
-import { ServiceDefinitionVersionCreatePage } from './catalog/pages/ServiceDefinitionVersionCreatePage';
-import { ServiceDefinitionVersionDetailPage } from './catalog/pages/ServiceDefinitionVersionDetailPage';
-import { ServiceDefinitionsListPage } from './catalog/pages/ServiceDefinitionsListPage';
 import { BillingRoute } from './billing/BillingRoute';
-import { DocumentsPage } from './documents/pages/DocumentsPage';
-import { BillingDashboardPage } from './billing/pages/BillingDashboardPage';
-import { ServiceOrderBillingDocumentPage } from './billing/pages/ServiceOrderBillingDocumentPage';
-import { ServiceOrderBillingPage } from './billing/pages/ServiceOrderBillingPage';
-import { AccessDeniedPage } from './pages/AccessDeniedPage';
-import { PhysicalAssetCreatePage } from './assets/pages/PhysicalAssetCreatePage';
-import { PhysicalAssetDetailPage } from './assets/pages/PhysicalAssetDetailPage';
-import { PhysicalAssetEditPage } from './assets/pages/PhysicalAssetEditPage';
-import { PhysicalAssetsListPage } from './assets/pages/PhysicalAssetsListPage';
 import { AssetsRoute } from './assets/AssetsRoute';
-import { FleetListPage } from './fleet/pages/FleetListPage';
-import { RentalsListPage } from './rentals/pages/RentalsListPage';
-import { TransportListPage } from './transport/pages/TransportListPage';
 import { RequestsRoute } from './requests/RequestsRoute';
 import { ServiceOrdersRoute } from './service-orders/ServiceOrdersRoute';
-import { ServiceOrderPlanningPage } from './service-orders/pages/ServiceOrderPlanningPage';
-import { ServiceOrdersEngineListPage } from './service-orders/pages/ServiceOrdersEngineListPage';
 import { ExecutionShellLayout } from './service-orders/layout/ExecutionShellLayout';
-import { ServiceOrderExecutionPage } from './service-orders/pages/ServiceOrderExecutionPage';
-import { ServiceOrderMeasurementPage } from './service-orders/pages/ServiceOrderMeasurementPage';
-import { MeasurementWorkbenchPage } from './service-orders/pages/MeasurementWorkbenchPage';
-import { RevenueLeakagePage } from './service-orders/pages/RevenueLeakagePage';
-import { ServiceOrderCreatePage } from './service-orders/pages/ServiceOrderCreatePage';
-import { ServiceRequestCreatePage } from './requests/pages/ServiceRequestCreatePage';
-import { ServiceRequestDetailPage } from './requests/pages/ServiceRequestDetailPage';
-import { ServiceRequestEditPage } from './requests/pages/ServiceRequestEditPage';
-import { ServiceRequestsListPage } from './requests/pages/ServiceRequestsListPage';
 import { ProposalsRoute } from './proposals/ProposalsRoute';
-import { ProposalsListPage } from './proposals/pages/ProposalsListPage';
-import { ProposalCreatePage } from './proposals/pages/ProposalCreatePage';
-import { ProposalDetailPage } from './proposals/pages/ProposalDetailPage';
-import { ProposalEditPage } from './proposals/pages/ProposalEditPage';
 import { PurchaseOrdersRoute } from './purchase-orders/PurchaseOrdersRoute';
-import { PurchaseOrdersListPage } from './purchase-orders/pages/PurchaseOrdersListPage';
-import { PurchaseOrderCreatePage } from './purchase-orders/pages/PurchaseOrderCreatePage';
-import { PurchaseOrderDetailPage } from './purchase-orders/pages/PurchaseOrderDetailPage';
-import { PurchaseOrderEditPage } from './purchase-orders/pages/PurchaseOrderEditPage';
 import { ContractsRoute } from './contracts/ContractsRoute';
-import { ContractsListPage } from './contracts/pages/ContractsListPage';
-import { ContractsCreatePage } from './contracts/pages/ContractsCreatePage';
-import { ContractsDetailPage } from './contracts/pages/ContractsDetailPage';
-import { OperationalDashboardPage } from './dashboard/pages/OperationalDashboardPage';
-import { AlertCenterPage } from './alerts/pages/AlertCenterPage';
-import { MyInboxPage } from './work-inbox/pages/MyInboxPage';
-import { OperationsDispatchWorkspacePage } from './service-orders/pages/OperationsDispatchWorkspacePage';
-import { SearchResultsPage } from './search/pages/SearchResultsPage';
-import { ReportsPage } from './reports/pages/ReportsPage';
-import { OperationalProfitabilityPage } from './analytics/pages/OperationalProfitabilityPage';
-import { ComplianceBiPage } from './analytics/pages/ComplianceBiPage';
-import { ModulesRegistryPage } from './modules-registry/ModulesRegistryPage';
-import { LoginPage } from './pages/LoginPage';
-import { PlatformDiagnosticsPage } from './pages/PlatformDiagnosticsPage';
-import { ServiceUnavailablePage } from './pages/ServiceUnavailablePage';
-import { ShellAccessDeniedPage } from './pages/ShellAccessDeniedPage';
-import { ShellNotFoundPage } from './pages/ShellNotFoundPage';
-import { SessionExpiredPage } from './pages/SessionExpiredPage';
-import { DomainWorkspacePage } from './workspaces/pages/DomainWorkspacePage';
-import { WorkspacesIndexPage } from './workspaces/pages/WorkspacesIndexPage';
 import { FinanceRoute } from './finance/FinanceRoute';
-import { FinanceOverviewPage } from './finance/pages/FinanceOverviewPage';
-import { ReceivablesListPage } from './finance/pages/ReceivablesListPage';
-import { ReceivableDetailPage } from './finance/pages/ReceivableDetailPage';
-import { PayablesListPage } from './finance/pages/PayablesListPage';
-import { PayableDetailPage } from './finance/pages/PayableDetailPage';
-import { TreasuryListPage } from './finance/pages/TreasuryListPage';
-import { TreasuryAccountDetailPage } from './finance/pages/TreasuryAccountDetailPage';
-import { BankReconciliationPage } from './finance/pages/BankReconciliationPage';
-import { ExpensesListPage } from './finance/pages/ExpensesListPage';
-import { ExpensesPage } from './finance/pages/ExpensesPage';
-import { BudgetsListPage } from './finance/pages/BudgetsListPage';
-import { BudgetsPage } from './finance/pages/BudgetsPage';
-import { CashForecastPage } from './finance/pages/CashForecastPage';
 import { FiscalRoute } from './fiscal/FiscalRoute';
-import { FiscalDocumentsPage } from './fiscal/pages/FiscalDocumentsPage';
-import { FiscalPeriodsPage } from './fiscal/pages/FiscalPeriodsPage';
-import { TaxAssessmentsPage } from './fiscal/pages/TaxAssessmentsPage';
-import { FiscalApuracaoPage } from './fiscal/pages/FiscalApuracaoPage';
-import { FiscalTributosPage } from './fiscal/pages/FiscalTributosPage';
 import { AccountingRoute } from './accounting/AccountingRoute';
-import { ChartOfAccountsPage } from './accounting/pages/ChartOfAccountsPage';
-import { JournalsPage } from './accounting/pages/JournalsPage';
-import {
-  BalanceSheetPage,
-  GeneralLedgerPage,
-  IncomeStatementPage,
-  JournalBookPage,
-  TrialBalancePage,
-} from './accounting/pages/PeriodReportPages';
-import { PeriodClosePage } from './accounting/pages/PeriodClosePage';
-import { ClosingCenterPage } from './accounting/pages/ClosingCenterPage';
-import { AccountingPostingOriginsPage } from './accounting/pages/AccountingPostingOriginsPage';
-import { EconomicPostingWorklistPage } from './accounting/pages/EconomicPostingWorklistPage';
-import { EconomicTracePage } from './accounting/pages/EconomicTracePage';
-import { FixedAssetsPage } from './accounting/pages/FixedAssetsPage';
-import {
-  ProcurementRoute,
-  ProcurementHubPage,
-  PurchaseRequestCreatePage,
-  PurchaseRequestPage,
-  PurchaseOrderPage,
-  SupplierInvoicePage,
-  ThreeWayMatchPage,
-} from './procurement/pages/ProcurementPages';
-import {
-  InventoryItemDetailPage,
-  InventoryPage,
-  InventoryRoute,
-  InventoryWarehouseDetailPage,
-} from './inventory/pages/InventoryPage';
-import { PayrollRoute, PayrollPage } from './payroll/pages/PayrollPage';
-import { SupplierCreatePage } from './suppliers/pages/SupplierCreatePage';
-import { SuppliersEngineListPage } from './suppliers/pages/SuppliersEngineListPage';
-import { SuppliersEngineDetailPage } from './suppliers/pages/SuppliersEngineDetailPage';
-import { SuppliersRoute } from './suppliers/pages/SuppliersRoute';
 import { AccessAdminRoute } from './access-admin/AccessAdminRoute';
-import { AccessAdminPage } from './access-admin/pages/AccessAdminPage';
-import { ServiceOrderEngineDetailPage } from './service-orders/pages/ServiceOrderEngineDetailPage';
-import { MetadataExplorerPage } from './admin/MetadataExplorerPage';
-import { ViewLabPage } from './admin/ViewLabPage';
+
+const ClientCreatePage = lazy(() => import('./clients/pages/ClientCreatePage').then((module) => ({ default: module.ClientCreatePage })));
+const ClientDetailPage = lazy(() => import('./clients/pages/ClientDetailPage').then((module) => ({ default: module.ClientDetailPage })));
+const ClientEditPage = lazy(() => import('./clients/pages/ClientEditPage').then((module) => ({ default: module.ClientEditPage })));
+const ClientsListPage = lazy(() => import('./clients/pages/ClientsListPage').then((module) => ({ default: module.ClientsListPage })));
+const PeopleListPage = lazy(() => import('./people/pages/PeopleListPage').then((module) => ({ default: module.PeopleListPage })));
+const PersonCreatePage = lazy(() => import('./people/pages/PersonCreatePage').then((module) => ({ default: module.PersonCreatePage })));
+const PersonDetailPage = lazy(() => import('./people/pages/PersonDetailPage').then((module) => ({ default: module.PersonDetailPage })));
+const PersonEditPage = lazy(() => import('./people/pages/PersonEditPage').then((module) => ({ default: module.PersonEditPage })));
+const ServiceDefinitionComparePage = lazy(() => import('./catalog/pages/ServiceDefinitionComparePage').then((module) => ({ default: module.ServiceDefinitionComparePage })));
+const ServiceDefinitionCreatePage = lazy(() => import('./catalog/pages/ServiceDefinitionCreatePage').then((module) => ({ default: module.ServiceDefinitionCreatePage })));
+const ServiceDefinitionDetailPage = lazy(() => import('./catalog/pages/ServiceDefinitionDetailPage').then((module) => ({ default: module.ServiceDefinitionDetailPage })));
+const ServiceDefinitionDraftEditPage = lazy(() => import('./catalog/pages/ServiceDefinitionDraftEditPage').then((module) => ({ default: module.ServiceDefinitionDraftEditPage })));
+const ServiceDefinitionVersionCreatePage = lazy(() => import('./catalog/pages/ServiceDefinitionVersionCreatePage').then((module) => ({ default: module.ServiceDefinitionVersionCreatePage })));
+const ServiceDefinitionVersionDetailPage = lazy(() => import('./catalog/pages/ServiceDefinitionVersionDetailPage').then((module) => ({ default: module.ServiceDefinitionVersionDetailPage })));
+const ServiceDefinitionsListPage = lazy(() => import('./catalog/pages/ServiceDefinitionsListPage').then((module) => ({ default: module.ServiceDefinitionsListPage })));
+const DocumentsPage = lazy(() => import('./documents/pages/DocumentsPage').then((module) => ({ default: module.DocumentsPage })));
+const BillingDashboardPage = lazy(() => import('./billing/pages/BillingDashboardPage').then((module) => ({ default: module.BillingDashboardPage })));
+const ServiceOrderBillingDocumentPage = lazy(() => import('./billing/pages/ServiceOrderBillingDocumentPage').then((module) => ({ default: module.ServiceOrderBillingDocumentPage })));
+const ServiceOrderBillingPage = lazy(() => import('./billing/pages/ServiceOrderBillingPage').then((module) => ({ default: module.ServiceOrderBillingPage })));
+const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage').then((module) => ({ default: module.AccessDeniedPage })));
+const PhysicalAssetCreatePage = lazy(() => import('./assets/pages/PhysicalAssetCreatePage').then((module) => ({ default: module.PhysicalAssetCreatePage })));
+const PhysicalAssetDetailPage = lazy(() => import('./assets/pages/PhysicalAssetDetailPage').then((module) => ({ default: module.PhysicalAssetDetailPage })));
+const PhysicalAssetEditPage = lazy(() => import('./assets/pages/PhysicalAssetEditPage').then((module) => ({ default: module.PhysicalAssetEditPage })));
+const PhysicalAssetsListPage = lazy(() => import('./assets/pages/PhysicalAssetsListPage').then((module) => ({ default: module.PhysicalAssetsListPage })));
+const FleetListPage = lazy(() => import('./fleet/pages/FleetListPage').then((module) => ({ default: module.FleetListPage })));
+const RentalsListPage = lazy(() => import('./rentals/pages/RentalsListPage').then((module) => ({ default: module.RentalsListPage })));
+const TransportListPage = lazy(() => import('./transport/pages/TransportListPage').then((module) => ({ default: module.TransportListPage })));
+const ServiceOrderPlanningPage = lazy(() => import('./service-orders/pages/ServiceOrderPlanningPage').then((module) => ({ default: module.ServiceOrderPlanningPage })));
+const ServiceOrdersEngineListPage = lazy(() => import('./service-orders/pages/ServiceOrdersEngineListPage').then((module) => ({ default: module.ServiceOrdersEngineListPage })));
+const ServiceOrderExecutionPage = lazy(() => import('./service-orders/pages/ServiceOrderExecutionPage').then((module) => ({ default: module.ServiceOrderExecutionPage })));
+const ServiceOrderMeasurementPage = lazy(() => import('./service-orders/pages/ServiceOrderMeasurementPage').then((module) => ({ default: module.ServiceOrderMeasurementPage })));
+const MeasurementWorkbenchPage = lazy(() => import('./service-orders/pages/MeasurementWorkbenchPage').then((module) => ({ default: module.MeasurementWorkbenchPage })));
+const RevenueLeakagePage = lazy(() => import('./service-orders/pages/RevenueLeakagePage').then((module) => ({ default: module.RevenueLeakagePage })));
+const ServiceOrderCreatePage = lazy(() => import('./service-orders/pages/ServiceOrderCreatePage').then((module) => ({ default: module.ServiceOrderCreatePage })));
+const ServiceRequestCreatePage = lazy(() => import('./requests/pages/ServiceRequestCreatePage').then((module) => ({ default: module.ServiceRequestCreatePage })));
+const ServiceRequestDetailPage = lazy(() => import('./requests/pages/ServiceRequestDetailPage').then((module) => ({ default: module.ServiceRequestDetailPage })));
+const ServiceRequestEditPage = lazy(() => import('./requests/pages/ServiceRequestEditPage').then((module) => ({ default: module.ServiceRequestEditPage })));
+const ServiceRequestsListPage = lazy(() => import('./requests/pages/ServiceRequestsListPage').then((module) => ({ default: module.ServiceRequestsListPage })));
+const ProposalsListPage = lazy(() => import('./proposals/pages/ProposalsListPage').then((module) => ({ default: module.ProposalsListPage })));
+const ProposalCreatePage = lazy(() => import('./proposals/pages/ProposalCreatePage').then((module) => ({ default: module.ProposalCreatePage })));
+const ProposalDetailPage = lazy(() => import('./proposals/pages/ProposalDetailPage').then((module) => ({ default: module.ProposalDetailPage })));
+const ProposalEditPage = lazy(() => import('./proposals/pages/ProposalEditPage').then((module) => ({ default: module.ProposalEditPage })));
+const PurchaseOrdersListPage = lazy(() => import('./purchase-orders/pages/PurchaseOrdersListPage').then((module) => ({ default: module.PurchaseOrdersListPage })));
+const PurchaseOrderCreatePage = lazy(() => import('./purchase-orders/pages/PurchaseOrderCreatePage').then((module) => ({ default: module.PurchaseOrderCreatePage })));
+const PurchaseOrderDetailPage = lazy(() => import('./purchase-orders/pages/PurchaseOrderDetailPage').then((module) => ({ default: module.PurchaseOrderDetailPage })));
+const PurchaseOrderEditPage = lazy(() => import('./purchase-orders/pages/PurchaseOrderEditPage').then((module) => ({ default: module.PurchaseOrderEditPage })));
+const ContractsListPage = lazy(() => import('./contracts/pages/ContractsListPage').then((module) => ({ default: module.ContractsListPage })));
+const ContractsCreatePage = lazy(() => import('./contracts/pages/ContractsCreatePage').then((module) => ({ default: module.ContractsCreatePage })));
+const ContractsDetailPage = lazy(() => import('./contracts/pages/ContractsDetailPage').then((module) => ({ default: module.ContractsDetailPage })));
+const OperationalDashboardPage = lazy(() => import('./dashboard/pages/OperationalDashboardPage').then((module) => ({ default: module.OperationalDashboardPage })));
+const AlertCenterPage = lazy(() => import('./alerts/pages/AlertCenterPage').then((module) => ({ default: module.AlertCenterPage })));
+const MyInboxPage = lazy(() => import('./work-inbox/pages/MyInboxPage').then((module) => ({ default: module.MyInboxPage })));
+const OperationsDispatchWorkspacePage = lazy(() => import('./service-orders/pages/OperationsDispatchWorkspacePage').then((module) => ({ default: module.OperationsDispatchWorkspacePage })));
+const SearchResultsPage = lazy(() => import('./search/pages/SearchResultsPage').then((module) => ({ default: module.SearchResultsPage })));
+const ReportsPage = lazy(() => import('./reports/pages/ReportsPage').then((module) => ({ default: module.ReportsPage })));
+const OperationalProfitabilityPage = lazy(() => import('./analytics/pages/OperationalProfitabilityPage').then((module) => ({ default: module.OperationalProfitabilityPage })));
+const ComplianceBiPage = lazy(() => import('./analytics/pages/ComplianceBiPage').then((module) => ({ default: module.ComplianceBiPage })));
+const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
+const PlatformDiagnosticsPage = lazy(() => import('./pages/PlatformDiagnosticsPage').then((module) => ({ default: module.PlatformDiagnosticsPage })));
+const ServiceUnavailablePage = lazy(() => import('./pages/ServiceUnavailablePage').then((module) => ({ default: module.ServiceUnavailablePage })));
+const ShellAccessDeniedPage = lazy(() => import('./pages/ShellAccessDeniedPage').then((module) => ({ default: module.ShellAccessDeniedPage })));
+const ShellNotFoundPage = lazy(() => import('./pages/ShellNotFoundPage').then((module) => ({ default: module.ShellNotFoundPage })));
+const SessionExpiredPage = lazy(() => import('./pages/SessionExpiredPage').then((module) => ({ default: module.SessionExpiredPage })));
+const DomainWorkspacePage = lazy(() => import('./workspaces/pages/DomainWorkspacePage').then((module) => ({ default: module.DomainWorkspacePage })));
+const WorkspacesIndexPage = lazy(() => import('./workspaces/pages/WorkspacesIndexPage').then((module) => ({ default: module.WorkspacesIndexPage })));
+const FinanceOverviewPage = lazy(() => import('./finance/pages/FinanceOverviewPage').then((module) => ({ default: module.FinanceOverviewPage })));
+const ReceivablesListPage = lazy(() => import('./finance/pages/ReceivablesListPage').then((module) => ({ default: module.ReceivablesListPage })));
+const ReceivableDetailPage = lazy(() => import('./finance/pages/ReceivableDetailPage').then((module) => ({ default: module.ReceivableDetailPage })));
+const PayablesListPage = lazy(() => import('./finance/pages/PayablesListPage').then((module) => ({ default: module.PayablesListPage })));
+const PayableDetailPage = lazy(() => import('./finance/pages/PayableDetailPage').then((module) => ({ default: module.PayableDetailPage })));
+const TreasuryListPage = lazy(() => import('./finance/pages/TreasuryListPage').then((module) => ({ default: module.TreasuryListPage })));
+const TreasuryAccountDetailPage = lazy(() => import('./finance/pages/TreasuryAccountDetailPage').then((module) => ({ default: module.TreasuryAccountDetailPage })));
+const BankReconciliationPage = lazy(() => import('./finance/pages/BankReconciliationPage').then((module) => ({ default: module.BankReconciliationPage })));
+const ExpensesListPage = lazy(() => import('./finance/pages/ExpensesListPage').then((module) => ({ default: module.ExpensesListPage })));
+const ExpensesPage = lazy(() => import('./finance/pages/ExpensesPage').then((module) => ({ default: module.ExpensesPage })));
+const BudgetsListPage = lazy(() => import('./finance/pages/BudgetsListPage').then((module) => ({ default: module.BudgetsListPage })));
+const BudgetsPage = lazy(() => import('./finance/pages/BudgetsPage').then((module) => ({ default: module.BudgetsPage })));
+const CashForecastPage = lazy(() => import('./finance/pages/CashForecastPage').then((module) => ({ default: module.CashForecastPage })));
+const FiscalDocumentsPage = lazy(() => import('./fiscal/pages/FiscalDocumentsPage').then((module) => ({ default: module.FiscalDocumentsPage })));
+const FiscalPeriodsPage = lazy(() => import('./fiscal/pages/FiscalPeriodsPage').then((module) => ({ default: module.FiscalPeriodsPage })));
+const TaxAssessmentsPage = lazy(() => import('./fiscal/pages/TaxAssessmentsPage').then((module) => ({ default: module.TaxAssessmentsPage })));
+const FiscalApuracaoPage = lazy(() => import('./fiscal/pages/FiscalApuracaoPage').then((module) => ({ default: module.FiscalApuracaoPage })));
+const FiscalTributosPage = lazy(() => import('./fiscal/pages/FiscalTributosPage').then((module) => ({ default: module.FiscalTributosPage })));
+const ChartOfAccountsPage = lazy(() => import('./accounting/pages/ChartOfAccountsPage').then((module) => ({ default: module.ChartOfAccountsPage })));
+const JournalsPage = lazy(() => import('./accounting/pages/JournalsPage').then((module) => ({ default: module.JournalsPage })));
+const BalanceSheetPage = lazy(() => import('./accounting/pages/PeriodReportPages').then((module) => ({ default: module.BalanceSheetPage })));
+const GeneralLedgerPage = lazy(() => import('./accounting/pages/PeriodReportPages').then((module) => ({ default: module.GeneralLedgerPage })));
+const IncomeStatementPage = lazy(() => import('./accounting/pages/PeriodReportPages').then((module) => ({ default: module.IncomeStatementPage })));
+const JournalBookPage = lazy(() => import('./accounting/pages/PeriodReportPages').then((module) => ({ default: module.JournalBookPage })));
+const TrialBalancePage = lazy(() => import('./accounting/pages/PeriodReportPages').then((module) => ({ default: module.TrialBalancePage })));
+const PeriodClosePage = lazy(() => import('./accounting/pages/PeriodClosePage').then((module) => ({ default: module.PeriodClosePage })));
+const ClosingCenterPage = lazy(() => import('./accounting/pages/ClosingCenterPage').then((module) => ({ default: module.ClosingCenterPage })));
+const AccountingPostingOriginsPage = lazy(() => import('./accounting/pages/AccountingPostingOriginsPage').then((module) => ({ default: module.AccountingPostingOriginsPage })));
+const EconomicPostingWorklistPage = lazy(() => import('./accounting/pages/EconomicPostingWorklistPage').then((module) => ({ default: module.EconomicPostingWorklistPage })));
+const EconomicTracePage = lazy(() => import('./accounting/pages/EconomicTracePage').then((module) => ({ default: module.EconomicTracePage })));
+const FixedAssetsPage = lazy(() => import('./accounting/pages/FixedAssetsPage').then((module) => ({ default: module.FixedAssetsPage })));
+const ProcurementRoute = lazy(() => import('./procurement/pages/ProcurementPages').then((module) => ({ default: module.ProcurementRoute })));
+const ProcurementHubPage = lazy(() => import('./procurement/pages/ProcurementPages').then((module) => ({ default: module.ProcurementHubPage })));
+const PurchaseRequestCreatePage = lazy(() => import('./procurement/pages/ProcurementPages').then((module) => ({ default: module.PurchaseRequestCreatePage })));
+const PurchaseRequestPage = lazy(() => import('./procurement/pages/ProcurementPages').then((module) => ({ default: module.PurchaseRequestPage })));
+const PurchaseOrderPage = lazy(() => import('./procurement/pages/ProcurementPages').then((module) => ({ default: module.PurchaseOrderPage })));
+const SupplierInvoicePage = lazy(() => import('./procurement/pages/ProcurementPages').then((module) => ({ default: module.SupplierInvoicePage })));
+const ThreeWayMatchPage = lazy(() => import('./procurement/pages/ProcurementPages').then((module) => ({ default: module.ThreeWayMatchPage })));
+const InventoryItemDetailPage = lazy(() => import('./inventory/pages/InventoryPage').then((module) => ({ default: module.InventoryItemDetailPage })));
+const InventoryPage = lazy(() => import('./inventory/pages/InventoryPage').then((module) => ({ default: module.InventoryPage })));
+const InventoryRoute = lazy(() => import('./inventory/pages/InventoryPage').then((module) => ({ default: module.InventoryRoute })));
+const InventoryWarehouseDetailPage = lazy(() => import('./inventory/pages/InventoryPage').then((module) => ({ default: module.InventoryWarehouseDetailPage })));
+const PayrollRoute = lazy(() => import('./payroll/pages/PayrollPage').then((module) => ({ default: module.PayrollRoute })));
+const PayrollPage = lazy(() => import('./payroll/pages/PayrollPage').then((module) => ({ default: module.PayrollPage })));
+const SupplierCreatePage = lazy(() => import('./suppliers/pages/SupplierCreatePage').then((module) => ({ default: module.SupplierCreatePage })));
+const SuppliersEngineListPage = lazy(() => import('./suppliers/pages/SuppliersEngineListPage').then((module) => ({ default: module.SuppliersEngineListPage })));
+const SuppliersEngineDetailPage = lazy(() => import('./suppliers/pages/SuppliersEngineDetailPage').then((module) => ({ default: module.SuppliersEngineDetailPage })));
+const SuppliersRoute = lazy(() => import('./suppliers/pages/SuppliersRoute').then((module) => ({ default: module.SuppliersRoute })));
+const AccessAdminPage = lazy(() => import('./access-admin/pages/AccessAdminPage').then((module) => ({ default: module.AccessAdminPage })));
+const ServiceOrderEngineDetailPage = lazy(() => import('./service-orders/pages/ServiceOrderEngineDetailPage').then((module) => ({ default: module.ServiceOrderEngineDetailPage })));
+const ModulesRegistryPage = lazy(() => import('./modules-registry/ModulesRegistryPage').then((module) => ({ default: module.ModulesRegistryPage })));
+const MetadataExplorerPage = lazy(() => import('./admin/MetadataExplorerPage').then((module) => ({ default: module.MetadataExplorerPage })));
+const ViewLabPage = lazy(() => import('./admin/ViewLabPage').then((module) => ({ default: module.ViewLabPage })));
 
 export function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<LoadingState label="Carregando módulo…" className="p-4" />}>
+      <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/access-denied" element={<AccessDeniedPage />} />
             <Route path="/session-expired" element={<SessionExpiredPage />} />
@@ -1112,6 +1111,7 @@ export function AppRoutes() {
           </Route>
           <Route path="/" element={<Navigate to="/app" replace />} />
           <Route path="*" element={<ShellNotFoundPage />} />
-                </Routes>
+                  </Routes>
+    </Suspense>
   );
 }
