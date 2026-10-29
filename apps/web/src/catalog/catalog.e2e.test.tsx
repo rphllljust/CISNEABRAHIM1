@@ -57,7 +57,7 @@ describe('catalog administrative flow e2e (frontend)', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /criar nova vers/i })).toBeInTheDocument();
     });
-    await user.click(screen.getByRole('button', { name: /criar rascunho da nova vers/i }));
+    await user.click(await screen.findByRole('button', { name: /criar rascunho da nova vers/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /LOCACAO-DEMO.*v2/i })).toBeInTheDocument();
