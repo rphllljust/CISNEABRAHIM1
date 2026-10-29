@@ -1,71 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ModulePage } from '../../ui/module-layout';
 import { WorklistHeader, WorklistStatePanel } from '../../ui/enterprise-list';
+import { useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
+import { OperationsApiError, listOperationUnitOptions } from '../api/operations-api';
 import { DispatchBoardPage } from './DispatchBoardPage';
 import { ExecutionConsolePage } from './ExecutionConsolePage';
-import { listServiceOrders, ServiceOrdersApiError } from '../api/service-orders-api';
 
 /**
- * WORKSPACE DE OPERAÇÕES — a estação de operação.
- *
- * ═════════════════════════════════════════════════════════════════════════════════
- * POR QUE A UNIDADE É A CHAVE DA PÁGINA
- * ═════════════════════════════════════════════════════════════════════════════════
- *
- * Despacho e execução são recortados por UNIDADE OPERACIONAL. Sem ela não existe
- * escopo: uma tela que mistura unidades opera o que o operador não pediu e mostra
- * o que ele talvez não devesse ver.
- *
- * A unidade vem das ordens que o ator pode LER — a mesma leitura já autorizada pela
- * listagem. Não se inventa unidade "default": quando não há nenhuma, a tela diz
- * isso em vez de escolher por conta própria.
+ * Operations reads authorized units from its own directory contract.
+ * An empty work queue does not make a registered unit disappear.
+ * LIST/read authority governs the board; dispatch commands are checked separately.
  */
 export function OperationsDispatchWorkspacePage({
   initialTab = 'dispatch',
 }: {
   initialTab?: 'dispatch' | 'execution';
 } = {}) {
-  const [unitId, setUnitId] = useState<string | null>(null);
-  const [unitState, setUnitState] = useState<
-    { phase: 'loading' } | { phase: 'ready'; units: string[] } | { phase: 'error'; message: string }
-  >({ phase: 'loading' });
   const [tab, setTab] = useState<'dispatch' | 'execution'>(initialTab);
+  const { options, unitId, setUnitId, status, error, reload } =
+    useOperationalUnits(listOperationUnitOptions);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-
-    async function run() {
-      try {
-        // A leitura de uma página de ordens é o caminho AUTORIZADO para descobrir
-        // as unidades do ator — o mesmo `list` que aplica capability e escopo.
-        const page = await listServiceOrders({ limit: 50 }, controller.signal);
-        if (!active || controller.signal.aborted) {
-          return;
-        }
-        const units = [...new Set(page.items.map((item) => item.unitId).filter(Boolean))].sort();
-        setUnitState({ phase: 'ready', units });
-        setUnitId((current) => current ?? units[0] ?? null);
-      } catch (error) {
-        if (!active || controller.signal.aborted) {
-          return;
-        }
-        setUnitState({
-          phase: 'error',
-          message:
-            error instanceof ServiceOrdersApiError && error.kind === 'denied'
-              ? 'Você não tem permissão para ler as ordens desta operação.'
-              : 'Não foi possível determinar a unidade operacional.',
-        });
-      }
-    }
-
-    void run();
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, []);
+  const denied = error instanceof OperationsApiError && error.kind === 'denied';
 
   return (
     <ModulePage layout="workspace">
@@ -74,9 +29,8 @@ export function OperationsDispatchWorkspacePage({
           <WorklistHeader
             title="Operações"
             count={null}
-            context="Despacho e execução sobre a mesma cadeia: prontidão, despacho, chegada, execução, realizado e conclusão. Toda decisão vem do servidor."
+            context="Despacho e execução por unidade autorizada: prontidão, recursos, exceções, realizado e conclusão. Decisões e comandos pertencem ao servidor."
           />
-
           <nav aria-label="Seções de operação" className="mt-2 flex flex-wrap gap-1">
             <TabButton active={tab === 'dispatch'} onClick={() => setTab('dispatch')}>
               Despacho
@@ -86,20 +40,21 @@ export function OperationsDispatchWorkspacePage({
             </TabButton>
           </nav>
 
-          {unitState.phase === 'ready' && unitState.units.length > 1 ? (
+          {status === 'ready' && options.length > 0 ? (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+              <label htmlFor="operations-unit" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
                 Unidade
-              </span>
+              </label>
               <select
-                value={unitId ?? ''}
-                onChange={(event) => setUnitId(event.target.value || null)}
+                id="operations-unit"
+                value={unitId}
+                onChange={(event) => setUnitId(event.target.value)}
                 aria-label="Unidade operacional"
-                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs"
+                className="min-h-10 max-w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs"
               >
-                {unitState.units.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit}
+                {options.map((unit) => (
+                  <option key={unit.value} value={unit.value}>
+                    {unit.label}
                   </option>
                 ))}
               </select>
@@ -108,35 +63,34 @@ export function OperationsDispatchWorkspacePage({
         </div>
 
         <div data-region="worklist-master">
-          {unitState.phase === 'loading' ? (
+          {status === 'loading' ? (
             <WorklistStatePanel
-              title="Lendo a operação"
-              description="Unidades autorizadas sendo determinadas."
+              title="Lendo unidades operacionais"
+              description="Consultando o diretório no escopo de leitura da operação."
             />
           ) : null}
 
-          {unitState.phase === 'error' ? (
-            <div
-              role="alert"
-              className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800"
-            >
-              {unitState.message}
+          {status === 'error' ? (
+            <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+              <p>{denied
+                ? 'Acesso negado à consulta operacional. Permissão de criação ou despacho não autoriza automaticamente esta leitura.'
+                : 'O diretório de unidades está indisponível. Nenhuma lista vazia foi presumida.'}</p>
+              {!denied ? (
+                <button type="button" className="mt-2 underline" onClick={reload}>Tentar novamente</button>
+              ) : null}
             </div>
           ) : null}
 
-          {unitState.phase === 'ready' && unitState.units.length === 0 ? (
+          {status === 'ready' && options.length === 0 ? (
             <WorklistStatePanel
-              title="Nenhuma unidade operacional"
-              description="Não há ordem visível para o seu escopo. Despacho e execução dependem de unidade operacional."
+              title="Nenhuma unidade autorizada para consulta"
+              description="Não há unidade habilitada para seu escopo de leitura. Isso não significa ausência de ordens de serviço."
             />
           ) : null}
 
-          {unitState.phase === 'ready' && unitState.units.length > 0 ? (
-            tab === 'dispatch' ? (
-              <DispatchBoardPage unitId={unitId} />
-            ) : (
+          {status === 'ready' && unitId && options.length > 0 ? (
+            tab === 'dispatch' ? <DispatchBoardPage unitId={unitId} /> :
               <ExecutionConsolePage unitId={unitId} />
-            )
           ) : null}
         </div>
       </div>
