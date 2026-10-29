@@ -11,6 +11,7 @@ import { config } from 'dotenv';
 import { Pool } from 'pg';
 import type { DatabaseService } from '../../infrastructure/database/database.service';
 import { EconomicTraceReadModelService } from '../../accounting/repositories/economic-trace.read-model';
+import { deriveAcceptanceState, resolveAcceptancePolicy } from '../../measurements/domain/acceptance-policy';
 
 config({ path: process.env['CISNE_ENV'] === 'hml' ? '.env.hml' : '.env' });
 
@@ -49,6 +50,9 @@ type Origin = {
   principal: string;
   currency_code: string;
   unit_id: string;
+  contract_snapshot: Record<string, unknown> | null;
+  service_snapshot: Record<string, unknown> | null;
+  purchase_order_requirement: string | null;
 };
 
 type Settlement = { id: string; amount: string; currency_code: string };
@@ -72,7 +76,8 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
       `SELECT c.id AS client_id, so.id AS service_order_id, m.id AS measurement_id,
               br.id AS billing_record_id, bd.id AS billing_document_id, r.id AS receivable_id,
               bd.total_amount::text AS document_amount, r.principal::text AS principal,
-              r.currency_code, so.unit_id
+              r.currency_code, so.unit_id, so.contract_snapshot, so.service_snapshot,
+              c.purchase_order_requirement
          FROM pty.clients c
          JOIN so.service_orders so ON so.client_id = c.id AND so.status = 'COMPLETED'
          JOIN msr.measurements m ON m.service_order_id = so.id AND m.status = 'APPROVED'
@@ -90,16 +95,40 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
     }
 
     const acceptance = requireExactlyOne('CUSTOMER_ACCEPTANCE', scenario, (await pool.query<{
-      result: string; evidence_id: string | null;
+      id: string; cycle_number: number; result: string; observation: string;
+      rejection_reason: string | null; evidence_id: string | null;
+      signature_id: string | null; customer_signer_name: string | null;
+      accepted_by_identity_id: string; occurred_at: string;
     }>(
-      `SELECT a.result::text AS result, a.evidence_id
+      `SELECT a.id, a.cycle_number, a.result::text AS result, a.observation,
+              a.rejection_reason, a.evidence_id, a.signature_id,
+              a.customer_signer_name, a.accepted_by_identity_id, a.occurred_at
          FROM msr.customer_acceptances a
         WHERE a.measurement_id = $1 AND a.service_order_id = $2
         ORDER BY a.cycle_number DESC, a.occurred_at DESC, a.id DESC
         LIMIT 1`,
       [origin.measurement_id, origin.service_order_id],
     )).rows);
-    if (acceptance.result !== 'ACCEPTED') {
+    const policy = resolveAcceptancePolicy({
+      contractSnapshot: origin.contract_snapshot,
+      serviceSnapshot: origin.service_snapshot,
+      clientPurchaseOrderRequirement: origin.purchase_order_requirement,
+    });
+    const decision = deriveAcceptanceState({
+      policy: policy.policy,
+      latestAcceptance: {
+        id: acceptance.id, cycleNumber: acceptance.cycle_number,
+        result: acceptance.result, observation: acceptance.observation,
+        rejectionReason: acceptance.rejection_reason, evidenceId: acceptance.evidence_id,
+        signatureId: acceptance.signature_id,
+        customerSignerName: acceptance.customer_signer_name,
+        acceptedByIdentityId: acceptance.accepted_by_identity_id,
+        occurredAt: acceptance.occurred_at,
+      },
+    });
+    if (policy.policy === 'NOT_REQUIRED' ||
+        decision.state !== 'ACCEPTED' || decision.blocksBilling ||
+        acceptance.result !== 'ACCEPTED') {
       throw new Error(`HML_ECONOMIC_ACCEPTANCE_NOT_APPROVED:${scenario}`);
     }
 
@@ -204,6 +233,8 @@ export async function verifyHmlEconomicSpine(pool: Pool): Promise<Array<Record<s
       exactAmount: origin.principal,
       currencyCode: origin.currency_code,
       economicTraceState: view.accountingState,
+      customerAcceptancePolicy: policy.policy,
+      customerAcceptanceState: decision.state,
     });
   }
 
