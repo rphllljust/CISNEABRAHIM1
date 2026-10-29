@@ -2,7 +2,7 @@ name: Coolify Release Images
 
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: [CI, HML isolated end-to-end]
     types: [completed]
     branches: [main]
   # Dispatch manual republica o SHA do ref selecionado. Nao existe override de
