@@ -46,7 +46,7 @@ describe('Enterprise unit governance context', () => {
     const changed = vi.fn();
     render(<OperationalUnitGovernance onChanged={changed} />);
     await userEvent.setup().click(await screen.findByText(/Contexto empresarial · Governança/));
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Atualizar identidade' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Editar cadastro' }));
     expect(screen.getByRole('textbox', { name: 'Código empresarial' })).toHaveValue('PVH');
     expect(screen.getByRole('textbox', { name: 'Nome empresarial' })).toHaveValue('Porto Velho');
     await userEvent.setup().clear(screen.getByRole('textbox', { name: 'Nome empresarial' }));
