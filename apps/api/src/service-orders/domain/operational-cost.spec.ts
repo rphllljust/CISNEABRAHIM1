@@ -40,6 +40,40 @@ describe('operational-cost domain', () => {
       ),
     ).toThrowError(OperationalCostError);
   });
+
+  it('does not total or calculate a margin from incompatible cost currencies', () => {
+    const summary = buildOperationalMarginSummary({
+      revenue: '7000.0000',
+      currencyCode: 'BRL',
+      lines: [
+        {
+          id: 'brl', category: OPERATIONAL_COST_CATEGORIES.Fuel,
+          costKind: OPERATIONAL_COST_KINDS.Actual,
+          origin: OPERATIONAL_COST_ORIGINS.Execution,
+          amount: '3000.0000', currencyCode: 'BRL', sourceExecutionEntryId: 'entry-1',
+        },
+        {
+          id: 'usd', category: OPERATIONAL_COST_CATEGORIES.Material,
+          costKind: OPERATIONAL_COST_KINDS.Actual,
+          origin: OPERATIONAL_COST_ORIGINS.Execution,
+          amount: '100.0000', currencyCode: 'USD', sourceExecutionEntryId: 'entry-2',
+        },
+      ],
+    });
+    expect(summary.totalActualCost).toBeNull();
+    expect(summary.actualMargin).toBeNull();
+    expect(summary.blockingReasons).toContain('COST_CURRENCY_MISMATCH');
+    expect(summary.lines).toHaveLength(2); // Preserve each auditable source.
+  });
+
+  it('distinguishes no cost evidence from a real zero cost', () => {
+    const summary = buildOperationalMarginSummary({
+      revenue: '7000.0000', currencyCode: 'BRL', lines: [],
+    });
+    expect(summary.totalActualCost).toBeNull();
+    expect(summary.actualMargin).toBeNull();
+    expect(summary.blockingReasons).toContain('ACTUAL_COST_EVIDENCE_MISSING');
+  });
 });
 
 describe('operational-margin domain', () => {
@@ -73,6 +107,8 @@ describe('operational-margin domain', () => {
     expect(summary.totalActualCost).toBe('250');
     expect(summary.estimatedMargin).toBe('800');
     expect(summary.actualMargin).toBe('750');
+    expect(summary.estimatedToActualVariance).toBe('50');
+    expect(summary.blockingReasons).toEqual([]);
     expect(summary.disclaimer).toContain('not official accounting');
   });
 });
