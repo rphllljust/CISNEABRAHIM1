@@ -70,7 +70,13 @@ export function aggregateOperationalProfitability(
 
   const operationalRevenue = sumNullableMoneyAmounts(rows.map((row) => row.operationalRevenue));
   const realizedCost = sumNullableMoneyAmounts(rows.map((row) => row.realizedCost));
-  const operationalMargin = computeOperationalMargin(operationalRevenue, realizedCost);
+  // Totals may describe different subsets (a revenue-only OS and a cost-only OS).
+  // Their difference is NOT consolidated profit. Publish a consolidated margin
+  // only if every OS in the requested scope has both authoritative inputs.
+  const completeCoverage = marginComputableCount === rows.length && rows.length > 0;
+  const operationalMargin = completeCoverage
+    ? computeOperationalMargin(operationalRevenue, realizedCost)
+    : null;
 
   return {
     operationalRevenue,
