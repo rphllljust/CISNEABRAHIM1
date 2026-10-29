@@ -8,6 +8,7 @@ import {
   type ServiceOrderCostEvidence,
 } from '../api/service-orders-api';
 import { ServiceOrderCostToServePanel } from './ServiceOrderCostToServePanel';
+import * as costEvidenceHooks from '../hooks/useServiceOrderCostEvidence';
 
 vi.mock('../api/service-orders-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/service-orders-api')>();
@@ -80,12 +81,17 @@ describe('Service Order 360 Cost-to-Serve', () => {
   });
 
   it('distinguishes authorization denial from a zero balance', async () => {
-    vi.mocked(getServiceOrderCostEvidence).mockImplementation(async () => {
-      throw new ServiceOrdersApiError(403, undefined, 'denied');
+    const hook = vi.spyOn(costEvidenceHooks, 'useServiceOrderCostEvidence').mockReturnValue({
+      state: { phase: 'denied' },
+      reload: vi.fn(),
     });
-    mount();
-    expect(await screen.findByRole('alert')).toHaveTextContent('não autorizada');
-    expect(screen.queryByText('BRL 0')).not.toBeInTheDocument();
+    try {
+      mount();
+      expect(await screen.findByRole('alert')).toHaveTextContent('não autorizada');
+      expect(screen.queryByText('BRL 0')).not.toBeInTheDocument();
+    } finally {
+      hook.mockRestore();
+    }
   });
 
   it('recovers a network error only through an explicit read retry', async () => {
