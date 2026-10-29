@@ -10,6 +10,9 @@ vi.mock('../api/operations-api', async (importOriginal) => {
   const real = await importOriginal<typeof import('../api/operations-api')>();
   return { ...real, listOperationUnitOptions: vi.fn() };
 });
+vi.mock('../components/OperationalUnitGovernance', () => ({
+  OperationalUnitGovernance: () => null,
+}));
 vi.mock('./DispatchBoardPage', () => ({
   DispatchBoardPage: ({ unitId }: { unitId: string | null }) =>
     <div data-testid="dispatch-active-unit">{unitId}</div>,
@@ -40,7 +43,7 @@ describe('Enterprise dispatch unit discovery', () => {
       ],
     });
     mount();
-    const select = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Unidade operacional' });
+    const select = await screen.findByRole('combobox', { name: 'Unidade operacional' });
     const choices = within(select).getAllByRole('option');
     expect(choices.map(option => option.textContent)).toEqual(['Porto Velho · PVH', 'Guajará-Mirim · GUA']);
     expect(choices.map(option => (option as HTMLOptionElement).value)).toEqual(['unit-a', 'unit-b']);
