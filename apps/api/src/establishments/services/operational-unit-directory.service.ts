@@ -94,19 +94,26 @@ export class OperationalUnitDirectoryService {
 
   async create(
     actor: IdentityAuthzContext,
-    input: { code?: unknown; name?: unknown; idempotencyKey?: unknown },
+    input: { refId?: unknown; code?: unknown; name?: unknown; idempotencyKey?: unknown },
   ): Promise<OperationalUnitRead> {
     // Creating a brand-new unit requires global manage authority (no UNIT scope yet).
     await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitManage);
     const code = assertCode(input.code);
     const name = assertName(input.name);
     const key = assertKey(input.idempotencyKey);
+    // Existing authorization anchors (e.g. UN-PROD-001) retain their business
+    // identity. Without refId we create a new unit; no OS lookup is involved.
+    const legacyRef = input.refId === undefined ? undefined : input.refId;
+    if (legacyRef !== undefined &&
+        (typeof legacyRef !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$/.test(legacyRef))) {
+      return badInput('Invalid existing unit reference.');
+    }
     try {
       const row = await this.repository.execute(
-        actor.identityId, key, { operation: 'CREATE', code, name },
+        actor.identityId, key, { operation: 'CREATE', refId: legacyRef ?? null, code, name },
         async client => {
           const created = await this.repository.create(client, {
-            id: 'UNIT-' + randomUUID(),
+            id: typeof legacyRef === 'string' ? legacyRef : 'UNIT-' + randomUUID(),
             code, name, actorId: actor.identityId,
           });
           await this.scopeRefs.insertScopeRef(client, AUTHZ_SCOPES.Unit, created.id);
