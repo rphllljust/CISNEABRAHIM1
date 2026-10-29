@@ -36,6 +36,7 @@ describe('Service orders E2E', () => {
   let app: NestFastifyApplication;
   let pool: Pool;
   let accessToken: string;
+  let authTestClient: string;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
 
   beforeAll(async () => {
@@ -60,6 +61,9 @@ describe('Service orders E2E', () => {
   });
 
   beforeEach(async () => {
+    // Auth rate limiting is deliberately active. Isolate independent E2E
+    // actors by a unique test user-agent rather than disabling throttle.
+    authTestClient = `cisne-so-e2e-${crypto.randomUUID()}`;
     // Master identity has its own lifecycle. Clear owned history before identity fixtures.
     await pool.query('TRUNCATE pty.operational_unit_history, pty.operational_unit_commands, pty.operational_units');
     await truncateServiceRequestTables(pool);
@@ -95,6 +99,7 @@ describe('Service orders E2E', () => {
     const loginResponse = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
+      headers: { 'user-agent': authTestClient },
       payload: { login, password: AUTH_TEST_PASSWORD },
     });
     accessToken = parseAuthTokenResponse(loginResponse.body).accessToken;
@@ -131,6 +136,7 @@ describe('Service orders E2E', () => {
     const loginResponse = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
+      headers: { 'user-agent': authTestClient },
       payload: { login, password: AUTH_TEST_PASSWORD },
     });
     const unitScopedToken = parseAuthTokenResponse(loginResponse.body).accessToken;
@@ -207,6 +213,7 @@ describe('Service orders E2E', () => {
     }
     const auth = await app.inject({
       method: 'POST', url: '/api/v1/auth/login',
+      headers: { 'user-agent': authTestClient },
       payload: { login, password: AUTH_TEST_PASSWORD },
     });
     const headers = { authorization: `Bearer ${parseAuthTokenResponse(auth.body).accessToken}` };
@@ -265,6 +272,7 @@ describe('Service orders E2E', () => {
     });
     const authReader = await app.inject({
       method: 'POST', url: '/api/v1/auth/login',
+      headers: { 'user-agent': authTestClient },
       payload: { login: readLogin, password: AUTH_TEST_PASSWORD },
     });
     const readHeaders = { authorization: `Bearer ${parseAuthTokenResponse(authReader.body).accessToken}` };
@@ -405,6 +413,7 @@ describe('Service orders E2E', () => {
     const deniedLogin = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
+      headers: { 'user-agent': authTestClient },
       payload: { login, password: AUTH_TEST_PASSWORD },
     });
     const deniedToken = parseAuthTokenResponse(deniedLogin.body).accessToken;
