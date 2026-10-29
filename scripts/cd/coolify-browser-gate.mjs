@@ -153,11 +153,6 @@ export function extractOperationalUnit(worklistText) {
   return candidate;
 }
 
-
-const AUTHORITATIVE_ACCEPTANCE_STATES = new Set(['PENDING', 'ACCEPTED', 'REJECTED']);
-const AUTHORITATIVE_ACCEPTANCE_RESULTS = new Set(['ACCEPTED', 'REJECTED']);
-const AUTHORITATIVE_ELIGIBILITY_RESULTS = new Set(['READY', 'PENDING', 'BLOCKED']);
-
 function normalizedCode(value) {
   return typeof value === 'string' ? value.trim().toUpperCase() : null;
 }
@@ -170,9 +165,7 @@ export function hasOnlyCommercialMeasurementUnits(workbench) {
     ...(Array.isArray(workbench?.measurementBasis?.lines)
       ? workbench.measurementBasis.lines.map((line) => line?.unitCode)
       : []),
-    ...(Array.isArray(workbench?.items)
-      ? workbench.items.map((item) => item?.unitCode)
-      : []),
+    ...(Array.isArray(workbench?.items) ? workbench.items.map((item) => item?.unitCode) : []),
   ]
     .map(normalizedCode)
     .filter(Boolean);
@@ -184,12 +177,73 @@ export function evaluateMeasurementBusinessProof(workbench) {
   const acceptanceState = normalizedCode(workbench?.acceptance?.state);
   const acceptanceResult = normalizedCode(workbench?.acceptance?.latest?.result);
   const eligibilityResult = normalizedCode(workbench?.billingEligibility?.result);
+  const statuses = workbench?.statuses ?? {};
+  const identity = workbench?.identity ?? {};
+  const businessContext = workbench?.businessContext ?? {};
+  const billingDocument = Array.isArray(workbench?.documentFlow)
+    ? workbench.documentFlow.find((step) => step?.kind === 'BILLING_RECORD')
+    : null;
+  const actualQuantityVerified =
+    Array.isArray(workbench?.quantities?.lines) &&
+    workbench.quantities.lines.some((line) => Number(line?.actual) > 0);
+  const measuredQuantityVerified =
+    Array.isArray(workbench?.items) &&
+    workbench.items.some(
+      (item) => Number(item?.measuredQuantity) > 0 && Number(item?.lineAmount) > 0,
+    );
+  const evidenceVerified = Array.isArray(workbench?.evidence) && workbench.evidence.length > 0;
+  const prohibitedCommercialUnit = [
+    ...(Array.isArray(workbench?.quantities?.lines)
+      ? workbench.quantities.lines.map((line) => line?.unitOfMeasure)
+      : []),
+    ...(Array.isArray(workbench?.measurementBasis?.lines)
+      ? workbench.measurementBasis.lines.map((line) => line?.unitCode)
+      : []),
+    ...(Array.isArray(workbench?.items) ? workbench.items.map((item) => item?.unitCode) : []),
+  ].some((unit) => ['HOUR', 'KM'].includes(normalizedCode(unit)));
 
-  const acceptanceVerified =
-    AUTHORITATIVE_ACCEPTANCE_STATES.has(acceptanceState) ||
-    AUTHORITATIVE_ACCEPTANCE_RESULTS.has(acceptanceResult);
-  const eligibilityVerified = AUTHORITATIVE_ELIGIBILITY_RESULTS.has(eligibilityResult);
+  // A pending acceptance or a merely evaluable billing decision is operational
+  // evidence, never proof of a completed business chain.
+  const acceptanceVerified = acceptanceState === 'ACCEPTED' || acceptanceResult === 'ACCEPTED';
+  const eligibilityVerified = eligibilityResult === 'READY';
   const commercialUnitVerified = hasOnlyCommercialMeasurementUnits(workbench);
+  const authoritativeCustomerVerified =
+    typeof businessContext.customerId === 'string' && businessContext.customerId.length > 0;
+  const currentContractVerified =
+    typeof businessContext.contract === 'string' && businessContext.contract.length > 0;
+  const completedOrderVerified =
+    typeof identity.serviceOrderId === 'string' &&
+    identity.serviceOrderId.length > 0 &&
+    ['COMPLETED', 'CLOSED'].includes(normalizedCode(statuses.execution));
+  const approvedMeasurementVerified =
+    typeof identity.measurementId === 'string' &&
+    identity.measurementId.length > 0 &&
+    normalizedCode(statuses.measurement) === 'APPROVED';
+  const billingRecordVerified =
+    normalizedCode(statuses.billing) === 'PREPARED' &&
+    billingDocument?.state === 'EXISTS' &&
+    typeof billingDocument.reference === 'string' &&
+    billingDocument.reference.length > 0;
+  const economicTraceVerified = workbench?.economicTrace?.complete === true;
+  const explicitBusinessFailure =
+    acceptanceState === 'REJECTED' ||
+    acceptanceResult === 'REJECTED' ||
+    eligibilityResult === 'BLOCKED' ||
+    normalizedCode(statuses.measurement) === 'REJECTED' ||
+    prohibitedCommercialUnit;
+  const chainVerified =
+    authoritativeCustomerVerified &&
+    currentContractVerified &&
+    completedOrderVerified &&
+    approvedMeasurementVerified &&
+    actualQuantityVerified &&
+    measuredQuantityVerified &&
+    evidenceVerified &&
+    commercialUnitVerified &&
+    acceptanceVerified &&
+    eligibilityVerified &&
+    billingRecordVerified &&
+    economicTraceVerified;
 
   return {
     acceptanceState,
@@ -198,10 +252,23 @@ export function evaluateMeasurementBusinessProof(workbench) {
     acceptanceVerified,
     eligibilityVerified,
     commercialUnitVerified,
-    verified: acceptanceVerified && eligibilityVerified && commercialUnitVerified,
+    authoritativeCustomerVerified,
+    currentContractVerified,
+    completedOrderVerified,
+    approvedMeasurementVerified,
+    actualQuantityVerified,
+    measuredQuantityVerified,
+    evidenceVerified,
+    billingRecordVerified,
+    economicTraceVerified,
+    outcome: chainVerified
+      ? 'BUSINESS_VALIDATED'
+      : explicitBusinessFailure
+        ? 'BUSINESS_VALIDATION_FAILED'
+        : 'BUSINESS_EVIDENCE_INCOMPLETE',
+    verified: chainVerified,
   };
 }
-
 
 export function extractMeasurementCandidateServiceOrderIds(payload, unitId) {
   if (
@@ -254,13 +321,37 @@ export function extractMeasurementCandidateServiceOrderIds(payload, unitId) {
 export function decideReleaseVerdict(input) {
   const assertionsPass = input.passed === input.total && input.total > 0;
   const runtimeVerified = input.runtimeVerified === true;
-  const businessVerified = input.businessVerified === true;
+  const releaseVerified =
+    assertionsPass && runtimeVerified && input.releasePrerequisitesVerified === true;
+  const evidence = input.businessEvidenceAvailable;
+  const businessEvidenceAvailable = evidence === true ? true : evidence === false ? false : null;
+  const businessVerified = businessEvidenceAvailable === true && input.businessVerified === true;
+  const productionRuntimeValidated = runtimeVerified && releaseVerified;
+  const productionBusinessValidated =
+    businessEvidenceAvailable === false
+      ? 'NOT_APPLICABLE'
+      : businessEvidenceAvailable === true
+        ? businessVerified
+        : 'UNKNOWN';
+  const productionValidated = !productionRuntimeValidated
+    ? false
+    : businessEvidenceAvailable === false
+      ? 'CONDITIONAL'
+      : businessEvidenceAvailable === true && businessVerified
+        ? true
+        : false;
+  const exitCode =
+    productionRuntimeValidated && (businessEvidenceAvailable === false || businessVerified) ? 0 : 1;
   return {
     assertionsPass,
     runtimeVerified,
     businessVerified,
-    releaseVerified: assertionsPass && runtimeVerified && businessVerified,
-    exitCode: assertionsPass && runtimeVerified && businessVerified ? 0 : 1,
+    releaseVerified,
+    businessEvidenceAvailable,
+    productionRuntimeValidated,
+    productionBusinessValidated,
+    productionValidated,
+    exitCode,
   };
 }
 
@@ -288,6 +379,8 @@ async function main() {
    */
   let runtimeVerified = false;
   let businessVerified = false;
+  let businessEvidenceAvailable = false;
+  let businessEvidenceRead = false;
   let businessReason;
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
@@ -378,7 +471,10 @@ async function main() {
        * Aqui extraímos a evidência que o navegador já produziu: a mensagem de erro na
        * tela e o status HTTP que a API devolveu ao login.
        */
-      const bodyText = await page.locator('body').innerText().catch(() => '');
+      const bodyText = await page
+        .locator('body')
+        .innerText()
+        .catch(() => '');
       const uiError = /Algo deu errado[^\n]*/i.exec(bodyText)?.[0] ?? null;
       const loginResponse = loginApiStatuses.at(-1) ?? 'sem resposta de /auth/login';
       throw new Error(
@@ -547,8 +643,8 @@ async function main() {
 
     if (noAuthorizedUnit) {
       // N/A EXPLÍCITO: registrado como aprovado-com-motivo, não omitido em silêncio.
-      record('Faixa de resumo visível', true, 'N/A — nenhuma unidade autorizada');
-      record('Fila oferece drill-through para a trilha', true, 'N/A — nenhuma unidade autorizada');
+      record('Faixa de resumo visível', null, 'N/A — nenhuma unidade autorizada');
+      record('Fila oferece drill-through para a trilha', null, 'N/A — nenhuma unidade autorizada');
       await page.screenshot({ path: `${OUT}/01-worklist.png`, fullPage: true });
       record(
         'CONSOLE sem erro crítico',
@@ -684,7 +780,10 @@ async function main() {
       queueStatus === null ? 'nenhuma resposta da fila observada' : `HTTP ${queueStatus}`,
     );
 
-    const measurementText = await page.locator('body').innerText().catch(() => '');
+    const measurementText = await page
+      .locator('body')
+      .innerText()
+      .catch(() => '');
     /**
      * ───────────────────────────────────────────────────────────────────────────
      * DIAGNÓSTICO ACIONÁVEL QUANDO O SHELL NÃO APARECE
@@ -733,11 +832,11 @@ async function main() {
      * prova apenas que a tela sabe pedir a unidade — o deploy subiu, e só.
      */
     runtimeVerified =
-      shellRendered && measurementText.trim().length > 0 && typeof resolvedUnitId === 'string' && resolvedUnitId.length > 0;
-    record(
-      'MEDIÇÃO sem FEATURE_DISABLED',
-      !/FEATURE_DISABLED/.test(measurementText),
-    );
+      shellRendered &&
+      measurementText.trim().length > 0 &&
+      typeof resolvedUnitId === 'string' &&
+      resolvedUnitId.length > 0;
+    record('MEDIÇÃO sem FEATURE_DISABLED', !/FEATURE_DISABLED/.test(measurementText));
     record(
       'MEDIÇÃO sem ruído de framework (Measurements Http Exception)',
       !/Measurements Http Exception/i.test(measurementText),
@@ -756,10 +855,10 @@ async function main() {
      * NÃO inventa caso e NÃO declara a capability validada — emite
      * NOT_APPLICABLE com motivo, separado do veredito de runtime.
      */
-    const queueItems = page.locator(
-      'ul[aria-label="Itens de trabalho da medição"] button',
-    );
+    const queueItems = page.locator('ul[aria-label="Itens de trabalho da medição"] button');
     const queueCount = await queueItems.count().catch(() => 0);
+    businessEvidenceAvailable = queueCount > 0 && measurementQueueResponse?.ok() === true;
+    businessEvidenceRead = queueCount > 0 && measurementQueueResponse?.ok() === true;
 
     if (queueCount > 0) {
       // Entra pela FILA — o caminho do operador, não uma URL montada à mão.
@@ -777,7 +876,10 @@ async function main() {
           timeout: 90_000,
         })
         .catch(() => {});
-      const workbenchText = await page.locator('body').innerText().catch(() => '');
+      const workbenchText = await page
+        .locator('body')
+        .innerText()
+        .catch(() => '');
       record(
         'MEDIÇÃO workbench carregado somente após seleção da fila',
         measurementWorkbenchRequests.length > 0,
@@ -785,7 +887,11 @@ async function main() {
       );
 
       let workbenchPayload = null;
-      if (workbenchResponse && workbenchResponse.status() >= 200 && workbenchResponse.status() < 300) {
+      if (
+        workbenchResponse &&
+        workbenchResponse.status() >= 200 &&
+        workbenchResponse.status() < 300
+      ) {
         const contentType = workbenchResponse.headers()['content-type'] ?? '';
         if (contentType.includes('application/json')) {
           workbenchPayload = await workbenchResponse.json().catch(() => null);
@@ -812,9 +918,7 @@ async function main() {
       );
 
       businessVerified = businessProof.verified;
-      businessReason = businessVerified
-        ? `aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState}; elegibilidade=${businessProof.eligibilityResult}; unidade comercial preservada`
-        : `prova semântica incompleta: aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState ?? 'ausente'}, elegibilidade=${businessProof.eligibilityResult ?? 'ausente'}, unidadeComercial=${businessProof.commercialUnitVerified}`;
+      businessReason = `${businessProof.outcome} — aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState ?? 'ausente'}; elegibilidade=${businessProof.eligibilityResult ?? 'ausente'}; unidadeComercial=${businessProof.commercialUnitVerified}`;
       await page.screenshot({ path: `${OUT}/03-measurement-workbench.png`, fullPage: true });
     } else {
       record(
@@ -836,6 +940,7 @@ async function main() {
         const seenCandidateIds = new Set();
         let serviceOrdersOffset = 0;
         let serviceOrdersHasMore = true;
+        let serviceOrdersEnumerationComplete = false;
 
         while (serviceOrdersHasMore) {
           const serviceOrdersUrl = new URL(measurementQueueResponse.url());
@@ -844,7 +949,6 @@ async function main() {
           serviceOrdersUrl.searchParams.set('limit', '100');
           serviceOrdersUrl.searchParams.set('offset', String(serviceOrdersOffset));
           serviceOrdersUrl.searchParams.set('unitId', resolvedUnitId);
-          serviceOrdersUrl.searchParams.set('status', 'COMPLETED');
 
           const serviceOrdersResponse = await context.request
             .get(serviceOrdersUrl.toString(), {
@@ -857,33 +961,36 @@ async function main() {
           if (serviceOrdersResponse?.ok() !== true) break;
 
           const serviceOrdersPayload = await serviceOrdersResponse.json().catch(() => null);
+          const pageItems = Array.isArray(serviceOrdersPayload?.items)
+            ? serviceOrdersPayload.items
+            : [];
           const pageIds = extractMeasurementCandidateServiceOrderIds(
             serviceOrdersPayload,
             resolvedUnitId,
           );
+          businessEvidenceAvailable ||= pageIds.length > 0;
           for (const id of pageIds) {
-            if (seenCandidateIds.has(id)) continue;
-            seenCandidateIds.add(id);
-            candidateIds.push(id);
+            const item = pageItems.find((candidate) => candidate?.id === id);
+            if (normalizedCode(item?.status) === 'COMPLETED' && !seenCandidateIds.has(id)) {
+              seenCandidateIds.add(id);
+              candidateIds.push(id);
+            }
           }
-
-          const pageItems = Array.isArray(serviceOrdersPayload?.items)
-            ? serviceOrdersPayload.items
-            : [];
           serviceOrdersHasMore = serviceOrdersPayload?.hasMore === true;
-          if (!serviceOrdersHasMore) break;
+          if (!serviceOrdersHasMore) {
+            serviceOrdersEnumerationComplete = Array.isArray(serviceOrdersPayload?.items);
+            break;
+          }
           if (pageItems.length === 0) {
-            throw new Error(
-              'Service orders pagination declared hasMore=true with an empty page.',
-            );
+            throw new Error('Service orders pagination declared hasMore=true with an empty page.');
           }
           serviceOrdersOffset += pageItems.length;
         }
+        businessEvidenceRead = serviceOrdersEnumerationComplete;
 
         for (const serviceOrderId of candidateIds) {
           const probeUrl = new URL(measurementQueueResponse.url());
-          probeUrl.pathname =
-            `/api/v1/query/measurements/${encodeURIComponent(serviceOrderId)}/workbench`;
+          probeUrl.pathname = `/api/v1/query/measurements/${encodeURIComponent(serviceOrderId)}/workbench`;
           probeUrl.search = '';
 
           const probeResponse = await context.request
@@ -910,8 +1017,7 @@ async function main() {
             (response) => {
               const url = new URL(response.url());
               return (
-                url.pathname ===
-                `/api/v1/query/measurements/${candidateServiceOrderId}/workbench`
+                url.pathname === `/api/v1/query/measurements/${candidateServiceOrderId}/workbench`
               );
             },
             { timeout: 90_000 },
@@ -936,9 +1042,7 @@ async function main() {
           candidateWorkbenchResponse &&
           candidateWorkbenchResponse.status() >= 200 &&
           candidateWorkbenchResponse.status() < 300 &&
-          (candidateWorkbenchResponse.headers()['content-type'] ?? '').includes(
-            'application/json',
-          )
+          (candidateWorkbenchResponse.headers()['content-type'] ?? '').includes('application/json')
         ) {
           candidateWorkbenchPayload = await candidateWorkbenchResponse.json().catch(() => null);
         }
@@ -968,19 +1072,22 @@ async function main() {
         );
 
         businessVerified = businessProof.verified;
-        businessReason = businessVerified
-          ? `fallback read-only: OS=${candidateServiceOrderId}; aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState}; elegibilidade=${businessProof.eligibilityResult}`
-          : `fallback encontrou OS, mas a prova semântica falhou: OS=${candidateServiceOrderId}`;
+        businessReason = `${businessProof.outcome} — fallback read-only OS=${candidateServiceOrderId}; aceite=${businessProof.acceptanceResult ?? businessProof.acceptanceState ?? 'ausente'}; elegibilidade=${businessProof.eligibilityResult ?? 'ausente'}`;
         await page.screenshot({
           path: `${OUT}/03-measurement-workbench-fallback.png`,
           fullPage: true,
         });
       } else {
         businessReason =
-          'NOT_APPLICABLE — nenhuma medição na fila e nenhuma OS concluída com prova semântica na unidade';
-        record('MEDIÇÃO expõe elegibilidade de faturamento', null, businessReason);
-        record('MEDIÇÃO expõe aceite do cliente', null, businessReason);
-        record('MEDIÇÃO não mede em unidade física (HOUR/KM)', null, businessReason);
+          businessEvidenceRead && !businessEvidenceAvailable
+            ? 'BUSINESS_EVIDENCE_NOT_AVAILABLE — fila e ordens da unidade vazias'
+            : businessEvidenceAvailable
+              ? 'BUSINESS_EVIDENCE_INCOMPLETE — existe operação na unidade sem cadeia empresarial completa'
+              : 'BUSINESS_EVIDENCE_UNKNOWN — não foi possível ler todas as fontes operacionais';
+        const businessCheck = businessEvidenceAvailable ? false : null;
+        record('MEDIÇÃO expõe elegibilidade de faturamento', businessCheck, businessReason);
+        record('MEDIÇÃO expõe aceite do cliente', businessCheck, businessReason);
+        record('MEDIÇÃO não mede em unidade física (HOUR/KM)', businessCheck, businessReason);
         await page.screenshot({ path: `${OUT}/03-measurement.png`, fullPage: true });
       }
     }
@@ -988,7 +1095,10 @@ async function main() {
     record(
       'SEM 403/404 nas rotas de medição',
       measurementDenied.length === 0,
-      measurementDenied.slice(0, 2).map((f) => f.slice(0, 120)).join(' | ') || 'nenhum',
+      measurementDenied
+        .slice(0, 2)
+        .map((f) => f.slice(0, 120))
+        .join(' | ') || 'nenhum',
     );
 
     const accountingDenied = forbidden.filter((f) =>
@@ -997,7 +1107,10 @@ async function main() {
     record(
       'SEM 403 no módulo de contabilidade em uso',
       accountingDenied.length === 0,
-      accountingDenied.slice(0, 2).map((f) => f.slice(0, 120)).join(' | ') || 'nenhum',
+      accountingDenied
+        .slice(0, 2)
+        .map((f) => f.slice(0, 120))
+        .join(' | ') || 'nenhum',
     );
 
     const unexpected403 = forbidden.filter(
@@ -1006,7 +1119,10 @@ async function main() {
     record(
       'SEM 403 inesperado',
       unexpected403.length === 0,
-      unexpected403.slice(0, 2).map((f) => f.slice(0, 120)).join(' | ') || 'nenhum',
+      unexpected403
+        .slice(0, 2)
+        .map((f) => f.slice(0, 120))
+        .join(' | ') || 'nenhum',
     );
 
     // Erros 4xx/5xx HTTP aparecem no console do Chromium como "Failed to load resource"
@@ -1020,7 +1136,10 @@ async function main() {
     record(
       'CONSOLE sem erro crítico',
       realConsoleErrors.length === 0,
-      realConsoleErrors.slice(0, 2).map((t) => t.slice(0, 140)).join(' | ') || 'nenhum',
+      realConsoleErrors
+        .slice(0, 2)
+        .map((t) => t.slice(0, 140))
+        .join(' | ') || 'nenhum',
     );
   } catch (error) {
     record('EXECUÇÃO do gate', false, String(error?.message ?? error));
@@ -1029,17 +1148,6 @@ async function main() {
     await browser.close();
   }
 
-  // N/A NÃO conta como aprovado: `r.passed` só é truthy para `true`. O total
-  // inclui os N/A porque a soma precisa refletir o que foi AVALIADO, não o que
-  // foi provado — e a distinção aparece explícita no log.
-  const passed = results.filter((r) => r.passed === true).length;
-  const notApplicable = results.filter((r) => r.passed === null).length;
-  const total = results.length;
-  console.log(
-    `\n[coolify-browser-gate] RESULTADO ${passed}/${total} ` +
-      `(N/A ${notApplicable}) web=${webUrl}`,
-  );
-
   /**
    * ─────────────────────────────────────────────────────────────────────────────
    * TRÊS VEREDITOS, PORQUE SÃO TRÊS COISAS DIFERENTES
@@ -1047,36 +1155,61 @@ async function main() {
    *
    * `assertionsPass`: as asserções de base (HTTP, console, shell, auth) passaram.
    * `runtimeVerified`: a aplicação subiu na UNIDADE REAL e renderizou.
-   * `businessVerified`: a CAPABILITY desta release foi observada funcionando numa
-   *   medição real — aceite, elegibilidade e unidade comercial visíveis.
+   * `businessVerified`: cadeia autoritativa completa: cliente, contrato, OS concluída,
+   *   medição aprovada, execução/evidência, aceite, billing, elegibilidade READY e Economic Trace.
    *
    * ─────────────────────────────────────────────────────────────────────────────
    * POR QUE `passed === total` NÃO PODE SER O VEREDITO
    * ─────────────────────────────────────────────────────────────────────────────
    *
-   * O bloco NOT_APPLICABLE registrava `record(..., true, motivo)` para não pintar
-   * de vermelho uma tela saudável — e o TOTAL contava esses registros como PASS.
-   * Resultado medido: `runtimeVerified=true`, `businessVerified=false` e mesmo
-   * assim `exitCode = 0`. O pipeline ficava verde sem ter provado o negócio.
+   * NOT_APPLICABLE não é aprovação. Resultados empresariais são independentes
+   * da validação técnica e não podem tornar runtime ou release aprovados.
    *
-   * `NOT_APPLICABLE` não é `PASS`: é NÃO PROVADO. Para esta release — medição →
-   * aceite → elegibilidade → READY_TO_BILL — só existe aprovação quando a
-   * capability foi efetivamente observada.
+   * `NOT_APPLICABLE` não é `PASS`: é NÃO PROVADO. Produção só fica validada
+   * empresarialmente quando todos os vínculos da cadeia estiverem comprovados.
    *
    * A saída agora é a CONJUNÇÃO das três condições, nunca a contagem.
    */
+  const businessCheckNames = new Set([
+    'MEDIÇÃO publica resultado autoritativo de aceite',
+    'MEDIÇÃO publica resultado autoritativo de elegibilidade',
+    'MEDIÇÃO não mede em unidade física (HOUR/KM)',
+  ]);
+  const technicalResults = results.filter((result) => !businessCheckNames.has(result.name));
+  const technicalPassed = technicalResults.filter((result) => result.passed === true).length;
   const verdict = decideReleaseVerdict({
-    passed,
-    total,
+    passed: technicalPassed,
+    total: technicalResults.length,
     runtimeVerified,
+    releasePrerequisitesVerified: process.env['CISNE_RELEASE_PREREQUISITES_VERIFIED'] === 'true',
+    businessEvidenceAvailable: businessEvidenceRead ? businessEvidenceAvailable : null,
     businessVerified,
   });
 
   console.log(`[coolify-browser-gate] assertionsPass=${verdict.assertionsPass}`);
+  console.log(
+    `[coolify-browser-gate] RUNTIME ${technicalPassed}/${technicalResults.length} web=${webUrl}`,
+  );
   console.log(`[coolify-browser-gate] runtimeVerified=${verdict.runtimeVerified}`);
   console.log(`[coolify-browser-gate] businessVerified=${verdict.businessVerified}`);
+  console.log(
+    `[coolify-browser-gate] businessEvidenceAvailable=${verdict.businessEvidenceAvailable}`,
+  );
   console.log(`[coolify-browser-gate] businessReason=${businessReason ?? 'não avaliado'}`);
+  console.log(
+    `[coolify-browser-gate] businessOutcome=${!businessEvidenceRead ? 'BUSINESS_EVIDENCE_UNKNOWN' : !businessEvidenceAvailable ? 'BUSINESS_EVIDENCE_NOT_AVAILABLE' : businessVerified ? 'BUSINESS_VALIDATED' : /^BUSINESS_VALIDATION_FAILED/.test(businessReason ?? '') ? 'BUSINESS_VALIDATION_FAILED' : 'BUSINESS_EVIDENCE_INCOMPLETE'}`,
+  );
   console.log(`[coolify-browser-gate] releaseVerified=${verdict.releaseVerified}`);
+  console.log(
+    `[coolify-browser-gate] productionRuntimeValidated=${verdict.productionRuntimeValidated}`,
+  );
+  console.log(
+    `[coolify-browser-gate] productionBusinessValidated=${verdict.productionBusinessValidated}`,
+  );
+  console.log(`[coolify-browser-gate] productionValidated=${verdict.productionValidated}`);
+  console.log(
+    `[coolify-browser-gate] BUSINESS ${!businessEvidenceRead ? 'UNKNOWN' : businessEvidenceAvailable ? (businessVerified ? 'PASS' : 'FAIL') : 'NOT_APPLICABLE'}`,
+  );
 
   if (verdict.exitCode !== 0) {
     process.exitCode = verdict.exitCode;

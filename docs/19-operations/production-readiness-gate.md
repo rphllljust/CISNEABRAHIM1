@@ -137,3 +137,5 @@ PILOT_MIN_OBSERVATION_DAYS=14
 | -------- | ------ |
 | `NO-GO` (atual) | Resolver blockers; **não** executar Prompt 93 |
 | `GO` | Prompt 93 autorizado |
+
+**Separação de validação técnica (29 out 2026):** o browser gate de release também reporta `runtimeVerified`, `releaseVerified` e evidência empresarial. `productionValidated=CONDITIONAL` significa somente runtime e release validados sem operação empresarial disponível para prova. Não modifica este gate, não satisfaz os blockers de piloto/sign-off/continuidade e não autoriza go-live. A decisão oficial continua **NO-GO** até que `readiness-evidence.json` e os critérios deste documento indiquem GO.

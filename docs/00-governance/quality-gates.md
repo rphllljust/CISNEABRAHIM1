@@ -32,6 +32,24 @@ O Prompt 00 somente recebe `PASS` se:
 
 Resultado desta execução: ver [`prompt-execution-log.md`](prompt-execution-log.md).
 
+## Validação de produção: runtime, release e negócio
+
+O browser gate publica dimensões independentes. `runtimeVerified` prova a interface e a
+API autenticada; `releaseVerified` prova os pré-requisitos de release e as assertivas
+técnicas; `businessVerified` exige a cadeia empresarial real. Nenhuma dimensão substitui
+ou aprova outra.
+
+| Evidência empresarial                                 | `businessVerified` | `productionBusinessValidated` | `productionValidated`                            |
+| ----------------------------------------------------- | ------------------ | ----------------------------- | ------------------------------------------------ |
+| Fonte autoritativa lida, nenhuma operação na unidade  | `false`            | `NOT_APPLICABLE`              | `CONDITIONAL` se runtime e release forem válidos |
+| Operação iniciada, cadeia incompleta ou inválida      | `false`            | `false`                       | `false`                                          |
+| Cadeia empresarial completa, incluindo Economic Trace | `true`             | `true`                        | `true` se runtime e release também forem válidos |
+| Fontes não lidas ou resposta ambígua                  | `false`            | `UNKNOWN`                     | `false`                                          |
+
+`N/A`, ausência de registros, resposta HTTP 200 e tela renderizada nunca são aprovação
+empresarial. Uma validação `CONDITIONAL` não altera o readiness oficial de go-live nem
+revoga o `NO-GO` do [`production-readiness-gate.md`](../19-operations/production-readiness-gate.md).
+
 ## Gates genéricos (prompts futuros)
 
 Além dos gates específicos do prompt:

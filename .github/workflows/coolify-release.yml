@@ -252,10 +252,9 @@ jobs:
       # fetch). Ele NAO executa JavaScript de aplicacao: nao monta o React, nao resolve a
       # navegacao por permissao, nao carrega chunk de rota preguicosa.
       #
-      # Este step abre um Chromium real contra o dominio publico e exige a cadeia
-      # operacional: login pelo formulario -> App Shell -> Controladoria -> Contabilizacao
-      # -> fila -> trilha economica. E a unica prova de que a INTERFACE funciona no
-      # runtime real, e ele REPROVA o release quando nao funciona.
+      # Este step separa validação técnica da evidência empresarial. Runtime/release
+      # falham se a interface real não funcionar. O bloco empresarial só exige PASS
+      # quando existe operação autoritativa; ausência é CONDITIONAL, nunca business PASS.
       # ───────────────────────────────────────────────────────────────────────────────
       # DEPENDENCIAS DE VALIDACAO (Playwright) PARA O BROWSER GATE
       # ───────────────────────────────────────────────────────────────────────────────
@@ -285,18 +284,38 @@ jobs:
           CISNE_PROD_WEB_URL: ${{ steps.prod-smoke.outputs.web_url }}
           PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
           PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+          # Este step só é alcançado após Release Ready, publicação por digest,
+          # deploy Coolify e smoke terem concluído com sucesso neste job.
+          CISNE_RELEASE_PREREQUISITES_VERIFIED: 'true'
           BROWSER_GATE_OUT: artifacts/browser-gate
         run: |
           set -euo pipefail
           node scripts/cd/install-playwright-chromium.mjs
           node scripts/cd/coolify-browser-gate.mjs | tee artifacts/browser-gate/verdict.log
           grep -Fq '[coolify-browser-gate] runtimeVerified=true' artifacts/browser-gate/verdict.log
-          grep -Fq '[coolify-browser-gate] businessVerified=true' artifacts/browser-gate/verdict.log
           grep -Fq '[coolify-browser-gate] releaseVerified=true' artifacts/browser-gate/verdict.log
+          grep -Fq '[coolify-browser-gate] productionRuntimeValidated=true' artifacts/browser-gate/verdict.log
           echo "runtimeVerified=true" >> "$GITHUB_OUTPUT"
-          echo "businessVerified=true" >> "$GITHUB_OUTPUT"
           echo "releaseVerified=true" >> "$GITHUB_OUTPUT"
-          echo "PRODUCTION_VALIDATED=true" >> "$GITHUB_OUTPUT"
+          if grep -Fq '[coolify-browser-gate] businessEvidenceAvailable=true' artifacts/browser-gate/verdict.log; then
+            grep -Fq '[coolify-browser-gate] businessVerified=true' artifacts/browser-gate/verdict.log
+            grep -Fq '[coolify-browser-gate] productionBusinessValidated=true' artifacts/browser-gate/verdict.log
+            grep -Fq '[coolify-browser-gate] productionValidated=true' artifacts/browser-gate/verdict.log
+            echo "businessEvidenceAvailable=true" >> "$GITHUB_OUTPUT"
+            echo "businessVerified=true" >> "$GITHUB_OUTPUT"
+            echo "productionBusinessValidated=true" >> "$GITHUB_OUTPUT"
+            echo "productionValidated=true" >> "$GITHUB_OUTPUT"
+          else
+            grep -Fq '[coolify-browser-gate] businessEvidenceAvailable=false' artifacts/browser-gate/verdict.log
+            grep -Fq '[coolify-browser-gate] businessVerified=false' artifacts/browser-gate/verdict.log
+            grep -Fq '[coolify-browser-gate] productionBusinessValidated=NOT_APPLICABLE' artifacts/browser-gate/verdict.log
+            grep -Fq '[coolify-browser-gate] productionValidated=CONDITIONAL' artifacts/browser-gate/verdict.log
+            echo "businessEvidenceAvailable=false" >> "$GITHUB_OUTPUT"
+            echo "businessVerified=false" >> "$GITHUB_OUTPUT"
+            echo "productionBusinessValidated=NOT_APPLICABLE" >> "$GITHUB_OUTPUT"
+            echo "productionValidated=CONDITIONAL" >> "$GITHUB_OUTPUT"
+          fi
+          echo "productionRuntimeValidated=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload browser gate evidence
         if: always()

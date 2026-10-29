@@ -69,26 +69,39 @@ describe('browser gate — cobertura da vertical de medição', () => {
       id: `so-${index + 1}`,
       unitId: 'UN-PROD-001',
     }));
-    const ids = extractMeasurementCandidateServiceOrderIds(
-      { items },
-      'UN-PROD-001',
-    );
+    const ids = extractMeasurementCandidateServiceOrderIds({ items }, 'UN-PROD-001');
     assert.equal(ids.length, 40);
     assert.equal(ids.at(-1), 'so-40');
   });
 
   it('prova negócio somente com estados autoritativos do payload', () => {
     const proof = evaluateMeasurementBusinessProof({
+      identity: { customerId: 'cust-1', measurementId: 'measurement-1', serviceOrderId: 'so-1' },
+      businessContext: { customerId: 'cust-1', contract: 'contract-1' },
+      statuses: { execution: 'CLOSED', measurement: 'APPROVED', billing: 'PREPARED' },
       acceptance: { state: 'ACCEPTED', latest: { result: 'ACCEPTED' } },
       billingEligibility: { result: 'READY' },
-      quantities: { lines: [{ unitOfMeasure: 'DAY' }] },
+      quantities: { lines: [{ unitOfMeasure: 'DAY', actual: '1' }] },
       measurementBasis: { lines: [{ unitCode: 'DAY' }] },
-      items: [{ unitCode: 'DAY' }],
+      items: [{ unitCode: 'DAY', measuredQuantity: '1', lineAmount: '100.00' }],
+      evidence: [{ id: 'evidence-1' }],
+      documentFlow: [{ kind: 'BILLING_RECORD', state: 'EXISTS', reference: 'billing-1' }],
+      economicTrace: { complete: true },
     });
 
     assert.equal(proof.acceptanceVerified, true);
     assert.equal(proof.eligibilityVerified, true);
     assert.equal(proof.commercialUnitVerified, true);
+    assert.equal(proof.authoritativeCustomerVerified, true);
+    assert.equal(proof.currentContractVerified, true);
+    assert.equal(proof.completedOrderVerified, true);
+    assert.equal(proof.approvedMeasurementVerified, true);
+    assert.equal(proof.actualQuantityVerified, true);
+    assert.equal(proof.measuredQuantityVerified, true);
+    assert.equal(proof.evidenceVerified, true);
+    assert.equal(proof.billingRecordVerified, true);
+    assert.equal(proof.economicTraceVerified, true);
+    assert.equal(proof.outcome, 'BUSINESS_VALIDATED');
     assert.equal(proof.verified, true);
   });
 
@@ -105,9 +118,10 @@ describe('browser gate — cobertura da vertical de medição', () => {
     assert.equal(proof.acceptanceVerified, false);
     assert.equal(proof.eligibilityVerified, false);
     assert.equal(proof.verified, false);
+    assert.equal(proof.outcome, 'BUSINESS_EVIDENCE_INCOMPLETE');
   });
 
-  it('estado BLOCKED/PENDING ainda é prova semântica autoritativa, não READY inventado', () => {
+  it('estado BLOCKED/PENDING é evidência incompleta e nunca aprova a cadeia empresarial', () => {
     const proof = evaluateMeasurementBusinessProof({
       acceptance: { state: 'PENDING', latest: null },
       billingEligibility: { result: 'BLOCKED' },
@@ -116,9 +130,29 @@ describe('browser gate — cobertura da vertical de medição', () => {
       items: [],
     });
 
-    assert.equal(proof.acceptanceVerified, true);
-    assert.equal(proof.eligibilityVerified, true);
-    assert.equal(proof.verified, true);
+    assert.equal(proof.acceptanceVerified, false);
+    assert.equal(proof.eligibilityVerified, false);
+    assert.equal(proof.verified, false);
+    assert.equal(proof.outcome, 'BUSINESS_VALIDATION_FAILED');
+  });
+
+  it('workbench legado sem billing document ou Economic Trace não pode validar produção', () => {
+    const proof = evaluateMeasurementBusinessProof({
+      identity: { serviceOrderId: 'so-legacy', measurementId: 'measurement-legacy' },
+      businessContext: { customerId: 'customer-legacy', contract: 'contract-legacy' },
+      statuses: { execution: 'CLOSED', measurement: 'APPROVED', billing: 'PREPARED' },
+      acceptance: { state: 'ACCEPTED', latest: { result: 'ACCEPTED' } },
+      billingEligibility: { result: 'READY' },
+      quantities: { lines: [{ unitOfMeasure: 'DAY', actual: '1' }] },
+      items: [{ unitCode: 'DAY', measuredQuantity: '1', lineAmount: '10' }],
+      evidence: [{ id: 'evidence-1' }],
+      documentFlow: [{ kind: 'BILLING_RECORD', state: 'EXISTS', reference: null }],
+    });
+
+    assert.equal(proof.billingRecordVerified, false);
+    assert.equal(proof.economicTraceVerified, false);
+    assert.equal(proof.verified, false);
+    assert.equal(proof.outcome, 'BUSINESS_EVIDENCE_INCOMPLETE');
   });
 
   it('HOUR ou KM reprova mesmo misturado com DAY/TRIP/M3', () => {
@@ -185,20 +219,25 @@ describe('browser gate — cobertura da vertical de medição', () => {
    * Num release de aceite, chamar isso de PASS é afirmar sucesso sobre o que não
    * se olhou.
    *
-   * O gate precisa declarar NOT_APPLICABLE com motivo, e o veredito de negócio
-   * precisa ficar SEPARADO do veredito de runtime.
+   * O gate precisa emitir BUSINESS_EVIDENCE_NOT_AVAILABLE somente depois de
+   * consultar fila e ordens, mantendo runtime/release separados do negócio.
    */
-  it('estado vazio é NOT_APPLICABLE explícito, nunca aprovação de negócio', () => {
+  it('estado vazio declara ausência de evidência sem aprovar negócio', () => {
     const source = readGate();
     assert.match(
       source,
-      /NOT_APPLICABLE — nenhuma medição na fila desta unidade/,
-      'o motivo do N/A precisa ser declarado com o nome correto',
+      /BUSINESS_EVIDENCE_NOT_AVAILABLE — fila e ordens da unidade vazias/,
+      'ausência só é declarada após ler fila e OS',
     );
     assert.match(
       source,
-      /businessVerified = false|businessVerified/,
-      'o veredito de negócio precisa existir e ser separado do de runtime',
+      /businessEvidenceAvailable/,
+      'o gate precisa publicar a disponibilidade da evidência empresarial',
+    );
+    assert.match(
+      source,
+      /productionValidated/,
+      'o estado final deve continuar CONDITIONAL quando o negócio não existe',
     );
   });
 
@@ -214,11 +253,7 @@ describe('browser gate — cobertura da vertical de medição', () => {
   it('resolução de unidade vem do servidor autenticado', () => {
     const source = readGate();
     assert.match(source, /resolvedUnitId/, 'o gate precisa resolver a unidade real');
-    assert.match(
-      source,
-      /\/api\/v1\/me/,
-      'a unidade deve vir de /api/v1/me, não de constante',
-    );
+    assert.match(source, /\/api\/v1\/me/, 'a unidade deve vir de /api/v1/me, não de constante');
     assert.doesNotMatch(
       source,
       /'UN-PROD-001'|"UN-PROD-001"/,
@@ -245,11 +280,7 @@ describe('browser gate — cobertura da vertical de medição', () => {
    */
   it('unidade é extraída da faixa de resumo renderizada', () => {
     const source = readGate();
-    assert.match(
-      source,
-      /unitFromStrip/,
-      'a unidade deve ser extraída da faixa de resumo',
-    );
+    assert.match(source, /unitFromStrip/, 'a unidade deve ser extraída da faixa de resumo');
     assert.match(
       source,
       /UNIDADE\\s\+/,
