@@ -42,6 +42,7 @@ describe('protected application shell', () => {
     expect(within(primaryNavigation).queryByRole('link', { name: /^locações$/i })).not.toBeInTheDocument();
     expect(within(primaryNavigation).queryByRole('link', { name: /^transporte$/i })).not.toBeInTheDocument();
     await waitFor(() => {
+      expect(within(primaryNavigation).getByRole('link', { name: /^alertas$/i })).toBeInTheDocument();
       expect(within(primaryNavigation).getByRole('link', { name: /^relatórios$/i })).toBeInTheDocument();
       expect(within(primaryNavigation).getByRole('link', { name: /^rentabilidade operacional$/i })).toBeInTheDocument();
     });
