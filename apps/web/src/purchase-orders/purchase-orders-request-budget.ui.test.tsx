@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App';
@@ -58,10 +58,9 @@ describe('PurchaseOrdersListPage — orçamento de requisições', () => {
     await loginAndReachApp(user);
     await user.click(await screen.findByRole('link', { name: /pedidos de compra/i }));
 
-    // Espera a lista montar e a primeira consulta concluir.
-    await waitFor(() => {
-      expect(listingCalls).toBeGreaterThan(0);
-    });
+    // Aguarda a resposta autoritativa da página, não apenas as sondas independentes de
+    // autorização que também consultam a listagem antes de a worklist montar.
+    expect(await screen.findByText('Nenhum pedido de compra encontrado.')).toBeInTheDocument();
 
     const afterFirstLoad = listingCalls;
 
