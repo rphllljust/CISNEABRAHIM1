@@ -114,10 +114,11 @@ export function OperationalUnitsTab() {
       ? { operation: 'CREATE', code: code.trim(), name: name.trim(), refId: refId || null }
       : { operation: 'UPDATE', id: active?.id, version: active?.version, code: code.trim(), name: name.trim() };
     const signature = JSON.stringify(input);
-    if (retryCommand.current?.signature !== signature) {
-      retryCommand.current = { signature, key: `unit-${crypto.randomUUID()}` };
-    }
-    const idempotencyKey = retryCommand.current.key;
+    const pending = retryCommand.current?.signature === signature
+      ? retryCommand.current
+      : { signature, key: `unit-${crypto.randomUUID()}` };
+    retryCommand.current = pending;
+    const idempotencyKey = pending.key;
     setSaving(true);
     setOutcome(null);
     try {
