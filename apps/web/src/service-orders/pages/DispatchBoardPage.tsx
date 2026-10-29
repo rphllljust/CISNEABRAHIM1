@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ModulePage } from '../../ui/module-layout';
 import { Button } from '../../ui';
@@ -57,6 +57,18 @@ export function DispatchBoardPage({ unitId, onSelectOrder, onCommandSettled }: {
     null,
   );
   const [reloadToken, setReloadToken] = useState(0);
+  const pendingIntent = useRef<{
+    unitId: string;
+    orderId: string;
+    body: { rowVersion: number; idempotencyKey: string };
+    phase: 'submitting' | 'uncertain';
+  } | null>(null);
+  const [uncertainOrderId, setUncertainOrderId] = useState<string | null>(null);
+  useEffect(() => {
+    pendingIntent.current = null;
+    setUncertainOrderId(null);
+    setFeedback(null);
+  }, [unitId]);
 
   useEffect(() => {
     if (!unitId) {
@@ -96,48 +108,47 @@ export function DispatchBoardPage({ unitId, onSelectOrder, onCommandSettled }: {
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
   /**
-   * EXECUTA O DESPACHO.
-   *
-   * A chave de idempotência é gerada UMA vez por tentativa e reaproveitada em
-   * retry de rede: um duplo clique ou uma reconexão não podem produzir dois
-   * despachos. Quando o backend recusa por prontidão, os MOTIVOS são exibidos —
-   * não uma mensagem genérica.
+   * One semantic dispatch intent owns one immutable idempotency key and rowVersion.
+   * A transport failure is UNCERTAIN, not a rejected command. Only an explicit
+   * retry may submit the identical payload; 409 never auto-retries.
    */
-  const runDispatch = useCallback(
-    async (item: DispatchBoardItem) => {
-      if (!unitId || busyOrderId) {
-        return;
-      }
-      setBusyOrderId(item.serviceOrderId);
-      setFeedback(null);
-      try {
-        const overview = await dispatchServiceOrder(item.serviceOrderId, {
-          rowVersion: item.rowVersion,
-          idempotencyKey: createCommandKey(),
-        });
-        setFeedback({
-          tone: 'success',
-          message: `Ordem ${overview.identity.orderNumber} despachada.`,
-        });
-        reload();
-        onCommandSettled?.();
-      } catch (error) {
+  const runDispatch = useCallback(async (item: DispatchBoardItem) => {
+    if (!unitId || pendingIntent.current?.phase === 'submitting') return;
+    const command = item.availableCommands.find(value => value.code === 'DISPATCH');
+    const previous = pendingIntent.current;
+    const retry = previous?.phase === 'uncertain' &&
+      previous.unitId === unitId && previous.orderId === item.serviceOrderId;
+    if (!retry && (!command?.enabled || previous?.phase === 'uncertain')) return;
+    const body = retry && previous ? previous.body : {
+      rowVersion: item.rowVersion,
+      idempotencyKey: createCommandKey(),
+    };
+    pendingIntent.current = { unitId, orderId: item.serviceOrderId, body, phase: 'submitting' };
+    setBusyOrderId(item.serviceOrderId);
+    setUncertainOrderId(null);
+    setFeedback(null);
+    try {
+      const overview = await dispatchServiceOrder(item.serviceOrderId, body);
+      pendingIntent.current = null;
+      setFeedback({ tone: 'success', message: `Ordem ${overview.identity.orderNumber} despachada.` });
+    } catch (error) {
+      if (error instanceof OperationsApiError && error.kind === 'network') {
+        pendingIntent.current = { unitId, orderId: item.serviceOrderId, body, phase: 'uncertain' };
+        setUncertainOrderId(item.serviceOrderId);
+        setFeedback({ tone: 'error', message: 'Resultado do despacho indeterminado por falha de rede. Consulte a fila; se necessário, reenvie a mesma intenção sem mudar sua chave.' });
+      } else {
+        pendingIntent.current = null;
         const reasons = error instanceof OperationsApiError ? error.blockingReasons : [];
-        setFeedback({
-          tone: 'error',
-          message:
-            reasons.length > 0
-              ? `Despacho bloqueado: ${reasons.map((reason) => reason.message).join(' · ')}`
-              : describeOperationsError(error),
-        });
-        reload();
-        onCommandSettled?.();
-      } finally {
-        setBusyOrderId(null);
+        setFeedback({ tone: 'error', message: reasons.length
+          ? `Despacho bloqueado: ${reasons.map(reason => reason.message).join(' · ')}`
+          : describeOperationsError(error) });
       }
-    },
-    [busyOrderId, reload, unitId, onCommandSettled],
-  );
+    } finally {
+      setBusyOrderId(null);
+      reload();
+      onCommandSettled?.();
+    }
+  }, [unitId, reload, onCommandSettled]);
 
   const board = state.phase === 'ready' ? state.board : null;
   const groups = useMemo(() => groupBoard(board), [board]);
@@ -169,6 +180,22 @@ export function DispatchBoardPage({ unitId, onSelectOrder, onCommandSettled }: {
             }`}
           >
             {feedback.message}
+          </div>
+        ) : null}
+        {uncertainOrderId ? (
+          <div role="group" aria-label="Despacho com resultado indeterminado" className="mx-1 mb-2 flex gap-2">
+            <button type="button" disabled={busyOrderId !== null} onClick={() => {
+              const item = state.phase === 'ready'
+                ? state.board.items.find(entry => entry.serviceOrderId === uncertainOrderId)
+                : undefined;
+              if (item) void runDispatch(item);
+            }}>Reenviar a mesma intenção</button>
+            <button type="button" onClick={() => {
+              pendingIntent.current = null;
+              setUncertainOrderId(null);
+              setFeedback(null);
+              reload();
+            }}>Encerrar tentativa e atualizar</button>
           </div>
         ) : null}
 
