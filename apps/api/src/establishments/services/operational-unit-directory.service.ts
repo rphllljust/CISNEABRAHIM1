@@ -80,16 +80,39 @@ export class OperationalUnitDirectoryService {
     }
   }
 
-  async listAdminVisible(actor: IdentityAuthzContext): Promise<{ items: OperationalUnitRead[] }> {
+  async listAdminVisible(actor: IdentityAuthzContext): Promise<{
+    items: Array<OperationalUnitRead & { canEdit: boolean }>;
+    canCreate: boolean;
+  }> {
     const ids = await this.scopeRefs.listUnitScopeRefs();
-    await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitRead);
-    if (ids.length === 0) return { items: [] };
-    const decisions = await this.pdp.decideBatch(actor, {
-      action: AUTHZ_ACTIONS.OperationalUnitRead,
+    const createDecision = await this.pdp.decide(actor, {
+      action: AUTHZ_ACTIONS.OperationalUnitManage,
       resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
-    }, ids.map(unitId => ({ unitId })), { audit: false });
-    const authorized = ids.filter((_, i) => decisions[i]?.result === 'ALLOW');
-    return { items: await this.listDetails(authorized) };
+    }, { audit: false });
+    const canCreate = createDecision.result === 'ALLOW';
+    if (ids.length === 0) {
+      await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitRead);
+      return { items: [], canCreate };
+    }
+    const [reads, edits] = await Promise.all([
+      this.pdp.decideBatch(actor, {
+        action: AUTHZ_ACTIONS.OperationalUnitRead,
+        resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
+      }, ids.map(unitId => ({ unitId })), { audit: false }),
+      this.pdp.decideBatch(actor, {
+        action: AUTHZ_ACTIONS.OperationalUnitManage,
+        resourceType: AUTHZ_RESOURCE_TYPES.OperationalUnit,
+      }, ids.map(unitId => ({ unitId })), { audit: false }),
+    ]);
+    const allowed = ids.filter((_, i) => reads[i]?.result === 'ALLOW');
+    if (!allowed.length) {
+      await this.assertAction(actor, AUTHZ_ACTIONS.OperationalUnitRead);
+    }
+    const editable = new Set(ids.filter((_, i) => edits[i]?.result === 'ALLOW'));
+    const items = (await this.listDetails(allowed)).map(unit => ({
+      ...unit, canEdit: editable.has(unit.id),
+    }));
+    return { items, canCreate };
   }
 
   async create(
