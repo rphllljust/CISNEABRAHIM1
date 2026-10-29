@@ -452,6 +452,53 @@ describe('Billing PostgreSQL integration', () => {
     }));
   });
 
+  it('rejects an approved measurement whose historic line has no verifiable currency', async () => {
+    const { actor } = await seedActor();
+    const { completed, approved } = await seedApprovedMeasurement(actor);
+    // Negative enterprise fixture: a legacy measurement with missing source
+    // currency must not silently be interpreted as BRL at billing time.
+    await pool.query(
+      `UPDATE msr.measurement_items
+          SET pricing_line_snapshot = pricing_line_snapshot - 'currencyCode'
+        WHERE measurement_id = $1`,
+      [approved.id],
+    );
+    await expect(
+      billingAccess.prepare(actor, completed.id, {
+        measurementId: approved.id, paymentTerms: '30 DDL',
+      }),
+    ).rejects.toMatchObject({ code: BILLING_ERROR_CODES.BILLING_CURRENCY_UNVERIFIED });
+    const worklist = await billingAccess.listWorklist(actor, { limit: 20, offset: 0 });
+    expect(worklist.items).toEqual([expect.objectContaining({
+      serviceOrderId: completed.id,
+      bucket: 'billing_basis_missing',
+      exceptionCode: 'BILLING_CURRENCY_UNVERIFIED',
+      amount: null,
+      currencyCode: null,
+    })]);
+    const result = await pool.query<{ total: number }>(
+      'SELECT COUNT(*)::integer AS total FROM bil.billing_records WHERE measurement_id = $1',
+      [approved.id],
+    );
+    expect(result.rows[0]?.total).toBe(0);
+  });
+
+  it('preserves a verified non-default line currency in the prepared obligation', async () => {
+    const { actor } = await seedActor();
+    const { completed, approved } = await seedApprovedMeasurement(actor);
+    await pool.query(
+      `UPDATE msr.measurement_items
+          SET pricing_line_snapshot = pricing_line_snapshot || '{"currencyCode":"USD"}'::jsonb
+        WHERE measurement_id = $1`,
+      [approved.id],
+    );
+    const billing = await billingAccess.prepare(actor, completed.id, {
+      measurementId: approved.id, paymentTerms: '30 DDL',
+    });
+    expect(billing.currencyCode).toBe('USD');
+    expect(billing.measurementId).toBe(approved.id);
+  });
+
   it('rejects duplicate billing for the same measurement', async () => {
     const { actor } = await seedActor();
     const { completed, approved } = await seedApprovedMeasurement(actor);
