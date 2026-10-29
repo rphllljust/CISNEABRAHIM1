@@ -131,6 +131,7 @@ export type PrepareBillingPersistenceResult =
   | { outcome: 'created'; billingRecord: BillingRecordRow }
   | { outcome: 'already_exists' }
   | { outcome: 'measurement_changed' }
+  | { outcome: 'acceptance_blocked'; reason: 'CUSTOMER_ACCEPTANCE_PENDING' | 'CUSTOMER_ACCEPTANCE_REJECTED' | 'CUSTOMER_ACCEPTANCE_EVIDENCE_MISSING' }
   | { outcome: 'idempotent'; billingRecord: BillingRecordRow };
 
 export type VoidBillingPersistenceInput = {
