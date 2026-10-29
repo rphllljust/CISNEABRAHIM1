@@ -67,6 +67,16 @@ if (!chromium) {
 
 const OUT = process.env['BROWSER_GATE_OUT'] ?? 'artifacts/browser-gate';
 
+const BUSINESS_CHECK_NAMES = new Set([
+  'MEDIÇÃO expõe aceite do cliente',
+  'MEDIÇÃO expõe elegibilidade de faturamento',
+  'MEDIÇÃO não mede em unidade física (HOUR/KM)',
+]);
+
+export function isBusinessCheckName(name) {
+  return BUSINESS_CHECK_NAMES.has(name);
+}
+
 const results = [];
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -313,10 +323,12 @@ export function extractMeasurementCandidateServiceOrderIds(payload, unitId) {
  * Extraída aqui, a regra passa a ser exercitada por COMPORTAMENTO: quatro
  * combinações de entrada, quatro saídas esperadas.
  *
- *   releaseVerified = assertionsPass && runtimeVerified && businessVerified
+ *   releaseVerified = assertionsPass && runtimeVerified && releasePrerequisitesVerified
+ *   businessVerified = available business evidence has a complete authoritative chain
  *
- * `NOT_APPLICABLE` não entra na conjunção como aprovado: ele mantém
- * `businessVerified = false`, e a entrega não é declarada validada.
+ * `NOT_APPLICABLE` nunca aprova negócio. Sem evidência empresarial, o release pode
+ * ser tecnicamente validado e o resultado de produção continua explicitamente
+ * `CONDITIONAL`; com evidência disponível, a cadeia empresarial completa é exigida.
  */
 export function decideReleaseVerdict(input) {
   const assertionsPass = input.passed === input.total && input.total > 0;
@@ -1170,12 +1182,7 @@ async function main() {
    *
    * A saída agora é a CONJUNÇÃO das três condições, nunca a contagem.
    */
-  const businessCheckNames = new Set([
-    'MEDIÇÃO publica resultado autoritativo de aceite',
-    'MEDIÇÃO publica resultado autoritativo de elegibilidade',
-    'MEDIÇÃO não mede em unidade física (HOUR/KM)',
-  ]);
-  const technicalResults = results.filter((result) => !businessCheckNames.has(result.name));
+  const technicalResults = results.filter((result) => !isBusinessCheckName(result.name));
   const technicalPassed = technicalResults.filter((result) => result.passed === true).length;
   const verdict = decideReleaseVerdict({
     passed: technicalPassed,
