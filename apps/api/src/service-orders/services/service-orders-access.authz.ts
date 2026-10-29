@@ -105,6 +105,23 @@ export class ServiceOrdersAccessAuthz {
     return registeredUnitIds.filter((_, index) => decisions[index]?.result === 'ALLOW');
   }
 
+  /** Authorization is evaluated per UNIT before directory metadata is read. */
+  async listCreateAuthorizedUnitOptions(actor: IdentityAuthzContext): Promise<{
+    items: string[];
+    details: Array<{ id: string; code: string | null; name: string | null; configured: boolean }>;
+  }> {
+    const items = await this.listCreateAuthorizedUnitIds(actor);
+    const directory = await this.scopeContextRepository.listOperationalUnitDetails(items);
+    const byId = new Map(directory.map((unit) => [unit.id, unit]));
+    return {
+      items,
+      details: items.map((id) => {
+        const unit = byId.get(id);
+        return { id, code: unit?.code ?? null, name: unit?.name ?? null, configured: unit !== undefined };
+      }),
+    };
+  }
+
   async assertCreateAction(
     actor: IdentityAuthzContext,
     unitId: string,
