@@ -771,5 +771,13 @@
       "when": 179091200000000000,
       "tag": "0109_operational_unit_directory",
       "breakpoints": true
-    }  ]
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 179091250000000000,
+      "tag": "0110_accounting_journal_entry_number_read_contract",
+      "breakpoints": true
+    }
+  ]
 }

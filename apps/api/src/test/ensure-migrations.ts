@@ -1132,6 +1132,16 @@ $$;`);
       await applySqlFile(pool, '0109_operational_unit_directory.sql');
     }
 
+    /*
+     * 0110 — o entry_number foi adicionado à tabela acc.journal_entries em
+     * 0075, mas a view rpt.read_journal_entries foi compilada em 0047.
+     * SELECT * de uma view não ganha colunas automaticamente após ALTER TABLE.
+     * A sonda precisa ser a COLUNA PUBLICADA (e não a tabela ou a view).
+     */
+    if (!(await columnExists(pool, 'rpt', 'read_journal_entries', 'entry_number'))) {
+      await applySqlFile(pool, '0110_accounting_journal_entry_number_read_contract.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

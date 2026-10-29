@@ -59,6 +59,22 @@ describe('resolveAcceptancePolicy — precedência declarada', () => {
     expect(resolved.source).toBe(ACCEPTANCE_POLICY_SOURCES.Contract);
   });
 
+  it('contrato operacional ativado lê exigência de aceite em commercialTerms sem ignorar um override explícito', () => {
+    const resolved = resolveAcceptancePolicy({
+      contractSnapshot: { commercialTerms: { acceptanceRequired: true } },
+      serviceSnapshot: null,
+      clientPurchaseOrderRequirement: null,
+    });
+    expect(resolved.source).toBe(ACCEPTANCE_POLICY_SOURCES.Contract);
+    expect(resolved.policy).toBe(ACCEPTANCE_POLICIES.RequiredBeforeBilling);
+    const override = resolveAcceptancePolicy({
+      contractSnapshot: { acceptanceRequired: false, commercialTerms: { acceptanceRequired: true } },
+      serviceSnapshot: null,
+      clientPurchaseOrderRequirement: null,
+    });
+    expect(override.policy).toBe(ACCEPTANCE_POLICIES.NotRequired);
+  });
+
   it('o contrato pode declarar exigência COM evidência', () => {
     const resolved = resolveAcceptancePolicy({
       contractSnapshot: { acceptanceRequired: true, acceptanceEvidenceRequired: true },

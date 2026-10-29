@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - 'hml/isolated-e2e-runner'
+      - 'test/hml-economic-spine-proof'
       - main
 
 concurrency:
@@ -111,6 +112,13 @@ jobs:
           export CISNE_ENV=hml
           export HML_INTEGRATIONS_SANDBOX=true
           pnpm --filter @cisne/api exec tsx src/synthetic-seed/cli/verify-hml-business.ts
+
+      - name: HML financial economic spine ALFA/BETA 2/2
+        run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export CISNE_ENV=hml
+          export HML_INTEGRATIONS_SANDBOX=true
+          pnpm --filter @cisne/api exec tsx src/synthetic-seed/cli/verify-hml-economic-spine.ts
 
       - name: Upload HML evidence
         if: always()
