@@ -25,6 +25,7 @@ export const CLIENT_RELATED_MODULE_LABELS: Record<ClientRelatedModuleKey, string
   requests: 'Solicitações',
   proposals: 'Propostas',
   purchaseOrders: 'Pedidos de compra',
+  contracts: 'Contratos',
   serviceOrders: 'Ordens de serviço',
 };
 
@@ -32,6 +33,7 @@ const MODULE_ORDER: ClientRelatedModuleKey[] = [
   'requests',
   'proposals',
   'purchaseOrders',
+  'contracts',
   'serviceOrders',
 ];
 

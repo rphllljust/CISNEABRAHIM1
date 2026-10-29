@@ -138,7 +138,26 @@ export function ContractsListPage() {
   /* DONO REAL: sem identidade a visão não é persistida nem lida (ver `useSavedViews`). */
   const savedViews = useSavedViews(useOptionalIdentityId(), 'contracts');
   const [selected, setSelected] = useState<Contract | null>(null);
-  const [clientFilter, setClientFilter] = useState('');
+  // A URL é a fonte do recorte de Cliente. O Customer 360 navega com
+  // ?clientId=...; manter uma segunda cópia em useState perdia esse contexto.
+  // Alterações pelo lookup e Saved Views também preservam o deep link.
+  const [urlParams, setUrlParams] = useSearchParams();
+  const clientFilter = urlParams.get('clientId') ?? '';
+  const setClientFilter = useCallback(
+    (next: string) => {
+      setUrlParams((previous) => {
+        const params = new URLSearchParams(previous);
+        if (next.trim()) {
+          params.set('clientId', next.trim());
+        } else {
+          params.delete('clientId');
+        }
+        params.delete('offset');
+        return params;
+      }, { replace: true });
+    },
+    [setUrlParams],
+  );
   const [unitFilter, setUnitFilter] = useState('');
   /**
    * RECORTES QUE O SERVIDOR JÁ EXECUTAVA E A TELA NÃO OFERECIA.
@@ -159,7 +178,6 @@ export function ContractsListPage() {
    * A árvore vive na URL pela chave da engine e é convertida pelo conversor COMPARTILHADO; o mapa
    * é o allow-list que `buildContractListWhere` executa.
    */
-  const [urlParams, setUrlParams] = useSearchParams();
   const urlQuery: string = urlParams.toString();
   const { schema: contractSchema } = useEntitySchema('contract');
   const advancedGroup = useMemo<FilterGroup>(() => readFilterGroup(urlQuery), [urlQuery]);
