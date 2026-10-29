@@ -44,7 +44,7 @@ import type { DispatchBoardItem, DispatchBoardReadModel } from '../types/operati
  * habilita botão por formulação local — o comando `DISPATCH` já chega com
  * `enabled` e `reasons` decididos pelo servidor. Não calcula SLA.
  */
-export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
+export function DispatchBoardPage({ unitId, onSelectOrder }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void }) {
   const [state, setState] = useState<
     | { phase: 'loading' }
     | { phase: 'denied' }
@@ -215,7 +215,7 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
                 emptyDescription="Todas as ordens liberadas estão prontas para sair ou já saíram."
               >
                 {groups.blocked.map((item) => (
-                  <BlockedRow key={item.serviceOrderId} item={item} />
+                  <BlockedRow key={item.serviceOrderId} item={item} onSelectOrder={onSelectOrder} />
                 ))}
               </WorkbenchQueue>
 
@@ -271,12 +271,15 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
                         )
                       }
                       drilldown={
+                        <div className="flex flex-wrap gap-2">
+                        {onSelectOrder ? <button type="button" className={workbenchSecondaryActionClass} onClick={() => onSelectOrder(item.serviceOrderId)}>Inspecionar na estação</button> : null}
                         <Link
                           className={workbenchSecondaryActionClass}
                           to={`/app/service-orders/${item.serviceOrderId}/execution`}
                         >
                           Abrir execução
                         </Link>
+                        </div>
                       }
                     />
                   );
@@ -369,7 +372,7 @@ function BoardCounters({ board }: { board: DispatchBoardReadModel }) {
   );
 }
 
-function BlockedRow({ item }: { item: DispatchBoardItem }) {
+function BlockedRow({ item, onSelectOrder }: { item: DispatchBoardItem; onSelectOrder?: (serviceOrderId: string) => void }) {
   const reasons = item.readiness.blockingReasons;
 
   return (
@@ -403,6 +406,8 @@ function BlockedRow({ item }: { item: DispatchBoardItem }) {
         </Link>
       }
       drilldown={
+        <div className="flex flex-wrap gap-2">
+          {onSelectOrder ? <button type="button" className={workbenchSecondaryActionClass} onClick={() => onSelectOrder(item.serviceOrderId)}>Inspecionar na estação</button> : null}
         <details className="text-xs">
           <summary className="cursor-pointer text-brand-700">
             Ver bloqueios ({reasons.length})
