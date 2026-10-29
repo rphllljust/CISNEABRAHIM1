@@ -348,11 +348,11 @@ export function buildServiceOrderListSqlParts(
 
   if (query.clientId) {
     params.push(query.clientId);
-    clauses.push(`so.client_id = ${params.length}::uuid`);
+    clauses.push(`so.client_id = $${params.length}::uuid`);
   }
   if (query.contractId) {
     params.push(query.contractId);
-    clauses.push(`so.contract_id = ${params.length}::uuid`);
+    clauses.push(`so.contract_id = $${params.length}::uuid`);
   }
   if (query.unitId) {
     params.push(query.unitId);
