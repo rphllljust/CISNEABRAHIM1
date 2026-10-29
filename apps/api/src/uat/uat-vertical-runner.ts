@@ -23,6 +23,9 @@ import {
 import { PURCHASE_ORDER_PRICING_STRUCTURES } from '../commercial/domain/purchase-order';
 import type { ProposalsAccessService } from '../commercial/services/proposals-access.service';
 import type { PurchaseOrdersAccessService } from '../commercial/services/purchase-orders-access.service';
+import type { ContractsAccessService } from '../commercial/services/contracts-access.service';
+import type { MeasurementsCapabilityService } from '../measurements/application/measurements-capability.service';
+import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
 import { DOCUMENT_CATEGORIES } from '../documents/domain/document-categories';
 import { minimalPdfBuffer } from '../documents/domain/file-validation';
 import { assertNoStorageKeyLeak } from '../documents/serializers/documents-response.serializer';
@@ -56,6 +59,14 @@ export type UatVerticalServices = {
   catalogAccess: ServiceCatalogAccessService;
   proposalsAccess: ProposalsAccessService;
   purchaseOrdersAccess: PurchaseOrdersAccessService;
+  contractsAccess?: ContractsAccessService;
+  measurementsCapability?: MeasurementsCapabilityService;
+  receivablesAccess?: import('../finance/services/receivables-access.service').ReceivablesAccessService;
+  treasuryAccess?: import('../finance/services/treasury-access.service').TreasuryAccessService;
+  bankReconciliationAccess?: import('../finance/services/bank-reconciliation-access.service').BankReconciliationAccessService;
+  accountingAccess?: import('../accounting/services/accounting-access.service').AccountingAccessService;
+  economicPosting?: import('../accounting/services/economic-posting.service').EconomicPostingService;
+  approvalMatrices?: import('../authorization/services/approval-matrix-access.service').ApprovalMatrixAccessService;
   serviceRequestsAccess: ServiceRequestsAccessService;
   documentsAccess: DocumentsAccessService;
   serviceOrdersAccess: ServiceOrdersAccessService;
@@ -133,6 +144,8 @@ export async function runUatVerticalScenario(
     poNumberOverride?: string;
     clientExternalErpId?: string;
     vehiclePlateScenarioIndex?: number;
+    /** Only the isolated HML synthetic scenario uses an active contractual acceptance term. */
+    syntheticRequireCustomerAcceptance?: boolean;
   },
 ): Promise<UatScenarioResult & { measurementId?: string; artifacts?: MasterBusinessArtifacts }> {
   const started = Date.now();
@@ -379,6 +392,29 @@ export async function runUatVerticalScenario(
       draftOrder = await services.serviceOrdersAccess.update(actor, draftOrder.id, {
         rowVersion: draftOrder.rowVersion,
         location: requestLocation,
+      });
+    }
+    if (options?.syntheticRequireCustomerAcceptance) {
+      if (!services.contractsAccess || !services.measurementsCapability) {
+        throw new Error('HML_SYNTHETIC_ACCEPTANCE_CAPABILITY_UNAVAILABLE');
+      }
+      stage = 'contract:create-and-activate';
+      const contractNumber = `CTR-HML-${suffix}`;
+      const draftContract = await services.contractsAccess.create(actor, {
+        clientId: client.id, unitId, contractNumber,
+        title: 'HML — contrato de entrega com aceite obrigatório',
+        scopeDescription: scenario.serviceName,
+        validFrom: '2026-01-01', validTo: '2030-12-31',
+        paymentTerms: '30 DDL',
+        commercialTerms: { acceptanceRequired: true },
+        items: [],
+      });
+      await services.contractsAccess.activate(actor, draftContract.contract.id, {
+        rowVersion: draftContract.contract.rowVersion,
+      });
+      stage = 'service-order:bind-contract';
+      draftOrder = await services.serviceOrdersAccess.update(actor, draftOrder.id, {
+        rowVersion: draftOrder.rowVersion, contractReference: contractNumber,
       });
     }
     stage = 'service-order:prepare';
@@ -659,6 +695,28 @@ export async function runUatVerticalScenario(
       };
     }
 
+    if (options?.syntheticRequireCustomerAcceptance) {
+      if (!services.measurementsCapability) {
+        throw new Error('HML_SYNTHETIC_ACCEPTANCE_CAPABILITY_UNAVAILABLE');
+      }
+      stage = 'customer-acceptance:authorize';
+      const acceptanceActor = await createSyntheticAcceptanceActor(services.pool, actor.identityId);
+      stage = 'customer-acceptance:record';
+      const workbench = await services.measurementsCapability.recordAcceptance(
+        acceptanceActor, completed.id, approvedMeasurement.id, {
+          expectedVersion: approvedMeasurement.rowVersion,
+          idempotencyKey: `hml-acceptance-${suffix}`,
+          result: 'ACCEPTED', observation: 'HML — entrega aceita por cliente sintético.',
+          customerSignerName: 'Responsável HML (sintético)',
+        },
+      );
+      if (workbench.acceptance.state !== 'ACCEPTED' ||
+          workbench.acceptance.latest?.result !== 'ACCEPTED' ||
+          workbench.acceptance.blocksBilling) {
+        throw new Error('HML_CUSTOMER_ACCEPTANCE_UNSATISFIED');
+      }
+    }
+
     stage = 'billing:prepare';
     const billing = await services.billingAccess.prepare(actor, completed.id, {
       measurementId: approvedMeasurement.id,
@@ -752,4 +810,22 @@ async function createMeasurementReviewer(pool: Pool, grantedBy: string): Promise
   const { identityId } = await insertIdentity(pool, login, passwordHash);
   await grantUatProfile(pool, identityId, grantedBy, 'control_admin');
   return { identityId, sessionId: 'sid-reviewer' };
+}
+
+/** Actor authorized for acceptance, distinct from measurement reviewer and seller. */
+async function createSyntheticAcceptanceActor(pool: Pool, grantedBy: string): Promise<UatActor> {
+  const login = normalizeLoginIdentifier(`uat-acceptance-${crypto.randomUUID()}@cisne.invalid`);
+  const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
+  const { identityId } = await insertIdentity(pool, login, passwordHash);
+  for (const action of [
+    AUTHZ_ACTIONS.MeasurementsMeasurementRead,
+    AUTHZ_ACTIONS.MeasurementsMeasurementAccept,
+  ]) {
+    await insertGrant(pool, {
+      identityId, action,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Global, grantedByIdentityId: grantedBy,
+    });
+  }
+  return { identityId, sessionId: 'sid-hml-acceptance' };
 }

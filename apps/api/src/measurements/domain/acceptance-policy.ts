@@ -133,9 +133,15 @@ export function resolveAcceptancePolicy(
   facts: AcceptancePolicyFacts,
 ): ResolvedAcceptancePolicy {
   // 1. CONTRATO — a fonte comercial mais específica.
-  const contractRequired = readBoolean(facts.contractSnapshot?.['acceptanceRequired']);
+  const terms = facts.contractSnapshot?.['commercialTerms'];
+  const commercialTerms = terms && typeof terms === 'object' && !Array.isArray(terms)
+    ? terms as Record<string, unknown>
+    : null;
+  const contractRequired = readBoolean(facts.contractSnapshot?.['acceptanceRequired'] ??
+    commercialTerms?.['acceptanceRequired']);
   if (contractRequired === true) {
-    const evidenceRequired = readBoolean(facts.contractSnapshot?.['acceptanceEvidenceRequired']);
+    const evidenceRequired = readBoolean(facts.contractSnapshot?.['acceptanceEvidenceRequired'] ??
+      commercialTerms?.['acceptanceEvidenceRequired']);
     return evidenceRequired === true
       ? {
           policy: ACCEPTANCE_POLICIES.RequiredWithEvidence,
