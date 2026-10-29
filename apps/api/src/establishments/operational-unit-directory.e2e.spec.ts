@@ -127,7 +127,7 @@ describe('Operational UNIT master — real business and authorization E2E', () =
       headers: { authorization: reader.authorization },
     });
     expect(list.statusCode).toBe(200);
-    expect(JSON.parse(list.body).details).toContainEqual({
+    expect((JSON.parse(list.body) as { details: unknown[] }).details).toContainEqual({
       id: refId, code, name: 'Unidade Operacional Real', configured: true,
     });
     const noCreate = await app.inject({
@@ -136,7 +136,7 @@ describe('Operational UNIT master — real business and authorization E2E', () =
       headers: { authorization: reader.authorization },
     });
     expect(noCreate.statusCode).toBe(403);
-    const dispatch = await pool.query('SELECT count(*)::int AS total FROM so.service_orders WHERE unit_id = $1', [refId]);
+    const dispatch = await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM so.service_orders WHERE unit_id = $1', [refId]);
     expect(dispatch.rows[0].total).toBe(0);
 
     // An authorization-reference deletion MUST NOT delete the business master.
@@ -198,9 +198,9 @@ describe('Operational UNIT master — real business and authorization E2E', () =
         payload: { name: 'Segunda', expectedVersion: 1, idempotencyKey: 'concurrent-edit-02' } }),
     ]);
     expect(versions.map((response) => response.statusCode).sort()).toEqual([200, 409]);
-    const rows = await pool.query('SELECT version FROM pty.operational_units WHERE id = $1', [unit.id]);
+    const rows = await pool.query<{ version: number }>('SELECT version FROM pty.operational_units WHERE id = $1', [unit.id]);
     expect(rows.rows[0].version).toBe(2);
-    const events = await pool.query('SELECT count(*)::int AS total FROM pty.operational_unit_history WHERE unit_id = $1', [unit.id]);
+    const events = await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM pty.operational_unit_history WHERE unit_id = $1', [unit.id]);
     expect(events.rows[0].total).toBe(2);
   });
 });
