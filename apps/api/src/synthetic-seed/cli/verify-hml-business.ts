@@ -6,8 +6,8 @@ config({ path: process.env['CISNE_ENV'] === 'hml' ? '.env.hml' : '.env' });
 
 const namespace = 'cisne-synthetic-dev-v1';
 const flows = [
-  { key: 'locacao-full', company: 'ALFA LOGÍSTICA TESTE LTDA' },
-  { key: 'transporte-full', company: 'BETA SERVIÇOS INDUSTRIAIS TESTE LTDA' },
+  { key: 'locacao-full', company: 'TESTE — ALFA LOGÍSTICA TESTE LTDA' },
+  { key: 'transporte-full', company: 'TESTE — BETA SERVIÇOS INDUSTRIAIS TESTE LTDA' },
 ] as const;
 
 async function main(): Promise<void> {
