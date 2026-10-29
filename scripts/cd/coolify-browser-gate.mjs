@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 15117)
-Total output lines: 1237
-
 /**
  * BROWSER GATE DE PRODUÇÃO — valida a INTERFACE RENDERIZADA no runtime real.
  *
@@ -606,7 +603,13 @@ async function main() {
      */
     const noAuthorizedUnit = /Nenhuma unidade autorizada/i.test(worklistText);
     /**
-     * A FAIXA DE RESUMO NÃO REPETE O PRÓPRIO `aria-label` N…117 tokens truncated…te.
+     * A FAIXA DE RESUMO NÃO REPETE O PRÓPRIO `aria-label` NO TEXTO.
+     *
+     * A asserção anterior procurava a string "Resumo da contabilização" no texto da
+     * página. Esse é o `aria-label` do elemento — rótulo de acessibilidade, não conteúdo
+     * visível. A faixa renderiza os NÚMEROS: `UNIDADE / UN-PROD-001 / N FALHARAM /
+     * N PENDENTES / N ESTORNADAS`. A busca nunca podia casar, e o gate reprovava uma tela
+     * CORRETA por um seletor errado — um falso negativo que corrói a confiança no gate.
      *
      * Medido em produção: a faixa exibia `1 FALHARAM · 0 PENDENTES · 0 ESTORNADAS` e a
      * asserção reprovava.
