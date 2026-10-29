@@ -96,6 +96,7 @@ export type PurchaseOrderTermsRow = {
 export type PrepareBillingPersistenceInput = {
   serviceOrderId: string;
   measurementId: string | null;
+  measurementVersion: number | null;
   entitlementPolicy: string;
   clientId: string;
   unitId: string;
