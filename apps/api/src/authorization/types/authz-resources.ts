@@ -6,6 +6,7 @@ export const AUTHZ_RESOURCE_TYPES = {
   Grant: 'authz:grant',
   ApprovalMatrix: 'authz:approval-matrix',
   Platform: 'platform:system',
+  OperationalUnit: 'organization:operational-unit',
   ScopedRecord: 'authz:scoped-record',
   Client: 'client:client',
   Supplier: 'supplier:supplier',

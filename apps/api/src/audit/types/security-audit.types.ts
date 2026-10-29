@@ -10,6 +10,7 @@ export const SECURITY_AUDIT_ACTIONS = {
   ApprovalMatrixCreate: 'security:authz:approval-matrix:create',
   ApprovalMatrixPublish: 'security:authz:approval-matrix:publish',
   ApprovalRoleAssign: 'security:authz:approval-role:assign',
+  OperationalUnitManage: 'security:organization:operational-unit:manage',
   AuthzDenied: 'security:authz:denied',
   AppBootstrap: 'security:app:bootstrap',
   ClientCreate: 'security:client:create',
@@ -274,6 +275,7 @@ export const SECURITY_AUDIT_RESOURCE_TYPES = {
   InventoryStock: 'security:inventory:stock',
   PayrollLedger: 'security:payroll:ledger',
   ReportsExport: 'security:reports:export',
+  OperationalUnit: 'security:organization:operational-unit',
   AccessRole: 'security:access-role',
   AccessAssignment: 'security:access-assignment',
 } as const;
