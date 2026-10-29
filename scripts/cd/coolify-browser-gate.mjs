@@ -32,6 +32,7 @@ import { mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { classifyServiceOrderEvidencePage } from './measurement-evidence-source.mjs';
 
 /**
  * `@playwright/test` é dependência do workspace `apps/web`, não da raiz.
@@ -214,7 +215,10 @@ export function evaluateMeasurementBusinessProof(workbench) {
 
   // A pending acceptance or a merely evaluable billing decision is operational
   // evidence, never proof of a completed business chain.
-  const acceptanceVerified = acceptanceState === 'ACCEPTED' || acceptanceResult === 'ACCEPTED';
+  const acceptanceVerified =
+    acceptanceState === 'ACCEPTED' &&
+    acceptanceResult === 'ACCEPTED' &&
+    workbench?.acceptance?.blocksBilling === false;
   const eligibilityVerified = eligibilityResult === 'READY';
   const commercialUnitVerified = hasOnlyCommercialMeasurementUnits(workbench);
   const authoritativeCustomerVerified =
@@ -238,6 +242,7 @@ export function evaluateMeasurementBusinessProof(workbench) {
   const explicitBusinessFailure =
     acceptanceState === 'REJECTED' ||
     acceptanceResult === 'REJECTED' ||
+    workbench?.acceptance?.blocksBilling === true ||
     eligibilityResult === 'BLOCKED' ||
     normalizedCode(statuses.measurement) === 'REJECTED' ||
     prohibitedCommercialUnit;
@@ -942,8 +947,15 @@ async function main() {
       const queueAuthorization =
         measurementQueueResponse?.request().headers()['authorization'] ?? null;
       let candidateServiceOrderId = null;
+      let businessSourceFailure =
+        queueStatus === 401 || queueStatus === 403
+          ? 'BUSINESS_ACCESS_DENIED — Measurement queue'
+          : queueStatus !== null && queueStatus >= 500
+            ? 'BUSINESS_SOURCE_UNAVAILABLE — Measurement queue'
+            : null;
 
       if (
+        !businessSourceFailure &&
         measurementQueueResponse &&
         typeof queueAuthorization === 'string' &&
         queueAuthorization.length > 0
@@ -970,12 +982,19 @@ async function main() {
               },
             })
             .catch(() => null);
-          if (serviceOrdersResponse?.ok() !== true) break;
-
-          const serviceOrdersPayload = await serviceOrdersResponse.json().catch(() => null);
-          const pageItems = Array.isArray(serviceOrdersPayload?.items)
-            ? serviceOrdersPayload.items
-            : [];
+          const serviceOrdersPayload = serviceOrdersResponse?.ok() === true
+            ? await serviceOrdersResponse.json().catch(() => null)
+            : null;
+          const source = classifyServiceOrderEvidencePage({
+            status: serviceOrdersResponse?.status() ?? null,
+            payload: serviceOrdersPayload,
+            unitId: resolvedUnitId,
+          });
+          if (!source.valid) {
+            businessSourceFailure = source.reason;
+            break;
+          }
+          const pageItems = serviceOrdersPayload.items;
           const pageIds = extractMeasurementCandidateServiceOrderIds(
             serviceOrdersPayload,
             resolvedUnitId,
@@ -998,7 +1017,7 @@ async function main() {
           }
           serviceOrdersOffset += pageItems.length;
         }
-        businessEvidenceRead = serviceOrdersEnumerationComplete;
+        businessEvidenceRead = serviceOrdersEnumerationComplete && !businessSourceFailure;
 
         for (const serviceOrderId of candidateIds) {
           const probeUrl = new URL(measurementQueueResponse.url());
@@ -1013,9 +1032,23 @@ async function main() {
               },
             })
             .catch(() => null);
-          if (probeResponse?.ok() !== true) continue;
-
+          if (probeResponse?.status() === 401 || probeResponse?.status() === 403) {
+            businessSourceFailure = 'BUSINESS_ACCESS_DENIED — Measurement Workbench';
+            businessEvidenceRead = false;
+            break;
+          }
+          if (probeResponse?.status() === 404) continue;
+          if (probeResponse?.ok() !== true) {
+            businessSourceFailure = 'BUSINESS_SOURCE_UNAVAILABLE — Measurement Workbench';
+            businessEvidenceRead = false;
+            break;
+          }
           const probePayload = await probeResponse.json().catch(() => null);
+          if (!probePayload || typeof probePayload !== 'object') {
+            businessSourceFailure = 'BUSINESS_PROJECTION_INVALID — Measurement Workbench';
+            businessEvidenceRead = false;
+            break;
+          }
           if (evaluateMeasurementBusinessProof(probePayload).verified) {
             candidateServiceOrderId = serviceOrderId;
             break;
@@ -1090,13 +1123,14 @@ async function main() {
           fullPage: true,
         });
       } else {
-        businessReason =
-          businessEvidenceRead && !businessEvidenceAvailable
+        businessReason = businessSourceFailure
+          ? businessSourceFailure
+          : businessEvidenceRead && !businessEvidenceAvailable
             ? 'BUSINESS_EVIDENCE_NOT_AVAILABLE — fila e ordens da unidade vazias'
             : businessEvidenceAvailable
               ? 'BUSINESS_EVIDENCE_INCOMPLETE — existe operação na unidade sem cadeia empresarial completa'
               : 'BUSINESS_EVIDENCE_UNKNOWN — não foi possível ler todas as fontes operacionais';
-        const businessCheck = businessEvidenceAvailable ? false : null;
+        const businessCheck = businessEvidenceRead && !businessEvidenceAvailable ? null : false;
         record('MEDIÇÃO expõe elegibilidade de faturamento', businessCheck, businessReason);
         record('MEDIÇÃO expõe aceite do cliente', businessCheck, businessReason);
         record('MEDIÇÃO não mede em unidade física (HOUR/KM)', businessCheck, businessReason);
@@ -1204,7 +1238,7 @@ async function main() {
   );
   console.log(`[coolify-browser-gate] businessReason=${businessReason ?? 'não avaliado'}`);
   console.log(
-    `[coolify-browser-gate] businessOutcome=${!businessEvidenceRead ? 'BUSINESS_EVIDENCE_UNKNOWN' : !businessEvidenceAvailable ? 'BUSINESS_EVIDENCE_NOT_AVAILABLE' : businessVerified ? 'BUSINESS_VALIDATED' : /^BUSINESS_VALIDATION_FAILED/.test(businessReason ?? '') ? 'BUSINESS_VALIDATION_FAILED' : 'BUSINESS_EVIDENCE_INCOMPLETE'}`,
+    `[coolify-browser-gate] businessOutcome=${!businessEvidenceRead ? (businessReason?.split(' — ')[0] ?? 'BUSINESS_EVIDENCE_UNKNOWN') : !businessEvidenceAvailable ? 'BUSINESS_EVIDENCE_NOT_AVAILABLE' : businessVerified ? 'BUSINESS_VALIDATED' : /^BUSINESS_VALIDATION_FAILED/.test(businessReason ?? '') ? 'BUSINESS_VALIDATION_FAILED' : 'BUSINESS_EVIDENCE_INCOMPLETE'}`,
   );
   console.log(`[coolify-browser-gate] releaseVerified=${verdict.releaseVerified}`);
   console.log(
