@@ -1,0 +1,49 @@
+import 'reflect-metadata';
+import { config } from 'dotenv';
+import { appendFileSync } from 'node:fs';
+import { Pool } from 'pg';
+import { assertHmlIsolation } from '../hml-config';
+
+/** Read-only HML evidence locator; it never creates or alters economic facts. */
+async function main() {
+  config({ path: '.env.hml' });
+  assertHmlIsolation(process.env);
+  const url = process.env['DATABASE_URL'];
+  const envFile = process.env['GITHUB_ENV'];
+  if (!url || !envFile) throw new Error('HML_BROWSER_ORIGINS_ENV_REQUIRED');
+
+  const pool = new Pool({ connectionString: url });
+  try {
+    const lines: string[] = [];
+    for (const [label, scenario] of [['ALFA', 'locacao-full'], ['BETA', 'transporte-full']] as const) {
+      const result = await pool.query<{
+        client_id: string; contract_id: string; service_order_id: string;
+      }>(
+        `SELECT cl.id::text AS client_id, co.id::text AS contract_id,
+                so.id::text AS service_order_id
+           FROM pty.clients cl
+           JOIN so.service_orders so ON so.client_id = cl.id AND so.status = 'COMPLETED'
+           JOIN com.contracts co ON co.id = so.contract_id AND co.client_id = cl.id
+             AND co.status = 'ACTIVE'
+          WHERE cl.external_erp_id = $1`,
+        [`cisne-synthetic-dev-v1:${scenario}`],
+      );
+      if (result.rows.length !== 1) {
+        throw new Error(`HML_BROWSER_CONTRACT_ORIGIN_MISSING:${scenario}:found=${result.rows.length}`);
+      }
+      const origin = result.rows[0]!;
+      lines.push(`HML_${label}_CLIENT_ID=${origin.client_id}`);
+      lines.push(`HML_${label}_CONTRACT_ID=${origin.contract_id}`);
+      lines.push(`HML_${label}_SERVICE_ORDER_ID=${origin.service_order_id}`);
+      process.stdout.write(`HML_BROWSER_ORIGIN:${scenario}:contract=${origin.contract_id}:os=${origin.service_order_id}\n`);
+    }
+    appendFileSync(envFile, `${lines.join('\n')}\n`, 'utf8');
+  } finally {
+    await pool.end();
+  }
+}
+
+void main().catch((error: unknown) => {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.exitCode = 1;
+});

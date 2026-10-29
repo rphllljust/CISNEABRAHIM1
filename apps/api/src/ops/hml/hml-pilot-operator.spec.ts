@@ -12,6 +12,8 @@ describe('hml-pilot-operator', () => {
     expect(actions).toContain(AUTHZ_ACTIONS.ServiceOrdersServiceOrderList);
     expect(actions).toContain(AUTHZ_ACTIONS.DocumentsDocumentList);
     expect(actions).toContain(AUTHZ_ACTIONS.PlatformDiagnosticsRead);
+    expect(actions).toContain(AUTHZ_ACTIONS.CommercialContractList);
+    expect(actions).toContain(AUTHZ_ACTIONS.CommercialContractRead);
   });
 
   it('maps platform and people grants to the correct resource types', () => {

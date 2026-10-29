@@ -8,6 +8,9 @@ import { assertHmlIsolation } from './hml-config';
 
 export const HML_PILOT_OPERATOR_EXTRA_ACTIONS = [
   AUTHZ_ACTIONS.PlatformDiagnosticsRead,
+  // Browser HML only: allow the pilot to read Contract 360 without mutation grants.
+  AUTHZ_ACTIONS.CommercialContractList,
+  AUTHZ_ACTIONS.CommercialContractRead,
   AUTHZ_ACTIONS.AccountingJournalRead,
   AUTHZ_ACTIONS.AccountingJournalList,
   AUTHZ_ACTIONS.AccountingChartManage,
