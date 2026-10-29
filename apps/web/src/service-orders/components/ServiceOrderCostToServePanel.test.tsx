@@ -27,7 +27,7 @@ const EVIDENCE: ServiceOrderCostEvidence = {
     capturedAt: '2026-10-10T11:00:00Z', currencyCode: 'BRL',
     revenue: '7000', totalEstimatedCost: '2800', totalActualCost: '3000',
     estimatedMargin: '4200', actualMargin: '4000',
-    estimatedToActualVariance: '200', blockingReasons: [],
+    estimatedToActualVariance: '200', estimatedToActualVariancePercent: '7.1429', blockingReasons: [],
     disclaimer: 'Operational profitability is indicative and not official accounting.',
     lines: [{
       id: 'entry-cost-1', category: 'FUEL', costKind: 'ACTUAL',
@@ -54,6 +54,7 @@ describe('Service Order 360 Cost-to-Serve', () => {
     expect(await screen.findByText('Cost-to-Serve')).toBeInTheDocument();
     expect(await screen.findByText('BRL 4000')).toBeInTheDocument();
     expect(screen.getByText('BRL 200')).toBeInTheDocument();
+    expect(screen.getByText('7.1429%')).toBeInTheDocument();
     expect(screen.getByText(/Medição aprovada não comprova aceite/)).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByText(/Documentos e registros que compõem os custos/));
