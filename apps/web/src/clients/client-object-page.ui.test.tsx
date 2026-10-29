@@ -495,7 +495,9 @@ describe('Object page do Cliente', () => {
     });
     expect(screen.queryByRole('link', { name: /contratos/i })).not.toBeInTheDocument();
     await openTab(/relacionamentos/i);
-    expect(screen.queryByText('Contratos')).not.toBeInTheDocument();
+    const relations = screen.getByLabelText('Relações');
+    expect(within(relations).queryByText('Contratos')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Contratos' })).not.toBeInTheDocument();
   });
 
   it('descarta por inteiro a relação não autorizada, sem rótulo, contagem ou "oculto"', async () => {

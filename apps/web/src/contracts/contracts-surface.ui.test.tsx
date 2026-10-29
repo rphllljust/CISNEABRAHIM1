@@ -20,6 +20,9 @@ import { loginAndReachApp } from '../test/login-ui-helpers';
 
 beforeEach(() => {
   resetTokenStoreForTests();
+  // Cada teste deve autenticar a partir de /login; o anterior navega por URL.
+  window.history.pushState({}, '', '/login');
+  vi.unstubAllGlobals();
 });
 
 function openContractsNav(path = '/app/contracts'): void {
