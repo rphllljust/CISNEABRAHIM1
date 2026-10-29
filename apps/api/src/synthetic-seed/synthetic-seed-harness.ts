@@ -21,6 +21,7 @@ import { RequestsModule } from '../requests/requests.module';
 import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { MeasurementsModule } from '../measurements/measurements.module';
 import { BillingModule } from '../billing/billing.module';
+import { FinanceModule } from '../finance/finance.module';
 import { FaultInjectionModule } from '../platform/fault-injection/fault-injection.module';
 import { ClientAccessService } from '../clients/services/client-access.service';
 import { ServiceCatalogAccessService } from '../catalog/services/service-catalog-access.service';
@@ -80,6 +81,7 @@ export async function createSyntheticSeedHarness(pool: Pool): Promise<SyntheticS
       ServiceOrdersModule,
       MeasurementsModule,
       BillingModule,
+      FinanceModule,
     ],
   })
     .overrideProvider(DatabaseService)
