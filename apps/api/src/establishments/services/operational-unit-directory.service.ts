@@ -151,6 +151,12 @@ export class OperationalUnitDirectoryService {
         (typeof legacyRef !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$/.test(legacyRef))) {
       return badInput('Invalid existing unit reference.');
     }
+    // A legacy reference must already be registered. Never fabricate an access
+    // anchor while claiming to complete an existing organizational identity.
+    if (typeof legacyRef === 'string' &&
+      !(await this.scopeRefs.scopeRefExists(AUTHZ_SCOPES.Unit, legacyRef))) {
+      return badInput('Existing operational reference was not registered.');
+    }
     try {
       const row = await this.repository.execute(
         actor.identityId, key, { operation: 'CREATE', refId: legacyRef ?? null, code, name },
