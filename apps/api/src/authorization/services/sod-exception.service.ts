@@ -6,7 +6,7 @@ import { AUTHZ_ACTIONS, type AuthzAction } from '../types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../types/authz-resources';
 import { AUTHZ_SCOPES, type AuthzScopeType } from '../types/authz-scopes';
 import { AuthzHttpException } from '../errors/authz-http.exception';
-import { AUTHZ_ERROR_CODES } from '../errors/authz-error-codes';
+import { AUTHZ_ERROR_CODES, type AuthzErrorCode } from '../errors/authz-error-codes';
 import { ScopeContextRepository } from '../repositories/scope-context.repository';
 import { PolicyDecisionPointService } from './policy-decision-point.service';
 import { assertAssignableScope, isAnchoredScope } from '../domain/access-admin-rules';
@@ -54,7 +54,7 @@ function view(row: ExceptionRow): SodExceptionView {
     revokedAt: row.revoked_at,
   };
 }
-function deny(code: string, message: string, status = HttpStatus.FORBIDDEN): never {
+function deny(code: AuthzErrorCode, message: string, status = HttpStatus.FORBIDDEN): never {
   throw new AuthzHttpException(status, code, message);
 }
 function validId(value: string): string {
