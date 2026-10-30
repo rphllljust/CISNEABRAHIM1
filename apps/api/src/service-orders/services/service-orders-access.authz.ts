@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { OperationalUnitDirectoryService } from '../../establishments/services/operational-unit-directory.service';
-import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
+import { AuthorizationRepository, type GrantRow } from '../../authorization/repositories/authorization.repository';
 import { ScopeContextRepository } from '../../authorization/repositories/scope-context.repository';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
 import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
@@ -24,6 +24,28 @@ import {
   serviceOrdersProposalNotFound,
   serviceOrdersPurchaseOrderNotFound,
 } from './service-orders-access.errors';
+
+/**
+ * Direct-grant predicate used by the OS detail's record authorization.
+ * Deliberately narrower than the generic scope matcher: this reproduces
+ * the existing GLOBAL / UNIT / CLIENT / ASSIGNED semantics of assertRecordAction.
+ * A role-only PDP allowance does not bypass the detail's direct-grant check.
+ */
+function grantCoversServiceOrderRecord(grant: GrantRow, identityId: string, row: ServiceOrderRow): boolean {
+  if (grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null) {
+    return true;
+  }
+  if (grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id === row.unit_id) {
+    return true;
+  }
+  if (row.client_id && grant.scope_type === AUTHZ_SCOPES.Client && grant.resource_id === row.client_id) {
+    return true;
+  }
+  if (grant.scope_type === AUTHZ_SCOPES.Assigned && row.assigned_identity_id === identityId) {
+    return !grant.resource_id || grant.resource_id === row.id;
+  }
+  return false;
+}
 
 @Injectable()
 export class ServiceOrdersAccessAuthz {
@@ -216,28 +238,46 @@ export class ServiceOrdersAccessAuthz {
       action,
       AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
     );
-    const hasAccess = grants.some((grant) => {
-      if (grant.scope_type === AUTHZ_SCOPES.Global && grant.resource_id === null) {
-        return true;
-      }
-      if (grant.scope_type === AUTHZ_SCOPES.Unit && grant.resource_id === row.unit_id) {
-        return true;
-      }
-      if (
-        row.client_id &&
-        grant.scope_type === AUTHZ_SCOPES.Client &&
-        grant.resource_id === row.client_id
-      ) {
-        return true;
-      }
-      if (grant.scope_type === AUTHZ_SCOPES.Assigned && row.assigned_identity_id === actor.identityId) {
-        return !grant.resource_id || grant.resource_id === row.id;
-      }
-      return false;
-    });
+    const hasAccess = grants.some((grant) =>
+      grantCoversServiceOrderRecord(grant, actor.identityId, row),
+    );
     if (!hasAccess) {
       throw serviceOrdersAccessDenied();
     }
+  }
+
+  /**
+   * Batch read-visibility for Work Inbox, using the very same record-READ
+   * authorization semantics as getById. LIST is not proof of READ.
+   * One PDP batch and one direct-grant fetch per page (no per-row queries).
+   * This method returns no denied rows or metadata to the caller.
+   */
+  async filterReadableRows(
+    actor: IdentityAuthzContext,
+    rows: ServiceOrderRow[],
+  ): Promise<ServiceOrderRow[]> {
+    if (rows.length === 0) return [];
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+      AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+    );
+    if (grants.length === 0) return [];
+
+    const decisions = await this.policyDecisionPoint.decideBatch(
+      actor,
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      },
+      rows.map(toResourceContextFromServiceOrder),
+      { audit: false },
+    );
+    return rows.filter(
+      (row, index) =>
+        decisions[index]?.result === 'ALLOW' &&
+        grants.some((grant) => grantCoversServiceOrderRecord(grant, actor.identityId, row)),
+    );
   }
 
   async assertProposalOrigin(
