@@ -790,7 +790,8 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
           </ObjectPanel>
         }
       >
-        {/* De onde veio / o que foi gerado: a linhagem comercial e operacional desta OS. */}
+        {/* The station renders the same authorized Business Chain once, in its decision column. */}
+        {!embeddedServiceOrderId ? (
         <section className="planning-section" aria-label="Cadeia de negócio">
           <BusinessChain
             chain={businessChain.chain}
@@ -800,6 +801,7 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
             title="Cadeia de negócio da ordem"
           />
         </section>
+        ) : null}
 
         <section className="planning-section" aria-labelledby="planning-summary-heading">
           <h2 id="planning-summary-heading">Resumo operacional</h2>

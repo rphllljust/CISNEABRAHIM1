@@ -427,16 +427,22 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
       });
       onProgress(100);
       onMutationSettled?.();
-      const [order, bundle, overview] = await Promise.all([
-        getServiceOrder(serviceOrderId),
-        getExecutionBundle(serviceOrderId),
-        getServiceOrderOverview(serviceOrderId).catch(() => null),
-      ]);
-      applyOrderUpdate(
-        result.rowVersion ? { ...order, rowVersion: result.rowVersion } : order,
-        bundle,
-        overview,
-      );
+      // The evidence POST already succeeded. Read-model refresh errors cannot
+      // convert a persisted upload into a rejected mutation.
+      try {
+        const [order, bundle, overview] = await Promise.all([
+          getServiceOrder(serviceOrderId),
+          getExecutionBundle(serviceOrderId),
+          getServiceOrderOverview(serviceOrderId).catch(() => null),
+        ]);
+        applyOrderUpdate(
+          result.rowVersion ? { ...order, rowVersion: result.rowVersion } : order,
+          bundle,
+          overview,
+        );
+      } catch {
+        setFeedback({ tone: 'info', message: 'Evidência persistida; falha posterior ao atualizar a leitura.' });
+      }
     },
     [applyOrderUpdate, onMutationSettled, serviceOrderId, state],
   );

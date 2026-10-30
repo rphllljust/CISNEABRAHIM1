@@ -390,5 +390,5 @@ function MeasurementShell({embedded,children}: {embedded:boolean;children:ReactN
  return embedded ? <div className="measurement-workbench space-y-2">{children}</div> : <ModulePage className="measurement-workbench">{children}</ModulePage>;
 }
 function MeasurementProcessSurface({embedded,active,context,...props}: ComponentProps<typeof WorkbenchFloorplan> & {embedded:boolean}) {
- return embedded ? <div aria-label="Medição e aceite" className="min-w-0 space-y-2">{active}{context}</div> : <WorkbenchFloorplan {...props} active={active} context={context}/>;
+ return embedded ? <section aria-label="Medição e aceite" className="min-w-0 space-y-2">{active}{context}</section> : <WorkbenchFloorplan {...props} active={active} context={context}/>;
 }
