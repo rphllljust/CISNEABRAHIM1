@@ -1541,6 +1541,20 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0111_sod_exception_approval.sql') {
+      const before = await client.query(
+        `SELECT to_regclass('"authorization".sod_exceptions') AS exceptions,
+                EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'authorization'
+                    AND table_name = 'access_role_assignments'
+                    AND column_name = 'sod_exception_id') AS dependency_column`,
+      );
+      if (before.rows[0]?.exceptions !== null || before.rows[0]?.dependency_column !== false) {
+        throw new Error('0111 N-1 already contains SoD exception schema');
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
