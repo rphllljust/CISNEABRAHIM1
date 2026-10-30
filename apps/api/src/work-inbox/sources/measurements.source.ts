@@ -141,9 +141,9 @@ export function toMeasurementWorkItem(
       measurement.status === MEASUREMENT_STATUSES.Rejected
         ? 'Medição rejeitada requer tratamento'
         : 'Medição aguardando decisão',
-    contextLabel: [`OS ${row.orderNumber}`, workbench.businessContext.contract
-      ? `Contrato ${workbench.businessContext.contract}`
-      : `Unidade ${unitId}`].join(' · '),
+    // A workbench publica contractReference textual, mas não contractId;
+    // sem o ID persistido não afirmar vínculo contratual autoritativo.
+    contextLabel: `OS ${row.orderNumber} · Unidade ${unitId}`,
     status: acceptance ? workbench.acceptance.state : measurement.status,
     reason: row.reasonLabel,
     occurredAt: at,
