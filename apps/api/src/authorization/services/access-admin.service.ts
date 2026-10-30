@@ -387,10 +387,17 @@ export class AccessAdminService {
     }
 
     const prospective = await this.buildIdentityCapabilitySet(command.identityId, role, scopeType, scopeAnchor);
-    try {
-      assertNoSodConflict(prospective);
-    } catch (error) {
-      throw mapRuleError(error);
+    const sodConflict = findSodConflicts(prospective)[0];
+    if (
+      sodConflict &&
+      !(sodConflict.ruleId === 'SOD-007' &&
+        (await this.repository.hasApprovedSodException(command.identityId, sodConflict.ruleId)))
+    ) {
+      try {
+        assertNoSodConflict(prospective);
+      } catch (error) {
+        throw mapRuleError(error);
+      }
     }
 
     const pool = this.databaseService.getConnection()?.pool;
