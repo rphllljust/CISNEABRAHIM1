@@ -93,13 +93,14 @@ test.describe('HML Operations 360 — persisted ALFA/BETA lineage and isolated a
       expect(browserName).toBe('chromium');
       const id = scenario.serviceOrderId!;
       const unit = scenario.unitId!;
-      await page.goto(`${baseUrl}/app/operations/dispatch`);
+      await workstationRoute(page, '/app/operations/dispatch');
       const authorizedUnit = page.getByRole('combobox', { name: 'Unidade operacional' });
       await expect(authorizedUnit).toBeVisible();
       await authorizedUnit.selectOption(unit);
       await expect(authorizedUnit).toHaveValue(unit);
-      // Retain this authenticated React application. A second full page.goto
-      // causes refresh-token throttling and is NOT a test of operational routing.
+      // Maintain a single document session after login. Both the initial station
+      // entry and subsequent OS selection are React Router client transitions:
+      // HML #41048724800 proved a page.goto here can cause auth/refresh HTTP 429.
       await readAuthorizedOverview(page, id, unit);
       await expect(page.getByRole('heading', { name: /Processar OS/i })).toBeVisible();
       for (const label of ['Fila operacional autorizada', 'OS em processamento', 'Contexto de decisão']) {
