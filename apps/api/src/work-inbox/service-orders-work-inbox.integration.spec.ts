@@ -94,7 +94,7 @@ describe('OS -> Work Inbox / KPI (PostgreSQL real e escopo PDP)', () => {
     await grantUnit(UNIT_A);
     const visible = await seedOrder(UNIT_A, 'VISIBLE', 'PREPARED');
     await seedOrder(UNIT_B, 'HIDDEN', 'PREPARED');
-    await seedOrder(UNIT_A, 'CLOSED', 'COMPLETED');
+    await seedOrder(UNIT_A, 'DRAFT', 'DRAFT');
 
     const snapshot = await inbox.list(actor, { limit: '0' });
     const drill = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
