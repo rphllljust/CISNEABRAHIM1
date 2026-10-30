@@ -25,6 +25,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
 import { AuthorizationModule } from '../authorization/authorization.module';
+import { ScopeContextRepository } from '../authorization/repositories/scope-context.repository';
 import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
@@ -46,6 +47,8 @@ import { ServiceOrderExecutionAccessService } from '../service-orders/services/s
 import { ServiceOrderPlanningAccessService } from '../service-orders/services/service-order-planning-access.service';
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 import { OperationsService } from '../service-orders/services/operations.service';
+import { WorkInboxService } from '../work-inbox/services/work-inbox.service';
+import { MeasurementsWorkSource } from '../work-inbox/sources/measurements.source';
 
 /**
  * MEDIÇÃO → ACEITE → FATURAMENTO — PROVA DE INTEGRAÇÃO DA CAPABILITY.
@@ -203,6 +206,7 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
   let operationsService: OperationsService;
   let measurementsAccess: MeasurementsAccessService;
   let capability: MeasurementsCapabilityService;
+  let measurementWorkSource: MeasurementsWorkSource;
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
@@ -235,6 +239,11 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     operationsService = module.get(OperationsService);
     measurementsAccess = module.get(MeasurementsAccessService);
     capability = module.get(MeasurementsCapabilityService);
+    measurementWorkSource = new MeasurementsWorkSource(
+      capability,
+      measurementsAccess,
+      module.get(ScopeContextRepository),
+    );
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
@@ -1203,6 +1212,72 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
       expect(position.nextAction.code.length).toBeGreaterThan(0);
       expect(position.orderNumber.length).toBeGreaterThan(0);
     }
+  });
+
+  it('MASTER 001-02: PostgreSQL authoritative submit -> approve -> customer accept -> Inbox and KPI drill', async () => {
+    const actor = await seedActor();
+    const seeded = await seedOrderWithBasis({
+      actor,
+      plannedQuantity: '12.5',
+      contractSnapshot: { acceptanceRequired: true, paymentTerms: '30 DDL' },
+    });
+    const measurement = await measurementsAccess.create(actor, seeded.completed.id);
+    const inbox = new WorkInboxService([measurementWorkSource]);
+
+    const submitted = await measurementsAccess.submit(actor, seeded.completed.id, measurement.id, {
+      rowVersion: measurement.rowVersion,
+    });
+    expect(submitted.status).toBe(MEASUREMENT_STATUSES.Submitted);
+
+    const pendingApproval = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
+    expect(pendingApproval.unavailableDomains).toEqual([]);
+    expect(pendingApproval.total).toBe(1);
+    expect(pendingApproval.byDomain.OPERACOES).toBe(pendingApproval.total);
+    expect(pendingApproval.items[0]?.id).toBe(`OPERACOES:MEASUREMENT:APPROVAL:${measurement.id}`);
+
+    const reviewed = await measurementsAccess.startReview(actor, seeded.completed.id, measurement.id, {
+      rowVersion: submitted.rowVersion,
+    });
+    const approved = await measurementsAccess.approve(actor, seeded.completed.id, measurement.id, {
+      rowVersion: reviewed.rowVersion,
+    });
+    expect(approved.status).toBe(MEASUREMENT_STATUSES.Approved);
+
+    const afterApproval = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
+    expect(afterApproval.items.find((item) => item.id.includes(measurement.id))).toBeUndefined();
+
+    const pendingAcceptance = await inbox.list(actor, { domain: 'COMERCIAL', unitId: UNIT_A });
+    expect(pendingAcceptance.unavailableDomains).toEqual([]);
+    expect(pendingAcceptance.total).toBe(1);
+    expect(pendingAcceptance.byDomain.COMERCIAL).toBe(pendingAcceptance.total);
+    expect(pendingAcceptance.items[0]?.id).toBe(`COMERCIAL:MEASUREMENT:ACCEPTANCE:${measurement.id}`);
+
+    const accepted = await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+      expectedVersion: approved.rowVersion,
+      idempotencyKey: `master-001-02-${crypto.randomUUID()}`,
+      result: 'ACCEPTED',
+      observation: 'Cliente conferiu e aceitou a entrega.',
+      customerSignerName: 'Representante do cliente',
+    });
+    expect(accepted.acceptance.state).toBe('ACCEPTED');
+    expect(accepted.billingEligibility.result).toBe('READY');
+
+    const cleared = await inbox.list(actor, { domain: 'COMERCIAL', unitId: UNIT_A });
+    expect(cleared.unavailableDomains).toEqual([]);
+    expect(cleared.total).toBe(0);
+    expect(cleared.byDomain.COMERCIAL).toBe(0);
+
+    const persisted = await measurementsAccess.getById(actor, seeded.completed.id, measurement.id);
+    expect(persisted.status).toBe(MEASUREMENT_STATUSES.Approved);
+    expect(persisted.historyEvents.map((event) => event.eventType)).toContain('APPROVED');
+    const outbox = await pool.query<{ event_type: string }>(
+      `SELECT event_type::text AS event_type FROM evt.outbox_events
+       WHERE aggregate_id = $1`,
+      [measurement.id],
+    );
+    expect(outbox.rows.map((row) => row.event_type)).toEqual(
+      expect.arrayContaining(['CUSTOMER_ACCEPTANCE_RECORDED', 'BILLING_ELIGIBILITY_GRANTED']),
+    );
   });
 
   it('work queue derives from the same projection as the control tower', async () => {
