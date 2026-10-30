@@ -135,6 +135,7 @@ describe('synthetic business seed (integration)', () => {
     const suffix = randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
     const scenarioKey = `test-ops360-${suffix.toLowerCase()}`;
     await ensureTestDefaultIssuer(pool);
+    let finished = false;
     try {
       const outcome = await runUatVerticalScenario(
         harness.services,
@@ -143,6 +144,7 @@ describe('synthetic business seed (integration)', () => {
         SYNTHETIC_SEED_UNIT_ID,
         {
           deterministicSuffix: suffix,
+          captureArtifacts: true,
           clientExternalErpId: syntheticExternalRef(scenarioKey),
           vehiclePlateScenarioIndex: 9901,
           syntheticRequireCustomerAcceptance: true,
@@ -151,7 +153,7 @@ describe('synthetic business seed (integration)', () => {
       expect(outcome.status, outcome.error ?? 'UAT vertical execution failed').toBe('PASS');
       const id = outcome.serviceOrderId;
       expect(id).toBeTruthy();
-      expect(outcome.measurementId).toBeTruthy();
+      expect(outcome.artifacts?.measurementId).toBeTruthy();
 
       const rows = await pool.query<{
         status: string; unit_id: string; planned: string; allocated: string;
@@ -182,8 +184,14 @@ describe('synthetic business seed (integration)', () => {
       expect(workbench.identity.serviceOrderId).toBe(id);
       expect(workbench.acceptance.state).toBe('ACCEPTED');
       expect(workbench.acceptance.blocksBilling).toBe(false);
+      finished = true;
     } finally {
-      await compensateSyntheticScenario(pool, scenarioKey).catch(() => undefined);
+      const cleanup = await compensateSyntheticScenario(pool, scenarioKey);
+      if (finished) {
+        expect(cleanup.clientRemoved).toBe(true);
+        const residual = await pool.query('SELECT id FROM pty.clients WHERE external_erp_id = $1', [syntheticExternalRef(scenarioKey)]);
+        expect(residual.rows).toHaveLength(0);
+      }
     }
   });
 
