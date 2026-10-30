@@ -259,6 +259,8 @@ const MIGRATION_EFFECT_CHECKS = {
   '0110_accounting_journal_entry_number_read_contract': {
     column: ['rpt', 'read_journal_entries', 'entry_number'],
   },
+  // SoD-007 approval/revocation must have a persistent authority record.
+  '0111_sod_exception_approval': { table: ['authorization', 'sod_exceptions'] },
 };
 
 /**
