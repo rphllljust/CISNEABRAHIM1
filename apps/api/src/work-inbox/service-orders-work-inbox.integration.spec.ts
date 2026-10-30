@@ -10,6 +10,7 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
+import type { AuthzAction } from '../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
 import { DatabaseModule } from '../infrastructure/database/database.module';
@@ -57,7 +58,7 @@ describe('OS -> Work Inbox / KPI (PostgreSQL real e escopo PDP)', () => {
     actor = { identityId: identity.identityId, sessionId: 'session-inbox-so' };
   });
 
-  async function grantUnit(unitId: string, action = AUTHZ_ACTIONS.ServiceOrdersServiceOrderList) {
+  async function grantUnit(unitId: string, action: AuthzAction = AUTHZ_ACTIONS.ServiceOrdersServiceOrderList) {
     await insertGrant(pool, {
       identityId: actor.identityId,
       action,
