@@ -6,6 +6,7 @@ import { AUTHZ_ERROR_CODES } from '../errors/authz-error-codes';
 import { AuthzHttpException } from '../errors/authz-http.exception';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { PolicyDecisionPointService } from './policy-decision-point.service';
+import { SodExceptionService } from './sod-exception.service';
 import { AccessAdminRepository } from '../repositories/access-admin.repository';
 import { AuthorizationRepository } from '../repositories/authorization.repository';
 import { ApprovalMatrixRepository } from '../repositories/approval-matrix.repository';
@@ -26,7 +27,6 @@ import {
   assertAccessRoleLabel,
   assertAssignableScope,
   assertExpectedVersion,
-  assertNoSodConflict,
   assertRoleCapabilities,
   findSodConflicts,
   isAnchoredScope,
@@ -61,6 +61,7 @@ export class AccessAdminService {
     private readonly scopeContextRepository: ScopeContextRepository,
     private readonly policyDecisionPoint: PolicyDecisionPointService,
     private readonly securityAudit: SecurityAuditService,
+    private readonly sodExceptions: SodExceptionService,
   ) {}
 
   private async assertAllowed(actor: IdentityAuthzContext, action: AuthzAction): Promise<void> {
@@ -386,13 +387,6 @@ export class AccessAdminService {
       );
     }
 
-    const prospective = await this.buildIdentityCapabilitySet(command.identityId, role, scopeType, scopeAnchor);
-    try {
-      assertNoSodConflict(prospective);
-    } catch (error) {
-      throw mapRuleError(error);
-    }
-
     const pool = this.databaseService.getConnection()?.pool;
     if (!pool) {
       throw new Error('DATABASE_URL is not configured.');
@@ -400,12 +394,28 @@ export class AccessAdminService {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      // Serialize all access-role writes for a subject before evaluating the effective SoD set.
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [command.identityId]);
+      const prospective = await this.buildIdentityCapabilitySet(command.identityId, role, scopeType, scopeAnchor);
+      const conflicts = findSodConflicts(prospective);
+      let sodExceptionId: string | null = null;
+      if (conflicts.length > 0) {
+        sodExceptionId = await this.sodExceptions.findApprovedForAssignment(
+          client, command.identityId, scopeType, scopeAnchor,
+        );
+        if (!sodExceptionId) {
+          throw mapRuleError(new AccessAdminRuleError(
+            'SOD_CONFLICT', 'SOD-007 requires an independently approved exception for this identity and scope.',
+          ));
+        }
+      }
       const row = await this.repository.insertAssignment(client, {
         roleId: role.id,
         identityId: command.identityId,
         scopeType,
         scopeAnchor,
         assignedByIdentityId: actor.identityId,
+        sodExceptionId,
       });
       await client.query('COMMIT');
       await this.securityAudit.recordCritical({
