@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { rollbackKeepingPrimaryCause } from '../../infrastructure/database/rollback';
 import type { IdentityAuthzContext } from '../types/authz-decision';
 import { AUTHZ_ACTIONS, type AuthzAction } from '../types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../types/authz-resources';
@@ -165,6 +166,7 @@ export class SodExceptionService {
     await this.authorize(actor, AUTHZ_ACTIONS.AccessAdminManage);
     const input = parseRequest(raw);
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       const identity = await client.query('SELECT 1 FROM identity.identities WHERE id = $1',
@@ -187,13 +189,13 @@ export class SodExceptionService {
       await client.query('COMMIT');
       return view(row);
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
         deny(AUTHZ_ERROR_CODES.ACCESS_ADMIN_CONFLICT, 'An open exception already exists for that scope.', HttpStatus.CONFLICT);
       }
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -201,6 +203,7 @@ export class SodExceptionService {
     await this.authorize(actor, AUTHZ_ACTIONS.AccessAdminManage);
     validId(id);
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       await this.requireNamedApprover(client, actor);
@@ -219,10 +222,10 @@ export class SodExceptionService {
       await client.query('COMMIT');
       return view(row);
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
@@ -230,6 +233,7 @@ export class SodExceptionService {
     await this.authorize(actor, AUTHZ_ACTIONS.AccessAdminManage);
     validId(id);
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       await this.requireNamedApprover(client, actor);
@@ -253,10 +257,10 @@ export class SodExceptionService {
       await client.query('COMMIT');
       return view(row);
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await rollbackKeepingPrimaryCause(client);
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
