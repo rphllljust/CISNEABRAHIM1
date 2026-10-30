@@ -18,6 +18,10 @@ import {
   truncateServiceRequestTables,
 } from '@cisne/database';
 import { Test, TestingModule } from '@nestjs/testing';
+import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import { AppModule } from '../app.module';
+import { configureApiTestApp } from '../infrastructure/http/configure-api-test-app';
+import { parseAuthTokenResponse } from '../auth/test/auth-response-test-types';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuditModule } from '../audit/audit.module';
@@ -274,7 +278,7 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
     const { identityId } = await insertIdentity(pool, login, passwordHash);
     await grantCapabilityActions(pool, identityId, identityId);
-    return { identityId, sessionId: 'sid' };
+    return { identityId, sessionId: 'sid', login };
   }
 
   /** Ordem concluída com a BASE publicada pelo fechamento real da execução. */
@@ -1214,7 +1218,7 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     }
   });
 
-  it('MASTER 001-02: PostgreSQL authoritative submit -> approve -> customer accept -> Inbox and KPI drill', async () => {
+  it('MASTER 001-02: authenticated HTTP commands -> PostgreSQL -> Inbox -> KPI -> Billing eligibility', async () => {
     const actor = await seedActor();
     const seeded = await seedOrderWithBasis({
       actor,
@@ -1224,60 +1228,114 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     const measurement = await measurementsAccess.create(actor, seeded.completed.id);
     const inbox = new WorkInboxService([measurementWorkSource]);
 
-    const submitted = await measurementsAccess.submit(actor, seeded.completed.id, measurement.id, {
-      rowVersion: measurement.rowVersion,
-    });
-    expect(submitted.status).toBe(MEASUREMENT_STATUSES.Submitted);
+    // The HTTP commands use the SAME Nest controllers/guards as production,
+    // while the database is disposable TEST_DATABASE_URL only.
+    const httpModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const httpApp = httpModule.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    configureApiTestApp(httpApp);
+    try {
+      await httpApp.init();
+      await httpApp.getHttpAdapter().getInstance().ready();
+      const login = await httpApp.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        headers: { 'user-agent': `master-001-02-${crypto.randomUUID()}` },
+        payload: { login: actor.login, password: AUTH_TEST_PASSWORD },
+      });
+      expect(login.statusCode).toBe(200);
+      const headers = { authorization: `Bearer ${parseAuthTokenResponse(login.body).accessToken}` };
+      const path = `/api/v1/service-orders/${seeded.completed.id}/measurements/${measurement.id}`;
 
-    const pendingApproval = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
-    expect(pendingApproval.unavailableDomains).toEqual([]);
-    expect(pendingApproval.total).toBe(1);
-    expect(pendingApproval.byDomain.OPERACOES).toBe(pendingApproval.total);
-    expect(pendingApproval.items[0]?.id).toBe(`OPERACOES:MEASUREMENT:APPROVAL:${measurement.id}`);
+      const submitResponse = await httpApp.inject({
+        method: 'POST', url: `${path}/submit`, headers,
+        payload: { rowVersion: measurement.rowVersion },
+      });
+      expect(submitResponse.statusCode).toBe(200);
+      const submitted = JSON.parse(submitResponse.body) as { status: string; rowVersion: number };
+      expect(submitted.status).toBe(MEASUREMENT_STATUSES.Submitted);
 
-    const reviewed = await measurementsAccess.startReview(actor, seeded.completed.id, measurement.id, {
-      rowVersion: submitted.rowVersion,
-    });
-    const approved = await measurementsAccess.approve(actor, seeded.completed.id, measurement.id, {
-      rowVersion: reviewed.rowVersion,
-    });
-    expect(approved.status).toBe(MEASUREMENT_STATUSES.Approved);
+      const pendingApproval = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
+      expect(pendingApproval.unavailableDomains).toEqual([]);
+      expect(pendingApproval.total).toBe(1);
+      expect(pendingApproval.byDomain.OPERACOES).toBe(pendingApproval.total);
+      expect(pendingApproval.items[0]?.id).toBe(`OPERACOES:MEASUREMENT:APPROVAL:${measurement.id}`);
 
-    const afterApproval = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
-    expect(afterApproval.items.find((item) => item.id.includes(measurement.id))).toBeUndefined();
+      const reviewResponse = await httpApp.inject({
+        method: 'POST', url: `${path}/start-review`, headers,
+        payload: { rowVersion: submitted.rowVersion },
+      });
+      expect(reviewResponse.statusCode).toBe(200);
+      const reviewed = JSON.parse(reviewResponse.body) as { rowVersion: number };
 
-    const pendingAcceptance = await inbox.list(actor, { domain: 'COMERCIAL', unitId: UNIT_A });
-    expect(pendingAcceptance.unavailableDomains).toEqual([]);
-    expect(pendingAcceptance.total).toBe(1);
-    expect(pendingAcceptance.byDomain.COMERCIAL).toBe(pendingAcceptance.total);
-    expect(pendingAcceptance.items[0]?.id).toBe(`COMERCIAL:MEASUREMENT:ACCEPTANCE:${measurement.id}`);
+      const approveResponse = await httpApp.inject({
+        method: 'POST', url: `${path}/approve`, headers,
+        payload: { rowVersion: reviewed.rowVersion },
+      });
+      expect(approveResponse.statusCode).toBe(200);
+      const approved = JSON.parse(approveResponse.body) as { status: string; rowVersion: number };
+      expect(approved.status).toBe(MEASUREMENT_STATUSES.Approved);
 
-    const accepted = await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
-      expectedVersion: approved.rowVersion,
-      idempotencyKey: `master-001-02-${crypto.randomUUID()}`,
-      result: 'ACCEPTED',
-      observation: 'Cliente conferiu e aceitou a entrega.',
-      customerSignerName: 'Representante do cliente',
-    });
-    expect(accepted.acceptance.state).toBe('ACCEPTED');
-    expect(accepted.billingEligibility.result).toBe('READY');
+      const afterApproval = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
+      expect(afterApproval.items.find((item) => item.id.includes(measurement.id))).toBeUndefined();
 
-    const cleared = await inbox.list(actor, { domain: 'COMERCIAL', unitId: UNIT_A });
-    expect(cleared.unavailableDomains).toEqual([]);
-    expect(cleared.total).toBe(0);
-    expect(cleared.byDomain.COMERCIAL).toBe(0);
+      const pendingAcceptance = await inbox.list(actor, { domain: 'COMERCIAL', unitId: UNIT_A });
+      expect(pendingAcceptance.unavailableDomains).toEqual([]);
+      expect(pendingAcceptance.total).toBe(1);
+      expect(pendingAcceptance.byDomain.COMERCIAL).toBe(pendingAcceptance.total);
+      expect(pendingAcceptance.items[0]?.id).toBe(`COMERCIAL:MEASUREMENT:ACCEPTANCE:${measurement.id}`);
 
-    const persisted = await measurementsAccess.getById(actor, seeded.completed.id, measurement.id);
-    expect(persisted.status).toBe(MEASUREMENT_STATUSES.Approved);
-    expect(persisted.historyEvents.map((event) => event.eventType)).toContain('APPROVED');
-    const outbox = await pool.query<{ event_type: string }>(
-      `SELECT event_type::text AS event_type FROM evt.outbox_events
-       WHERE aggregate_id = $1`,
-      [measurement.id],
-    );
-    expect(outbox.rows.map((row) => row.event_type)).toEqual(
-      expect.arrayContaining(['CUSTOMER_ACCEPTANCE_RECORDED', 'BILLING_ELIGIBILITY_GRANTED']),
-    );
+      const idem = `master-001-02-${crypto.randomUUID()}`;
+      const acceptanceResponse = await httpApp.inject({
+        method: 'POST', url: `${path}/acceptance`, headers,
+        payload: {
+          expectedVersion: approved.rowVersion,
+          idempotencyKey: idem,
+          result: 'ACCEPTED',
+          observation: 'Cliente conferiu e aceitou a entrega.',
+          customerSignerName: 'Representante do cliente',
+        },
+      });
+      expect(acceptanceResponse.statusCode).toBe(200);
+      const accepted = JSON.parse(acceptanceResponse.body) as {
+        acceptance: { state: string; history: unknown[] };
+        billingEligibility: { result: string };
+      };
+      expect(accepted.acceptance.state).toBe('ACCEPTED');
+      expect(accepted.acceptance.history).toHaveLength(1);
+      expect(accepted.billingEligibility.result).toBe('READY');
+
+      const retry = await httpApp.inject({
+        method: 'POST', url: `${path}/acceptance`, headers,
+        payload: {
+          expectedVersion: approved.rowVersion,
+          idempotencyKey: idem,
+          result: 'ACCEPTED',
+          observation: 'Cliente conferiu e aceitou a entrega.',
+          customerSignerName: 'Representante do cliente',
+        },
+      });
+      expect(retry.statusCode).toBe(200);
+      expect((JSON.parse(retry.body) as { acceptance: { history: unknown[] } }).acceptance.history).toHaveLength(1);
+
+      const cleared = await inbox.list(actor, { domain: 'COMERCIAL', unitId: UNIT_A });
+      expect(cleared.unavailableDomains).toEqual([]);
+      expect(cleared.total).toBe(0);
+      expect(cleared.byDomain.COMERCIAL).toBe(0);
+
+      const persisted = await measurementsAccess.getById(actor, seeded.completed.id, measurement.id);
+      expect(persisted.status).toBe(MEASUREMENT_STATUSES.Approved);
+      expect(persisted.historyEvents.map((event) => event.eventType)).toContain('APPROVED');
+      const outbox = await pool.query<{ event_type: string }>(
+        `SELECT event_type::text AS event_type FROM evt.outbox_events
+         WHERE aggregate_id = $1`,
+        [measurement.id],
+      );
+      expect(outbox.rows.map((row) => row.event_type)).toEqual(
+        expect.arrayContaining(['CUSTOMER_ACCEPTANCE_RECORDED', 'BILLING_ELIGIBILITY_GRANTED']),
+      );
+    } finally {
+      await httpApp.close();
+    }
   });
 
   it('work queue derives from the same projection as the control tower', async () => {
