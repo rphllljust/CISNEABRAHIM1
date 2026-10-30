@@ -7,6 +7,7 @@ import { FinanceModule } from '../finance/finance.module';
 import { FiscalModule } from '../fiscal/fiscal.module';
 import { ProcurementModule } from '../procurement/procurement.module';
 import { RequestsModule } from '../requests/requests.module';
+import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { WorkInboxController } from './controllers/work-inbox.controller';
 import { WorkInboxService } from './services/work-inbox.service';
 import { AccountingWorkSource } from './sources/accounting.source';
@@ -15,6 +16,7 @@ import { CommercialWorkSource } from './sources/commercial.source';
 import { FinanceWorkSource } from './sources/finance.source';
 import { FiscalWorkSource } from './sources/fiscal.source';
 import { ProcurementWorkSource } from './sources/procurement.source';
+import { ServiceOrdersWorkSource } from './sources/service-orders.source';
 import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-source';
 
 /**
@@ -28,6 +30,7 @@ import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-sour
  * isoladamente) e a MESMA instancia e publicada na lista do token `WORK_ITEM_SOURCES` — a ordem
  * declarada aqui e a ordem de coleta.
  *
+ * A fonte de OS usa ServiceOrdersAccessService e o predicado SQL/PDP do domínio proprietário.
  * `AuthorizationModule` entra porque duas fontes usam a infraestrutura NEUTRA de escopo, nunca uma
  * regra propria: a fonte contabil e a fiscal enumeram unidades candidatas pelo registro de
  * `scope_refs` (que nao concede nada) e a fonte de suprimentos aplica a restricao de unidade com o
@@ -39,6 +42,7 @@ import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-sour
     FinanceModule,
     AccountingModule,
     RequestsModule,
+    ServiceOrdersModule,
     FiscalModule,
     ProcurementModule,
     AuthModule,
@@ -48,6 +52,7 @@ import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-sour
   providers: [
     WorkInboxService,
     AlertsWorkSource,
+    ServiceOrdersWorkSource,
     FinanceWorkSource,
     AccountingWorkSource,
     CommercialWorkSource,
@@ -57,14 +62,16 @@ import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-sour
       provide: WORK_ITEM_SOURCES,
       useFactory: (
         alerts: AlertsWorkSource,
+        serviceOrders: ServiceOrdersWorkSource,
         finance: FinanceWorkSource,
         accounting: AccountingWorkSource,
         commercial: CommercialWorkSource,
         fiscal: FiscalWorkSource,
         procurement: ProcurementWorkSource,
-      ): WorkItemSource[] => [alerts, finance, accounting, commercial, fiscal, procurement],
+      ): WorkItemSource[] => [alerts, serviceOrders, finance, accounting, commercial, fiscal, procurement],
       inject: [
         AlertsWorkSource,
+        ServiceOrdersWorkSource,
         FinanceWorkSource,
         AccountingWorkSource,
         CommercialWorkSource,
