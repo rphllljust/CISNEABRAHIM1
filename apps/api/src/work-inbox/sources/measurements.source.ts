@@ -131,13 +131,15 @@ export function toMeasurementWorkItem(
 
   const domain = acceptance ? 'COMERCIAL' : 'OPERACOES';
   const operation = acceptance ? 'ACCEPTANCE' : 'APPROVAL';
+  const acceptanceRejected = acceptance && workbench.acceptance.state === 'REJECTED';
 
   return {
     id: `${domain}:MEASUREMENT:${operation}:${measurement.id}`,
     domain,
-    kind: measurement.status === MEASUREMENT_STATUSES.Rejected ? 'EXCEPTION' : 'APPROVAL',
+    kind: acceptanceRejected || measurement.status === MEASUREMENT_STATUSES.Rejected ? 'EXCEPTION' : 'APPROVAL',
     businessReference: workbench.identity.number ?? row.orderNumber,
-    title: acceptance ? 'Medição aprovada aguardando aceite do cliente' :
+    title: acceptanceRejected ? 'Aceite do cliente rejeitado requer tratamento' :
+      acceptance ? 'Medição aprovada aguardando aceite do cliente' :
       measurement.status === MEASUREMENT_STATUSES.Rejected
         ? 'Medição rejeitada requer tratamento'
         : 'Medição aguardando decisão',
