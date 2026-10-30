@@ -522,7 +522,7 @@ export class MeasurementCapabilityRepository {
          $12, $13, $14::timestamptz, $15,
          $16
        )
-       ON CONFLICT (measurement_id, cycle_number) DO NOTHING
+       ON CONFLICT DO NOTHING
        RETURNING id, measurement_id, service_order_id, client_id, unit_id, cycle_number,
                  policy::text AS policy, result::text AS result, observation,
                  rejection_reason, evidence_id, signature_id, customer_signer_name,
@@ -549,7 +549,24 @@ export class MeasurementCapabilityRepository {
     );
 
     if (!inserted.rows[0]) {
-      // A UNIQUE barrou: alguém registrou a decisão deste ciclo em paralelo.
+      // READ COMMITTED: após o ON CONFLICT aguardar a transação vencedora,
+      // esta consulta enxerga o commit da mesma chave. Uma chave distinta no
+      // mesmo ciclo continua sendo conflito, não replay.
+      if (input.idempotencyKey) {
+        const replay = await client.query<CustomerAcceptanceRow>(
+          `SELECT id, measurement_id, service_order_id, client_id, unit_id, cycle_number,
+                  policy::text AS policy, result::text AS result, observation,
+                  rejection_reason, evidence_id, signature_id, customer_signer_name,
+                  accepted_by_identity_id, occurred_at, correlation_id, idempotency_key,
+                  row_version, created_at
+             FROM msr.customer_acceptances
+            WHERE idempotency_key = $1`,
+          [input.idempotencyKey],
+        );
+        if (replay.rows[0]) {
+          return { outcome: 'already_recorded', acceptance: replay.rows[0] };
+        }
+      }
       return { outcome: 'version_conflict' };
     }
     return { outcome: 'success', acceptance: inserted.rows[0] };
