@@ -15,7 +15,8 @@ import type { WorkItemActor, WorkItemSource } from './work-item-source';
  * ou que suas pré-condições estejam satisfeitas. A página 360 consulta novamente
  * capacidades e bloqueios; o comando backend aplica PDP, versão e invariantes.
  *
- * Usa a listagem autoritativa (filtro de estado + escopo de unidade/cliente no SQL).
+ * Usa a listagem autoritativa (filtro de estado + escopo de unidade/cliente no SQL)
+ * e revalida em lote a permissão READ por registro antes da projeção.
  * Não infere vínculos por cliente, não consulta por item e não cria estado paralelo.
  * A fila é uma projeção sob demanda: uma OS que deixou PREPARED desaparece após a
  * próxima leitura, sem uma operação artificial de "resolver pendência".
@@ -31,13 +32,13 @@ export class ServiceOrdersWorkSource implements WorkItemSource {
 
     try {
       for (let offset = 0; ; offset += MAX_LIST_LIMIT) {
-        const page = await this.orders.list(actor, {
+        const page = await this.orders.listReadableForWorkInbox(actor, {
           status: SERVICE_ORDER_STATUSES.Prepared,
           limit: MAX_LIST_LIMIT,
           offset,
         });
         items.push(...page.items.map(toPreparedServiceOrderWorkItem).filter(isWorkItem));
-        if (page.items.length < MAX_LIST_LIMIT) {
+        if (!page.hasMore) {
           break;
         }
       }
