@@ -102,7 +102,8 @@ describe('MASTER 001 / Incremento 02 — fonte de medição da Inbox única', ()
       dueAt: null,
       targetRoute: `/app/service-orders/${ORDER_ID}/measurement-workbench`,
     });
-    expect(item?.contextLabel).toContain('Contrato CT-1');
+    expect(item?.contextLabel).toBe('OS OS-2026-100 · Unidade UN-A');
+    expect(item?.contextLabel).not.toContain('CT-1');
   });
 
   it('não confunde aprovação interna com aceite do cliente', () => {
