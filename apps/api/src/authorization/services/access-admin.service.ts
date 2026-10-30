@@ -417,6 +417,19 @@ export class AccessAdminService {
         assignedByIdentityId: actor.identityId,
         sodExceptionId,
       });
+      // Persist exceptional access consumption in the same transaction as the grant.
+      // The regular access-admin audit remains additive, but cannot be the only evidence.
+      if (sodExceptionId) {
+        await client.query(
+          `INSERT INTO audit.security_audit_events
+             (actor_identity_id, actor_session_id, action, resource_type, resource_id,
+              outcome, scope_type, classification, metadata)
+           VALUES ($1::uuid, $2::uuid, 'security:authz:sod-exception:consume',
+             'access-assignment', $3, 'SUCCESS', $4, 'SECURITY_CRITICAL', $5::jsonb)`,
+          [actor.identityId, actor.sessionId, row.id, scopeType,
+            JSON.stringify({ sod_exception_id: sodExceptionId, subject_identity_id: command.identityId })],
+        );
+      }
       await client.query('COMMIT');
       await this.securityAudit.recordCritical({
         actorIdentityId: actor.identityId,
