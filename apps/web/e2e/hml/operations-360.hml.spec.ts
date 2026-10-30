@@ -39,10 +39,19 @@ test.describe('HML Operations 360 — persisted OS identity and owner processing
       expect(browserName).toBe('chromium');
       const id = scenario.serviceOrderId!;
       const unit = scenario.unitId!;
-      const observed: Array<{ status: number; url: string }> = [];
+      const observed: Array<{ status: number; unitId: string | null; serviceOrderId: string | null }> = [];
       const capture = (response: import('@playwright/test').Response) => {
         if (response.url().includes(`/api/v1/query/service-orders/${id}/overview`)) {
-          observed.push({ status: response.status(), url: response.url() });
+          void (async () => {
+            const body = response.ok()
+              ? (await response.json()) as { identity?: { unitId?: string; serviceOrderId?: string } }
+              : null;
+            observed.push({
+              status: response.status(),
+              unitId: body?.identity?.unitId ?? null,
+              serviceOrderId: body?.identity?.serviceOrderId ?? null,
+            });
+          })();
         }
       };
       page.on('response', capture);
@@ -64,6 +73,7 @@ test.describe('HML Operations 360 — persisted OS identity and owner processing
         await expect(page.locator('[data-region="workbench-floorplan"]')).toHaveCount(1);
         await page.setViewportSize({ width: 900, height: 1100 });
         await page.screenshot({ path: testInfo.outputPath(`${scenario.label}-operations-measurement-tablet.png`), fullPage: true });
+        await expect.poll(() => observed.some(x => x.status === 200 && x.unitId === unit && x.serviceOrderId === id)).toBe(true);
         expect(observed.some(x => x.status === 200), `${scenario.label}: server overview read`).toBe(true);
         await expect(page).toHaveURL(new RegExp(`serviceOrderId=${id}`));
       } finally {

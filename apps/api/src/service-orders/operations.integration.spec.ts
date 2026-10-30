@@ -377,6 +377,73 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
   // DESPACHO
   // ═══════════════════════════════════════════════════════════════════════════
 
+  it('A1→A2→A6: one persisted OS keeps unit, resources, dispatch, check-in, execution and idempotent effects', async () => {
+    const { actor } = await seedActor();
+    const { released, clientId, workforceMemberId } = await seedReleasedOrder(actor);
+    expect(workforceMemberId).toBeTruthy();
+    const id = released.id;
+    const before = await operations.getServiceOrderOverview(actor, id);
+    expect(before.identity.serviceOrderId).toBe(id);
+    expect(before.identity.unitId).toBe(UNIT_A);
+    expect(before.planning.plannedResourceCount).toBeGreaterThan(0);
+    expect(before.planning.activeAllocationCount).toBeGreaterThan(0);
+    expect(before.dispatch.readiness.ready, JSON.stringify(before.dispatch.readiness.blockingReasons)).toBe(true);
+
+    const dispatchKey = `dispatch-${crypto.randomUUID()}`;
+    const dispatchBody = { rowVersion: released.rowVersion, idempotencyKey: dispatchKey };
+    const dispatched = await operations.dispatch(actor, id, dispatchBody);
+    expect(dispatched.identity.serviceOrderId).toBe(id);
+    expect(dispatched.dispatch.dispatchedAt).toBeTruthy();
+    await operations.dispatch(actor, id, dispatchBody); // Same intention; must not duplicate dispatch fact.
+    const persistedDispatch = await pool.query(
+      `SELECT id FROM so.service_order_dispatches WHERE service_order_id = $1`, [id],
+    );
+    expect(persistedDispatch.rowCount).toBe(1);
+
+    const checkInBody = {
+      rowVersion: (await serviceOrdersAccess.getById(actor, id)).rowVersion,
+      idempotencyKey: `check-in-${crypto.randomUUID()}`,
+    };
+    const checkedIn = await operations.checkIn(actor, id, checkInBody);
+    expect(checkedIn.identity.serviceOrderId).toBe(id);
+    expect(checkedIn.dispatch.checkedInAt).toBeTruthy();
+    const started = await startOrder(actor, id);
+    expect(started.id).toBe(id);
+    await executionAccess.recordObservation(actor, id, {
+      rowVersion: (await serviceOrdersAccess.getById(actor, id)).rowVersion,
+      text: 'EVIDÊNCIA HML — observação da mesma OS',
+    });
+    await executionAccess.recordQuantity(actor, id, {
+      rowVersion: (await serviceOrdersAccess.getById(actor, id)).rowVersion,
+      quantityValue: '1',
+      unitCode: 'SERVICE',
+    });
+    await operations.registerActual(actor, id, {
+      actualKind: 'LABOR_HOURS', workforceMemberId,
+      actualValue: '8', unitOfMeasure: 'H',
+      rowVersion: (await serviceOrdersAccess.getById(actor, id)).rowVersion,
+      idempotencyKey: `actual-${crypto.randomUUID()}`,
+    });
+
+    const after = await operations.getServiceOrderOverview(actor, id);
+    expect(after.identity.serviceOrderId).toBe(id);
+    expect(after.identity.unitId).toBe(UNIT_A);
+    expect(after.identity.clientLabel).toBeTruthy();
+    expect(clientId).toBeTruthy();
+    expect(after.dispatch.checkedInAt).toBeTruthy();
+    expect(after.actuals.comparison.recordCount).toBeGreaterThan(0);
+    const actuals = await pool.query(
+      `SELECT id FROM so.execution_actuals WHERE service_order_id = $1`, [id],
+    );
+    expect(actuals.rowCount).toBe(1);
+    const dispatchFacts = await pool.query(
+      `SELECT id FROM so.service_order_dispatches WHERE service_order_id = $1`, [id],
+    );
+    expect(dispatchFacts.rowCount).toBe(1);
+    // The same OS is not falsely COMPLETED: remaining resource evidence must still be honored.
+    expect(after.completionGate.canComplete).toBe(false);
+  });
+
   it('despacha a ordem com reserva confirmada e grava FATO, não apenas status', async () => {
     const { actor } = await seedActor();
     const { released } = await seedReleasedOrder(actor);
