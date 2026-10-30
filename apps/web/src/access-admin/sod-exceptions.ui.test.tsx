@@ -42,8 +42,8 @@ describe('SoD exceptions console — authorization is delegated to backend', () 
     const user = userEvent.setup();
     render(<SodExceptionsTab />);
     await screen.findByText('Nenhuma exceção registrada');
-    await user.type(screen.getByLabelText('Identidade beneficiária (UUID)'), subject);
-    await user.type(screen.getByLabelText('Justificativa auditável (10–500 caracteres)'), 'A documented risk exception.');
+    await user.type(screen.getByLabelText(/^Identidade beneficiária \(UUID\)/), subject);
+    await user.type(screen.getByLabelText(/^Justificativa auditável \(10–500 caracteres\)/), 'A documented risk exception.');
     await user.click(screen.getByRole('button', { name: 'Solicitar aprovação' }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
