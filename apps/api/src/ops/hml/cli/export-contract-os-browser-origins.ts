@@ -17,10 +17,10 @@ async function main() {
     const lines: string[] = [];
     for (const [label, scenario] of [['ALFA', 'locacao-full'], ['BETA', 'transporte-full']] as const) {
       const result = await pool.query<{
-        client_id: string; contract_id: string; service_order_id: string;
+        client_id: string; contract_id: string; service_order_id: string; unit_id: string;
       }>(
         `SELECT cl.id::text AS client_id, co.id::text AS contract_id,
-                so.id::text AS service_order_id
+                so.id::text AS service_order_id, so.unit_id::text AS unit_id
            FROM pty.clients cl
            JOIN so.service_orders so ON so.client_id = cl.id AND so.status = 'COMPLETED'
            JOIN com.contracts co ON co.id = so.contract_id AND co.client_id = cl.id
@@ -48,6 +48,7 @@ async function main() {
       lines.push(`HML_${label}_CLIENT_ID=${origin.client_id}`);
       lines.push(`HML_${label}_CONTRACT_ID=${origin.contract_id}`);
       lines.push(`HML_${label}_SERVICE_ORDER_ID=${origin.service_order_id}`);
+      lines.push(`HML_${label}_UNIT_ID=${origin.unit_id}`);
       process.stdout.write(`HML_BROWSER_ORIGIN:${scenario}:contract=${origin.contract_id}:os=${origin.service_order_id}\n`);
     }
     appendFileSync(envFile, `${lines.join('\n')}\n`, 'utf8');
