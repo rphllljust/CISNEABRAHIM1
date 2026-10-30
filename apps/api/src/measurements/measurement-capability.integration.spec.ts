@@ -1085,7 +1085,7 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     ).rejects.toMatchObject({ code: MEASUREMENTS_ERROR_CODES.VERSION_CONFLICT });
   });
 
-  it('is idempotent: the same key produces ONE business effect', async () => {
+  it('replays the identical acceptance with a stale version without new eligibility, audit or outbox', async () => {
     const actor = await seedActor();
     const seeded = await seedOrderWithBasis({
       actor,
@@ -1095,29 +1095,98 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     const measurement = await measurementsAccess.create(actor, seeded.completed.id);
     const approved = await approveMeasurement(actor, seeded.completed.id, measurement.id);
     const idempotencyKey = `idem-${crypto.randomUUID()}`;
+    const decision = {
+      idempotencyKey,
+      result: 'ACCEPTED' as const,
+      observation: 'Aceite empresarial com reenvio idêntico.',
+    };
 
-    await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+    const first = await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+      ...decision,
       expectedVersion: approved.rowVersion,
-      idempotencyKey,
-      result: 'ACCEPTED',
-      observation: 'Primeira execução do comando.',
     });
+    expect(first.acceptance.state).toBe('ACCEPTED');
 
-    // O retry chega com a versão que o PRIMEIRO comando produziu — é o que um
-    // cliente faria depois de um timeout de rede.
-    const current = await measurementsAccess.getById(actor, seeded.completed.id, measurement.id);
-    await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
-      expectedVersion: current.rowVersion,
-      idempotencyKey,
-      result: 'ACCEPTED',
-      observation: 'Reenvio do mesmo comando.',
+    const effects = async () => {
+      const [acceptances, eligibility, outbox] = await Promise.all([
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM msr.customer_acceptances WHERE measurement_id = $1`,
+          [measurement.id],
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM msr.billing_eligibility_evaluations WHERE measurement_id = $1`,
+          [measurement.id],
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM evt.outbox_events WHERE aggregate_id = $1`,
+          [measurement.id],
+        ),
+      ]);
+      return {
+        acceptances: Number(acceptances.rows[0]!.count),
+        eligibility: Number(eligibility.rows[0]!.count),
+        outbox: Number(outbox.rows[0]!.count),
+      };
+    };
+
+    const before = await effects();
+    expect(before.acceptances).toBe(1);
+
+    // A versão enviada no retry já não corresponde ao agregado. O comando
+    // original é reconhecido antes da validação de versão, sem segundo efeito.
+    const replay = await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+      ...decision,
+      expectedVersion: approved.rowVersion + 99,
     });
+    expect(replay.acceptance.latest?.id).toBe(first.acceptance.latest?.id);
+    expect(await effects()).toEqual(before);
 
-    const acceptances = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM msr.customer_acceptances WHERE measurement_id = $1`,
-      [measurement.id],
-    );
+    // Reutilizar a mesma chave com outra decisão NÃO é idempotência.
+    await expect(
+      capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+        ...decision,
+        observation: 'Outro conteúdo sob a mesma chave.',
+        expectedVersion: approved.rowVersion,
+      }),
+    ).rejects.toMatchObject({ code: MEASUREMENTS_ERROR_CODES.VERSION_CONFLICT });
+    expect(await effects()).toEqual(before);
+  });
+
+  it('serializes concurrent retries of the same acceptance key into one business effect', async () => {
+    const actor = await seedActor();
+    const seeded = await seedOrderWithBasis({
+      actor,
+      plannedQuantity: '12.5',
+      contractSnapshot: { acceptanceRequired: true },
+    });
+    const measurement = await measurementsAccess.create(actor, seeded.completed.id);
+    const approved = await approveMeasurement(actor, seeded.completed.id, measurement.id);
+    const decision = {
+      expectedVersion: approved.rowVersion,
+      idempotencyKey: `concurrent-accept-${crypto.randomUUID()}`,
+      result: 'ACCEPTED' as const,
+      observation: 'Uma decisão com duas tentativas concorrentes.',
+    };
+
+    const [left, right] = await Promise.all([
+      capability.recordAcceptance(actor, seeded.completed.id, measurement.id, decision),
+      capability.recordAcceptance(actor, seeded.completed.id, measurement.id, decision),
+    ]);
+    expect(left.acceptance.latest?.id).toBe(right.acceptance.latest?.id);
+
+    const [acceptances, outbox] = await Promise.all([
+      pool.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM msr.customer_acceptances WHERE measurement_id = $1`,
+        [measurement.id],
+      ),
+      pool.query<{ event_type: string }>(
+        `SELECT event_type::text AS event_type FROM evt.outbox_events WHERE aggregate_id = $1`,
+        [measurement.id],
+      ),
+    ]);
     expect(acceptances.rows[0]!.count).toBe('1');
+    expect(outbox.rows.filter((row) => row.event_type === 'CUSTOMER_ACCEPTANCE_RECORDED')).toHaveLength(1);
+    expect(outbox.rows.filter((row) => row.event_type === 'BILLING_ELIGIBILITY_GRANTED')).toHaveLength(1);
   });
 
   it('denies acceptance to an actor without the acceptance capability', async () => {

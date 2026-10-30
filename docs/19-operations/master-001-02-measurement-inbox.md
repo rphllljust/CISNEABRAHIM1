@@ -17,6 +17,10 @@ A fonte `MeasurementsWorkSource` projeta os estágios existentes `MEASURED_NOT_A
 
 Nenhuma rota nova de comando, regra de preço, schema, outbox ou estado de workflow foi criado. Prazos são nulos porque a consulta da capability não fornece SLA de decisão. O limite atual de 500 registros por unidade da query do domínio é um teto **sem paginação**: ao atingir o teto, a fonte falha abertamente em vez de publicar KPI potencialmente truncado. O `getWorkQueue` proprietário atualiza a projeção de revenue leakage; a fonte usa essa API existente, não escreve diretamente.
 
+## Integração transacional sem duplicação
+
+A consolidação da branch de aceite transacional `feat/master001-increment02-acceptance-idempotency` preserva `recordAcceptance` autoritativo e incorpora os testes de replay com versão obsoleta, colisão de chave/payload e duas tentativas concorrentes. O teste HTTP autenticado de Medição → Work Inbox → KPI → elegibilidade de Billing também é preservado. Os CIs individuais dos PRs #155 e #156 estavam SUCCESS; **o HEAD consolidado requer nova execução** e a matriz AC-02-01 a AC-02-20 exige sign-off independente. Não implica merge na main, deploy ou produção validada.
+
 ## Situação e aceites
 
 - AC-02-01–10, 13–16: funcionalidades pré-existentes em Medição/Aceite/Billing; requerem evidências executadas para aceitação neste incremento, não apenas presença de código.
