@@ -235,6 +235,19 @@ export class AccessAdminRepository {
     }
   }
 
+  async hasApprovedSodException(identityId: string, ruleId: string): Promise<boolean> {
+    const result = await this.pool().query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM \"authorization\".sod_exceptions
+         WHERE identity_id = $1 AND rule_id = $2
+           AND status = 'APPROVED' AND revoked_at IS NULL
+           AND (valid_until IS NULL OR valid_until > NOW())
+       ) AS exists`,
+      [identityId, ruleId],
+    );
+    return result.rows[0]?.exists ?? false;
+  }
+
   async listActiveAssignments(identityId?: string): Promise<AccessAssignmentRow[]> {
     const where = ['a.revoked_at IS NULL'];
     const params: unknown[] = [];
