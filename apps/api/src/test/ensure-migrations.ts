@@ -1142,6 +1142,14 @@ $$;`);
       await applySqlFile(pool, '0110_accounting_journal_entry_number_read_contract.sql');
     }
 
+    /*
+     * 0111 — SoD-007: the exception record is the source of authority.
+     * A missing table must never be represented as an applied journal entry.
+     */
+    if (!(await tableExists(pool, 'authorization.sod_exceptions'))) {
+      await applySqlFile(pool, '0111_sod_exception_approval.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

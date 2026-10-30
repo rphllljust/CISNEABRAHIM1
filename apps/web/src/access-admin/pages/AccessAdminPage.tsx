@@ -8,6 +8,7 @@ import { RolesTab } from './RolesTab';
 import { ScopesTab } from './ScopesTab';
 import { OperationalUnitsTab } from './OperationalUnitsTab';
 import { SodConflictsTab } from './SodConflictsTab';
+import { SodExceptionsTab } from './SodExceptionsTab';
 import { UsersTab } from './UsersTab';
 
 const TAB_IDS = {
@@ -20,6 +21,7 @@ const TAB_IDS = {
   scopes: 'scopes',
   units: 'units',
   conflicts: 'conflicts',
+  exceptions: 'exceptions',
 } as const;
 
 export function AccessAdminPage() {
@@ -35,6 +37,7 @@ export function AccessAdminPage() {
     { id: TAB_IDS.scopes, label: 'Escopos', panel: <ScopesTab /> },
     { id: TAB_IDS.units, label: 'Unidades', panel: <OperationalUnitsTab /> },
     { id: TAB_IDS.conflicts, label: 'Conflitos SoD', panel: <SodConflictsTab /> },
+    { id: TAB_IDS.exceptions, label: 'Exceções SoD', panel: <SodExceptionsTab /> },
   ];
 
   return (

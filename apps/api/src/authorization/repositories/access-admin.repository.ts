@@ -58,6 +58,7 @@ export type InsertAssignmentInput = {
   scopeType: AuthzScopeType;
   scopeAnchor: string | null;
   assignedByIdentityId: string;
+  sodExceptionId?: string | null;
 };
 
 @Injectable()
@@ -303,9 +304,9 @@ export class AccessAdminRepository {
   ): Promise<AccessAssignmentRow> {
     const result = await client.query<AccessAssignmentRow>(
       `INSERT INTO "authorization".access_role_assignments (
-         role_id, identity_id, scope_type, scope_anchor, assigned_by_identity_id
+         role_id, identity_id, scope_type, scope_anchor, assigned_by_identity_id, sod_exception_id
        )
-       VALUES ($1, $2, $3, $4, $5)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id,
                  identity_id,
                  role_id,
@@ -321,6 +322,7 @@ export class AccessAdminRepository {
         input.scopeType,
         input.scopeAnchor,
         input.assignedByIdentityId,
+        input.sodExceptionId ?? null,
       ],
     );
     const row = result.rows[0];

@@ -778,6 +778,13 @@
       "when": 179091250000000000,
       "tag": "0110_accounting_journal_entry_number_read_contract",
       "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 179091300000000000,
+      "tag": "0111_sod_exception_approval",
+      "breakpoints": true
     }
   ]
 }

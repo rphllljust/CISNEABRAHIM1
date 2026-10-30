@@ -145,3 +145,20 @@ export type ApprovalRoleAssignment = {
   version: number;
   createdAt: string;
 };
+
+/** Server-owned SoD-007 exception: an approval does not create a role or grant. */
+export type SodException = {
+  id: string;
+  ruleId: 'SOD-007';
+  subjectIdentityId: string;
+  scopeType: string;
+  scopeAnchor: string | null;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REVOKED';
+  requestedByIdentityId: string;
+  requestedAt: string;
+  approvedByIdentityId: string | null;
+  approvedAt: string | null;
+  revokedByIdentityId: string | null;
+  revokedAt: string | null;
+};

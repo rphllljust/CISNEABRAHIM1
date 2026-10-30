@@ -12,6 +12,7 @@ import type {
   RoleAssignment,
   ScopeEntry,
   SodConflict,
+  SodException,
 } from '../types';
 
 /**
@@ -436,4 +437,34 @@ export function updateOrganizationalUnit(id: string, input: {
       body: JSON.stringify(input),
     },
   );
+}
+
+export function listSodExceptions(signal?: AbortSignal): Promise<SodException[]> {
+  return requestJson<SodException[]>(`${BASE}/sod-exceptions`, {
+    method: 'GET', headers: authHeaders(), signal,
+  });
+}
+
+export function requestSodException(input: {
+  subjectIdentityId: string;
+  scopeType: string;
+  scopeAnchor?: string;
+  reason: string;
+}): Promise<SodException> {
+  return requestJson<SodException>(`${BASE}/sod-exceptions`, {
+    method: 'POST', headers: jsonHeaders(),
+    body: JSON.stringify({ ruleId: 'SOD-007', ...input }),
+  });
+}
+
+export function approveSodException(id: string): Promise<SodException> {
+  return requestJson<SodException>(`${BASE}/sod-exceptions/${encodeURIComponent(id)}/approve`, {
+    method: 'POST', headers: jsonHeaders(), body: '{}',
+  });
+}
+
+export function revokeSodException(id: string): Promise<SodException> {
+  return requestJson<SodException>(`${BASE}/sod-exceptions/${encodeURIComponent(id)}/revoke`, {
+    method: 'POST', headers: jsonHeaders(), body: '{}',
+  });
 }
