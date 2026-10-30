@@ -38,7 +38,7 @@ import { SLA_TONE, severityTone, stateLabel } from '../types/operations.types';
  * Não calcula SLA, não calcula progresso e não decide se uma ordem está "em risco".
  * `slaStatus` e `progress` chegam prontos do backend. Aqui só se desenha.
  */
-export function ExecutionConsolePage({ unitId }: { unitId: string | null }) {
+export function ExecutionConsolePage({ unitId, onSelectOrder, refreshToken = 0 }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void; refreshToken?: number }) {
   const [state, setState] = useState<
     | { phase: 'loading' }
     | { phase: 'denied' }
@@ -81,7 +81,7 @@ export function ExecutionConsolePage({ unitId }: { unitId: string | null }) {
       active = false;
       controller.abort();
     };
-  }, [unitId, reloadToken]);
+  }, [unitId, reloadToken, refreshToken]);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
   const data = state.phase === 'ready' ? state.console : null;
@@ -149,7 +149,7 @@ export function ExecutionConsolePage({ unitId }: { unitId: string | null }) {
                 emptyDescription="Nenhuma ordem em execução ultrapassou o prazo publicado."
               >
                 {groups.late.map((item) => (
-                  <ConsoleRow key={item.serviceOrderId} item={item} />
+                  <ConsoleRow key={item.serviceOrderId} item={item} onSelectOrder={onSelectOrder} />
                 ))}
               </WorkbenchQueue>
 
@@ -246,7 +246,7 @@ function ConsoleSummary({ data }: { data: ExecutionConsoleReadModel }) {
   );
 }
 
-function ConsoleRow({ item }: { item: ExecutionConsoleItem }) {
+function ConsoleRow({ item, onSelectOrder }: { item: ExecutionConsoleItem; onSelectOrder?: (serviceOrderId: string) => void }) {
   const topSituation = item.situations[0];
   const severityToneClass = topSituation ? severityTone(topSituation.severity) : '';
 
@@ -306,7 +306,9 @@ function ConsoleRow({ item }: { item: ExecutionConsoleItem }) {
         </Link>
       }
       drilldown={
-        topSituation ? (
+        <div className="flex flex-wrap gap-2">
+          {onSelectOrder ? <button type="button" className={workbenchSecondaryActionClass} onClick={() => onSelectOrder(item.serviceOrderId)}>Inspecionar na estação</button> : null}
+        {topSituation ? (
           <details className="text-xs">
             <summary className="cursor-pointer text-brand-700">
               Ver situações ({item.situations.length})
@@ -335,7 +337,8 @@ function ConsoleRow({ item }: { item: ExecutionConsoleItem }) {
           >
             Ver ordem
           </Link>
-        )
+        )}
+        </div>
       }
     />
   );

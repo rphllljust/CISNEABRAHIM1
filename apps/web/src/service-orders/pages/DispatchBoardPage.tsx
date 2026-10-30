@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ModulePage } from '../../ui/module-layout';
 import { Button } from '../../ui';
@@ -44,7 +44,7 @@ import type { DispatchBoardItem, DispatchBoardReadModel } from '../types/operati
  * habilita botão por formulação local — o comando `DISPATCH` já chega com
  * `enabled` e `reasons` decididos pelo servidor. Não calcula SLA.
  */
-export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
+export function DispatchBoardPage({ unitId, onSelectOrder, onCommandSettled, refreshToken = 0 }: { unitId: string | null; onSelectOrder?: (serviceOrderId: string) => void; onCommandSettled?: () => void; refreshToken?: number }) {
   const [state, setState] = useState<
     | { phase: 'loading' }
     | { phase: 'denied' }
@@ -57,6 +57,18 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
     null,
   );
   const [reloadToken, setReloadToken] = useState(0);
+  const pendingIntent = useRef<{
+    unitId: string;
+    orderId: string;
+    body: { rowVersion: number; idempotencyKey: string };
+    phase: 'submitting' | 'uncertain';
+  } | null>(null);
+  const [uncertainOrderId, setUncertainOrderId] = useState<string | null>(null);
+  useEffect(() => {
+    pendingIntent.current = null;
+    setUncertainOrderId(null);
+    setFeedback(null);
+  }, [unitId]);
 
   useEffect(() => {
     if (!unitId) {
@@ -91,51 +103,52 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
       active = false;
       controller.abort();
     };
-  }, [unitId, reloadToken]);
+  }, [unitId, reloadToken, refreshToken]);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
   /**
-   * EXECUTA O DESPACHO.
-   *
-   * A chave de idempotência é gerada UMA vez por tentativa e reaproveitada em
-   * retry de rede: um duplo clique ou uma reconexão não podem produzir dois
-   * despachos. Quando o backend recusa por prontidão, os MOTIVOS são exibidos —
-   * não uma mensagem genérica.
+   * One semantic dispatch intent owns one immutable idempotency key and rowVersion.
+   * A transport failure is UNCERTAIN, not a rejected command. Only an explicit
+   * retry may submit the identical payload; 409 never auto-retries.
    */
-  const runDispatch = useCallback(
-    async (item: DispatchBoardItem) => {
-      if (!unitId || busyOrderId) {
-        return;
-      }
-      setBusyOrderId(item.serviceOrderId);
-      setFeedback(null);
-      try {
-        const overview = await dispatchServiceOrder(item.serviceOrderId, {
-          rowVersion: item.rowVersion,
-          idempotencyKey: createCommandKey(),
-        });
-        setFeedback({
-          tone: 'success',
-          message: `Ordem ${overview.identity.orderNumber} despachada.`,
-        });
-        reload();
-      } catch (error) {
+  const runDispatch = useCallback(async (item: DispatchBoardItem) => {
+    if (!unitId || pendingIntent.current?.phase === 'submitting') return;
+    const command = item.availableCommands.find(value => value.code === 'DISPATCH');
+    const previous = pendingIntent.current;
+    const retry = previous?.phase === 'uncertain' &&
+      previous.unitId === unitId && previous.orderId === item.serviceOrderId;
+    if (!retry && (!command?.enabled || previous?.phase === 'uncertain')) return;
+    const body = retry && previous ? previous.body : {
+      rowVersion: item.rowVersion,
+      idempotencyKey: createCommandKey(),
+    };
+    pendingIntent.current = { unitId, orderId: item.serviceOrderId, body, phase: 'submitting' };
+    setBusyOrderId(item.serviceOrderId);
+    setUncertainOrderId(null);
+    setFeedback(null);
+    try {
+      const overview = await dispatchServiceOrder(item.serviceOrderId, body);
+      pendingIntent.current = null;
+      setFeedback({ tone: 'success', message: `Ordem ${overview.identity.orderNumber} despachada.` });
+    } catch (error) {
+      if (error instanceof OperationsApiError && error.kind === 'network') {
+        pendingIntent.current = { unitId, orderId: item.serviceOrderId, body, phase: 'uncertain' };
+        setUncertainOrderId(item.serviceOrderId);
+        setFeedback({ tone: 'error', message: 'Resultado do despacho indeterminado por falha de rede. Consulte a fila; se necessário, reenvie a mesma intenção sem mudar sua chave.' });
+      } else {
+        pendingIntent.current = null;
         const reasons = error instanceof OperationsApiError ? error.blockingReasons : [];
-        setFeedback({
-          tone: 'error',
-          message:
-            reasons.length > 0
-              ? `Despacho bloqueado: ${reasons.map((reason) => reason.message).join(' · ')}`
-              : describeOperationsError(error),
-        });
-        reload();
-      } finally {
-        setBusyOrderId(null);
+        setFeedback({ tone: 'error', message: reasons.length
+          ? `Despacho bloqueado: ${reasons.map(reason => reason.message).join(' · ')}`
+          : describeOperationsError(error) });
       }
-    },
-    [busyOrderId, reload, unitId],
-  );
+    } finally {
+      setBusyOrderId(null);
+      reload();
+      onCommandSettled?.();
+    }
+  }, [unitId, reload, onCommandSettled]);
 
   const board = state.phase === 'ready' ? state.board : null;
   const groups = useMemo(() => groupBoard(board), [board]);
@@ -167,6 +180,22 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
             }`}
           >
             {feedback.message}
+          </div>
+        ) : null}
+        {uncertainOrderId ? (
+          <div role="group" aria-label="Despacho com resultado indeterminado" className="mx-1 mb-2 flex gap-2">
+            <button type="button" disabled={busyOrderId !== null} onClick={() => {
+              const item = state.phase === 'ready'
+                ? state.board.items.find(entry => entry.serviceOrderId === uncertainOrderId)
+                : undefined;
+              if (item) void runDispatch(item);
+            }}>Reenviar a mesma intenção</button>
+            <button type="button" onClick={() => {
+              pendingIntent.current = null;
+              setUncertainOrderId(null);
+              setFeedback(null);
+              reload();
+            }}>Encerrar tentativa e atualizar</button>
           </div>
         ) : null}
 
@@ -215,7 +244,7 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
                 emptyDescription="Todas as ordens liberadas estão prontas para sair ou já saíram."
               >
                 {groups.blocked.map((item) => (
-                  <BlockedRow key={item.serviceOrderId} item={item} />
+                  <BlockedRow key={item.serviceOrderId} item={item} onSelectOrder={onSelectOrder} />
                 ))}
               </WorkbenchQueue>
 
@@ -271,12 +300,15 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
                         )
                       }
                       drilldown={
+                        <div className="flex flex-wrap gap-2">
+                        {onSelectOrder ? <button type="button" className={workbenchSecondaryActionClass} onClick={() => onSelectOrder(item.serviceOrderId)}>Inspecionar na estação</button> : null}
                         <Link
                           className={workbenchSecondaryActionClass}
                           to={`/app/service-orders/${item.serviceOrderId}/execution`}
                         >
                           Abrir execução
                         </Link>
+                        </div>
                       }
                     />
                   );
@@ -369,7 +401,7 @@ function BoardCounters({ board }: { board: DispatchBoardReadModel }) {
   );
 }
 
-function BlockedRow({ item }: { item: DispatchBoardItem }) {
+function BlockedRow({ item, onSelectOrder }: { item: DispatchBoardItem; onSelectOrder?: (serviceOrderId: string) => void }) {
   const reasons = item.readiness.blockingReasons;
 
   return (
@@ -403,6 +435,8 @@ function BlockedRow({ item }: { item: DispatchBoardItem }) {
         </Link>
       }
       drilldown={
+        <div className="flex flex-wrap gap-2">
+          {onSelectOrder ? <button type="button" className={workbenchSecondaryActionClass} onClick={() => onSelectOrder(item.serviceOrderId)}>Inspecionar na estação</button> : null}
         <details className="text-xs">
           <summary className="cursor-pointer text-brand-700">
             Ver bloqueios ({reasons.length})
@@ -421,6 +455,7 @@ function BlockedRow({ item }: { item: DispatchBoardItem }) {
             ))}
           </ul>
         </details>
+        </div>
       }
     />
   );

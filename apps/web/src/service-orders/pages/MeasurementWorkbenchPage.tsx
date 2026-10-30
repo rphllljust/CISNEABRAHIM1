@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useCallback, useMemo, useState, type ComponentProps, type ReactNode } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ModulePage, ModulePageHeader } from '../../ui';
 import { WorkbenchFloorplan } from '../../ui/workbench-floorplan';
 import { MeasurementQueue } from '../components/MeasurementQueue';
@@ -59,10 +59,15 @@ import type { DetectedVariance } from '../types/measurement-workbench.types';
  * A página reage a esses fatos e apresenta. É a única forma de a tela e o
  * comando não divergirem.
  */
-export function MeasurementWorkbenchPage() {
+export function MeasurementWorkbenchPage({ embeddedServiceOrderId, embeddedUnitId, onMutationSettled }: {
+  embeddedServiceOrderId?: string;
+  embeddedUnitId?: string;
+  onMutationSettled?: () => void;
+} = {}) {
   const { serviceOrderId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedServiceOrderId = serviceOrderId || searchParams.get('serviceOrderId') || '';
+  const navigate = useNavigate();
+  const selectedServiceOrderId = embeddedServiceOrderId ?? (serviceOrderId || searchParams.get('serviceOrderId') || '');
 
   /**
    * UNIDADE — vem da URL porque a fila é escopada por unidade.
@@ -70,7 +75,7 @@ export function MeasurementWorkbenchPage() {
    * O backend recusa a fila sem unidade: sem escopo operacional não há projeção
    * a devolver. A página não inventa uma unidade padrão.
    */
-  const unitId = searchParams.get('unitId') ?? '';
+  const unitId = embeddedUnitId ?? (searchParams.get('unitId') ?? '');
 
   const queue = useMeasurementQueue(unitId, { limit: 100 });
   const workbench = useMeasurementWorkbench(selectedServiceOrderId);
@@ -79,7 +84,7 @@ export function MeasurementWorkbenchPage() {
   const [acceptanceDialog, setAcceptanceDialog] = useState<AcceptanceDialogMode | null>(null);
   const [adjustmentVariance, setAdjustmentVariance] = useState<DetectedVariance | null>(null);
   const [conflict, setConflict] = useState(false);
-  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error'; message: string } | null>(
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'error' | 'info'; message: string } | null>(
     null,
   );
 
@@ -167,6 +172,7 @@ export function MeasurementWorkbenchPage() {
         // O READ MODEL INTEIRO é trocado pelo que o backend recompôs — com a
         // elegibilidade REAVALIADA na mesma transação. Nenhum campo é mutado.
         workbench.replace(outcome.data);
+        onMutationSettled?.();
         setAcceptanceDialog(null);
         setFeedback({
           tone: 'success',
@@ -191,7 +197,7 @@ export function MeasurementWorkbenchPage() {
         message: outcome.kind === 'denied' ? 'Sem permissão para registrar aceite.' : outcome.message,
       });
     },
-    [acceptanceDialog, acceptanceKey, command, queue, workbench],
+    [acceptanceDialog, acceptanceKey, command, queue, workbench, onMutationSettled],
   );
 
   const kpiAndWork = useMemo(() => {
@@ -204,8 +210,8 @@ export function MeasurementWorkbenchPage() {
   const queueData = queue.state.phase === 'ready' ? queue.state.data : null;
 
   return (
-    <ModulePage className="measurement-workbench">
-      <ModulePageHeader title="Conferência de medição" />
+    <MeasurementShell embedded={Boolean(embeddedServiceOrderId)}>
+      {!embeddedServiceOrderId ? <ModulePageHeader title="Conferência de medição" /> : null}
 
       <MeasurementConcurrencyBanner
         open={conflict}
@@ -221,7 +227,9 @@ export function MeasurementWorkbenchPage() {
           className={
             feedback.tone === 'success'
               ? 'mb-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-900'
-              : 'mb-2 rounded border border-red-300 bg-red-50 px-3 py-1.5 text-xs text-red-900'
+              : feedback.tone === 'info'
+                ? 'mb-2 rounded border border-gray-300 bg-gray-50 px-3 py-1.5 text-xs text-gray-900'
+                : 'mb-2 rounded border border-red-300 bg-red-50 px-3 py-1.5 text-xs text-red-900'
           }
         >
           {feedback.message}
@@ -236,7 +244,7 @@ export function MeasurementWorkbenchPage() {
         </p>
       ) : null}
 
-      <WorkbenchFloorplan
+      <MeasurementProcessSurface embedded={Boolean(embeddedServiceOrderId)}
         queueLabel="Fila de trabalho da medição"
         activeLabel="Medição ativa"
         contextLabel="Contexto da decisão"
@@ -314,11 +322,7 @@ export function MeasurementWorkbenchPage() {
                    * declara a próxima ação e deixa o comando real acontecer
                    * onde ele já existe, com a mesma autoridade.
                    */
-                  setFeedback({
-                    tone: 'success',
-                    message:
-                      'Este comando é executado na superfície própria dele; o estado acima reflete a decisão vigente.',
-                  });
+                  setFeedback({ tone: 'info', message: 'Nenhuma mutação executada nesta tela. Use a superfície proprietária.' });
                 }}
               />
 
@@ -370,16 +374,21 @@ export function MeasurementWorkbenchPage() {
                * mesma decisão — e o backend tem uma só.
                */
               setAdjustmentVariance(null);
-              setFeedback({
-                tone: 'success',
-                message:
-                  'Decisão de ajuste preparada. Ela é registrada pelo comando de ajuste da medição, que reavalia a elegibilidade.',
-              });
+              const returnTo = `/app/operations?unitId=${encodeURIComponent(unitId)}&serviceOrderId=${encodeURIComponent(selectedServiceOrderId)}&focus=measurement`;
+              void navigate(`/app/service-orders/${selectedServiceOrderId}/measurement?unitId=${encodeURIComponent(unitId)}&returnTo=${encodeURIComponent(returnTo)}`);
+              setFeedback({ tone: 'info', message: 'Abrindo o comando proprietário de ajuste. Nenhuma mutação foi realizada aqui.' });
             }}
           />
         </>
       ) : null}
-    </ModulePage>
+    </MeasurementShell>
   );
 }
 
+
+function MeasurementShell({embedded,children}: {embedded:boolean;children:ReactNode}) {
+ return embedded ? <div className="measurement-workbench space-y-2">{children}</div> : <ModulePage className="measurement-workbench">{children}</ModulePage>;
+}
+function MeasurementProcessSurface({embedded,active,context,...props}: ComponentProps<typeof WorkbenchFloorplan> & {embedded:boolean}) {
+ return embedded ? <section aria-label="Medição e aceite" className="min-w-0 space-y-2">{active}{context}</section> : <WorkbenchFloorplan {...props} active={active} context={context}/>;
+}

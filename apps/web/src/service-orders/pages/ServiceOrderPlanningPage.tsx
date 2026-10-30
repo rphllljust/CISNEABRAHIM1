@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { getPhysicalAsset, listPhysicalAssets } from '../../assets/api/physical-assets-api';
 import type { PhysicalAsset } from '../../assets/types/physical-asset.types';
 import { listPeople } from '../../people/api/people-api';
@@ -146,8 +146,12 @@ function formatAllocatedResource(
   return '-';
 }
 
-export function ServiceOrderPlanningPage() {
-  const { serviceOrderId = '' } = useParams();
+export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSettled }: {
+  embeddedServiceOrderId?: string;
+  onMutationSettled?: () => void;
+} = {}) {
+  const { serviceOrderId: routeServiceOrderId = '' } = useParams();
+  const serviceOrderId = embeddedServiceOrderId ?? routeServiceOrderId;
   const navigate = useNavigate();
   const { capabilities } = useServiceOrderPlanningCapabilities();
   /**
@@ -406,7 +410,8 @@ export function ServiceOrderPlanningPage() {
         resourceTypeCode,
         plannedQuantity: quantity,
       });
-      setFeedback({ tone: 'success', message: 'Recurso planejado com sucesso.' });
+      onMutationSettled?.();
+                                  setFeedback({ tone: 'success', message: 'Recurso planejado com sucesso.' });
       await reload();
     } catch (error) {
       setFeedback({
@@ -433,7 +438,8 @@ export function ServiceOrderPlanningPage() {
         laborTypeCode,
         plannedQuantity: quantity,
       });
-      setFeedback({ tone: 'success', message: 'Mão de obra planejada com sucesso.' });
+      onMutationSettled?.();
+                                  setFeedback({ tone: 'success', message: 'Mão de obra planejada com sucesso.' });
       await reload();
     } catch (error) {
       setFeedback({
@@ -466,7 +472,8 @@ export function ServiceOrderPlanningPage() {
         operationalEnd: new Date(operationalEnd).toISOString(),
       });
       setAllocateOpen(false);
-      setFeedback({ tone: 'success', message: 'Alocação confirmada pelo servidor.' });
+      onMutationSettled?.();
+                                  setFeedback({ tone: 'success', message: 'Alocação confirmada pelo servidor.' });
       await reload();
     } catch (error) {
       if (error instanceof ServiceOrdersApiError && error.kind === 'allocation_conflict') {
@@ -670,8 +677,8 @@ export function ServiceOrderPlanningPage() {
   const executionLabel = nextAction?.label ?? 'Sem próximo passo declarado';
 
   return (
-    <ModulePage className="planning-page">
-      <EnterpriseObjectPage
+    <PlanningShell embedded={Boolean(embeddedServiceOrderId)}>
+      <PlanningFrame embedded={Boolean(embeddedServiceOrderId)}
         breadcrumb={breadcrumb}
         header={
           <EnterpriseObjectHeader
@@ -783,7 +790,8 @@ export function ServiceOrderPlanningPage() {
           </ObjectPanel>
         }
       >
-        {/* De onde veio / o que foi gerado: a linhagem comercial e operacional desta OS. */}
+        {/* The station renders the same authorized Business Chain once, in its decision column. */}
+        {!embeddedServiceOrderId ? (
         <section className="planning-section" aria-label="Cadeia de negócio">
           <BusinessChain
             chain={businessChain.chain}
@@ -793,6 +801,7 @@ export function ServiceOrderPlanningPage() {
             title="Cadeia de negócio da ordem"
           />
         </section>
+        ) : null}
 
         <section className="planning-section" aria-labelledby="planning-summary-heading">
           <h2 id="planning-summary-heading">Resumo operacional</h2>
@@ -991,6 +1000,7 @@ export function ServiceOrderPlanningPage() {
                                 setSubmitting(true);
                                 try {
                                   await removeAllocation(serviceOrderId, allocation.id, allocation.rowVersion);
+                                  onMutationSettled?.();
                                   setFeedback({ tone: 'success', message: 'Alocação removida.' });
                                   await reload();
                                 } catch (error) {
@@ -1029,7 +1039,7 @@ export function ServiceOrderPlanningPage() {
             {feedback.message}
           </div>
         ) : null}
-      </EnterpriseObjectPage>
+      </PlanningFrame>
 
       <ConfirmDialog
         open={allocateOpen}
@@ -1112,6 +1122,13 @@ export function ServiceOrderPlanningPage() {
           )}
         </div>
       </ConfirmDialog>
-    </ModulePage>
+    </PlanningShell>
   );
+}
+
+function PlanningShell({embedded,children}: {embedded:boolean;children:ReactNode}) {
+ return embedded ? <div className="planning-page space-y-3">{children}</div> : <ModulePage className="planning-page">{children}</ModulePage>;
+}
+function PlanningFrame({embedded,children,...props}: ComponentProps<typeof EnterpriseObjectPage> & {embedded:boolean}) {
+ return embedded ? <section aria-label="Planejamento e alocação" className="space-y-3">{children}</section> : <EnterpriseObjectPage {...props}>{children}</EnterpriseObjectPage>;
 }

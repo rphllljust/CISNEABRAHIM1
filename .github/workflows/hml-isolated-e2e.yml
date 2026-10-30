@@ -7,6 +7,7 @@ on:
       - 'hml/isolated-e2e-runner'
       - 'test/hml-economic-spine-proof'
       - 'feat/contract-os-authoritative-360'
+      - 'feat/operations-360-authoritative-business-chain'
       - main
 
 concurrency:
@@ -112,7 +113,7 @@ jobs:
           test -n "$HML_SMOKE_LOGIN"
           test -n "$HML_SMOKE_PASSWORD"
           pnpm --filter @cisne/web exec playwright install --with-deps chromium
-          pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts e2e/hml/contract-os-360.hml.spec.ts
+          pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts e2e/hml/contract-os-360.hml.spec.ts e2e/hml/operations-360.hml.spec.ts
 
       - name: HML authoritative business verdict
         run: |

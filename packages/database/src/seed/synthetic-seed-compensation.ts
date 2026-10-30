@@ -267,6 +267,24 @@ async function deleteCommercialForClient(client: DbClient, clientId: string): Pr
   await client.query(`DELETE FROM com.purchase_orders WHERE client_id = $1::uuid`, [clientId]);
 }
 
+/** Deletes only contracts attached to the synthetic client being compensated. */
+async function deleteContractsForClient(client: DbClient, clientId: string): Promise<void> {
+  // Contract descendants have RESTRICT FKs; preserve atomic rollback on failure.
+  for (const table of [
+    'com.contract_history_events',
+    'com.contract_document_links',
+    'com.contract_items',
+  ]) {
+    await client.query(
+      `DELETE FROM ${table} WHERE contract_id IN (
+         SELECT id FROM com.contracts WHERE client_id = $1::uuid
+       )`,
+      [clientId],
+    );
+  }
+  await client.query('DELETE FROM com.contracts WHERE client_id = $1::uuid', [clientId]);
+}
+
 async function deleteClientGraph(client: DbClient, clientId: string): Promise<void> {
   const serviceOrders = await client.query<{ id: string }>(
     `SELECT id FROM so.service_orders WHERE client_id = $1::uuid`,
@@ -283,6 +301,7 @@ async function deleteClientGraph(client: DbClient, clientId: string): Promise<vo
   );
   await deleteServiceRequestsForClient(client, clientId);
   await deletePlanningForServiceOrders(client, serviceOrderIds);
+  await deleteContractsForClient(client, clientId);
   await deleteCommercialForClient(client, clientId);
 
   await client.query(`DELETE FROM pty.client_addresses WHERE client_id = $1::uuid`, [clientId]);

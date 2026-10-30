@@ -161,6 +161,11 @@ describe('Central de fechamento', () => {
       expect(screen.getByLabelText(/competência/i)).not.toBeDisabled();
     });
     const periodSelect = screen.getByLabelText(/competência/i);
+    // The selector is enabled before the asynchronous period query completes.
+    // Wait for the server-backed human label, not merely for an enabled control.
+    await waitFor(() => {
+      expect(within(periodSelect).getByRole('option', { name: /2099-09/ })).toBeInTheDocument();
+    });
     const options = within(periodSelect).getAllByRole('option');
     // Rótulo humano: competência + intervalo. O uuid nunca é o texto da opção.
     expect(options.some((option) => /2099-09/.test(option.textContent ?? ''))).toBe(true);

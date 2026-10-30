@@ -10,12 +10,14 @@ import {
   SYNTHETIC_SEED_CONFIRM_ENV,
   SYNTHETIC_SEED_CONFIRM_VALUE,
   SYNTHETIC_SEED_NAMESPACE,
+  SYNTHETIC_SEED_UNIT_ID,
 } from '@cisne/database';
 import { AUTH_TEST_PASSWORD } from '../auth/test/auth-test-env';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
 import { buildDeterministicSyntheticClient } from '../master-business/synthetic-test-data';
 import { CONTACT_PURPOSES } from '../clients/domain/client-status';
-import { grantUatProfile } from '../uat/uat-vertical-runner';
+import { grantUatProfile, runUatVerticalScenario } from '../uat/uat-vertical-runner';
+import { getUatScenario } from '../uat/uat-scenarios';
 import {
   buildSyntheticActor,
   closeSyntheticSeedHarness,
@@ -125,6 +127,71 @@ describe('synthetic business seed (integration)', () => {
       expect(remaining.rows[0]?.count).toBe('0');
     } finally {
       await compensateSyntheticScenario(pool, scenarioKey).catch(() => undefined);
+    }
+  });
+
+  it('positive PostgreSQL vertical: same OS completes, approves measurement and persists authorized customer acceptance', async () => {
+    const actor = buildSyntheticActor(await seedActor());
+    const suffix = randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
+    const scenarioKey = `test-ops360-${suffix.toLowerCase()}`;
+    await ensureTestDefaultIssuer(pool);
+    let finished = false;
+    try {
+      const outcome = await runUatVerticalScenario(
+        harness.services,
+        getUatScenario('locacao'),
+        actor,
+        SYNTHETIC_SEED_UNIT_ID,
+        {
+          deterministicSuffix: suffix,
+          captureArtifacts: true,
+          clientExternalErpId: syntheticExternalRef(scenarioKey),
+          vehiclePlateScenarioIndex: 9901,
+          syntheticRequireCustomerAcceptance: true,
+        },
+      );
+      expect(outcome.status, outcome.error ?? 'UAT vertical execution failed').toBe('PASS');
+      const id = outcome.serviceOrderId;
+      expect(id).toBeTruthy();
+      expect(outcome.artifacts?.measurementId).toBeTruthy();
+
+      const rows = await pool.query<{
+        status: string; unit_id: string; planned: string; allocated: string;
+        entries: string; approved: string; billing: string;
+      }>(
+        `SELECT so.status, so.unit_id::text AS unit_id,
+                (SELECT count(*)::text FROM so.planned_resources p WHERE p.service_order_id = so.id) AS planned,
+                (SELECT count(*)::text FROM res.resource_allocations a WHERE a.service_order_id = so.id) AS allocated,
+                (SELECT count(*)::text FROM so.execution_entries e WHERE e.service_order_id = so.id) AS entries,
+                (SELECT count(*)::text FROM msr.measurements m WHERE m.service_order_id = so.id AND m.status = 'APPROVED') AS approved,
+                (SELECT count(*)::text FROM bil.billing_records b WHERE b.service_order_id = so.id) AS billing
+           FROM so.service_orders so
+          WHERE so.id = $1::uuid`,
+        [id],
+      );
+      expect(rows.rows).toHaveLength(1);
+      const row = rows.rows[0]!;
+      expect(row.status).toBe('COMPLETED');
+      expect(row.unit_id).toBe(SYNTHETIC_SEED_UNIT_ID);
+      expect(Number(row.planned)).toBeGreaterThan(0);
+      expect(Number(row.allocated)).toBeGreaterThan(0);
+      expect(Number(row.entries)).toBeGreaterThan(0);
+      expect(row.approved).toBe('1');
+      expect(row.billing).toBe('1');
+
+      // Backend PDP/owner read model: an actual acceptance is not inferred from a UI label.
+      const workbench = await harness.services.measurementsCapability!.getWorkbench(actor, id!);
+      expect(workbench.identity.serviceOrderId).toBe(id);
+      expect(workbench.acceptance.state).toBe('ACCEPTED');
+      expect(workbench.acceptance.blocksBilling).toBe(false);
+      finished = true;
+    } finally {
+      const cleanup = await compensateSyntheticScenario(pool, scenarioKey);
+      if (finished) {
+        expect(cleanup.clientRemoved).toBe(true);
+        const residual = await pool.query('SELECT id FROM pty.clients WHERE external_erp_id = $1', [syntheticExternalRef(scenarioKey)]);
+        expect(residual.rows).toHaveLength(0);
+      }
     }
   });
 
