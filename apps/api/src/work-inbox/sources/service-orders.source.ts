@@ -57,6 +57,7 @@ export class ServiceOrdersWorkSource implements WorkItemSource {
 
 /**
  * Somente um fato persistido PREPARED produz a obrigação de revisar a liberação.
+ * Exibir contexto contratual exige contractId persistido; texto solto não prova vínculo.
  * Nenhum vencimento é atribuído: deadlineAt da OS é prazo operacional, não SLA
  * de decisão de liberação. A referência pública é orderNumber, nunca o UUID.
  */
@@ -76,7 +77,7 @@ export function toPreparedServiceOrderWorkItem(row: ServiceOrderListResponse): W
     kind: 'CONTINUITY',
     businessReference: row.orderNumber,
     title: 'Ordem preparada aguardando revisão para liberação',
-    contextLabel: row.contractReference
+    contextLabel: row.contractId && row.contractReference
       ? `Contrato ${row.contractReference}`
       : `Unidade ${row.unitId}`,
     status: row.status,
