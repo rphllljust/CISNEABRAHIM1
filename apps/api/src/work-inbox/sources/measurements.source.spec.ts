@@ -122,6 +122,29 @@ describe('MASTER 001 / Incremento 02 — fonte de medição da Inbox única', ()
     expect(toMeasurementWorkItem(q, UNIT, workbench({ ...wb, acceptance: { ...wb.acceptance, required: false } }), m)).toBeNull();
   });
 
+  it('classifica recusa de aceite do cliente como exceção, sem promover status da medição', () => {
+    const row = queue({
+      stage: LEAKAGE_STAGES.ApprovedNotAccepted,
+      statuses: { measurement: 'APPROVED', acceptance: 'REJECTED', billingEligibility: 'BLOCKED' },
+    });
+    const wb = workbench({
+      statuses: { measurement: 'APPROVED' } as never,
+      acceptance: {
+        required: true,
+        blocksBilling: true,
+        state: 'REJECTED',
+        latest: { result: 'REJECTED', occurredAt: AT },
+      } as never,
+    });
+    const m = measurement({ status: 'APPROVED', submittedAt: AT, decidedAt: AT });
+    expect(toMeasurementWorkItem(row, UNIT, wb, m)).toMatchObject({
+      kind: 'EXCEPTION',
+      title: 'Aceite do cliente rejeitado requer tratamento',
+      occurredAt: AT,
+      status: 'REJECTED',
+    });
+  });
+
   it('não publica rejeição como aprovação nem permite objetos obsoletos ou cross-unit', () => {
     const rejected = measurement({ status: MEASUREMENT_STATUSES.Rejected, submittedAt: AT, decidedAt: AT });
     const row = queue({ statuses: { measurement: MEASUREMENT_STATUSES.Rejected, acceptance: 'PENDING', billingEligibility: 'BLOCKED' } });
