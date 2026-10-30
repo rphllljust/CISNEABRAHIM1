@@ -25,6 +25,7 @@ import { parseAuthTokenResponse } from '../auth/test/auth-response-test-types';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuditModule } from '../audit/audit.module';
+import { SECURITY_AUDIT_ACTIONS } from '../audit/types/security-audit.types';
 import { AuthModule } from '../auth/auth.module';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
@@ -1324,7 +1325,40 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
 
       const persisted = await measurementsAccess.getById(actor, seeded.completed.id, measurement.id);
       expect(persisted.status).toBe(MEASUREMENT_STATUSES.Approved);
-      expect(persisted.historyEvents.map((event) => event.eventType)).toContain('APPROVED');
+      expect(persisted.historyEvents.map((event) => event.eventType)).toEqual(
+        expect.arrayContaining(['SUBMITTED', 'REVIEW_STARTED', 'APPROVED']),
+      );
+
+      // Prove the HTTP retry did not create a second persisted customer decision.
+      const acceptanceRows = await pool.query<{ count: string }>(
+        'SELECT COUNT(*)::text AS count FROM msr.customer_acceptances WHERE measurement_id = $1',
+        [measurement.id],
+      );
+      expect(acceptanceRows.rows[0]?.count).toBe('1');
+
+      // All three HTTP state transitions and customer acceptance must be
+      // attributable to the authenticated identity in PostgreSQL audit.
+      const security = await pool.query<{ action: string; command: string | null }>(
+        `SELECT action, metadata ->> 'command' AS command
+         FROM audit.security_audit_events
+         WHERE resource_id = $1 AND actor_identity_id = $2`,
+        [seeded.completed.id, actor.identityId],
+      );
+      expect(security.rows.map((row) => row.action)).toEqual(
+        expect.arrayContaining([
+          SECURITY_AUDIT_ACTIONS.MeasurementsMeasurementSubmit,
+          SECURITY_AUDIT_ACTIONS.MeasurementsMeasurementReview,
+          SECURITY_AUDIT_ACTIONS.MeasurementsMeasurementApprove,
+        ]),
+      );
+      expect(security.rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: SECURITY_AUDIT_ACTIONS.MeasurementsMeasurementUpdate,
+            command: 'RECORD_ACCEPTANCE',
+          }),
+        ]),
+      );
       const outbox = await pool.query<{ event_type: string }>(
         `SELECT event_type::text AS event_type FROM evt.outbox_events
          WHERE aggregate_id = $1`,
