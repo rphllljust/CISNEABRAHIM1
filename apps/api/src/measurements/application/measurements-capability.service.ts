@@ -83,6 +83,7 @@ import {
   type LeakageStageSummary,
 } from '../domain/revenue-leakage';
 import { MeasurementCapabilityRepository } from '../repositories/measurement-capability.repository';
+import type { CustomerAcceptanceRow } from '../repositories/measurement-capability.repository.types';
 import type { MeasurementItemRow, MeasurementRow } from '../repositories/measurements.repository.types';
 import { MeasurementsRepository } from '../repositories/measurements.repository';
 import { MeasurementsAccessService } from '../services/measurements-access.service';
@@ -708,7 +709,35 @@ export class MeasurementsCapabilityService {
       throw measurementsAccessNotFound();
     }
 
-    // ── VERSÃO ───────────────────────────────────────────────────────────────
+    // A chave identifica um comando empresarial, não apenas um registro. Um
+    // retry legítimo preserva ator, objeto e decisão; um payload diferente não
+    // pode herdar o sucesso anterior. O instante gerado no servidor e a
+    // correlação HTTP não fazem parte da identidade do retry.
+    const matchesReplay = (row: CustomerAcceptanceRow): boolean =>
+      row.measurement_id === measurementId &&
+      row.service_order_id === serviceOrderId &&
+      row.accepted_by_identity_id === actor.identityId &&
+      row.result === input.result &&
+      row.observation === input.observation &&
+      row.rejection_reason === (input.rejectionReason ?? null) &&
+      row.evidence_id === (input.evidenceId ?? null) &&
+      row.signature_id === (input.signatureId ?? null) &&
+      row.customer_signer_name === (input.customerSignerName ?? null) &&
+      (input.occurredAt === undefined ||
+        new Date(row.occurred_at).getTime() === new Date(input.occurredAt).getTime());
+
+    // IDEMPOTÊNCIA ANTES DA VERSÃO: a versão pode ter avançado depois do
+    // commit original. Reenviar o MESMO comando não é uma nova decisão.
+    const existingAcceptances = await this.capabilityRepository.listAcceptances(measurementId);
+    const replay = existingAcceptances.find((row) => row.idempotency_key === input.idempotencyKey);
+    if (replay) {
+      if (!matchesReplay(replay)) {
+        throw measurementsVersionConflict();
+      }
+      return this.getWorkbench(actor, serviceOrderId, { at });
+    }
+
+    // Uma chave nova continua sujeita à concorrência otimista.
     if (measurement.row_version !== input.expectedVersion) {
       throw measurementsVersionConflict();
     }
@@ -719,8 +748,6 @@ export class MeasurementsCapabilityService {
       serviceSnapshot: context.service_snapshot ?? {},
       clientPurchaseOrderRequirement: context.client_purchase_order_requirement,
     });
-
-    const existingAcceptances = await this.capabilityRepository.listAcceptances(measurementId);
 
     /**
      * ─────────────────────────────────────────────────────────────────────────
@@ -737,11 +764,6 @@ export class MeasurementsCapabilityService {
      * "isto já aconteceu" sem julgar o negócio: ela identifica o REQUEST, não a
      * decisão. Depois dela, qualquer bloqueio é real.
      */
-    const replay = existingAcceptances.find((row) => row.idempotency_key === input.idempotencyKey);
-    if (replay) {
-      return this.getWorkbench(actor, serviceOrderId, { at });
-    }
-
     const cycle = currentCycle(existingAcceptances);
     const decisionForCycle = existingAcceptances.find((row) => row.cycle_number === cycle) ?? null;
 
@@ -797,10 +819,15 @@ export class MeasurementsCapabilityService {
         idempotencyKey: input.idempotencyKey,
       });
 
-      if (recorded.outcome !== 'success' && recorded.outcome !== 'already_recorded') {
-        // `version_conflict` = a UNIQUE do ciclo barrou uma decisão concorrente;
-        // `not_found` = a medição deixou de existir entre a leitura e o INSERT.
-        // Os dois são conflito de estado, não erro do cliente.
+      if (recorded.outcome === 'already_recorded') {
+        // Outra transação concluiu a MESMA chave entre a leitura inicial e
+        // este INSERT. Nunca reavaliar elegibilidade nem emitir outra outbox.
+        return matchesReplay(recorded.acceptance)
+          ? { conflict: false as const, replayed: true as const }
+          : { conflict: true as const };
+      }
+      if (recorded.outcome !== 'success') {
+        // Outra chave venceu o ciclo: nenhuma decisão ou evento é duplicado.
         return { conflict: true as const };
       }
 
@@ -885,6 +912,9 @@ export class MeasurementsCapabilityService {
 
     if (txResult.conflict) {
       throw measurementsVersionConflict();
+    }
+    if ('replayed' in txResult) {
+      return this.getWorkbench(actor, serviceOrderId, { at });
     }
 
     await this.audit(actor, serviceOrderId, 'RECORD_ACCEPTANCE', {
