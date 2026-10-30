@@ -72,8 +72,8 @@ describe('source OS — somente pendencia de liberacao derivada do dominio', () 
       order({ id: `os-${index}`, orderNumber: `OS-${index}` }),
     );
     const list = vi.fn()
-      .mockResolvedValueOnce({ items: first })
-      .mockResolvedValueOnce({ items: [order({ id: 'last' })] });
+      .mockResolvedValueOnce({ items: first, hasMore: true })
+      .mockResolvedValueOnce({ items: [order({ id: 'last' })], hasMore: false });
 
     const items = await sourceWith(list).collect(ACTOR);
 
@@ -92,6 +92,16 @@ describe('source OS — somente pendencia de liberacao derivada do dominio', () 
     expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
   });
 
+  it('pagina mesmo quando a primeira pagina nao contem nenhuma OS com READ', async () => {
+    const list = vi.fn()
+      .mockResolvedValueOnce({ items: [], hasMore: true })
+      .mockResolvedValueOnce({ items: [order()], hasMore: false });
+    const items = await sourceWith(list).collect(ACTOR);
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.targetRoute).toBe(`/app/service-orders/${OS_ID}`);
+  });
+
   it('recusa 403 sem vazar itens ou contagens', async () => {
     const list = vi.fn().mockRejectedValue(new HttpException('Access denied', 403));
     await expect(sourceWith(list).collect(ACTOR)).resolves.toEqual([]);
@@ -104,9 +114,9 @@ describe('source OS — somente pendencia de liberacao derivada do dominio', () 
 
   it('a contagem do workspace reconcilia com o drill-down da Inbox e some quando sai de PREPARED', async () => {
     const list = vi.fn()
-      .mockResolvedValueOnce({ items: [order()] })
-      .mockResolvedValueOnce({ items: [order()] })
-      .mockResolvedValueOnce({ items: [] });
+      .mockResolvedValueOnce({ items: [order()], hasMore: false })
+      .mockResolvedValueOnce({ items: [order()], hasMore: false })
+      .mockResolvedValueOnce({ items: [], hasMore: false });
     const service = new WorkInboxService([sourceWith(list)]);
 
     const snapshot = await service.list(ACTOR, { limit: '0' });
