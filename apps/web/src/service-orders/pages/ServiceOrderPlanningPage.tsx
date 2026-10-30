@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { getPhysicalAsset, listPhysicalAssets } from '../../assets/api/physical-assets-api';
 import type { PhysicalAsset } from '../../assets/types/physical-asset.types';
 import { listPeople } from '../../people/api/people-api';
@@ -173,9 +173,6 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
   const [state, setState] = useState<PageState>({ phase: 'loading' });
   const [feedback, setFeedback] = useState<{ tone: 'error' | 'success' | 'info'; message: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  useEffect(() => {
-    if (feedback?.tone === 'success') onMutationSettled?.();
-  }, [feedback, onMutationSettled]);
   const [allocateOpen, setAllocateOpen] = useState(false);
   const [selectedPlannedId, setSelectedPlannedId] = useState('');
   const [operationalStart, setOperationalStart] = useState('');
@@ -413,7 +410,8 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
         resourceTypeCode,
         plannedQuantity: quantity,
       });
-      setFeedback({ tone: 'success', message: 'Recurso planejado com sucesso.' });
+      onMutationSettled?.();
+                                  setFeedback({ tone: 'success', message: 'Recurso planejado com sucesso.' });
       await reload();
     } catch (error) {
       setFeedback({
@@ -440,7 +438,8 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
         laborTypeCode,
         plannedQuantity: quantity,
       });
-      setFeedback({ tone: 'success', message: 'Mão de obra planejada com sucesso.' });
+      onMutationSettled?.();
+                                  setFeedback({ tone: 'success', message: 'Mão de obra planejada com sucesso.' });
       await reload();
     } catch (error) {
       setFeedback({
@@ -473,7 +472,8 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
         operationalEnd: new Date(operationalEnd).toISOString(),
       });
       setAllocateOpen(false);
-      setFeedback({ tone: 'success', message: 'Alocação confirmada pelo servidor.' });
+      onMutationSettled?.();
+                                  setFeedback({ tone: 'success', message: 'Alocação confirmada pelo servidor.' });
       await reload();
     } catch (error) {
       if (error instanceof ServiceOrdersApiError && error.kind === 'allocation_conflict') {
@@ -677,8 +677,8 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
   const executionLabel = nextAction?.label ?? 'Sem próximo passo declarado';
 
   return (
-    <ModulePage className="planning-page">
-      <EnterpriseObjectPage
+    <PlanningShell embedded={Boolean(embeddedServiceOrderId)}>
+      <PlanningFrame embedded={Boolean(embeddedServiceOrderId)}
         breadcrumb={breadcrumb}
         header={
           <EnterpriseObjectHeader
@@ -998,6 +998,7 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
                                 setSubmitting(true);
                                 try {
                                   await removeAllocation(serviceOrderId, allocation.id, allocation.rowVersion);
+                                  onMutationSettled?.();
                                   setFeedback({ tone: 'success', message: 'Alocação removida.' });
                                   await reload();
                                 } catch (error) {
@@ -1036,7 +1037,7 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
             {feedback.message}
           </div>
         ) : null}
-      </EnterpriseObjectPage>
+      </PlanningFrame>
 
       <ConfirmDialog
         open={allocateOpen}
@@ -1119,6 +1120,13 @@ export function ServiceOrderPlanningPage({ embeddedServiceOrderId, onMutationSet
           )}
         </div>
       </ConfirmDialog>
-    </ModulePage>
+    </PlanningShell>
   );
+}
+
+function PlanningShell({embedded,children}: {embedded:boolean;children:ReactNode}) {
+ return embedded ? <div className="planning-page space-y-3">{children}</div> : <ModulePage className="planning-page">{children}</ModulePage>;
+}
+function PlanningFrame({embedded,children,...props}: ComponentProps<typeof EnterpriseObjectPage> & {embedded:boolean}) {
+ return embedded ? <section aria-label="Planejamento e alocação" className="space-y-3">{children}</section> : <EnterpriseObjectPage {...props}>{children}</EnterpriseObjectPage>;
 }

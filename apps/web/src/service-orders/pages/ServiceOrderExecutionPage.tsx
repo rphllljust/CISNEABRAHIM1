@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ComponentProps } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
 import { listAllocations } from '../api/service-order-planning-api';
@@ -141,9 +141,6 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
     null,
   );
   const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    if (feedback?.tone === 'success') onMutationSettled?.();
-  }, [feedback, onMutationSettled]);
   const [activityOpen, setActivityOpen] = useState(false);
   const [occurrenceOpen, setOccurrenceOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
@@ -246,8 +243,15 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
                 ? await resumeExecution(serviceOrderId, body)
                 : await completeExecution(serviceOrderId, body);
         pendingIdempotencyRef.current = null;
-        const bundle = await getExecutionBundle(serviceOrderId);
-        applyOrderUpdate(updated, bundle);
+        onMutationSettled?.();
+        try {
+          const bundle = await getExecutionBundle(serviceOrderId);
+          applyOrderUpdate(updated, bundle);
+        } catch {
+          applyOrderUpdate(updated);
+          setFeedback({ tone: 'info', message: 'Transição confirmada; atualização da leitura indisponível.' });
+          return;
+        }
         setFeedback({
           tone: 'success',
           message:
@@ -282,7 +286,7 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
         setBusy(false);
       }
     },
-    [applyOrderUpdate, busy, serviceOrderId, state],
+    [applyOrderUpdate, busy, onMutationSettled, serviceOrderId, state],
   );
 
   const handleActivitySubmit = useCallback(
@@ -294,6 +298,7 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
       setFeedback(null);
       const rowVersion = state.order.rowVersion;
       const idempotencyKey = createIdempotencyKey();
+      let confirmed = false;
       try {
         let nextRowVersion = rowVersion;
         if (payload.kind === EXECUTION_EVIDENCE_KINDS.Observation) {
@@ -334,6 +339,8 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
             nextRowVersion = result.rowVersion;
           }
         }
+        confirmed = true;
+        onMutationSettled?.();
         const [order, bundle, overview] = await Promise.all([
           getServiceOrder(serviceOrderId),
           getExecutionBundle(serviceOrderId),
@@ -344,17 +351,17 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
         setFeedback({ tone: 'success', message: 'Registro salvo.' });
       } catch (error) {
         setFeedback({
-          tone: 'error',
+          tone: confirmed ? 'info' : 'error',
           message:
             error instanceof ServiceOrdersApiError
-              ? mapServiceOrdersErrorToMessage(error.code, error.status)
-              : 'Falha ao registrar atividade.',
+              ? confirmed ? 'Apontamento confirmado; falha ao atualizar a leitura.' : mapServiceOrdersErrorToMessage(error.code, error.status)
+              : confirmed ? 'Apontamento confirmado; falha ao atualizar a leitura.' : 'Falha ao registrar atividade.',
         });
       } finally {
         setBusy(false);
       }
     },
-    [applyOrderUpdate, busy, serviceOrderId, state],
+    [applyOrderUpdate, busy, onMutationSettled, serviceOrderId, state],
   );
 
   const handleOccurrenceSubmit = useCallback(
@@ -364,6 +371,7 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
       }
       setBusy(true);
       setFeedback(null);
+      let confirmed = false;
       try {
         const result = await recordOccurrence(serviceOrderId, {
           rowVersion: state.order.rowVersion,
@@ -371,6 +379,8 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
           description: input.description,
           idempotencyKey: createIdempotencyKey(),
         });
+        confirmed = true;
+        onMutationSettled?.();
         const [order, bundle, overview] = await Promise.all([
           getServiceOrder(serviceOrderId),
           getExecutionBundle(serviceOrderId),
@@ -385,17 +395,17 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
         setFeedback({ tone: 'success', message: 'Ocorrência registrada.' });
       } catch (error) {
         setFeedback({
-          tone: 'error',
+          tone: confirmed ? 'info' : 'error',
           message:
             error instanceof ServiceOrdersApiError
-              ? mapServiceOrdersErrorToMessage(error.code, error.status)
-              : 'Falha ao registrar ocorrência.',
+              ? confirmed ? 'Ocorrência confirmada; falha ao atualizar a leitura.' : mapServiceOrdersErrorToMessage(error.code, error.status)
+              : confirmed ? 'Ocorrência confirmada; falha ao atualizar a leitura.' : 'Falha ao registrar ocorrência.',
         });
       } finally {
         setBusy(false);
       }
     },
-    [applyOrderUpdate, busy, serviceOrderId, state],
+    [applyOrderUpdate, busy, onMutationSettled, serviceOrderId, state],
   );
 
   const handleEvidenceUpload: EvidenceUploadHandler = useCallback(
@@ -416,6 +426,7 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
         },
       });
       onProgress(100);
+      onMutationSettled?.();
       const [order, bundle, overview] = await Promise.all([
         getServiceOrder(serviceOrderId),
         getExecutionBundle(serviceOrderId),
@@ -427,7 +438,7 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
         overview,
       );
     },
-    [applyOrderUpdate, serviceOrderId, state],
+    [applyOrderUpdate, onMutationSettled, serviceOrderId, state],
   );
 
   if (state.phase === 'loading') {
@@ -517,7 +528,7 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
     order.status === SERVICE_ORDER_STATUSES.Paused;
 
   return (
-    <EnterpriseObjectPage
+    <ExecutionFrame embedded={Boolean(embeddedServiceOrderId)}
       className="execution-page gap-3"
       breadcrumb={[{ label: 'Ordens de serviço', href: '/app/service-orders' }]}
       header={
@@ -665,7 +676,7 @@ export function ServiceOrderExecutionPage({ embeddedServiceOrderId, onMutationSe
         onConfirm={() => void runTransition('pause')}
       />
       </main>
-    </EnterpriseObjectPage>
+    </ExecutionFrame>
   );
 }
 
@@ -695,4 +706,8 @@ function executionStateSteps(): ObjectStateStep[] {
     label: executionStatusLabel(id),
     terminal: id === SERVICE_ORDER_STATUSES.Completed || id === SERVICE_ORDER_STATUSES.Cancelled,
   }));
+}
+
+function ExecutionFrame({embedded,children,...props}: ComponentProps<typeof EnterpriseObjectPage> & {embedded:boolean}) {
+ return embedded ? <section aria-label="Execução e apontamentos" className="execution-page space-y-3">{children}</section> : <EnterpriseObjectPage {...props}>{children}</EnterpriseObjectPage>;
 }
