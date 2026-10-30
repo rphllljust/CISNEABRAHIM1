@@ -15,6 +15,7 @@ import { AccessAdminRepository } from './repositories/access-admin.repository';
 import { GrantAdminService } from './services/grant-admin.service';
 import { ApprovalMatrixAccessService } from './services/approval-matrix-access.service';
 import { SodEnforcementService } from './services/sod-enforcement.service';
+import { SodExceptionService } from './services/sod-exception.service';
 import { PolicyDecisionPointService } from './services/policy-decision-point.service';
 import { ScopeEnforcementService } from './services/scope-enforcement.service';
 import { ScopeResolverService } from './services/scope-resolver.service';
@@ -42,6 +43,7 @@ import { AccessAdminService } from './services/access-admin.service';
     GrantAdminService,
     ApprovalMatrixAccessService,
     SodEnforcementService,
+    SodExceptionService,
     ScopedRecordAccessService,
     AccessAdminService,
     AuthorizationGuard,
