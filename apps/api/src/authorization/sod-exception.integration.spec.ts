@@ -135,6 +135,32 @@ describe('SOD-007 exceptions — real PostgreSQL + PDP', () => {
     expect((await exceptions.list(requester)).every((entry) => entry.status === 'PENDING')).toBe(true);
   });
 
+  it('prevents bypass through capability edits to already assigned roles', async () => {
+    const requester = await admin(`requester-${randomUUID()}@cisne.invalid`);
+    const subject = await identity(`subject-${randomUUID()}@cisne.invalid`);
+    await access.createRole(requester, {
+      code: 'ROLE_CONFIG_ADMIN', label: 'Config admin',
+      capabilities: [AUTHZ_ACTIONS.AccessAdminManage],
+    });
+    const finance = await access.createRole(requester, {
+      code: 'ROLE_CONFIG_FINANCE', label: 'Config finance',
+      capabilities: [AUTHZ_ACTIONS.ClientRead],
+    });
+    await access.assignRole(requester, {
+      roleCode: 'ROLE_CONFIG_ADMIN', identityId: subject, scopeType: 'GLOBAL',
+    });
+    await access.assignRole(requester, {
+      roleCode: 'ROLE_CONFIG_FINANCE', identityId: subject, scopeType: 'GLOBAL',
+    });
+    await code(access.updateRole(requester, 'ROLE_CONFIG_FINANCE', {
+      expectedVersion: finance.version,
+      capabilities: [SOD_CAPABILITIES.PurchaseApprove],
+    }), AUTHZ_ERROR_CODES.ACCESS_ADMIN_SOD_CONFLICT);
+    const actual = await access.getRole(requester, 'ROLE_CONFIG_FINANCE');
+    expect(actual.capabilities).toEqual([AUTHZ_ACTIONS.ClientRead]);
+    expect(actual.version).toBe(finance.version);
+  });
+
   it('denies actions to an actor without the access-admin manage/read grants', async () => {
     const outsider = actor(await identity(`outside-${randomUUID()}@cisne.invalid`));
     const subject = await identity(`subject-${randomUUID()}@cisne.invalid`);
