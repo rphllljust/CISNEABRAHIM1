@@ -1,700 +1,700 @@
 {
-    "version":  "7",
-    "dialect":  "postgresql",
-    "entries":  [
-                    {
-                        "idx":  0,
-                        "version":  "7",
-                        "when":  1787976818483,
-                        "tag":  "0000_early_thaddeus_ross",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  1,
-                        "version":  "7",
-                        "when":  1787978256744,
-                        "tag":  "0001_striped_the_liberteens",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  2,
-                        "version":  "7",
-                        "when":  1787982000000,
-                        "tag":  "0002_authorization_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  3,
-                        "version":  "7",
-                        "when":  1787985600000,
-                        "tag":  "0003_contextual_scope_enums",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  4,
-                        "version":  "7",
-                        "when":  1787985700000,
-                        "tag":  "0004_contextual_scope_tables",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  5,
-                        "version":  "7",
-                        "when":  1787985800000,
-                        "tag":  "0005_security_audit_events",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  6,
-                        "version":  "7",
-                        "when":  1787985900000,
-                        "tag":  "0006_clients_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  7,
-                        "version":  "7",
-                        "when":  1787986000000,
-                        "tag":  "0007_service_catalog_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  8,
-                        "version":  "7",
-                        "when":  1787986100000,
-                        "tag":  "0008_service_definitions_lineage_version",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  9,
-                        "version":  "7",
-                        "when":  1787986200000,
-                        "tag":  "0009_units_of_measure",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  10,
-                        "version":  "7",
-                        "when":  1787986300000,
-                        "tag":  "0010_physical_resource_types",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  11,
-                        "version":  "7",
-                        "when":  1787986400000,
-                        "tag":  "0011_operational_labor_types",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  12,
-                        "version":  "7",
-                        "when":  1787986500000,
-                        "tag":  "0012_commercial_pricing_measurement",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  13,
-                        "version":  "7",
-                        "when":  1787986600000,
-                        "tag":  "0013_execution_requirements",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  14,
-                        "version":  "7",
-                        "when":  1787986700000,
-                        "tag":  "0014_physical_assets_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  15,
-                        "version":  "7",
-                        "when":  1787986800000,
-                        "tag":  "0015_documents_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  16,
-                        "version":  "7",
-                        "when":  1787986900000,
-                        "tag":  "0016_commercial_proposals_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  17,
-                        "version":  "7",
-                        "when":  1787987000000,
-                        "tag":  "0017_commercial_purchase_orders_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  18,
-                        "version":  "7",
-                        "when":  1787987100000,
-                        "tag":  "0018_service_requests_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  19,
-                        "version":  "7",
-                        "when":  1787987100500,
-                        "tag":  "0019_service_orders_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  20,
-                        "version":  "7",
-                        "when":  1787987101000,
-                        "tag":  "0020_service_orders_state_transitions",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  21,
-                        "version":  "7",
-                        "when":  1787987101500,
-                        "tag":  "0021_planning_allocation_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  22,
-                        "version":  "7",
-                        "when":  1787987102000,
-                        "tag":  "0022_service_order_execution_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  23,
-                        "version":  "7",
-                        "when":  1787987102500,
-                        "tag":  "0023_measurement_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  24,
-                        "version":  "7",
-                        "when":  1787987103000,
-                        "tag":  "0024_billing_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  25,
-                        "version":  "7",
-                        "when":  1787987103500,
-                        "tag":  "0025_billing_documents",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  26,
-                        "version":  "7",
-                        "when":  1787987104000,
-                        "tag":  "0026_domain_events_notifications",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  27,
-                        "version":  "7",
-                        "when":  1787987104500,
-                        "tag":  "0027_background_jobs",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  28,
-                        "version":  "7",
-                        "when":  1787987105000,
-                        "tag":  "0028_transactional_outbox",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  29,
-                        "version":  "7",
-                        "when":  1787987105500,
-                        "tag":  "0029_integration_inbox",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  30,
-                        "version":  "7",
-                        "when":  1787987106000,
-                        "tag":  "0030_notification_delivery",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  31,
-                        "version":  "7",
-                        "when":  1787987106500,
-                        "tag":  "0031_operational_business_alerts",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  32,
-                        "version":  "7",
-                        "when":  1787987107000,
-                        "tag":  "0032_background_job_operational_alert_scan",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  33,
-                        "version":  "7",
-                        "when":  1787987107500,
-                        "tag":  "0033_search_trigram_indexes",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  34,
-                        "version":  "7",
-                        "when":  1787987108000,
-                        "tag":  "0034_report_exports",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  35,
-                        "version":  "7",
-                        "when":  1787987108500,
-                        "tag":  "0035_service_orders_list_perf_index",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  36,
-                        "version":  "7",
-                        "when":  1787987200000,
-                        "tag":  "0036_workforce_members_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  37,
-                        "version":  "7",
-                        "when":  1787987300000,
-                        "tag":  "0037_purchase_order_balance",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  38,
-                        "version":  "7",
-                        "when":  1787987400000,
-                        "tag":  "0038_commercial_contracts_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  39,
-                        "version":  "7",
-                        "when":  1787987500000,
-                        "tag":  "0039_service_request_history_events",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  40,
-                        "version":  "7",
-                        "when":  1787987600000,
-                        "tag":  "0040_proposal_commercial_snapshots",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  41,
-                        "version":  "7",
-                        "when":  1787987700000,
-                        "tag":  "0041_purchase_order_commercial_snapshots",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  42,
-                        "version":  "7",
-                        "when":  1787987800000,
-                        "tag":  "0042_operational_costs_baseline",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  43,
-                        "version":  "7",
-                        "when":  1788246000000,
-                        "tag":  "0043_cross_context_read_contracts",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  44,
-                        "version":  "7",
-                        "when":  1788252000000,
-                        "tag":  "0044_finance_receivables",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  45,
-                        "version":  "7",
-                        "when":  1788258000000,
-                        "tag":  "0045_finance_payables",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  46,
-                        "version":  "7",
-                        "when":  1788264000000,
-                        "tag":  "0046_finance_treasury",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  47,
-                        "version":  "7",
-                        "when":  1788270000000,
-                        "tag":  "0047_accounting_ledger",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  48,
-                        "version":  "7",
-                        "when":  1788276000000,
-                        "tag":  "0048_accounting_reporting",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  49,
-                        "version":  "7",
-                        "when":  1788282000000,
-                        "tag":  "0049_fiscal_core",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  50,
-                        "version":  "7",
-                        "when":  1788288000000,
-                        "tag":  "0050_tax_engine",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  51,
-                        "version":  "7",
-                        "when":  1788294000000,
-                        "tag":  "0051_inventory_core",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  52,
-                        "version":  "7",
-                        "when":  1788300000000,
-                        "tag":  "0052_payroll_foundation",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  53,
-                        "version":  "7",
-                        "when":  1788306000000,
-                        "tag":  "0053_bank_reconciliation",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  54,
-                        "version":  "7",
-                        "when":  1788312000000,
-                        "tag":  "0054_accounting_posting",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  55,
-                        "version":  "7",
-                        "when":  1788318000000,
-                        "tag":  "0055_fiscal_accounting_events",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  56,
-                        "version":  "7",
-                        "when":  1788321600000,
-                        "tag":  "0056_inventory_costing",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  57,
-                        "version":  "7",
-                        "when":  1788325200000,
-                        "tag":  "0057_payroll_accounting_events",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  58,
-                        "version":  "7",
-                        "when":  1788328800000,
-                        "tag":  "0058_bank_statement_import",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  59,
-                        "version":  "7",
-                        "when":  1788332400000,
-                        "tag":  "0059_period_close_controls",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  60,
-                        "version":  "7",
-                        "when":  1788336000000,
-                        "tag":  "0060_tax_assessment_obligation",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  61,
-                        "version":  "7",
-                        "when":  1788339600000,
-                        "tag":  "0061_fiscal_period_close",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  62,
-                        "version":  "7",
-                        "when":  1788343200000,
-                        "tag":  "0062_fixed_asset_accounting",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  63,
-                        "version":  "7",
-                        "when":  1788346800000,
-                        "tag":  "0063_budget_management",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  64,
-                        "version":  "7",
-                        "when":  1788350400000,
-                        "tag":  "0064_supplier_master",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  65,
-                        "version":  "7",
-                        "when":  1788354000000,
-                        "tag":  "0065_procurement_core",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  66,
-                        "version":  "7",
-                        "when":  1788357600000,
-                        "tag":  "0066_supplier_invoice",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  67,
-                        "version":  "7",
-                        "when":  1788361200000,
-                        "tag":  "0067_three_way_match",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  68,
-                        "version":  "7",
-                        "when":  1788364800000,
-                        "tag":  "0068_financial_approval_matrix",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  69,
-                        "version":  "7",
-                        "when":  1788368400000,
-                        "tag":  "0069_expense_management",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  70,
-                        "version":  "7",
-                        "when":  1788372000000,
-                        "tag":  "0070_receivable_collections",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  71,
-                        "version":  "7",
-                        "when":  1788375600000,
-                        "tag":  "0071_operational_authority_gates",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  72,
-                        "version":  "7",
-                        "when":  1788386400000,
-                        "tag":  "0072_legal_establishment_master",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  73,
-                        "version":  "7",
-                        "when":  1788388200000,
-                        "tag":  "0073_recurring_billing_schedule",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  74,
-                        "version":  "7",
-                        "when":  1788390000000,
-                        "tag":  "0074_access_administration",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  75,
-                        "version":  "7",
-                        "when":  1788393600000,
-                        "tag":  "0075_accounting_entry_number",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  76,
-                        "version":  "7",
-                        "when":  1788479999000,
-                        "tag":  "0076_deadline_kernel",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  77,
-                        "version":  "7",
-                        "when":  1788566400000,
-                        "tag":  "0077_workforce_member_identity",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  78,
-                        "version":  "7",
-                        "when":  1788568200000,
-                        "tag":  "0078_workforce_member_allocation",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  79,
-                        "version":  "7",
-                        "when":  1788654600000,
-                        "tag":  "0079_clients_list_indexes",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  80,
-                        "version":  "7",
-                        "when":  1790411092289,
-                        "tag":  "0080_receivable_settlement_reversal",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  81,
-                        "version":  "7",
-                        "when":  1790411513461,
-                        "tag":  "0081_receivable_settlement_reversal_columns",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  82,
-                        "version":  "7",
-                        "when":  1790500000000,
-                        "tag":  "0082_audit_trail_logs",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  83,
-                        "version":  "7",
-                        "when":  1790600000000,
-                        "tag":  "0083_supplier_archived_status_and_columns",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  84,
-                        "version":  "7",
-                        "when":  1790700000000,
-                        "tag":  "0084_metadata_store",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  85,
-                        "version":  "7",
-                        "when":  1790700100000,
-                        "tag":  "0085_metadata_seed_entities",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  86,
-                        "version":  "7",
-                        "when":  179089596568637000,
-                        "tag":  "0086_metadata_seed_finance",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  87,
-                        "version":  "7",
-                        "when":  179090075052127000,
-                        "tag":  "0087_metadata_v2",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  88,
-                        "version":  "7",
-                        "when":  179090150000000000,
-                        "tag":  "0088_metadata_views_v4",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  89,
-                        "version":  "7",
-                        "when":  179090200000000000,
-                        "tag":  "0089_metadata_seed_client",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  90,
-                        "version":  "7",
-                        "when":  179090250000000000,
-                        "tag":  "0090_metadata_seed_service_request",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  91,
-                        "version":  "7",
-                        "when":  179090300000000000,
-                        "tag":  "0091_metadata_seed_proposal",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  92,
-                        "version":  "7",
-                        "when":  179090350000000000,
-                        "tag":  "0092_metadata_seed_purchase_order",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  93,
-                        "version":  "7",
-                        "when":  179090400000000000,
-                        "tag":  "0093_metadata_seed_contract",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  94,
-                        "version":  "7",
-                        "when":  179090450000000000,
-                        "tag":  "0094_metadata_receivable_compound_filter",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  95,
-                        "version":  "7",
-                        "when":  179090500000000000,
-                        "tag":  "0095_metadata_payable_compound_filter",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  96,
-                        "version":  "7",
-                        "when":  179090550000000000,
-                        "tag":  "0096_metadata_budget_compound_filter",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  97,
-                        "version":  "7",
-                        "when":  179090600000000000,
-                        "tag":  "0097_client_customer_360",
-                        "breakpoints":  true
-                    },
-                    {
-                        "idx":  98,
-                        "version":  "7",
-                        "when":  179090650000000000,
-                        "tag":  "0098_metadata_seed_customer_360",
-                        "breakpoints":  true
-                    },
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1787976818483,
+      "tag": "0000_early_thaddeus_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787978256744,
+      "tag": "0001_striped_the_liberteens",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787982000000,
+      "tag": "0002_authorization_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787985600000,
+      "tag": "0003_contextual_scope_enums",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787985700000,
+      "tag": "0004_contextual_scope_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787985800000,
+      "tag": "0005_security_audit_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787985900000,
+      "tag": "0006_clients_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787986000000,
+      "tag": "0007_service_catalog_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787986100000,
+      "tag": "0008_service_definitions_lineage_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787986200000,
+      "tag": "0009_units_of_measure",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787986300000,
+      "tag": "0010_physical_resource_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1787986400000,
+      "tag": "0011_operational_labor_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787986500000,
+      "tag": "0012_commercial_pricing_measurement",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787986600000,
+      "tag": "0013_execution_requirements",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787986700000,
+      "tag": "0014_physical_assets_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1787986800000,
+      "tag": "0015_documents_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787986900000,
+      "tag": "0016_commercial_proposals_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787987000000,
+      "tag": "0017_commercial_purchase_orders_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787987100000,
+      "tag": "0018_service_requests_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787987100500,
+      "tag": "0019_service_orders_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1787987101000,
+      "tag": "0020_service_orders_state_transitions",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1787987101500,
+      "tag": "0021_planning_allocation_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1787987102000,
+      "tag": "0022_service_order_execution_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1787987102500,
+      "tag": "0023_measurement_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1787987103000,
+      "tag": "0024_billing_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787987103500,
+      "tag": "0025_billing_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787987104000,
+      "tag": "0026_domain_events_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1787987104500,
+      "tag": "0027_background_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787987105000,
+      "tag": "0028_transactional_outbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1787987105500,
+      "tag": "0029_integration_inbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1787987106000,
+      "tag": "0030_notification_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787987106500,
+      "tag": "0031_operational_business_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787987107000,
+      "tag": "0032_background_job_operational_alert_scan",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787987107500,
+      "tag": "0033_search_trigram_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787987108000,
+      "tag": "0034_report_exports",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1787987108500,
+      "tag": "0035_service_orders_list_perf_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787987200000,
+      "tag": "0036_workforce_members_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787987300000,
+      "tag": "0037_purchase_order_balance",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787987400000,
+      "tag": "0038_commercial_contracts_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1787987500000,
+      "tag": "0039_service_request_history_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787987600000,
+      "tag": "0040_proposal_commercial_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787987700000,
+      "tag": "0041_purchase_order_commercial_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1787987800000,
+      "tag": "0042_operational_costs_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1788246000000,
+      "tag": "0043_cross_context_read_contracts",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1788252000000,
+      "tag": "0044_finance_receivables",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1788258000000,
+      "tag": "0045_finance_payables",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1788264000000,
+      "tag": "0046_finance_treasury",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1788270000000,
+      "tag": "0047_accounting_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1788276000000,
+      "tag": "0048_accounting_reporting",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1788282000000,
+      "tag": "0049_fiscal_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1788288000000,
+      "tag": "0050_tax_engine",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1788294000000,
+      "tag": "0051_inventory_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1788300000000,
+      "tag": "0052_payroll_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1788306000000,
+      "tag": "0053_bank_reconciliation",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1788312000000,
+      "tag": "0054_accounting_posting",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1788318000000,
+      "tag": "0055_fiscal_accounting_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1788321600000,
+      "tag": "0056_inventory_costing",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1788325200000,
+      "tag": "0057_payroll_accounting_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1788328800000,
+      "tag": "0058_bank_statement_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1788332400000,
+      "tag": "0059_period_close_controls",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1788336000000,
+      "tag": "0060_tax_assessment_obligation",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1788339600000,
+      "tag": "0061_fiscal_period_close",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1788343200000,
+      "tag": "0062_fixed_asset_accounting",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1788346800000,
+      "tag": "0063_budget_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1788350400000,
+      "tag": "0064_supplier_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1788354000000,
+      "tag": "0065_procurement_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1788357600000,
+      "tag": "0066_supplier_invoice",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1788361200000,
+      "tag": "0067_three_way_match",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1788364800000,
+      "tag": "0068_financial_approval_matrix",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1788368400000,
+      "tag": "0069_expense_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1788372000000,
+      "tag": "0070_receivable_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1788375600000,
+      "tag": "0071_operational_authority_gates",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1788386400000,
+      "tag": "0072_legal_establishment_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1788388200000,
+      "tag": "0073_recurring_billing_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1788390000000,
+      "tag": "0074_access_administration",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1788393600000,
+      "tag": "0075_accounting_entry_number",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1788479999000,
+      "tag": "0076_deadline_kernel",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1788566400000,
+      "tag": "0077_workforce_member_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1788568200000,
+      "tag": "0078_workforce_member_allocation",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1788654600000,
+      "tag": "0079_clients_list_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1790411092289,
+      "tag": "0080_receivable_settlement_reversal",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1790411513461,
+      "tag": "0081_receivable_settlement_reversal_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0082_audit_trail_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0083_supplier_archived_status_and_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1790700000000,
+      "tag": "0084_metadata_store",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1790700100000,
+      "tag": "0085_metadata_seed_entities",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 179089596568637000,
+      "tag": "0086_metadata_seed_finance",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 179090075052127000,
+      "tag": "0087_metadata_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 179090150000000000,
+      "tag": "0088_metadata_views_v4",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 179090200000000000,
+      "tag": "0089_metadata_seed_client",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 179090250000000000,
+      "tag": "0090_metadata_seed_service_request",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 179090300000000000,
+      "tag": "0091_metadata_seed_proposal",
+      "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 179090350000000000,
+      "tag": "0092_metadata_seed_purchase_order",
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 179090400000000000,
+      "tag": "0093_metadata_seed_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 179090450000000000,
+      "tag": "0094_metadata_receivable_compound_filter",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 179090500000000000,
+      "tag": "0095_metadata_payable_compound_filter",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 179090550000000000,
+      "tag": "0096_metadata_budget_compound_filter",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 179090600000000000,
+      "tag": "0097_client_customer_360",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 179090650000000000,
+      "tag": "0098_metadata_seed_customer_360",
+      "breakpoints": true
+    },
     {
       "idx": 99,
       "version": "7",
@@ -777,6 +777,13 @@
       "version": "7",
       "when": 179091250000000000,
       "tag": "0110_accounting_journal_entry_number_read_contract",
+      "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 179091300000000000,
+      "tag": "0111_sod_exception_approval",
       "breakpoints": true
     }
   ]
