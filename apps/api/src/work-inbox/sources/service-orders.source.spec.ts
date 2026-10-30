@@ -64,6 +64,8 @@ describe('source OS — somente pendencia de liberacao derivada do dominio', () 
     expect(toPreparedServiceOrderWorkItem(order({ preparedAt: null }))).toBeNull();
     const item = toPreparedServiceOrderWorkItem(order({ contractReference: null }));
     expect(item?.contextLabel).toBe('Unidade UN-A');
+    const textualOnly = toPreparedServiceOrderWorkItem(order({ contractId: null }));
+    expect(textualOnly?.contextLabel).toBe('Unidade UN-A');
     expect(item?.dueAt).toBeNull();
   });
 
