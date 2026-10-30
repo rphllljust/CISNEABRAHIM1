@@ -57,10 +57,10 @@ describe('OS -> Work Inbox / KPI (PostgreSQL real e escopo PDP)', () => {
     actor = { identityId: identity.identityId, sessionId: 'session-inbox-so' };
   });
 
-  async function grantUnit(unitId: string) {
+  async function grantUnit(unitId: string, action = AUTHZ_ACTIONS.ServiceOrdersServiceOrderList) {
     await insertGrant(pool, {
       identityId: actor.identityId,
-      action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+      action,
       resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
       scopeType: AUTHZ_SCOPES.Unit,
       resourceId: unitId,
@@ -90,8 +90,34 @@ describe('OS -> Work Inbox / KPI (PostgreSQL real e escopo PDP)', () => {
     expect(page.unavailableDomains).toEqual([]);
   });
 
+  it('LIST sem READ nao publica objeto nem KPI na fila', async () => {
+    await grantUnit(UNIT_A);
+    await seedOrder(UNIT_A, 'LIST-ONLY', 'PREPARED');
+    const page = await inbox.list(actor, { domain: 'OPERACOES' });
+    expect(page.items).toEqual([]);
+    expect(page.byDomain.OPERACOES).toBe(0);
+    expect(page.unavailableDomains).toEqual([]);
+  });
+
+  it('LIST GLOBAL com READ UNIT nao publica OS de outra unidade', async () => {
+    await insertGrant(pool, {
+      identityId: actor.identityId,
+      action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderList,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: actor.identityId,
+    });
+    await grantUnit(UNIT_A, AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead);
+    const visible = await seedOrder(UNIT_A, 'READABLE', 'PREPARED');
+    await seedOrder(UNIT_B, 'NO-READ', 'PREPARED');
+    const page = await inbox.list(actor, { domain: 'OPERACOES' });
+    expect(page.total).toBe(1);
+    expect(page.items.map((item) => item.targetRoute)).toEqual([`/app/service-orders/${visible}`]);
+  });
+
   it('conta somente OS PREPARED da unidade concedida e reconcilia o drill', async () => {
     await grantUnit(UNIT_A);
+    await grantUnit(UNIT_A, AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead);
     const visible = await seedOrder(UNIT_A, 'VISIBLE', 'PREPARED');
     await seedOrder(UNIT_B, 'HIDDEN', 'PREPARED');
     await seedOrder(UNIT_A, 'DRAFT', 'DRAFT');
