@@ -330,6 +330,23 @@ export class ServiceOrdersAccessService {
     return this.authz.listCreateAuthorizedUnitOptions(actor);
   }
 
+  /** Canonical authorized LIST query. Rows stay internal until their consumer's READ policy is applied. */
+  private async listAuthorizedRows(
+    actor: IdentityAuthzContext,
+    query: ListServiceOrdersQuery,
+  ): Promise<{ rows: ServiceOrderRow[]; total: number }> {
+    await this.authz.assertListAction(actor);
+    const scopeFilter = await this.authz.getListScopeFilter(actor);
+    const parts = resolveServiceOrderListQuery(query, scopeFilter.clause, scopeFilter.params, {
+      actorIdentityId: actor.identityId,
+    });
+    const [rows, total] = await Promise.all([
+      this.repository.listServiceOrders(parts, query.limit, query.offset),
+      this.repository.countServiceOrders(parts),
+    ]);
+    return { rows, total };
+  }
+
   async list(
     actor: IdentityAuthzContext,
     query: ListServiceOrdersQuery,
@@ -340,23 +357,37 @@ export class ServiceOrdersAccessService {
     total: number;
     hasMore: boolean;
   }> {
-    await this.authz.assertListAction(actor);
-    const scopeFilter = await this.authz.getListScopeFilter(actor);
-    const parts = resolveServiceOrderListQuery(query, scopeFilter.clause, scopeFilter.params, {
-      actorIdentityId: actor.identityId,
-    });
-    const [rows, total] = await Promise.all([
-      this.repository.listServiceOrders(parts, query.limit, query.offset),
-      this.repository.countServiceOrders(parts),
-    ]);
-    const hasMore = query.offset + rows.length < total;
-
+    const { rows, total } = await this.listAuthorizedRows(actor, query);
     return {
       items: rows.map(toServiceOrderListResponse),
       limit: query.limit,
       offset: query.offset,
       total,
-      hasMore,
+      hasMore: query.offset + rows.length < total,
+    };
+  }
+
+  /**
+   * Narrow projection for the Work Inbox. The OS list permission does not
+   * authorize opening the detail. Apply the exact OS record READ semantics
+   * before returning an item to the cross-domain read model.
+   *
+   * hasMore refers to the RAW authorized LIST page, not the READ-filtered
+   * items. This is required to avoid stopping on a page with zero readable
+   * rows while later pages still contain readable records.
+   */
+  async listReadableForWorkInbox(
+    actor: IdentityAuthzContext,
+    query: ListServiceOrdersQuery,
+  ): Promise<{
+    items: ReturnType<typeof toServiceOrderListResponse>[];
+    hasMore: boolean;
+  }> {
+    const { rows, total } = await this.listAuthorizedRows(actor, query);
+    const readable = await this.authz.filterReadableRows(actor, rows);
+    return {
+      items: readable.map(toServiceOrderListResponse),
+      hasMore: query.offset + rows.length < total,
     };
   }
 
