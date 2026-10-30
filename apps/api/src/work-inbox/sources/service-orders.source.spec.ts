@@ -26,7 +26,7 @@ function order(overrides: Partial<ServiceOrderListResponse> = {}): ServiceOrderL
 }
 
 function sourceWith(list: ReturnType<typeof vi.fn>): ServiceOrdersWorkSource {
-  return new ServiceOrdersWorkSource({ list } as never);
+  return new ServiceOrdersWorkSource({ listReadableForWorkInbox: list } as never);
 }
 
 describe('source OS — somente pendencia de liberacao derivada do dominio', () => {
