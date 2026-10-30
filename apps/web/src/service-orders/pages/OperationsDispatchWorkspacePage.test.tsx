@@ -90,12 +90,12 @@ function stationOverview(): ServiceOrderOverview {
   };
 }
 
-function mount() {
+function mount(initialPath = '/app/operations/dispatch') {
   return renderWithProviders(
     <Routes>
-      <Route path="/app/operations" element={<OperationsDispatchWorkspacePage />} />
+      <Route path="/app/operations/dispatch" element={<OperationsDispatchWorkspacePage />} />
     </Routes>,
-    { router: { initialEntries: ['/app/operations'] } },
+    { router: { initialEntries: [initialPath] } },
   );
 }
 
@@ -122,6 +122,34 @@ describe('Enterprise dispatch unit discovery', () => {
     expect(screen.getByTestId('execution-active-unit')).toHaveTextContent('unit-b');
   });
 
+
+  it('restores authorized unit and selected OS after deep link navigation', async () => {
+    vi.mocked(listOperationUnitOptions).mockResolvedValue({
+      items: ['unit-a', 'unit-b'],
+      details: [
+        { id: 'unit-a', code: 'PVH', name: 'Porto Velho', configured: true },
+        { id: 'unit-b', code: 'GUA', name: 'Guajará-Mirim', configured: true },
+      ],
+    });
+    const base = stationOverview();
+    vi.mocked(getServiceOrderOverview).mockResolvedValue({ ...base, identity: { ...base.identity, unitId: 'unit-b' } });
+    mount('/app/operations/dispatch?unitId=unit-b&serviceOrderId=os-1&focus=planning');
+    expect(await screen.findByTestId('station-planning')).toHaveTextContent('os-1');
+    expect(screen.getByRole('combobox', { name: 'Unidade operacional' })).toHaveValue('unit-b');
+    expect(screen.getByTestId('dispatch-active-unit')).toHaveTextContent('unit-b');
+    expect(getServiceOrderOverview).toHaveBeenCalledWith('os-1', expect.any(AbortSignal));
+  });
+
+  it('fails closed for a unit outside the authenticated directory before loading the OS', async () => {
+    vi.mocked(listOperationUnitOptions).mockResolvedValue({
+      items: ['unit-a'],
+      details: [{ id: 'unit-a', code: 'PVH', name: 'Porto Velho', configured: true }],
+    });
+    mount('/app/operations/dispatch?unitId=unit-foreign&serviceOrderId=os-1');
+    expect(await screen.findByRole('alert')).toHaveTextContent('fora do escopo autorizado');
+    expect(getServiceOrderOverview).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('station-planning')).not.toBeInTheDocument();
+  });
 
   it('keeps the authorized OS and unit while switching between real processing surfaces', async () => {
     vi.mocked(listOperationUnitOptions).mockResolvedValue({

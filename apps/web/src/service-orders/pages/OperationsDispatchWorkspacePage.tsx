@@ -64,15 +64,25 @@ export function OperationsDispatchWorkspacePage({
     setSearchParams(previous => {
       const next = new URLSearchParams(previous);
       next.set('serviceOrderId', serviceOrderId);
+      if (unitId) next.set('unitId', unitId);
       return next;
     });
   };
   const { options, unitId, setUnitId, status, error, reload } =
     useOperationalUnits(listOperationUnitOptions);
 
+  const requestedUnitId = searchParams.get('unitId');
+  useEffect(() => {
+    if (status === 'ready' && requestedUnitId && requestedUnitId !== unitId &&
+      options.some(option => option.value === requestedUnitId)) {
+      setUnitId(requestedUnitId);
+    }
+  }, [status, requestedUnitId, unitId, options, setUnitId]);
+  const scopeMatchesUrl = !requestedUnitId ||
+    (options.some(option => option.value === requestedUnitId) && requestedUnitId === unitId);
   const denied = error instanceof OperationsApiError && error.kind === 'denied';
 
-  const selectionKey = unitId && selectedOrderId ? `${unitId}:${selectedOrderId}` : null;
+  const selectionKey = status === 'ready' && scopeMatchesUrl && unitId && selectedOrderId ? `${unitId}:${selectedOrderId}` : null;
   scopeRef.current = selectionKey;
   useEffect(() => {
     pendingCheckIn.current = null;
@@ -195,6 +205,7 @@ export function OperationsDispatchWorkspacePage({
                   setUnitId(event.target.value);
                   setSearchParams(previous => {
                     const next = new URLSearchParams(previous);
+                    next.set('unitId', event.target.value);
                     next.delete('serviceOrderId');
                     return next;
                   });
@@ -235,6 +246,10 @@ export function OperationsDispatchWorkspacePage({
             </div>
           ) : null}
 
+          {status === 'ready' && requestedUnitId &&
+            !options.some(option => option.value === requestedUnitId) ? (
+            <p role="alert">Unidade solicitada fora do escopo autorizado. Nenhum overview foi consultado.</p>
+          ) : null}
           {status === 'ready' && options.length === 0 ? (
             <WorklistStatePanel
               title="Nenhuma unidade autorizada para consulta"
@@ -242,7 +257,7 @@ export function OperationsDispatchWorkspacePage({
             />
           ) : null}
 
-          {status === 'ready' && unitId && options.length > 0 ? (
+          {status === 'ready' && scopeMatchesUrl && unitId && options.length > 0 ? (
             tab === 'dispatch' ? <DispatchBoardPage unitId={unitId} refreshToken={refreshToken} onSelectOrder={selectOrder} onCommandSettled={refreshStation} /> :
               <ExecutionConsolePage unitId={unitId} refreshToken={refreshToken} onSelectOrder={selectOrder} />
           ) : null}
