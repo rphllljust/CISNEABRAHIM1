@@ -552,6 +552,89 @@ describe('Billing document PostgreSQL integration', () => {
     expect(status.rows[0]?.lifecycle).toBe('CANCELLED');
   });
 
+  it('MASTER 001-03: worker opening and API cancellation serialize across PostgreSQL connections', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const failOnce = vi.spyOn(receivablesAccess, 'openFromBilling')
+      .mockRejectedValueOnce(new Error('SIMULATED_AFTER_DOCUMENT_COMMIT'));
+    try {
+      await expect(billingDocumentAccess.issue(actor, completed.id, billing.id, {
+        idempotencyKey: `race-${crypto.randomUUID()}`,
+      })).rejects.toBeTruthy();
+    } finally {
+      failOnce.mockRestore();
+    }
+
+    const documents = await pool.query<{ id: string }>(
+      'SELECT id FROM bil.billing_documents WHERE billing_record_id = $1',
+      [billing.id],
+    );
+    const documentId = documents.rows[0]!.id;
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${documentId}:receivable-handoff`,
+    );
+    expect(job).not.toBeNull();
+
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    const originalOpen = receivablesAccess.openFromBilling.bind(receivablesAccess);
+    let signalEntered!: () => void;
+    let releaseOpen!: () => void;
+    const entered = new Promise<void>((resolve) => { signalEntered = resolve; });
+    const proceed = new Promise<void>((resolve) => { releaseOpen = resolve; });
+    const openSpy = vi.spyOn(receivablesAccess, 'openFromBilling')
+      .mockImplementation(async (input) => {
+        signalEntered();
+        await proceed;
+        return originalOpen(input);
+      });
+
+    const workerPromise = handler.handle({
+      jobId: job!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: job!.payload,
+      attemptCount: 1,
+      correlationId: documentId,
+      signal: new AbortController().signal,
+    });
+    try {
+      await entered;
+      // A second PostgreSQL connection cannot enter the document's critical
+      // section while the worker is between FINALIZED read and Finance open.
+      const probe = await pool.query<{ acquired: boolean }>(
+        'SELECT pg_try_advisory_xact_lock(hashtextextended($1::text, 0)) AS acquired',
+        [`billing-receivable:${documentId}`],
+      );
+      expect(probe.rows[0]?.acquired).toBe(false);
+
+      const current = await billingDocumentAccess.getById(
+        actor, completed.id, billing.id, documentId,
+      );
+      const cancelPromise = billingDocumentAccess.cancel(
+        actor, completed.id, billing.id, documentId, {
+          rowVersion: current.rowVersion,
+          cancelReason: 'cancel during in-flight worker handoff',
+        },
+      );
+      releaseOpen();
+      await workerPromise;
+      await cancelPromise;
+
+      const result = await pool.query<{ lifecycle: string }>(
+        `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+         WHERE origin_billing_document_id = $1`,
+        [documentId],
+      );
+      expect(result.rows).toHaveLength(1);
+      expect(result.rows[0]?.lifecycle).toBe('CANCELLED');
+    } finally {
+      releaseOpen();
+      openSpy.mockRestore();
+      await workerPromise.catch(() => undefined);
+    }
+  });
+
   it('allocates unique numbers under concurrent issuance', async () => {
     const { actor } = await seedActor();
     const first = await seedPreparedBilling(actor);
