@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AccountingModule } from '../accounting/accounting.module';
+import { BillingModule } from '../billing/billing.module';
+import { BillingReceivableHandoffJobHandler } from '../billing/jobs/billing-receivable-handoff.handler';
+import { FinanceModule } from '../finance/finance.module';
 import { ObservabilityModule } from '../observability/observability.module';
 import { IntegrationsInboxModule } from '../integrations/inbox/integrations-inbox.module';
 import { IntegrationInboxProcessorWorkerService } from '../integrations/inbox/services/integration-inbox-processor.worker.service';
@@ -20,8 +23,10 @@ import { DatabaseModule } from '../infrastructure/database/database.module';
     BackgroundJobsModule,
     OutboxModule,
     AccountingModule,
+    FinanceModule,
+    BillingModule,
     IntegrationsInboxModule,
   ],
-  providers: [BackgroundWorkerBootstrapService, OutboxPublisherWorkerService, IntegrationInboxProcessorWorkerService],
+  providers: [BackgroundWorkerBootstrapService, BillingReceivableHandoffJobHandler, OutboxPublisherWorkerService, IntegrationInboxProcessorWorkerService],
 })
 export class WorkerAppModule {}
