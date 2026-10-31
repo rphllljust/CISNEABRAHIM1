@@ -477,6 +477,30 @@ describe('Clients E2E', () => {
     expect(hierarchyBody.nodes[0]?.relation).toBe('self');
   });
 
+  it('serves an authorized Client 360 snapshot with consistent client facts', async () => {
+    const { accessToken } = await loginWithClientGrants();
+    const created = await createClient(accessToken, { tradeName: 'Cliente 360 E2E' });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: `/api/v1/clients/${created.id}/360`,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body) as {
+      client: { id: string; tradeName: string };
+      quality: { evaluated: boolean };
+      hierarchy: { rootId: string; nodes: Array<{ id: string }>; truncated: boolean };
+    };
+    expect(body.client.id).toBe(created.id);
+    expect(body.client.tradeName).toBe('Cliente 360 E2E');
+    expect(body.quality.evaluated).toBe(true);
+    expect(body.hierarchy.rootId).toBe(created.id);
+    expect(body.hierarchy.nodes.map((node) => node.id)).toContain(created.id);
+    expect(body.hierarchy.truncated).toBe(false);
+  });
+
   it('runs the contact and unit commands over HTTP', async () => {
     const { accessToken } = await loginWithClientGrants();
     const created = await createClient(accessToken);
