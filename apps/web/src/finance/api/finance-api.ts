@@ -103,6 +103,31 @@ export type FinanceTitleSummary = {
   }>;
 };
 
+/**
+ * Diagnóstico autoritativo publicado pelo Incremento 03. Os valores são
+ * contagens do PostgreSQL; a UI jamais infere integridade pela lista carregada.
+ */
+export type ReceivableIntegritySnapshot = {
+  collectedAt: string;
+  technical: {
+    backlog: {
+      receivableHandoffPending: number;
+      receivableHandoffDead: number;
+      billingReceivableOrphans: number;
+    };
+  };
+};
+
+export async function getReceivableIntegrity(
+  signal?: AbortSignal,
+): Promise<ReceivableIntegritySnapshot> {
+  return requestJson<ReceivableIntegritySnapshot>('/api/v1/observability/metrics', {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
 export type FinanceTitleListQuery = {
   limit?: number;
   offset?: number;
