@@ -1555,6 +1555,24 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0112_billing_receivable_handoff_job.sql') {
+      const prior = await client.query(
+        `SELECT to_regclass('plt.background_jobs') IS NOT NULL AS has_jobs,
+                EXISTS (
+                  SELECT 1 FROM pg_enum e
+                  JOIN pg_type t ON t.oid = e.enumtypid
+                  JOIN pg_namespace n ON n.oid = t.typnamespace
+                  WHERE n.nspname = 'plt'
+                    AND t.typname = 'background_job_kind'
+                    AND e.enumlabel = 'BILLING_RECEIVABLE_HANDOFF'
+                ) AS already_has_handoff`,
+      );
+      if (!prior.rows[0]?.has_jobs || prior.rows[0]?.already_has_handoff) {
+        throw new Error('0112 N-1 must have background_jobs but not the handoff job kind');
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
