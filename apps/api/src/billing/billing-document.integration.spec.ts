@@ -45,6 +45,7 @@ import { ObjectStorageService } from '../documents/storage/object-storage.servic
 import { BillingModule } from '../billing/billing.module';
 import { BILLING_DOCUMENT_STATUSES } from '../billing/domain/billing-document';
 import { FinanceModule } from '../finance/finance.module';
+import { ReceivablesAccessService } from '../finance/services/receivables-access.service';
 import { BILLING_ERROR_CODES } from '../billing/errors/billing-error-codes';
 import { BillingAccessService } from '../billing/services/billing-access.service';
 import { BillingDocumentAccessService } from '../billing/services/billing-document-access.service';
@@ -126,6 +127,7 @@ describe('Billing document PostgreSQL integration', () => {
   let pool: Pool;
   let billingAccess: BillingAccessService;
   let billingDocumentAccess: BillingDocumentAccessService;
+  let receivablesAccess: ReceivablesAccessService;
   let measurementsAccess: MeasurementsAccessService;
   let serviceOrdersAccess: ServiceOrdersAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
@@ -163,6 +165,7 @@ describe('Billing document PostgreSQL integration', () => {
 
     billingAccess = module.get(BillingAccessService);
     billingDocumentAccess = module.get(BillingDocumentAccessService);
+    receivablesAccess = module.get(ReceivablesAccessService);
     measurementsAccess = module.get(MeasurementsAccessService);
     serviceOrdersAccess = module.get(ServiceOrdersAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
@@ -398,6 +401,78 @@ describe('Billing document PostgreSQL integration', () => {
     );
     expect(afterRetry.rows[0]?.total).toBe('1');
     expect(Number(afterRetry.rows[0]?.principal)).toBe(Number(billing.totalAmount));
+  });
+
+
+  it('MASTER 001-03: an idempotent replay repairs a finalized document after Finance handoff failure', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const idempotencyKey = `master-001-03-recovery-${crypto.randomUUID()}`;
+
+    // Inject the failure AFTER Billing commits its FINALIZED document, at the
+    // published Finance port boundary. This does not alter production logic.
+    const failedHandoff = vi
+      .spyOn(receivablesAccess, 'openFromBilling')
+      .mockRejectedValueOnce(new Error('SIMULATED_FINANCE_HANDOFF_UNAVAILABLE'));
+
+    try {
+      await expect(
+        billingDocumentAccess.issue(actor, completed.id, billing.id, {
+          idempotencyKey,
+          dueDate: '2026-12-20',
+        }),
+      ).rejects.toBeTruthy();
+    } finally {
+      failedHandoff.mockRestore();
+    }
+
+    const persisted = await pool.query<{
+      id: string;
+      status: string;
+      artifact_sha256: string;
+    }>(
+      `SELECT id, status::text AS status, artifact_sha256
+         FROM bil.billing_documents WHERE billing_record_id = $1`,
+      [billing.id],
+    );
+    expect(persisted.rows).toHaveLength(1);
+    expect(persisted.rows[0]?.status).toBe('FINALIZED');
+    expect(persisted.rows[0]?.artifact_sha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const beforeRecovery = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fin.receivables
+         WHERE origin_billing_document_id = $1`,
+      [persisted.rows[0]!.id],
+    );
+    expect(beforeRecovery.rows[0]?.count).toBe('0');
+
+    // The same command and idempotency key must reuse the committed document
+    // and complete the missing finance handoff exactly once.
+    const recovered = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey,
+      dueDate: '2026-12-20',
+    });
+    expect(recovered.id).toBe(persisted.rows[0]?.id);
+    expect(recovered.artifactSha256).toBe(persisted.rows[0]?.artifact_sha256);
+
+    const again = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey,
+      dueDate: '2026-12-20',
+    });
+    expect(again.id).toBe(recovered.id);
+
+    const repaired = await pool.query<{ count: string; total: string }>(
+      `SELECT COUNT(*)::text AS count, COALESCE(SUM(principal), 0)::text AS total
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [recovered.id],
+    );
+    expect(repaired.rows[0]?.count).toBe('1');
+    expect(Number(repaired.rows[0]?.total)).toBe(Number(billing.totalAmount));
+
+    const pdf = await billingDocumentAccess.downloadPdf(
+      actor, completed.id, billing.id, recovered.id,
+    );
+    expect(pdf.sha256).toBe(recovered.artifactSha256);
   });
 
   it('allocates unique numbers under concurrent issuance', async () => {
