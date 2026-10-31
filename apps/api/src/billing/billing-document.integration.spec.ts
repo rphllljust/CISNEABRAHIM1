@@ -51,6 +51,20 @@ import { BackgroundJobsRepository } from '../platform/background-jobs/repositori
 import { BACKGROUND_JOB_KINDS, BACKGROUND_JOB_STATUSES } from '../platform/background-jobs/domain/background-job-kind';
 import { ReceivablesAccessService } from '../finance/services/receivables-access.service';
 import { ReceivablesRepository } from '../finance/repositories/receivables.repository';
+import { DatabaseService } from '../infrastructure/database/database.service';
+import { PlatformMetricsCollectorService, type PlatformBacklogSnapshot } from '../observability/services/platform-metrics-collector.service';
+import { MetricsRegistryService } from '../observability/metrics/metrics-registry.service';
+import {
+  buildTechnicalAlertDefinitions,
+  evaluateTechnicalAlertConditions,
+  TechnicalAlertStateTracker,
+} from '../observability/alerts/technical-alert.engine';
+import { loadTechnicalAlertPolicy } from '../observability/alerts/technical-alert-policy';
+import {
+  TECHNICAL_ALERT_SEVERITIES,
+  TECHNICAL_ALERT_TYPES,
+  type TechnicalAlertConditionInput,
+} from '../observability/alerts/technical-alert.types';
 import { BILLING_ERROR_CODES } from '../billing/errors/billing-error-codes';
 import { BillingAccessService } from '../billing/services/billing-access.service';
 import { BillingDocumentAccessService } from '../billing/services/billing-document-access.service';
@@ -143,6 +157,7 @@ describe('Billing document PostgreSQL integration', () => {
   let catalogAccess: ServiceCatalogAccessService;
   let purchaseOrdersAccess: PurchaseOrdersAccessService;
   let objectStorage: ObjectStorageService;
+  let financialMetrics: PlatformMetricsCollectorService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
 
   beforeAll(async () => {
@@ -184,6 +199,9 @@ describe('Billing document PostgreSQL integration', () => {
     catalogAccess = module.get(ServiceCatalogAccessService);
     purchaseOrdersAccess = module.get(PurchaseOrdersAccessService);
     objectStorage = module.get(ObjectStorageService);
+    financialMetrics = new PlatformMetricsCollectorService(
+      module.get(DatabaseService), new MetricsRegistryService(),
+    );
     pool = createIntegrationTestPool(testDatabaseUrl);
   });
 
@@ -555,6 +573,157 @@ describe('Billing document PostgreSQL integration', () => {
     expect(status.rows[0]?.lifecycle).toBe('CANCELLED');
   });
 
+
+
+  // Real NestJS commands and PostgreSQL persistence, with deliberately injected
+  // corruption ONLY in TEST_DATABASE_URL. No mocked Finance port or production seed.
+  function alertConditions(backlog: PlatformBacklogSnapshot): TechnicalAlertConditionInput {
+    return {
+      httpErrorRate: null,
+      httpRequestCount: 0,
+      httpLatencyP95Ms: null,
+      httpLatencyP99Ms: null,
+      dbPoolWaiting: null,
+      dbPoolTotal: null,
+      dbPoolIdle: null,
+      workerPending: backlog.workerPending,
+      workerInFlight: 0,
+      workerProcessed: 0,
+      workerLastActivityAt: null,
+      outboxPending: backlog.outboxPending,
+      outboxFailed: backlog.outboxFailed,
+      receivableHandoffDead: backlog.receivableHandoffDead,
+      billingReceivableOrphans: backlog.billingReceivableOrphans,
+      storageFailures: 0,
+      erpFailures: backlog.erpFailures,
+      trackingFailures: backlog.trackingFailures,
+      erpIntegrationConfigured: false,
+      trackingIntegrationConfigured: false,
+      notificationFailures: backlog.notificationFailures,
+      backupStatus: 'unknown',
+      diskUsagePercent: null,
+    };
+  }
+
+  it('MASTER 001-03: PostgreSQL orphan KPI fires and resolves after durable worker recovery', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const document = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey: `orphan-metric-test-${crypto.randomUUID()}`,
+      dueDate: '2026-12-20',
+    });
+    expect(document.status).toBe(BILLING_DOCUMENT_STATUSES.Finalized);
+    expect(document.artifactSha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${document.id}:receivable-handoff`,
+    );
+    expect(job?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+
+    // Fault injection in the isolated test DB: remove ONLY the receivable created
+    // by this test, then age this document beyond the real five-minute threshold.
+    // This reproduces observable persisted orphan state without mocking Finance.
+    const source = await pool.query<{ id: string }>(
+      'SELECT id FROM fin.receivables WHERE origin_billing_document_id = $1',
+      [document.id],
+    );
+    expect(source.rows).toHaveLength(1);
+    await pool.query('DELETE FROM fin.receivable_installments WHERE receivable_id = $1', [source.rows[0]!.id]);
+    const removed = await pool.query(
+      'DELETE FROM fin.receivables WHERE id = $1 RETURNING id', [source.rows[0]!.id],
+    );
+    expect(removed.rowCount).toBe(1);
+    await pool.query(
+      `UPDATE bil.billing_documents SET issued_at = NOW() - INTERVAL '6 minutes' WHERE id = $1`,
+      [document.id],
+    );
+
+    const before = await financialMetrics.collectBacklogs();
+    expect(before.billingReceivableOrphans).toBe(1);
+    expect(before.receivableHandoffPending).toBe(1);
+    expect(before.receivableHandoffDead).toBe(0);
+    const policy = loadTechnicalAlertPolicy();
+    const tracker = new TechnicalAlertStateTracker();
+    const definitions = buildTechnicalAlertDefinitions(policy);
+    const now = new Date('2026-10-31T12:00:00.000Z');
+    const firing = tracker.evaluate({
+      now,
+      conditions: evaluateTechnicalAlertConditions(alertConditions(before), policy),
+      definitions,
+    });
+    const alert = firing.find((item) => item.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure);
+    expect(alert?.severity).toBe(TECHNICAL_ALERT_SEVERITIES.Critical);
+    expect(alert?.observedValue).toContain('orphan_finalized=1');
+
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    const context = {
+      jobId: job!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: job!.payload,
+      attemptCount: 1,
+      correlationId: document.id,
+      signal: new AbortController().signal,
+    };
+    await handler.handle(context);
+    await handler.handle(context); // at-least-once replay must not duplicate principal
+    await jobsRepository.markCompleted(job!.id);
+
+    const restored = await pool.query<{ count: string; principal: string }>(
+      `SELECT COUNT(*)::text AS count, COALESCE(SUM(principal), 0)::text AS principal
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+    expect(restored.rows[0]?.count).toBe('1');
+    expect(Number(restored.rows[0]?.principal)).toBe(Number(document.totalAmount));
+
+    const after = await financialMetrics.collectBacklogs();
+    expect(after.billingReceivableOrphans).toBe(0);
+    expect(after.receivableHandoffPending).toBe(0);
+    expect(after.receivableHandoffDead).toBe(0);
+    tracker.evaluate({
+      now: new Date(now.getTime() + 1_000),
+      conditions: evaluateTechnicalAlertConditions(alertConditions(after), policy),
+      definitions,
+    });
+    expect(tracker.getResolvedSince(now.toISOString()).some(
+      (item) => item.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure,
+    )).toBe(true);
+
+    const persisted = await billingDocumentAccess.getById(
+      actor, completed.id, billing.id, document.id,
+    );
+    expect(persisted.id).toBe(document.id);
+    expect(persisted.artifactSha256).toBe(document.artifactSha256);
+  });
+
+  it('MASTER 001-03: PostgreSQL dead-letter KPI alerts even when receivable exists', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const document = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey: `dead-metric-test-${crypto.randomUUID()}`,
+      dueDate: '2026-12-20',
+    });
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${document.id}:receivable-handoff`,
+    );
+    expect(job?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+
+    // Test-only dead-letter fault injection; persist the status via the
+    // ordinary repository instead of forging a collector snapshot.
+    await jobsRepository.markDead(job!.id, 'TEST_ONLY_HANDOFF_DEAD_LETTER', 'TRANSIENT');
+    const snapshot = await financialMetrics.collectBacklogs();
+    expect(snapshot.billingReceivableOrphans).toBe(0);
+    expect(snapshot.receivableHandoffDead).toBe(1);
+    expect(snapshot.receivableHandoffPending).toBe(0);
+    const alert = evaluateTechnicalAlertConditions(
+      alertConditions(snapshot), loadTechnicalAlertPolicy(),
+    ).find((item) => item.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure);
+    expect(alert?.breached).toBe(true);
+    expect(alert?.severity).toBe(TECHNICAL_ALERT_SEVERITIES.Critical);
+    expect(alert?.observedValue).toContain('dead_or_failed_handoffs=1');
+  });
 
   it('MASTER 001-03: compensates a failed Finance cancellation after document commit', async () => {
     const { actor } = await seedActor();
