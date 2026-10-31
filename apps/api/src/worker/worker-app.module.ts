@@ -1,12 +1,15 @@
 import { Module } from '@nestjs/common';
 import { AccountingModule } from '../accounting/accounting.module';
+import { BillingModule } from '../billing/billing.module';
+import { BillingReceivableHandoffJobHandler } from '../billing/jobs/billing-receivable-handoff.handler';
+import { FinanceModule } from '../finance/finance.module';
 import { ObservabilityModule } from '../observability/observability.module';
 import { IntegrationsInboxModule } from '../integrations/inbox/integrations-inbox.module';
 import { IntegrationInboxProcessorWorkerService } from '../integrations/inbox/services/integration-inbox-processor.worker.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReportsModule } from '../reports/reports.module';
 import { BackgroundJobsModule } from '../platform/background-jobs/background-jobs.module';
-import { BackgroundWorkerBootstrapService } from '../platform/background-jobs/background-worker.bootstrap';
+import { BACKGROUND_JOB_EXTRA_HANDLERS, BackgroundWorkerBootstrapService } from '../platform/background-jobs/background-worker.bootstrap';
 import { OutboxModule } from '../platform/outbox/outbox.module';
 import { OutboxPublisherWorkerService } from '../platform/outbox/services/outbox-publisher.worker.service';
 import { DatabaseModule } from '../infrastructure/database/database.module';
@@ -20,8 +23,20 @@ import { DatabaseModule } from '../infrastructure/database/database.module';
     BackgroundJobsModule,
     OutboxModule,
     AccountingModule,
+    FinanceModule,
+    BillingModule,
     IntegrationsInboxModule,
   ],
-  providers: [BackgroundWorkerBootstrapService, OutboxPublisherWorkerService, IntegrationInboxProcessorWorkerService],
+  providers: [
+    BillingReceivableHandoffJobHandler,
+    {
+      provide: BACKGROUND_JOB_EXTRA_HANDLERS,
+      useFactory: (billingHandler: BillingReceivableHandoffJobHandler) => [billingHandler],
+      inject: [BillingReceivableHandoffJobHandler],
+    },
+    BackgroundWorkerBootstrapService,
+    OutboxPublisherWorkerService,
+    IntegrationInboxProcessorWorkerService,
+  ],
 })
 export class WorkerAppModule {}

@@ -45,6 +45,10 @@ import { ObjectStorageService } from '../documents/storage/object-storage.servic
 import { BillingModule } from '../billing/billing.module';
 import { BILLING_DOCUMENT_STATUSES } from '../billing/domain/billing-document';
 import { FinanceModule } from '../finance/finance.module';
+import { BillingDocumentRepository } from './repositories/billing-document.repository';
+import { BillingReceivableHandoffJobHandler } from './jobs/billing-receivable-handoff.handler';
+import { BackgroundJobsRepository } from '../platform/background-jobs/repositories/background-jobs.repository';
+import { BACKGROUND_JOB_KINDS, BACKGROUND_JOB_STATUSES } from '../platform/background-jobs/domain/background-job-kind';
 import { ReceivablesAccessService } from '../finance/services/receivables-access.service';
 import { BILLING_ERROR_CODES } from '../billing/errors/billing-error-codes';
 import { BillingAccessService } from '../billing/services/billing-access.service';
@@ -128,6 +132,8 @@ describe('Billing document PostgreSQL integration', () => {
   let billingAccess: BillingAccessService;
   let billingDocumentAccess: BillingDocumentAccessService;
   let receivablesAccess: ReceivablesAccessService;
+  let billingDocumentsRepository: BillingDocumentRepository;
+  let jobsRepository: BackgroundJobsRepository;
   let measurementsAccess: MeasurementsAccessService;
   let serviceOrdersAccess: ServiceOrdersAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
@@ -166,6 +172,8 @@ describe('Billing document PostgreSQL integration', () => {
     billingAccess = module.get(BillingAccessService);
     billingDocumentAccess = module.get(BillingDocumentAccessService);
     receivablesAccess = module.get(ReceivablesAccessService);
+    billingDocumentsRepository = module.get(BillingDocumentRepository);
+    jobsRepository = module.get(BackgroundJobsRepository);
     measurementsAccess = module.get(MeasurementsAccessService);
     serviceOrdersAccess = module.get(ServiceOrdersAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
@@ -178,6 +186,7 @@ describe('Billing document PostgreSQL integration', () => {
 
   beforeEach(async () => {
     clientTaxIdCounter = 0;
+    await pool.query('TRUNCATE TABLE plt.background_jobs RESTART IDENTITY CASCADE');
     await truncateFinanceTables(pool);
     await truncateDocumentTables(pool);
     await truncateBillingTables(pool);
@@ -473,6 +482,74 @@ describe('Billing document PostgreSQL integration', () => {
       actor, completed.id, billing.id, recovered.id,
     );
     expect(pdf.sha256).toBe(recovered.artifactSha256);
+  });
+
+
+  it('MASTER 001-03: worker recovers a committed billing document with no HTTP replay', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const key = `auto-recovery-${crypto.randomUUID()}`;
+    const spy = vi.spyOn(receivablesAccess, 'openFromBilling')
+      .mockRejectedValueOnce(new Error('SIMULATED_AFTER_DOCUMENT_COMMIT'));
+    try {
+      await expect(billingDocumentAccess.issue(actor, completed.id, billing.id, {
+        idempotencyKey: key,
+        dueDate: '2026-12-20',
+      })).rejects.toBeTruthy();
+    } finally {
+      spy.mockRestore();
+    }
+
+    const documents = await pool.query<{ id: string; status: string }>(
+      `SELECT id, status::text AS status FROM bil.billing_documents WHERE billing_record_id = $1`,
+      [billing.id],
+    );
+    expect(documents.rows).toHaveLength(1);
+    expect(documents.rows[0]?.status).toBe('FINALIZED');
+    const billingDocumentId = documents.rows[0]!.id;
+    const pending = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${billingDocumentId}:receivable-handoff`,
+    );
+    expect(pending?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+    expect(pending?.job_kind).toBe(BACKGROUND_JOB_KINDS.BillingReceivableHandoff);
+
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    const context = {
+      jobId: pending!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: pending!.payload,
+      attemptCount: 1,
+      correlationId: billingDocumentId,
+      signal: new AbortController().signal,
+    };
+    await handler.handle(context);
+    await handler.handle(context); // concurrent/at-least-once redelivery must be safe.
+
+    const receivables = await pool.query<{ count: string; principal: string }>(
+      `SELECT COUNT(*)::text AS count, COALESCE(SUM(principal), 0)::text AS principal
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [billingDocumentId],
+    );
+    expect(receivables.rows[0]?.count).toBe('1');
+    expect(Number(receivables.rows[0]?.principal)).toBe(Number(billing.totalAmount));
+
+    // The ordinary cancel path must not be resurrected by a delayed recovery.
+    const issued = await billingDocumentAccess.getById(
+      actor, completed.id, billing.id, billingDocumentId,
+    );
+    await billingDocumentAccess.cancel(actor, completed.id, billing.id, billingDocumentId, {
+      rowVersion: issued.rowVersion,
+      cancelReason: 'cancel after handoff',
+    });
+    await handler.handle(context);
+    const status = await pool.query<{ lifecycle: string }>(
+      `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+         WHERE origin_billing_document_id = $1`,
+      [billingDocumentId],
+    );
+    expect(status.rows[0]?.lifecycle).toBe('CANCELLED');
   });
 
   it('allocates unique numbers under concurrent issuance', async () => {
