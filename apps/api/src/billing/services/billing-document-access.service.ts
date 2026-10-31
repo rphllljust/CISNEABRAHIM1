@@ -245,6 +245,7 @@ export class BillingDocumentAccessService {
       // Commit the CANCELLED document and durable Finance-cancel job first:
       // no financial mutation may precede the Billing authority transition.
       const result = await this.billingDocumentRepository.withHandoffLock(billingDocumentId, async () => {
+        await this.assertFinancialCancellationAllowed(billingDocumentId);
         const persisted = await this.billingDocumentRepository.cancelBillingDocument({
           billingDocumentId,
           billingRecordId,
@@ -309,6 +310,7 @@ export class BillingDocumentAccessService {
 
     try {
       const result = await this.billingDocumentRepository.withHandoffLock(billingDocumentId, async () => {
+        await this.assertFinancialCancellationAllowed(billingDocumentId);
         const persisted = await this.billingDocumentRepository.replaceBillingDocument(
         {
           billingRecord,
@@ -445,6 +447,15 @@ export class BillingDocumentAccessService {
       externalReference: document.document_number,
       actorIdentityId: actor.identityId,
     });
+  }
+
+  /** A posted settlement must veto any Billing cancellation BEFORE commit. */
+  private async assertFinancialCancellationAllowed(billingDocumentId: string): Promise<void> {
+    const port = requireBillingReceivablePort(this.receivablePort);
+    if (!port.assertCancellableFromBilling) {
+      throw new ServiceUnavailableException('BILLING_RECEIVABLE_CANCEL_GUARD_UNAVAILABLE');
+    }
+    await port.assertCancellableFromBilling(billingDocumentId);
   }
 
   private async cancelReceivableFromDocument(
