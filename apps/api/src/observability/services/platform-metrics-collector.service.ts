@@ -154,11 +154,11 @@ export class PlatformMetricsCollectorService {
         pool,
         'billingReceivableOrphans',
         `SELECT COUNT(*)::text AS count
-           FROM bil.billing_documents bd
+           FROM rpt.read_billing_documents bd
            WHERE bd.status = 'FINALIZED'
              AND bd.issued_at < NOW() - INTERVAL '5 minutes'
              AND NOT EXISTS (
-               SELECT 1 FROM fin.receivables r
+               SELECT 1 FROM rpt.read_receivables r
                WHERE r.origin_billing_document_id = bd.id
              )`,
       ),
