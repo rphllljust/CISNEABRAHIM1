@@ -265,6 +265,9 @@ const MIGRATION_EFFECT_CHECKS = {
   '0112_billing_receivable_handoff_job': {
     enumLabel: ['plt', 'background_job_kind', 'BILLING_RECEIVABLE_HANDOFF'],
   },
+  '0113_billing_receivable_cancel_job': {
+    enumLabel: ['plt', 'background_job_kind', 'BILLING_RECEIVABLE_CANCEL'],
+  },
 };
 
 /**
