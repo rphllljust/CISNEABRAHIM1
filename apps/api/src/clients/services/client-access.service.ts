@@ -79,6 +79,17 @@ export const CLIENT_DUPLICATE_CANDIDATE_LIMIT = 50;
 export const CLIENT_AUDIT_DEFAULT_LIMIT = 20;
 export const CLIENT_AUDIT_MAX_LIMIT = 100;
 
+export type Client360Response = {
+  client: ClientResponse;
+  quality: ClientDataQuality;
+  hierarchy: {
+    rootId: string;
+    nodes: ClientHierarchyNode[];
+    truncated: boolean;
+    maxDepth: number;
+  };
+};
+
 @Injectable()
 export class ClientAccessService implements CommercialClientPort {
   constructor(
@@ -639,6 +650,20 @@ export class ClientAccessService implements CommercialClientPort {
       undefined,
     );
     return toClientResponse(client);
+  }
+
+  /**
+   * Snapshot cadastral do Cliente 360. O primeiro corte consolida somente fatos
+   * pertencentes ao domínio de Clientes; módulos comerciais/financeiros entram
+   * por contratos de leitura próprios nos próximos cortes, sem atravessar tabelas.
+   */
+  async get360(actor: IdentityAuthzContext, clientId: string): Promise<Client360Response> {
+    const [client, quality, hierarchy] = await Promise.all([
+      this.getById(actor, clientId),
+      this.getDataQuality(actor, clientId),
+      this.getHierarchy(actor, clientId),
+    ]);
+    return { client, quality, hierarchy };
   }
 
   async list(actor: IdentityAuthzContext, request: ClientListRequest): Promise<ClientListResponse> {
