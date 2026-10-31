@@ -86,6 +86,11 @@ export class ClientsController {
     );
   }
 
+  @Get(':clientId/360')
+  get360(@CurrentAuth() auth: AccessTokenClaims, @Param('clientId') clientId: string) {
+    return this.clientAccess.get360({ identityId: auth.sub, sessionId: auth.sid }, clientId);
+  }
+
   @Get(':clientId')
   getById(@CurrentAuth() auth: AccessTokenClaims, @Param('clientId') clientId: string) {
     return this.clientAccess.getById({ identityId: auth.sub, sessionId: auth.sid }, clientId);
