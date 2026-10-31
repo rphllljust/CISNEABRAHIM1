@@ -12,6 +12,7 @@ import {
   VERSION_CONFLICT_MESSAGE,
 } from '../api/client-error-messages';
 import { ClientRelatedRecords } from '../components/ClientRelatedRecords';
+import { Client360ExecutivePanel } from '../components/Client360ExecutivePanel';
 import { ClientContactsPanel } from '../components/ClientContactsPanel';
 import { ClientAddressesPanel, ClientUnitsPanel } from '../components/ClientUnitsPanel';
 import {
@@ -481,6 +482,7 @@ export function ClientDetailPage() {
               label: 'Resumo',
               panel: (
                 <div className="flex flex-col gap-0">
+                  <Client360ExecutivePanel clientId={client.id} modules={related} />
                   <ObjectContextBlock fields={buildClientContextFields(client)} />
                   <BusinessChain
                     chain={businessChain.chain}
