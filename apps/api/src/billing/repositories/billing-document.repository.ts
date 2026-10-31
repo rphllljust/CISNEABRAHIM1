@@ -75,6 +75,7 @@ export class BillingDocumentRepository {
     operation: () => Promise<T>,
   ): Promise<T> {
     const client = await this.pool().connect();
+    let evictConnection = false;
     try {
       await client.query('BEGIN');
       await client.query(
@@ -85,10 +86,15 @@ export class BillingDocumentRepository {
       await client.query('COMMIT');
       return result;
     } catch (error) {
-      await client.query('ROLLBACK');
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // A failed rollback leaves the session unsafe to return to the pool.
+        evictConnection = true;
+      }
       throw error;
     } finally {
-      client.release();
+      client.release(evictConnection);
     }
   }
 
