@@ -261,6 +261,10 @@ const MIGRATION_EFFECT_CHECKS = {
   },
   // SoD-007 approval/revocation must have a persistent authority record.
   '0111_sod_exception_approval': { table: ['authorization', 'sod_exceptions'] },
+  // The 0112 delta publishes the dedicated durable handoff job kind; probe the actual enum.
+  '0112_billing_receivable_handoff_job': {
+    enumLabel: ['plt', 'background_job_kind', 'BILLING_RECEIVABLE_HANDOFF'],
+  },
 };
 
 /**
