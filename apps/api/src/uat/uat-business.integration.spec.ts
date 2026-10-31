@@ -11,6 +11,7 @@ import {
   truncateCommercialProposalTables,
   truncateCommercialPurchaseOrderTables,
   truncateDocumentTables,
+  truncateFinanceTables,
   truncateIdentityAndAuthorizationTables,
   truncatePhysicalAssetTables,
   truncateServiceOrderTables,
@@ -35,6 +36,7 @@ import { CommercialModule } from '../commercial/commercial.module';
 import { ProposalsAccessService } from '../commercial/services/proposals-access.service';
 import { PurchaseOrdersAccessService } from '../commercial/services/purchase-orders-access.service';
 import { DocumentsModule } from '../documents/documents.module';
+import { FinanceModule } from '../finance/finance.module';
 import { DocumentsAccessService } from '../documents/services/documents-access.service';
 import { MeasurementsModule } from '../measurements/measurements.module';
 import { MeasurementsAccessService } from '../measurements/services/measurements-access.service';
@@ -83,6 +85,7 @@ describe('Business UAT (Prompt 89)', () => {
         ServiceOrdersModule,
         MeasurementsModule,
         BillingModule,
+        FinanceModule,
       ],
     }).compile();
 
@@ -108,6 +111,7 @@ describe('Business UAT (Prompt 89)', () => {
   });
 
   beforeEach(async () => {
+    await truncateFinanceTables(pool);
     await truncateDocumentTables(pool);
     await truncateBillingTables(pool);
     await truncateServiceRequestTables(pool);
