@@ -1573,6 +1573,31 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0113_billing_receivable_cancel_job.sql') {
+      const prior = await client.query(
+        `SELECT EXISTS (
+           SELECT 1 FROM pg_enum e
+           JOIN pg_type t ON t.oid = e.enumtypid
+           JOIN pg_namespace n ON n.oid = t.typnamespace
+           WHERE n.nspname = 'plt'
+             AND t.typname = 'background_job_kind'
+             AND e.enumlabel = 'BILLING_RECEIVABLE_HANDOFF'
+         ) AS has_handoff,
+         EXISTS (
+           SELECT 1 FROM pg_enum e
+           JOIN pg_type t ON t.oid = e.enumtypid
+           JOIN pg_namespace n ON n.oid = t.typnamespace
+           WHERE n.nspname = 'plt'
+             AND t.typname = 'background_job_kind'
+             AND e.enumlabel = 'BILLING_RECEIVABLE_CANCEL'
+         ) AS already_has_cancel`,
+      );
+      if (!prior.rows[0]?.has_handoff || prior.rows[0]?.already_has_cancel) {
+        throw new Error('0113 N-1 must have handoff job kind but not cancellation');
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
