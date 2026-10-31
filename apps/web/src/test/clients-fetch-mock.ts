@@ -293,6 +293,36 @@ export function createClientsFetchMock(options: ClientsFetchMockOptions = {}) {
       return jsonResponse(created, 201);
     }
 
+    // Client 360 publishes one authorized snapshot; legacy GET remains available for probes.
+    const client360Match = pathname.match(/^\/api\/v1\/clients\/([^/]+)\/360$/);
+    if (method === 'GET' && client360Match) {
+      const existing = store.find((client) => client.id === client360Match[1]);
+      if (!existing) {
+        return clientError('CLIENT_NOT_FOUND', 404);
+      }
+      return jsonResponse({
+        client: existing,
+        quality: { evaluated: true, isComplete: true, findings: [] },
+        hierarchy: {
+          rootId: existing.id,
+          nodes: [{
+            id: existing.id,
+            legal_name: existing.legalName,
+            trade_name: existing.tradeName,
+            status: existing.status,
+            parent_client_id: existing.parentClientId,
+            group_id: existing.groupId,
+            group_name: existing.groupName,
+            child_count: existing.childCount,
+            depth: 0,
+            relation: 'self',
+          }],
+          truncated: false,
+          maxDepth: 8,
+        },
+      });
+    }
+
     const clientIdMatch = pathname.match(/^\/api\/v1\/clients\/([^/]+)(?:\/(deactivate|activate))?$/);
     if (!clientIdMatch) {
       return jsonResponse({ error: { code: 'UNKNOWN' } }, 404);
