@@ -31,6 +31,13 @@ export const TECHNICAL_ALERT_RUNBOOKS: Partial<
     safeAction: 'Reiniciar worker; não limpar fila sem análise.',
     escalation: 'Plataforma se backlog >1h sem consumo.',
   },
+  [TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure]: {
+    meaning: 'Falha na integridade do Service-to-Cash: Nota Fatura finalizada sem recebível, ou job financeiro sem recuperação automática.',
+    possibleCauses: ['Port financeiro indisponível', 'Worker parado ou dead-letter', 'Documento legado sem job de recuperação'],
+    firstChecks: ['Consultar GET /observability/metrics (diagnóstico autorizado)', 'Consultar plt.background_jobs por billing receivable handoff e status', 'Conferir Nota Fatura e título pelo comando autorizado'],
+    safeAction: 'Não emitir outra Nota Fatura nem criar título manualmente. Investigar e reexecutar o job com a mesma chave idempotente sob procedimento autorizado.',
+    escalation: 'Financeiro + engenharia imediatamente, com documento e correlationId.',
+  },
   [TECHNICAL_ALERT_TYPES.OutboxBacklog]: {
     meaning: 'Eventos outbox acumulados além do limiar.',
     possibleCauses: ['Publisher parado', 'Falhas de publicação', 'DB lento'],

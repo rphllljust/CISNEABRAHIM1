@@ -28,6 +28,7 @@ export const TECHNICAL_ALERT_TYPES = {
   NotificationFailures: 'NOTIFICATION_FAILURES',
   BackupFailure: 'BACKUP_FAILURE',
   DiskResourceExhaustion: 'DISK_RESOURCE_EXHAUSTION',
+  BillingReceivableHandoffFailure: 'BILLING_RECEIVABLE_HANDOFF_FAILURE',
 } as const;
 
 export type TechnicalAlertType =
@@ -64,6 +65,9 @@ export type TechnicalAlertConditionInput = {
   workerLastActivityAt: string | null;
   outboxPending: number;
   outboxFailed: number;
+  /** Authoritative DB counts; omitted in old test fixtures only. */
+  receivableHandoffDead?: number;
+  billingReceivableOrphans?: number;
   storageFailures: number;
   erpFailures: number;
   trackingFailures: number;

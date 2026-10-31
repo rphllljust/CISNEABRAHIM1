@@ -17,6 +17,9 @@ export type PlatformBacklogSnapshot = {
   integrationFailures: number;
   erpFailures: number;
   trackingFailures: number;
+  receivableHandoffPending: number;
+  receivableHandoffDead: number;
+  billingReceivableOrphans: number;
 };
 
 export type BackupStatusSnapshot = {
@@ -91,6 +94,9 @@ export class PlatformMetricsCollectorService {
       integrationFailures,
       erpFailures,
       trackingFailures,
+      receivableHandoffPending,
+      receivableHandoffDead,
+      billingReceivableOrphans,
     ] = await Promise.all([
       this.count(
         pool,
@@ -126,6 +132,36 @@ export class PlatformMetricsCollectorService {
         'trackingFailures',
         this.alertPolicy.trackingProviderPatterns,
       ),
+      this.count(
+        pool,
+        'receivableHandoffPending',
+        `SELECT COUNT(*)::text AS count
+           FROM plt.background_jobs
+           WHERE job_kind = 'BILLING_RECEIVABLE_HANDOFF'
+             AND status IN ('PENDING', 'RUNNING')`,
+      ),
+      this.count(
+        pool,
+        'receivableHandoffDead',
+        `SELECT COUNT(*)::text AS count
+           FROM plt.background_jobs
+           WHERE job_kind = 'BILLING_RECEIVABLE_HANDOFF'
+             AND status IN ('DEAD', 'FAILED')`,
+      ),
+      // Read-only cross-context operational reconciliation. No Finance state
+      // is modified here; fail closed if either schema cannot be inspected.
+      this.count(
+        pool,
+        'billingReceivableOrphans',
+        `SELECT COUNT(*)::text AS count
+           FROM rpt.read_billing_documents bd
+           WHERE bd.status = 'FINALIZED'
+             AND bd.issued_at < NOW() - INTERVAL '5 minutes'
+             AND NOT EXISTS (
+               SELECT 1 FROM rpt.read_receivables r
+               WHERE r.origin_billing_document_id = bd.id
+             )`,
+      ),
     ]);
 
     this.lastCollectionError = null;
@@ -137,6 +173,9 @@ export class PlatformMetricsCollectorService {
       integrationFailures,
       erpFailures,
       trackingFailures,
+      receivableHandoffPending,
+      receivableHandoffDead,
+      billingReceivableOrphans,
     };
   }
 
