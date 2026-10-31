@@ -65,6 +65,33 @@ export class BillingDocumentRepository {
     }, client);
   }
 
+  /**
+   * Serialize all Finance handoff/cancellation operations for one Billing document
+   * across API and worker processes. The lock is owned by Billing, not a direct
+   * cross-domain table dependency. A crashed process releases its xact lock.
+   */
+  async withReceivableHandoffLock<T>(
+    billingDocumentId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const client = await this.pool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))',
+        [`billing-receivable:${billingDocumentId}`],
+      );
+      const result = await operation();
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async findById(billingDocumentId: string): Promise<BillingDocumentRow | null> {
     const result = await this.pool().query<BillingDocumentRow>(
       `SELECT ${BILLING_DOCUMENT_RETURNING} FROM bil.billing_documents WHERE id = $1`,
