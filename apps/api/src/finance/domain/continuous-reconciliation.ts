@@ -27,6 +27,7 @@ export type ReconciliationFindingKind =
   | 'MISSING_POSTING'
   | 'DUPLICATE_POSTING'
   | 'AMOUNT_DIVERGENT'
+  | 'CURRENCY_DIVERGENT'
   | 'SOURCE_NOT_FOUND'
   | 'UNBALANCED_POSTING';
 
@@ -138,18 +139,28 @@ export function runContinuousReconciliation(facts: EconomicFact[]): ContinuousRe
     if (!fact.expectedPostingSourceContext) {
       continue;
     }
-    const postingCount = journalEntries.filter(
+    const postings = journalEntries.filter(
       (journal) =>
         journal.postingSource?.sourceContext === fact.expectedPostingSourceContext &&
         journal.postingSource?.sourceId === fact.id,
-    ).length;
-    if (postingCount === 0) {
+    );
+    if (postings.length === 0) {
       addFinding(
         findings,
         'MISSING_POSTING',
         fact,
         `${fact.ledger}:${fact.id} has no ${fact.expectedPostingSourceContext} journal entry posting`,
       );
+    }
+    for (const journal of postings) {
+      if (journal.currencyCode !== fact.currencyCode) {
+        addFinding(
+          findings,
+          'CURRENCY_DIVERGENT',
+          journal,
+          `journal ${journal.id} currency ${journal.currencyCode} != ${fact.ledger}:${fact.id} currency ${fact.currencyCode}`,
+        );
+      }
     }
   }
 
@@ -159,7 +170,15 @@ export function runContinuousReconciliation(facts: EconomicFact[]): ContinuousRe
       continue;
     }
     const source = byId.get(`${fact.source.ledger}:${fact.source.id}`);
-    if (source && !moneyAmountsEqual(source.amount, fact.amount)) {
+    if (source && source.currencyCode !== fact.currencyCode) {
+      addFinding(
+        findings,
+        'CURRENCY_DIVERGENT',
+        fact,
+        `${fact.ledger}:${fact.id} currency ${fact.currencyCode} != source ${fact.source.ledger}:${fact.source.id} currency ${source.currencyCode}`,
+      );
+    } else if (source && !moneyAmountsEqual(source.amount, fact.amount)) {
+      // Comparing nominal amounts across currencies is not an economic equality check.
       addFinding(
         findings,
         'AMOUNT_DIVERGENT',
