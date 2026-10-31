@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AccountingModule } from '../accounting/accounting.module';
 import { BillingModule } from '../billing/billing.module';
 import { BillingReceivableHandoffJobHandler } from '../billing/jobs/billing-receivable-handoff.handler';
+import { BillingReceivableCancelJobHandler } from '../billing/jobs/billing-receivable-cancel.handler';
 import { FinanceModule } from '../finance/finance.module';
 import { ObservabilityModule } from '../observability/observability.module';
 import { IntegrationsInboxModule } from '../integrations/inbox/integrations-inbox.module';
@@ -29,10 +30,11 @@ import { DatabaseModule } from '../infrastructure/database/database.module';
   ],
   providers: [
     BillingReceivableHandoffJobHandler,
+    BillingReceivableCancelJobHandler,
     {
       provide: BACKGROUND_JOB_EXTRA_HANDLERS,
-      useFactory: (billingHandler: BillingReceivableHandoffJobHandler) => [billingHandler],
-      inject: [BillingReceivableHandoffJobHandler],
+      useFactory: (billingHandler: BillingReceivableHandoffJobHandler, cancelHandler: BillingReceivableCancelJobHandler) => [billingHandler, cancelHandler],
+      inject: [BillingReceivableHandoffJobHandler, BillingReceivableCancelJobHandler],
     },
     BackgroundWorkerBootstrapService,
     OutboxPublisherWorkerService,
