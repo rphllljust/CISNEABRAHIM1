@@ -552,6 +552,109 @@ describe('Billing document PostgreSQL integration', () => {
     expect(status.rows[0]?.lifecycle).toBe('CANCELLED');
   });
 
+
+  it('MASTER 001-03: compensates a failed Finance cancellation after document commit', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const issued = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      dueDate: '2026-12-20',
+    });
+
+    const failedCancel = vi.spyOn(receivablesAccess, 'cancelFromBilling')
+      .mockRejectedValueOnce(new Error('SIMULATED_FINANCE_CANCEL_FAILURE'));
+    try {
+      await expect(billingDocumentAccess.cancel(actor, completed.id, billing.id, issued.id, {
+        rowVersion: issued.rowVersion,
+        cancelReason: 'test failure after Billing commit',
+        idempotencyKey: `billing-cancel-${crypto.randomUUID()}`,
+      })).rejects.toBeTruthy();
+    } finally {
+      failedCancel.mockRestore();
+    }
+
+    const stored = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM bil.billing_documents WHERE id = $1`, [issued.id],
+    );
+    expect(stored.rows[0]?.status).toBe('CANCELLED');
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${issued.id}:receivable-cancel`,
+    );
+    expect(job?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+    expect(job?.payload['action']).toBe('CANCEL');
+
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    await handler.handle({
+      jobId: job!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: job!.payload,
+      attemptCount: 1,
+      correlationId: issued.id,
+      signal: new AbortController().signal,
+    });
+
+    const financial = await pool.query<{ lifecycle: string }>(
+      `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+         WHERE origin_billing_document_id = $1`, [issued.id],
+    );
+    expect(financial.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
+  it('MASTER 001-03: concurrent worker OPEN and API CANCEL converge without resurrection', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const issued = await billingDocumentAccess.issue(actor, completed.id, billing.id, {});
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${issued.id}:receivable-handoff`,
+    );
+    expect(job).not.toBeNull();
+
+    const original = receivablesAccess.openFromBilling.bind(receivablesAccess);
+    let entered!: () => void;
+    let release!: () => void;
+    const enteredPromise = new Promise<void>((resolve) => { entered = resolve; });
+    const releasePromise = new Promise<void>((resolve) => { release = resolve; });
+    const spy = vi.spyOn(receivablesAccess, 'openFromBilling').mockImplementationOnce(async (input) => {
+      entered();
+      await releasePromise;
+      return original(input);
+    });
+
+    try {
+      const handler = new BillingReceivableHandoffJobHandler(
+        billingDocumentsRepository, receivablesAccess,
+      );
+      const workerPromise = handler.handle({
+        jobId: job!.id,
+        jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+        payload: job!.payload,
+        attemptCount: 1,
+        correlationId: issued.id,
+        signal: new AbortController().signal,
+      });
+      await enteredPromise;
+      const cancelPromise = billingDocumentAccess.cancel(actor, completed.id, billing.id, issued.id, {
+        rowVersion: issued.rowVersion,
+        cancelReason: 'concurrent cancellation',
+      });
+      release();
+      await Promise.all([workerPromise, cancelPromise]);
+    } finally {
+      release?.();
+      spy.mockRestore();
+    }
+
+    const state = await pool.query<{ lifecycle: string; count: string }>(
+      `SELECT lifecycle::text AS lifecycle, COUNT(*)::text AS count
+         FROM fin.receivables WHERE origin_billing_document_id = $1
+         GROUP BY lifecycle`, [issued.id],
+    );
+    expect(state.rows).toHaveLength(1);
+    expect(state.rows[0]?.count).toBe('1');
+    expect(state.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
   it('allocates unique numbers under concurrent issuance', async () => {
     const { actor } = await seedActor();
     const first = await seedPreparedBilling(actor);
