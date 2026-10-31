@@ -240,15 +240,20 @@ export class BillingDocumentAccessService {
     requireBillingReceivablePort(this.receivablePort);
 
     try {
-      await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.cancelReason);
-      const result = await this.billingDocumentRepository.cancelBillingDocument({
+      const result = await this.billingDocumentRepository.withReceivableHandoffLock(
         billingDocumentId,
-        billingRecordId,
-        rowVersion: validated.rowVersion,
-        cancelReason: validated.cancelReason,
-        actorIdentityId: actor.identityId,
-        idempotencyKey: validated.idempotencyKey,
-      });
+        async () => {
+          await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.cancelReason);
+          return this.billingDocumentRepository.cancelBillingDocument({
+            billingDocumentId,
+            billingRecordId,
+            rowVersion: validated.rowVersion,
+            cancelReason: validated.cancelReason,
+            actorIdentityId: actor.identityId,
+            idempotencyKey: validated.idempotencyKey,
+          });
+        },
+      );
 
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.BillingBillingDocumentCancel, order.id, {
         billingRecordId,
@@ -301,28 +306,12 @@ export class BillingDocumentAccessService {
     }
 
     try {
-      await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.replaceReason);
-      const result = await this.billingDocumentRepository.replaceBillingDocument(
-        {
-          billingRecord,
-          billingItems,
-          purchaseOrderNumber,
-          customerPurchaseOrderNumber: order.customer_purchase_order_number ?? null,
-          dueDate: validated.dueDate ?? null,
-          issuedAt,
-          actorIdentityId: actor.identityId,
-          versionNumber: previous.version_number + 1,
-          emitterLegalName: emitter.legalName,
-          emitterTaxId: emitter.taxId,
-          emitterAddressSnapshot: emitter.address,
-          previousDocumentId: billingDocumentId,
-          previousRowVersion: validated.rowVersion,
-          replaceReason: validated.replaceReason,
-        },
-        async (allocation) =>
-          this.artifactService.persistArtifact({
-            allocation,
-            emitter,
+      const result = await this.billingDocumentRepository.withReceivableHandoffLock(
+        billingDocumentId,
+        async () => {
+          await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.replaceReason);
+          return this.billingDocumentRepository.replaceBillingDocument(
+          {
             billingRecord,
             billingItems,
             purchaseOrderNumber,
@@ -330,8 +319,29 @@ export class BillingDocumentAccessService {
             dueDate: validated.dueDate ?? null,
             issuedAt,
             actorIdentityId: actor.identityId,
-            ...this.buildDocumentTraceability(order, billingRecord),
-          }),
+            versionNumber: previous.version_number + 1,
+            emitterLegalName: emitter.legalName,
+            emitterTaxId: emitter.taxId,
+            emitterAddressSnapshot: emitter.address,
+            previousDocumentId: billingDocumentId,
+            previousRowVersion: validated.rowVersion,
+            replaceReason: validated.replaceReason,
+          },
+          async (allocation) =>
+            this.artifactService.persistArtifact({
+              allocation,
+              emitter,
+              billingRecord,
+              billingItems,
+              purchaseOrderNumber,
+              customerPurchaseOrderNumber: order.customer_purchase_order_number ?? null,
+              dueDate: validated.dueDate ?? null,
+              issuedAt,
+              actorIdentityId: actor.identityId,
+              ...this.buildDocumentTraceability(order, billingRecord),
+            }),
+            );
+        },
       );
 
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.BillingBillingDocumentReplace, order.id, {
@@ -417,21 +427,28 @@ export class BillingDocumentAccessService {
     document: BillingDocumentRow,
   ): Promise<void> {
     const receivablePort = requireBillingReceivablePort(this.receivablePort);
-    const issuedAt = toIsoDate(document.issued_at);
-    const dueDate = document.due_date ? toIsoDate(document.due_date) : issuedAt;
-    await receivablePort.openFromBilling({
-      billingRecordId: document.billing_record_id,
-      billingDocumentId: document.id,
-      serviceOrderId: document.service_order_id,
-      measurementId: document.measurement_id,
-      unitId: document.unit_id,
-      clientId: document.client_id,
-      principal: document.total_amount,
-      currencyCode: document.currency_code,
-      dueDate,
-      paymentTerms: document.payment_terms,
-      externalReference: document.document_number,
-      actorIdentityId: actor.identityId,
+    await this.billingDocumentRepository.withReceivableHandoffLock(document.id, async () => {
+      const current = await this.billingDocumentRepository.findById(document.id);
+      if (!current || current.status !== 'FINALIZED') {
+        // A concurrent cancellation/replacement already won the document lock.
+        return;
+      }
+      const issuedAt = toIsoDate(current.issued_at);
+      const dueDate = current.due_date ? toIsoDate(current.due_date) : issuedAt;
+      await receivablePort.openFromBilling({
+        billingRecordId: current.billing_record_id,
+        billingDocumentId: current.id,
+        serviceOrderId: current.service_order_id,
+        measurementId: current.measurement_id,
+        unitId: current.unit_id,
+        clientId: current.client_id,
+        principal: current.total_amount,
+        currencyCode: current.currency_code,
+        dueDate,
+        paymentTerms: current.payment_terms,
+        externalReference: current.document_number,
+        actorIdentityId: actor.identityId,
+      });
     });
   }
 
