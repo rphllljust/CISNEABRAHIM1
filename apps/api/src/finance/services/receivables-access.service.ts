@@ -129,6 +129,16 @@ export class ReceivablesAccessService implements FinanceReceivablePort {
     }
   }
 
+  async assertCancellableFromBilling(billingDocumentId: string): Promise<void> {
+    try {
+      if (await this.repository.hasPostedSettlementForBillingDocument(billingDocumentId)) {
+        throw new ReceivableError('RECEIVABLE_HAS_SETTLEMENTS');
+      }
+    } catch (error) {
+      throw mapReceivableDomainError(error);
+    }
+  }
+
   async cancelFromBilling(input: {
     billingDocumentId: string;
     actorIdentityId: string;

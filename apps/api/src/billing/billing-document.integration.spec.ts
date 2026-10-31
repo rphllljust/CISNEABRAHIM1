@@ -50,6 +50,7 @@ import { BillingReceivableHandoffJobHandler } from './jobs/billing-receivable-ha
 import { BackgroundJobsRepository } from '../platform/background-jobs/repositories/background-jobs.repository';
 import { BACKGROUND_JOB_KINDS, BACKGROUND_JOB_STATUSES } from '../platform/background-jobs/domain/background-job-kind';
 import { ReceivablesAccessService } from '../finance/services/receivables-access.service';
+import { ReceivablesRepository } from '../finance/repositories/receivables.repository';
 import { BILLING_ERROR_CODES } from '../billing/errors/billing-error-codes';
 import { BillingAccessService } from '../billing/services/billing-access.service';
 import { BillingDocumentAccessService } from '../billing/services/billing-document-access.service';
@@ -132,6 +133,7 @@ describe('Billing document PostgreSQL integration', () => {
   let billingAccess: BillingAccessService;
   let billingDocumentAccess: BillingDocumentAccessService;
   let receivablesAccess: ReceivablesAccessService;
+  let receivablesRepository: ReceivablesRepository;
   let billingDocumentsRepository: BillingDocumentRepository;
   let jobsRepository: BackgroundJobsRepository;
   let measurementsAccess: MeasurementsAccessService;
@@ -172,6 +174,7 @@ describe('Billing document PostgreSQL integration', () => {
     billingAccess = module.get(BillingAccessService);
     billingDocumentAccess = module.get(BillingDocumentAccessService);
     receivablesAccess = module.get(ReceivablesAccessService);
+    receivablesRepository = module.get(ReceivablesRepository);
     billingDocumentsRepository = module.get(BillingDocumentRepository);
     jobsRepository = module.get(BackgroundJobsRepository);
     measurementsAccess = module.get(MeasurementsAccessService);
@@ -550,6 +553,169 @@ describe('Billing document PostgreSQL integration', () => {
       [billingDocumentId],
     );
     expect(status.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
+
+  it('MASTER 001-03: compensates a failed Finance cancellation after document commit', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const issued = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      dueDate: '2026-12-20',
+    });
+
+    const failedCancel = vi.spyOn(receivablesAccess, 'cancelFromBilling')
+      .mockRejectedValueOnce(new Error('SIMULATED_FINANCE_CANCEL_FAILURE'));
+    try {
+      await expect(billingDocumentAccess.cancel(actor, completed.id, billing.id, issued.id, {
+        rowVersion: issued.rowVersion,
+        cancelReason: 'test failure after Billing commit',
+        idempotencyKey: `billing-cancel-${crypto.randomUUID()}`,
+      })).rejects.toBeTruthy();
+    } finally {
+      failedCancel.mockRestore();
+    }
+
+    const stored = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM bil.billing_documents WHERE id = $1`, [issued.id],
+    );
+    expect(stored.rows[0]?.status).toBe('CANCELLED');
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${issued.id}:receivable-cancel`,
+    );
+    expect(job?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+    expect(job?.payload['action']).toBe('CANCEL');
+
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    await handler.handle({
+      jobId: job!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: job!.payload,
+      attemptCount: 1,
+      correlationId: issued.id,
+      signal: new AbortController().signal,
+    });
+
+    const financial = await pool.query<{ lifecycle: string }>(
+      `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+         WHERE origin_billing_document_id = $1`, [issued.id],
+    );
+    expect(financial.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
+  it('MASTER 001-03: concurrent worker OPEN and API CANCEL converge without resurrection', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const issued = await billingDocumentAccess.issue(actor, completed.id, billing.id, {});
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${issued.id}:receivable-handoff`,
+    );
+    expect(job).not.toBeNull();
+
+    const original = receivablesAccess.openFromBilling.bind(receivablesAccess);
+    let entered!: () => void;
+    let release!: () => void;
+    const enteredPromise = new Promise<void>((resolve) => { entered = resolve; });
+    const releasePromise = new Promise<void>((resolve) => { release = resolve; });
+    const spy = vi.spyOn(receivablesAccess, 'openFromBilling').mockImplementationOnce(async (input) => {
+      entered();
+      await releasePromise;
+      return original(input);
+    });
+
+    try {
+      const handler = new BillingReceivableHandoffJobHandler(
+        billingDocumentsRepository, receivablesAccess,
+      );
+      const workerPromise = handler.handle({
+        jobId: job!.id,
+        jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+        payload: job!.payload,
+        attemptCount: 1,
+        correlationId: issued.id,
+        signal: new AbortController().signal,
+      });
+      await enteredPromise;
+      const cancelPromise = billingDocumentAccess.cancel(actor, completed.id, billing.id, issued.id, {
+        rowVersion: issued.rowVersion,
+        cancelReason: 'concurrent cancellation',
+      });
+      release();
+      await Promise.all([workerPromise, cancelPromise]);
+    } finally {
+      release?.();
+      spy.mockRestore();
+    }
+
+    const state = await pool.query<{ lifecycle: string; count: string }>(
+      `SELECT lifecycle::text AS lifecycle, COUNT(*)::text AS count
+         FROM fin.receivables WHERE origin_billing_document_id = $1
+         GROUP BY lifecycle`, [issued.id],
+    );
+    expect(state.rows).toHaveLength(1);
+    expect(state.rows[0]?.count).toBe('1');
+    expect(state.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
+
+  it('MASTER 001-03: posted settlement vetoes Billing cancel and replace before any state change', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const document = await billingDocumentAccess.issue(
+      actor, completed.id, billing.id, { dueDate: '2026-12-20' },
+    );
+
+    const rows = await pool.query<{
+      id: string; row_version: number; currency_code: string;
+    }>(
+      `SELECT id, row_version, currency_code FROM fin.receivables
+       WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+    expect(rows.rows).toHaveLength(1);
+
+    await receivablesRepository.settle({
+      receivableId: rows.rows[0]!.id,
+      amount: '1.0000',
+      currencyCode: rows.rows[0]!.currency_code,
+      rowVersion: rows.rows[0]!.row_version,
+      idempotencyKey: `billing-veto-${crypto.randomUUID()}`,
+      settledAt: new Date().toISOString(),
+      actorIdentityId: actor.identityId,
+    });
+
+    await expect(billingDocumentAccess.cancel(
+      actor, completed.id, billing.id, document.id, {
+        rowVersion: document.rowVersion,
+        cancelReason: 'should reject settled receivable',
+      },
+    )).rejects.toBeTruthy();
+
+    await expect(billingDocumentAccess.replace(
+      actor, completed.id, billing.id, document.id, {
+        rowVersion: document.rowVersion,
+        replaceReason: 'should reject settled receivable',
+      },
+    )).rejects.toBeTruthy();
+
+    const authoritative = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM bil.billing_documents WHERE id = $1`,
+      [document.id],
+    );
+    const financial = await pool.query<{ lifecycle: string }>(
+      `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+       WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+    expect(authoritative.rows[0]?.status).toBe('FINALIZED');
+    expect(financial.rows[0]?.lifecycle).toBe('ACTIVE');
+    const history = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fin.settlements
+       WHERE receivable_id = $1 AND status = 'POSTED'`,
+      [rows.rows[0]!.id],
+    );
+    expect(history.rows[0]?.count).toBe('1');
   });
 
   it('allocates unique numbers under concurrent issuance', async () => {
