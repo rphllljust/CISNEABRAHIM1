@@ -312,12 +312,12 @@ export class BillingDocumentAccessService {
           await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.replaceReason);
           return this.billingDocumentRepository.replaceBillingDocument(
             {
-            billingRecord,
-            billingItems,
-            purchaseOrderNumber,
+              billingRecord,
+              billingItems,
+              purchaseOrderNumber,
               customerPurchaseOrderNumber: order.customer_purchase_order_number ?? null,
               dueDate: validated.dueDate ?? null,
-            issuedAt,
+              issuedAt,
               actorIdentityId: actor.identityId,
               versionNumber: previous.version_number + 1,
               emitterLegalName: emitter.legalName,
@@ -329,17 +329,17 @@ export class BillingDocumentAccessService {
             },
             async (allocation) =>
               this.artifactService.persistArtifact({
-              allocation,
-              emitter,
-              billingRecord,
-              billingItems,
-              purchaseOrderNumber,
-              customerPurchaseOrderNumber: order.customer_purchase_order_number ?? null,
-              dueDate: validated.dueDate ?? null,
-              issuedAt,
-              actorIdentityId: actor.identityId,
-              ...this.buildDocumentTraceability(order, billingRecord),
-            }),
+                allocation,
+                emitter,
+                billingRecord,
+                billingItems,
+                purchaseOrderNumber,
+                customerPurchaseOrderNumber: order.customer_purchase_order_number ?? null,
+                dueDate: validated.dueDate ?? null,
+                issuedAt,
+                actorIdentityId: actor.identityId,
+                ...this.buildDocumentTraceability(order, billingRecord),
+              }),
           );
         },
       );
