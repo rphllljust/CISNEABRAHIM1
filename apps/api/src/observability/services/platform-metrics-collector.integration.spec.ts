@@ -91,6 +91,14 @@ describe('PlatformMetricsCollectorService — integração PostgreSQL', () => {
     }
   }
 
+  async function seedFinancialHandoff(status: string): Promise<void> {
+    await pool.query(
+      `INSERT INTO plt.background_jobs (job_kind, status, idempotency_key)
+       VALUES ('BILLING_RECEIVABLE_HANDOFF', $1, $2)`,
+      [status, `receivable-job-${crypto.randomUUID()}`],
+    );
+  }
+
   async function seedOutboxEvents(statuses: string[]): Promise<void> {
     let sequence = 0;
     for (const status of statuses) {
@@ -166,6 +174,8 @@ describe('PlatformMetricsCollectorService — integração PostgreSQL', () => {
 
   it('conta backlogs reais e casa com o ground truth do banco', async () => {
     await seedBackgroundJobs(['PENDING', 'PENDING', 'RUNNING']);
+    await seedFinancialHandoff('PENDING');
+    await seedFinancialHandoff('DEAD');
     await seedOutboxEvents(['PENDING', 'PENDING', 'FAILED', 'PUBLISHED']);
     await seedFailedDeliveryAttempts(2);
     await seedIntegrationInbox([
@@ -178,13 +188,16 @@ describe('PlatformMetricsCollectorService — integração PostgreSQL', () => {
     const snapshot = await collector.collectBacklogs();
 
     expect(snapshot).toEqual({
-      workerPending: 2,
+      workerPending: 3,
       outboxPending: 2,
       outboxFailed: 1,
       notificationFailures: 2,
       integrationFailures: 3,
       erpFailures: 1,
       trackingFailures: 1,
+      receivableHandoffPending: 1,
+      receivableHandoffDead: 1,
+      billingReceivableOrphans: expect.any(Number),
     });
     expect(collector.getLastCollectionError()).toBeNull();
 
@@ -199,6 +212,14 @@ describe('PlatformMetricsCollectorService — integração PostgreSQL', () => {
     expect(snapshot.integrationFailures).toBe(Number(truth.rows[0]?.integration));
     expect(snapshot.erpFailures).toBe(Number(truth.rows[0]?.erp));
     expect(snapshot.trackingFailures).toBe(Number(truth.rows[0]?.tracking));
+
+    const orphanTruth = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM bil.billing_documents bd
+       WHERE bd.status = 'FINALIZED'
+         AND bd.issued_at < NOW() - interval '5 minutes'
+         AND NOT EXISTS (SELECT 1 FROM fin.receivables r WHERE r.origin_billing_document_id = bd.id)`,
+    );
+    expect(snapshot.billingReceivableOrphans).toBe(Number(orphanTruth.rows[0]?.count));
   });
 
   it('base vazia devolve zero REAL (medido) e nenhum diagnóstico de falha', async () => {
@@ -212,6 +233,9 @@ describe('PlatformMetricsCollectorService — integração PostgreSQL', () => {
       integrationFailures: 0,
       erpFailures: 0,
       trackingFailures: 0,
+      receivableHandoffPending: 0,
+      receivableHandoffDead: 0,
+      billingReceivableOrphans: expect.any(Number),
     });
     expect(collector.getLastCollectionError()).toBeNull();
   });
