@@ -215,7 +215,9 @@ export class BillingDocumentAccessService {
         documentNumber: result.billingDocument.document_number,
       });
 
-      await this.openReceivableFromDocument(actor, result.billingDocument);
+      await this.billingDocumentRepository.withHandoffLock(result.billingDocument.id, () =>
+        this.openReceivableFromDocument(actor, result.billingDocument),
+      );
 
       return this.getById(actor, serviceOrderId, billingRecordId, result.billingDocument.id);
     } catch (error) {
@@ -240,14 +242,19 @@ export class BillingDocumentAccessService {
     requireBillingReceivablePort(this.receivablePort);
 
     try {
-      await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.cancelReason);
-      const result = await this.billingDocumentRepository.cancelBillingDocument({
-        billingDocumentId,
-        billingRecordId,
-        rowVersion: validated.rowVersion,
-        cancelReason: validated.cancelReason,
-        actorIdentityId: actor.identityId,
-        idempotencyKey: validated.idempotencyKey,
+      // Commit the CANCELLED document and durable Finance-cancel job first:
+      // no financial mutation may precede the Billing authority transition.
+      const result = await this.billingDocumentRepository.withHandoffLock(billingDocumentId, async () => {
+        const persisted = await this.billingDocumentRepository.cancelBillingDocument({
+          billingDocumentId,
+          billingRecordId,
+          rowVersion: validated.rowVersion,
+          cancelReason: validated.cancelReason,
+          actorIdentityId: actor.identityId,
+          idempotencyKey: validated.idempotencyKey,
+        });
+        await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.cancelReason);
+        return persisted;
       });
 
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.BillingBillingDocumentCancel, order.id, {
@@ -301,8 +308,8 @@ export class BillingDocumentAccessService {
     }
 
     try {
-      await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.replaceReason);
-      const result = await this.billingDocumentRepository.replaceBillingDocument(
+      const result = await this.billingDocumentRepository.withHandoffLock(billingDocumentId, async () => {
+        const persisted = await this.billingDocumentRepository.replaceBillingDocument(
         {
           billingRecord,
           billingItems,
@@ -332,7 +339,10 @@ export class BillingDocumentAccessService {
             actorIdentityId: actor.identityId,
             ...this.buildDocumentTraceability(order, billingRecord),
           }),
-      );
+        );
+        await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.replaceReason);
+        return persisted;
+      });
 
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.BillingBillingDocumentReplace, order.id, {
         billingRecordId,
@@ -340,7 +350,9 @@ export class BillingDocumentAccessService {
         billingDocumentId: result.billingDocument.id,
       });
 
-      await this.openReceivableFromDocument(actor, result.billingDocument);
+      await this.billingDocumentRepository.withHandoffLock(result.billingDocument.id, () =>
+        this.openReceivableFromDocument(actor, result.billingDocument),
+      );
 
       return this.getById(actor, serviceOrderId, billingRecordId, result.billingDocument.id);
     } catch (error) {
