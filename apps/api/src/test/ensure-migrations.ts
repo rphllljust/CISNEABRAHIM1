@@ -1170,6 +1170,20 @@ $$;`);
       await applySqlFile(pool, '0112_billing_receivable_handoff_job.sql');
     }
 
+    const cancelJobKind = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM pg_type t
+         JOIN pg_enum e ON e.enumtypid = t.oid
+         JOIN pg_namespace n ON n.oid = t.typnamespace
+         WHERE n.nspname = 'plt'
+           AND t.typname = 'background_job_kind'
+           AND e.enumlabel = 'BILLING_RECEIVABLE_CANCEL'
+       ) AS exists`,
+    );
+    if (!cancelJobKind.rows[0]?.exists) {
+      await applySqlFile(pool, '0113_billing_receivable_cancel_job.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();
