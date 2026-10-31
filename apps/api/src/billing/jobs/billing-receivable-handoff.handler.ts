@@ -29,41 +29,43 @@ export class BillingReceivableHandoffJobHandler implements BackgroundJobHandler 
       throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_PAYLOAD_INVALID');
     }
 
-    const document = await this.billingDocuments.findById(billingDocumentId);
-    if (!document) {
-      throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_DOCUMENT_NOT_FOUND');
-    }
+    await this.billingDocuments.withReceivableHandoffLock(billingDocumentId, async () => {
+      const document = await this.billingDocuments.findById(billingDocumentId);
+      if (!document) {
+        throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_DOCUMENT_NOT_FOUND');
+      }
 
-    // A canceled/replaced document must NEVER originate a fresh receivable.
-    if (document.status === BILLING_DOCUMENT_STATUSES.Cancelled) {
-      return;
-    }
-    if (document.status !== BILLING_DOCUMENT_STATUSES.Finalized) {
-      throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_INVALID_DOCUMENT_STATE');
-    }
+      // A canceled/replaced document must NEVER originate a fresh receivable.
+      if (document.status === BILLING_DOCUMENT_STATUSES.Cancelled) {
+        return;
+      }
+      if (document.status !== BILLING_DOCUMENT_STATUSES.Finalized) {
+        throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_INVALID_DOCUMENT_STATE');
+      }
 
-    const issued = new Date(document.issued_at);
-    if (Number.isNaN(issued.getTime())) {
-      throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_ISSUE_DATE_INVALID');
-    }
-    const due = document.due_date ? new Date(document.due_date) : issued;
-    if (Number.isNaN(due.getTime())) {
-      throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_DUE_DATE_INVALID');
-    }
+      const issued = new Date(document.issued_at);
+      if (Number.isNaN(issued.getTime())) {
+        throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_ISSUE_DATE_INVALID');
+      }
+      const due = document.due_date ? new Date(document.due_date) : issued;
+      if (Number.isNaN(due.getTime())) {
+        throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_DUE_DATE_INVALID');
+      }
 
-    await this.receivables.openFromBilling({
-      billingRecordId: document.billing_record_id,
-      billingDocumentId: document.id,
-      serviceOrderId: document.service_order_id,
-      measurementId: document.measurement_id,
-      unitId: document.unit_id,
-      clientId: document.client_id,
-      principal: document.total_amount,
-      currencyCode: document.currency_code,
-      dueDate: due.toISOString().slice(0, 10),
-      paymentTerms: document.payment_terms,
-      externalReference: document.document_number,
-      actorIdentityId: document.created_by_identity_id,
+      await this.receivables.openFromBilling({
+        billingRecordId: document.billing_record_id,
+        billingDocumentId: document.id,
+        serviceOrderId: document.service_order_id,
+        measurementId: document.measurement_id,
+        unitId: document.unit_id,
+        clientId: document.client_id,
+        principal: document.total_amount,
+        currencyCode: document.currency_code,
+        dueDate: due.toISOString().slice(0, 10),
+        paymentTerms: document.payment_terms,
+        externalReference: document.document_number,
+        actorIdentityId: document.created_by_identity_id,
+      });
     });
   }
 }
