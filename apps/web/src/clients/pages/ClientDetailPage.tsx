@@ -4,7 +4,7 @@ import {
   activateClient,
   ClientsApiError,
   deactivateClient,
-  getClient,
+  getClient360,
 } from '../api/clients-api';
 import {
   DEACTIVATION_CONSEQUENCE_MESSAGE,
@@ -114,8 +114,8 @@ export function ClientDetailPage() {
     setActionError(null);
     setVersionConflict(false);
     try {
-      const client = await getClient(clientId);
-      setState({ phase: 'ready', client });
+      const snapshot = await getClient360(clientId);
+      setState({ phase: 'ready', client: snapshot.client });
     } catch (error) {
       if (error instanceof ClientsApiError) {
         if (error.kind === 'denied') {
