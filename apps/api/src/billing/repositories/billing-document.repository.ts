@@ -65,6 +65,26 @@ export class BillingDocumentRepository {
     }, client);
   }
 
+  /**
+   * Billing cancellation/replacement commits a Finance compensation obligation
+   * atomically with the document state; retry uses the published Finance port.
+   */
+  private async enqueueReceivableCancellation(
+    client: PoolClient,
+    billingDocumentId: string,
+    actorIdentityId: string,
+    reason: string,
+  ): Promise<void> {
+    await this.backgroundJobs.enqueueJob({
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableCancel,
+      idempotencyKey: `billing-document:${billingDocumentId}:receivable-cancel`,
+      correlationId: billingDocumentId,
+      payload: { schemaVersion: 1, billingDocumentId, actorIdentityId, reason },
+      priority: 15,
+      maxAttempts: 12,
+    }, client);
+  }
+
   async findById(billingDocumentId: string): Promise<BillingDocumentRow | null> {
     const result = await this.pool().query<BillingDocumentRow>(
       `SELECT ${BILLING_DOCUMENT_RETURNING} FROM bil.billing_documents WHERE id = $1`,
@@ -531,6 +551,7 @@ export class BillingDocumentRepository {
         ],
       );
 
+      await this.enqueueReceivableCancellation(client, input.previousDocumentId, input.actorIdentityId, input.replaceReason);
       await this.enqueueReceivableHandoff(client, billingDocumentId);
       await client.query('COMMIT');
       const billingDocument = inserted.rows[0];
@@ -633,6 +654,7 @@ export class BillingDocumentRepository {
         );
       }
 
+      await this.enqueueReceivableCancellation(client, input.billingDocumentId, input.actorIdentityId, input.cancelReason);
       await client.query('COMMIT');
       const cancelled = updated.rows[0];
       if (!cancelled) {
