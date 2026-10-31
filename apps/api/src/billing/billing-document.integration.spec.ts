@@ -50,6 +50,7 @@ import { BillingReceivableHandoffJobHandler } from './jobs/billing-receivable-ha
 import { BackgroundJobsRepository } from '../platform/background-jobs/repositories/background-jobs.repository';
 import { BACKGROUND_JOB_KINDS, BACKGROUND_JOB_STATUSES } from '../platform/background-jobs/domain/background-job-kind';
 import { ReceivablesAccessService } from '../finance/services/receivables-access.service';
+import { ReceivablesRepository } from '../finance/repositories/receivables.repository';
 import { BILLING_ERROR_CODES } from '../billing/errors/billing-error-codes';
 import { BillingAccessService } from '../billing/services/billing-access.service';
 import { BillingDocumentAccessService } from '../billing/services/billing-document-access.service';
@@ -132,6 +133,7 @@ describe('Billing document PostgreSQL integration', () => {
   let billingAccess: BillingAccessService;
   let billingDocumentAccess: BillingDocumentAccessService;
   let receivablesAccess: ReceivablesAccessService;
+  let receivablesRepository: ReceivablesRepository;
   let billingDocumentsRepository: BillingDocumentRepository;
   let jobsRepository: BackgroundJobsRepository;
   let measurementsAccess: MeasurementsAccessService;
@@ -172,6 +174,7 @@ describe('Billing document PostgreSQL integration', () => {
     billingAccess = module.get(BillingAccessService);
     billingDocumentAccess = module.get(BillingDocumentAccessService);
     receivablesAccess = module.get(ReceivablesAccessService);
+    receivablesRepository = module.get(ReceivablesRepository);
     billingDocumentsRepository = module.get(BillingDocumentRepository);
     jobsRepository = module.get(BackgroundJobsRepository);
     measurementsAccess = module.get(MeasurementsAccessService);
@@ -653,6 +656,66 @@ describe('Billing document PostgreSQL integration', () => {
     expect(state.rows).toHaveLength(1);
     expect(state.rows[0]?.count).toBe('1');
     expect(state.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
+
+  it('MASTER 001-03: posted settlement vetoes Billing cancel and replace before any state change', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const document = await billingDocumentAccess.issue(
+      actor, completed.id, billing.id, { dueDate: '2026-12-20' },
+    );
+
+    const rows = await pool.query<{
+      id: string; row_version: number; currency_code: string;
+    }>(
+      `SELECT id, row_version, currency_code FROM fin.receivables
+       WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+    expect(rows.rows).toHaveLength(1);
+
+    await receivablesRepository.settle({
+      receivableId: rows.rows[0]!.id,
+      amount: '1.0000',
+      currencyCode: rows.rows[0]!.currency_code,
+      rowVersion: rows.rows[0]!.row_version,
+      idempotencyKey: `billing-veto-${crypto.randomUUID()}`,
+      settledAt: new Date().toISOString(),
+      actorIdentityId: actor.identityId,
+    });
+
+    await expect(billingDocumentAccess.cancel(
+      actor, completed.id, billing.id, document.id, {
+        rowVersion: document.rowVersion,
+        cancelReason: 'should reject settled receivable',
+      },
+    )).rejects.toBeTruthy();
+
+    await expect(billingDocumentAccess.replace(
+      actor, completed.id, billing.id, document.id, {
+        rowVersion: document.rowVersion,
+        replaceReason: 'should reject settled receivable',
+      },
+    )).rejects.toBeTruthy();
+
+    const authoritative = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM bil.billing_documents WHERE id = $1`,
+      [document.id],
+    );
+    const financial = await pool.query<{ lifecycle: string }>(
+      `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+       WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+    expect(authoritative.rows[0]?.status).toBe('FINALIZED');
+    expect(financial.rows[0]?.lifecycle).toBe('ACTIVE');
+    const history = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fin.settlements
+       WHERE receivable_id = $1 AND status = 'POSTED'`,
+      [rows.rows[0]!.id],
+    );
+    expect(history.rows[0]?.count).toBe('1');
   });
 
   it('allocates unique numbers under concurrent issuance', async () => {
