@@ -21,6 +21,9 @@ type Counted = {
   integrationFailures: string;
   erpFailures: string;
   trackingFailures: string;
+  receivableHandoffPending: string;
+  receivableHandoffDead: string;
+  billingReceivableOrphans: string;
 };
 
 const COUNTS: Counted = {
@@ -31,6 +34,9 @@ const COUNTS: Counted = {
   integrationFailures: '3',
   erpFailures: '5',
   trackingFailures: '6',
+  receivableHandoffPending: '3',
+  receivableHandoffDead: '2',
+  billingReceivableOrphans: '1',
 };
 
 function fakeDatabase(pool: { query: Pool['query'] }): DatabaseService {
@@ -48,6 +54,10 @@ function fakeMetrics(): MetricsRegistryService {
 }
 
 function resolveCount(sql: string, params: unknown[], counts: Counted = COUNTS): string {
+  if (sql.includes('bil.billing_documents')) return counts.billingReceivableOrphans;
+  if (sql.includes('plt.background_jobs') && sql.includes('BILLING_RECEIVABLE_HANDOFF')) {
+    return sql.includes("'DEAD'") ? counts.receivableHandoffDead : counts.receivableHandoffPending;
+  }
   if (sql.includes('plt.background_jobs')) return counts.workerPending;
   if (sql.includes('ntf.delivery_attempts')) return counts.notificationFailures;
   if (sql.includes('int.integration_inbox')) {
@@ -93,6 +103,9 @@ describe('PlatformMetricsCollectorService.collectBacklogs', () => {
       integrationFailures: 3,
       erpFailures: 5,
       trackingFailures: 6,
+      receivableHandoffPending: 3,
+      receivableHandoffDead: 2,
+      billingReceivableOrphans: 1,
     });
     expect(collector.getLastCollectionError()).toBeNull();
   });
@@ -106,6 +119,9 @@ describe('PlatformMetricsCollectorService.collectBacklogs', () => {
       integrationFailures: '0',
       erpFailures: '0',
       trackingFailures: '0',
+      receivableHandoffPending: '0',
+      receivableHandoffDead: '0',
+      billingReceivableOrphans: '0',
     };
     const collector = new PlatformMetricsCollectorService(
       fakeDatabase(countingPool(zeros)),
@@ -143,6 +159,9 @@ describe('PlatformMetricsCollectorService.collectBacklogs', () => {
       'integrationFailures',
       'erpFailures',
       'trackingFailures',
+      'receivableHandoffPending',
+      'receivableHandoffDead',
+      'billingReceivableOrphans',
     ]).toContain(diagnostic?.metric);
     expect(diagnostic?.message).toContain('invalid input value for enum');
     expect(diagnostic?.collectedAt).toEqual(expect.any(String));
