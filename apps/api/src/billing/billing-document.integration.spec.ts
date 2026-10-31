@@ -343,7 +343,7 @@ describe('Billing document PostgreSQL integration', () => {
   });
 
 
-  it('MASTER 001-03: issues accepted measurement billing into exactly one persisted receivable', async () => {
+  it('MASTER 001-03: issues approved measurement billing into exactly one persisted receivable', async () => {
     const { actor } = await seedActor();
     const { completed, billing, client } = await seedPreparedBilling(actor);
     const idempotencyKey = `master-001-03-${crypto.randomUUID()}`;
