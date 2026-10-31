@@ -65,5 +65,21 @@ export class BillingReceivableHandoffJobHandler implements BackgroundJobHandler 
       externalReference: document.document_number,
       actorIdentityId: document.created_by_identity_id,
     });
+
+    // Double-sided race fence: a cancel can commit while Finance opens.
+    // A post-open read forces compensation after the insert. The cancel
+    // command also commits a durable cancellation job, so both orders
+    // converge without reviving a canceled business obligation.
+    const latest = await this.billingDocuments.findById(document.id);
+    if (!latest) {
+      throw new PermanentJobError('BILLING_RECEIVABLE_HANDOFF_DOCUMENT_DISAPPEARED');
+    }
+    if (latest.status === BILLING_DOCUMENT_STATUSES.Cancelled) {
+      await this.receivables.cancelFromBilling({
+        billingDocumentId: latest.id,
+        actorIdentityId: latest.cancelled_by_identity_id ?? latest.updated_by_identity_id,
+        reason: latest.cancel_reason ?? 'Billing document cancelled after receivable handoff',
+      });
+    }
   }
 }
