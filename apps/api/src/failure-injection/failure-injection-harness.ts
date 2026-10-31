@@ -11,6 +11,7 @@ import {
   truncateCommercialProposalTables,
   truncateCommercialPurchaseOrderTables,
   truncateDocumentTables,
+  truncateFinanceTables,
   truncateDomainEventTables,
   truncateIdentityAndAuthorizationTables,
   truncateOutboxTables,
@@ -39,6 +40,7 @@ import { PurchaseOrdersAccessService } from '../commercial/services/purchase-ord
 import { CONCURRENCY_UNIT } from '../concurrency/concurrency-seeds';
 import { DocumentsModule } from '../documents/documents.module';
 import { DocumentsAccessService } from '../documents/services/documents-access.service';
+import { FinanceModule } from '../finance/finance.module';
 import { ObjectStorageService } from '../documents/storage/object-storage.service';
 import { DatabaseService } from '../infrastructure/database/database.service';
 import { MeasurementsModule } from '../measurements/measurements.module';
@@ -102,6 +104,7 @@ export async function createFailureInjectionTestContext(): Promise<FailureInject
       ServiceOrdersModule,
       MeasurementsModule,
       BillingModule,
+      FinanceModule,
     ],
   })
     .overrideProvider(FAULT_INJECTION_PORT)
@@ -145,6 +148,7 @@ export async function createFailureInjectionTestContext(): Promise<FailureInject
     faultPort.clear();
     faultingStorage.reset();
     resetSyntheticCnpjSequence();
+    await truncateFinanceTables(pool);
     await truncateDocumentTables(pool);
     await truncateBillingTables(pool);
     await truncateServiceRequestTables(pool);
