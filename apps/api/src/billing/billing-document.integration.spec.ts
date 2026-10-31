@@ -14,6 +14,7 @@ import {
   truncateCommercialPurchaseOrderTables,
   truncateCommercialProposalTables,
   truncateDocumentTables,
+  truncateFinanceTables,
   truncateIdentityAndAuthorizationTables,
   truncatePhysicalAssetTables,
   truncateServiceOrderTables,
@@ -43,6 +44,7 @@ import { DocumentsModule } from '../documents/documents.module';
 import { ObjectStorageService } from '../documents/storage/object-storage.service';
 import { BillingModule } from '../billing/billing.module';
 import { BILLING_DOCUMENT_STATUSES } from '../billing/domain/billing-document';
+import { FinanceModule } from '../finance/finance.module';
 import { BILLING_ERROR_CODES } from '../billing/errors/billing-error-codes';
 import { BillingAccessService } from '../billing/services/billing-access.service';
 import { BillingDocumentAccessService } from '../billing/services/billing-document-access.service';
@@ -155,6 +157,7 @@ describe('Billing document PostgreSQL integration', () => {
         ServiceOrdersModule,
         MeasurementsModule,
         BillingModule,
+        FinanceModule,
       ],
     }).compile();
 
@@ -172,6 +175,7 @@ describe('Billing document PostgreSQL integration', () => {
 
   beforeEach(async () => {
     clientTaxIdCounter = 0;
+    await truncateFinanceTables(pool);
     await truncateDocumentTables(pool);
     await truncateBillingTables(pool);
     await truncateServiceRequestTables(pool);
@@ -336,6 +340,64 @@ describe('Billing document PostgreSQL integration', () => {
     expect(document.artifactSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(document.items).toHaveLength(1);
     expect(document.items[0]?.lineAmount).toBe('1000.0000');
+  });
+
+
+  it('MASTER 001-03: issues accepted measurement billing into exactly one persisted receivable', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing, client } = await seedPreparedBilling(actor);
+    const idempotencyKey = `master-001-03-${crypto.randomUUID()}`;
+    const dueDate = '2026-12-20';
+
+    const document = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey,
+      dueDate,
+    });
+    expect(document.status).toBe(BILLING_DOCUMENT_STATUSES.Finalized);
+
+    const receivables = await pool.query<{
+      id: string;
+      origin_billing_document_id: string;
+      origin_billing_record_id: string;
+      origin_service_order_id: string;
+      origin_measurement_id: string;
+      client_id: string;
+      unit_id: string;
+      principal: string;
+      currency_code: string;
+      lifecycle: string;
+    }>(
+      `SELECT id, origin_billing_document_id, origin_billing_record_id, origin_service_order_id,
+              origin_measurement_id, client_id, unit_id, principal::text AS principal,
+              currency_code, lifecycle
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+
+    expect(receivables.rows).toHaveLength(1);
+    const receivable = receivables.rows[0]!;
+    expect(receivable.origin_billing_record_id).toBe(billing.id);
+    expect(receivable.origin_service_order_id).toBe(completed.id);
+    expect(receivable.origin_measurement_id).toBe(billing.measurementId);
+    expect(receivable.client_id).toBe(client.id);
+    expect(receivable.unit_id).toBe(UNIT_A);
+    expect(receivable.currency_code).toBe(document.currencyCode);
+    expect(Number(receivable.principal)).toBe(Number(document.totalAmount));
+    expect(receivable.lifecycle).toBe('ACTIVE');
+
+    // Idempotent retry must not duplicate document, receivable or financial principal.
+    const replay = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey,
+      dueDate,
+    });
+    expect(replay.id).toBe(document.id);
+    const afterRetry = await pool.query<{ total: string; principal: string }>(
+      `SELECT COUNT(*)::text AS total, COALESCE(SUM(principal), 0)::text AS principal
+         FROM fin.receivables WHERE origin_billing_record_id = $1`,
+      [billing.id],
+    );
+    expect(afterRetry.rows[0]?.total).toBe('1');
+    expect(Number(afterRetry.rows[0]?.principal)).toBe(Number(billing.totalAmount));
   });
 
   it('allocates unique numbers under concurrent issuance', async () => {
