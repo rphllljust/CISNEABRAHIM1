@@ -92,6 +92,20 @@ export class ReceivablesRepository {
     return result.rows[0] ?? null;
   }
 
+  async hasPostedSettlementForBillingDocument(billingDocumentId: string): Promise<boolean> {
+    const result = await this.pool().query<{ posted: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+           FROM fin.receivables r
+           JOIN fin.settlements s ON s.receivable_id = r.id
+          WHERE r.origin_billing_document_id = $1
+            AND s.status = $2
+       ) AS posted`,
+      [billingDocumentId, SETTLEMENT_STATUSES.Posted],
+    );
+    return result.rows[0]?.posted === true;
+  }
+
   async listByUnit(unitId: string): Promise<ReceivableRow[]> {
     const result = await this.pool().query<ReceivableRow>(
       `SELECT ${RECEIVABLE_RETURNING} FROM fin.receivables WHERE unit_id = $1 ORDER BY created_at DESC`,
@@ -406,6 +420,20 @@ export class ReceivablesRepository {
     const client = await this.pool().connect();
     try {
       await client.query('BEGIN');
+      // This shared advisory lock serializes settlement with Billing's
+      // cancel/replace authority and the Finance handoff worker. Acquire it
+      // BEFORE the row FOR UPDATE lock to avoid opposite-order deadlocks.
+      const origin = await client.query<{ origin_billing_document_id: string | null }>(
+        `SELECT origin_billing_document_id FROM fin.receivables WHERE id = $1`,
+        [input.receivableId],
+      );
+      const docId = origin.rows[0]?.origin_billing_document_id;
+      if (docId) {
+        await client.query(
+          `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
+          [`billing-document:${docId}:finance`],
+        );
+      }
       const locked = await client.query<ReceivableRow>(
         `SELECT ${RECEIVABLE_RETURNING} FROM fin.receivables WHERE id = $1 FOR UPDATE`,
         [input.receivableId],
