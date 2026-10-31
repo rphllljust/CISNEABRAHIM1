@@ -54,7 +54,7 @@ function fakeMetrics(): MetricsRegistryService {
 }
 
 function resolveCount(sql: string, params: unknown[], counts: Counted = COUNTS): string {
-  if (sql.includes('bil.billing_documents')) return counts.billingReceivableOrphans;
+  if (sql.includes('rpt.read_billing_documents')) return counts.billingReceivableOrphans;
   if (sql.includes('plt.background_jobs') && sql.includes('BILLING_RECEIVABLE_HANDOFF')) {
     return sql.includes("'DEAD'") ? counts.receivableHandoffDead : counts.receivableHandoffPending;
   }
