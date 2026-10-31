@@ -5,6 +5,7 @@ import { AuthorizationModule } from '../authorization/authorization.module';
 import { DocumentsModule } from '../documents/documents.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
 import { OutboxModule } from '../platform/outbox/outbox.module';
+import { BackgroundJobsModule } from '../platform/background-jobs/background-jobs.module';
 import { CommercialModule } from '../commercial/commercial.module';
 import { MeasurementsModule } from '../measurements/measurements.module';
 import { ServiceOrdersModule } from '../service-orders/service-orders.module';
@@ -26,6 +27,7 @@ import { BillingDocumentArtifactService } from './services/billing-document-arti
     AuthorizationModule,
     AuditModule,
     OutboxModule,
+    BackgroundJobsModule,
     DocumentsModule,
     CommercialModule,
     ServiceOrdersModule,
