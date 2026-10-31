@@ -49,6 +49,8 @@ import { BillingDocumentRepository } from './repositories/billing-document.repos
 import { BillingReceivableHandoffJobHandler } from './jobs/billing-receivable-handoff.handler';
 import { BackgroundJobsRepository } from '../platform/background-jobs/repositories/background-jobs.repository';
 import { BACKGROUND_JOB_KINDS, BACKGROUND_JOB_STATUSES } from '../platform/background-jobs/domain/background-job-kind';
+import { MetricsRegistryService } from '../observability/metrics/metrics-registry.service';
+import { PlatformMetricsCollectorService } from '../observability/services/platform-metrics-collector.service';
 import { ReceivablesAccessService } from '../finance/services/receivables-access.service';
 import { ReceivablesRepository } from '../finance/repositories/receivables.repository';
 import { BILLING_ERROR_CODES } from '../billing/errors/billing-error-codes';
@@ -136,6 +138,7 @@ describe('Billing document PostgreSQL integration', () => {
   let receivablesRepository: ReceivablesRepository;
   let billingDocumentsRepository: BillingDocumentRepository;
   let jobsRepository: BackgroundJobsRepository;
+  let platformMetrics: PlatformMetricsCollectorService;
   let measurementsAccess: MeasurementsAccessService;
   let serviceOrdersAccess: ServiceOrdersAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
@@ -169,6 +172,7 @@ describe('Billing document PostgreSQL integration', () => {
         BillingModule,
         FinanceModule,
       ],
+      providers: [MetricsRegistryService, PlatformMetricsCollectorService],
     }).compile();
 
     billingAccess = module.get(BillingAccessService);
@@ -177,6 +181,7 @@ describe('Billing document PostgreSQL integration', () => {
     receivablesRepository = module.get(ReceivablesRepository);
     billingDocumentsRepository = module.get(BillingDocumentRepository);
     jobsRepository = module.get(BackgroundJobsRepository);
+    platformMetrics = module.get(PlatformMetricsCollectorService);
     measurementsAccess = module.get(MeasurementsAccessService);
     serviceOrdersAccess = module.get(ServiceOrdersAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
@@ -716,6 +721,103 @@ describe('Billing document PostgreSQL integration', () => {
       [rows.rows[0]!.id],
     );
     expect(history.rows[0]?.count).toBe('1');
+  });
+
+  it('MASTER 001-03: isolated PostgreSQL evidence measures orphan/dead-letter and idempotent recovery', async () => {
+    // Test-only, non-production financial journey through real domain services.
+    // The deliberate DB fault below reproduces the post-commit missing-receivable
+    // state for metrics verification; it is NEVER executed by seed or release.
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const issued = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey: `evidence-${crypto.randomUUID()}`,
+      dueDate: '2026-12-20',
+    });
+    expect(issued.status).toBe(BILLING_DOCUMENT_STATUSES.Finalized);
+    expect(issued.totalAmount).toBe('1000.0000');
+    expect(issued.artifactSha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const original = await pool.query<{ id: string; principal: string }>(
+      `SELECT id, principal::text AS principal
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [issued.id],
+    );
+    expect(original.rows).toHaveLength(1);
+    expect(original.rows[0]?.principal).toBe(issued.totalAmount);
+
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${issued.id}:receivable-handoff`,
+    );
+    expect(job).not.toBeNull();
+    expect(job?.job_kind).toBe(BACKGROUND_JOB_KINDS.BillingReceivableHandoff);
+
+    // Fault injection is limited to TEST_DATABASE_URL. The document and PDF
+    // survive, while Finance is temporarily missing and the handoff is DEAD.
+    await pool.query('DELETE FROM fin.receivables WHERE id = $1', [original.rows[0]!.id]);
+    await pool.query(
+      `UPDATE bil.billing_documents SET issued_at = NOW() - INTERVAL '6 minutes'
+        WHERE id = $1`,
+      [issued.id],
+    );
+    await pool.query(
+      `UPDATE plt.background_jobs SET status = 'DEAD', last_error = $2
+        WHERE id = $1`,
+      [job!.id, 'TEST_ONLY_RECEIVABLE_HANDOFF_FAILURE'],
+    );
+
+    const observed = await platformMetrics.collectBacklogs();
+    const groundTruth = await pool.query<{ orphans: string; dead: string }>(
+      `SELECT
+         (SELECT COUNT(*) FROM rpt.read_billing_documents bd
+           WHERE bd.status = 'FINALIZED'
+             AND bd.issued_at < NOW() - INTERVAL '5 minutes'
+             AND NOT EXISTS (
+               SELECT 1 FROM rpt.read_receivables r
+                WHERE r.origin_billing_document_id = bd.id
+             ))::text AS orphans,
+         (SELECT COUNT(*) FROM plt.background_jobs
+           WHERE job_kind = 'BILLING_RECEIVABLE_HANDOFF'
+             AND status IN ('DEAD', 'FAILED'))::text AS dead`,
+    );
+    expect(groundTruth.rows[0]?.orphans).toBe('1');
+    expect(groundTruth.rows[0]?.dead).toBe('1');
+    expect(observed.billingReceivableOrphans).toBe(Number(groundTruth.rows[0]?.orphans));
+    expect(observed.receivableHandoffDead).toBe(Number(groundTruth.rows[0]?.dead));
+    expect(platformMetrics.getLastCollectionError()).toBeNull();
+
+    // The REAL worker handler repairs Finance through the published port,
+    // without HTTP replay, without a second Billing document or principal.
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    const context = {
+      jobId: job!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: job!.payload,
+      attemptCount: 2,
+      correlationId: issued.id,
+      signal: new AbortController().signal,
+    };
+    await handler.handle(context);
+    await handler.handle(context);
+    await jobsRepository.markCompleted(job!.id);
+
+    const repaired = await pool.query<{ count: string; principal: string }>(
+      `SELECT COUNT(*)::text AS count,
+              COALESCE(SUM(principal), 0)::text AS principal
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [issued.id],
+    );
+    expect(repaired.rows[0]?.count).toBe('1');
+    expect(repaired.rows[0]?.principal).toBe(issued.totalAmount);
+    const after = await platformMetrics.collectBacklogs();
+    expect(after.billingReceivableOrphans).toBe(0);
+    expect(after.receivableHandoffDead).toBe(0);
+    expect(platformMetrics.getLastCollectionError()).toBeNull();
+    const document = await billingDocumentAccess.getById(
+      actor, completed.id, billing.id, issued.id,
+    );
+    expect(document.artifactSha256).toBe(issued.artifactSha256);
   });
 
   it('allocates unique numbers under concurrent issuance', async () => {
