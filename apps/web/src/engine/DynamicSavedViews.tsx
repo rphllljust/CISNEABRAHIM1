@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   deletePersonalSavedView,
+  PersonalSavedViewsApiError,
   listPersonalSavedViews,
   savePersonalSavedView,
 } from './personal-saved-views-api';
@@ -64,12 +65,14 @@ function writeLocalViews(owner: string | null, entity: string, views: SavedView[
 
 export type UseSavedViewsResult = {
   views: SavedView[];
-  save: (name: string, filters: Record<string, string>, viewType: string) => void;
+  save: (name: string, filters: Record<string, string>, viewType: string) => Promise<boolean>;
   remove: (id: string) => void;
   persistedLocally: boolean;
   persistable: boolean;
   loading: boolean;
   notice: string | null;
+  canRetry: boolean;
+  retry: () => void;
 };
 
 export function useSavedViews(owner: string | null, entity: string): UseSavedViewsResult {
@@ -80,11 +83,14 @@ export function useSavedViews(owner: string | null, entity: string): UseSavedVie
   const [loading, setLoading] = useState(remote && owner !== null);
   const [ready, setReady] = useState(!remote || owner === null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [readDenied, setReadDenied] = useState(false);
   const currentScope = useRef(`${owner ?? ''}:${entity}`);
   currentScope.current = `${owner ?? ''}:${entity}`;
 
   useEffect(() => {
     setNotice(null);
+    setReadDenied(false);
     if (!remote) {
       setViews(readSavedViews(owner, entity));
       setLoading(false);
@@ -127,21 +133,34 @@ export function useSavedViews(owner: string | null, entity: string): UseSavedVie
       setViews(imported);
       setReady(true);
       setLoading(false);
-    })().catch(() => {
+    })().catch((error: unknown) => {
       if (!active || currentScope.current !== key || controller.signal.aborted) return;
+      const denied = error instanceof PersonalSavedViewsApiError && (error.status === 401 || error.status === 403);
       setViews([]);
       setReady(false);
       setLoading(false);
-      setNotice('Visões salvas indisponíveis no servidor. Nada foi salvo localmente.');
+      setReadDenied(denied);
+      setNotice(denied
+        ? 'Sem permissão para consultar as visões salvas desta sessão.'
+        : 'Visões salvas indisponíveis no servidor. Nada foi salvo localmente.');
     });
 
     return () => { active = false; controller.abort(); };
-  }, [owner, entity, remote]);
+  }, [owner, entity, remote, retryCount]);
 
+  const retry = useCallback(() => {
+    if (remote && owner) setRetryCount((count) => count + 1);
+  }, [remote, owner]);
+
+  /**
+   * The Save form must not close before the backend acknowledges persistence.
+   * Returning false also covers identity changes during a request: a response
+   * for the previous account is never presented as this account's success.
+   */
   const save = useCallback(
-    (name: string, filters: Record<string, string>, viewType: string) => {
+    async (name: string, filters: Record<string, string>, viewType: string): Promise<boolean> => {
       const trimmed = name.trim();
-      if (!owner || !ready || trimmed.length < 1 || trimmed.length > 60) return;
+      if (!owner || !ready || trimmed.length < 1 || trimmed.length > 60) return false;
 
       if (!remote) {
         const next: SavedView = {
@@ -153,25 +172,26 @@ export function useSavedViews(owner: string | null, entity: string): UseSavedVie
           writeLocalViews(owner, entity, updated);
           return updated;
         });
-        return;
+        return true;
       }
 
       const key = `${owner}:${entity}`;
-      void savePersonalSavedView(entity, { name: trimmed, filters, viewType })
-        .then((saved) => {
-          if (currentScope.current !== key) return;
-          setViews((current) => [
-            ...current.filter((view) => view.id !== saved.id &&
-              view.name.toLowerCase() !== saved.name.toLowerCase()),
-            saved,
-          ]);
-          setNotice(null);
-        })
-        .catch(() => {
-          if (currentScope.current === key) {
-            setNotice('A visão não foi salva. Verifique a conexão e tente novamente.');
-          }
-        });
+      try {
+        const saved = await savePersonalSavedView(entity, { name: trimmed, filters, viewType });
+        if (currentScope.current !== key) return false;
+        setViews((current) => [
+          ...current.filter((view) => view.id !== saved.id &&
+            view.name.toLowerCase() !== saved.name.toLowerCase()),
+          saved,
+        ]);
+        setNotice(null);
+        return true;
+      } catch {
+        if (currentScope.current === key) {
+          setNotice('A visão não foi salva. Verifique a conexão e tente novamente.');
+        }
+        return false;
+      }
     },
     [owner, entity, remote, ready],
   );
@@ -211,5 +231,7 @@ export function useSavedViews(owner: string | null, entity: string): UseSavedVie
     persistable: owner !== null && ready,
     loading,
     notice,
-  }), [views, save, remove, remote, owner, ready, loading, notice]);
+    canRetry: remote && owner !== null && !loading && !ready && !readDenied,
+    retry,
+  }), [views, save, remove, remote, owner, ready, loading, notice, readDenied, retry]);
 }
