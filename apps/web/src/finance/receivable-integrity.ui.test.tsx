@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../auth/storage/token-store';
@@ -96,7 +96,10 @@ describe('MASTER 001-05 — integridade de Billing e recebíveis', () => {
       if (attempts === 1) throw new TypeError('Failed to fetch');
       return response(SAMPLE);
     }));
-    renderWithProviders(<ReceivableIntegrityStrip />);
+    // Este teste exercita o retry do componente isoladamente: AuthProvider pode renovar/limpar
+    // a sessão quando o mock deliberadamente não serve /auth/session, o que criaria
+    // um 401 alheio à recuperação de falha do endpoint de observabilidade.
+    render(<ReceivableIntegrityStrip />);
     expect(await screen.findByRole('alert')).toHaveTextContent(/indisponível/i);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
     const strip = await screen.findByLabelText('Indicadores de integridade Billing e recebíveis');
