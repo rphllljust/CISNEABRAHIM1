@@ -52,6 +52,28 @@ describe('Adversarial XSS regression (UI)', () => {
             }),
           } as Response;
         }
+        if (url.includes('/api/v1/clients/') && url.includes('/360')) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              client: {
+                id: '00000000-0000-4000-8000-000000000099',
+                legalName: XSS_PAYLOAD,
+                tradeName: null,
+                taxId: '12345678000190',
+                status: 'ACTIVE',
+                rowVersion: 1,
+                contacts: [],
+                addresses: [],
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z',
+              },
+              quality: { evaluated: true, isComplete: true, findings: [] },
+              hierarchy: { rootId: '00000000-0000-4000-8000-000000000099', nodes: [], truncated: false, maxDepth: 8 },
+            }),
+          } as Response;
+        }
         if (url.includes('/api/v1/clients/')) {
           return {
             ok: true,
