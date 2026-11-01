@@ -5,7 +5,7 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import type { Pool, PoolClient } from 'pg';
+import type { Pool } from 'pg';
 import { DatabaseService } from '../infrastructure/database/database.service';
 import { rollbackKeepingPrimaryCause } from '../infrastructure/database/rollback';
 
