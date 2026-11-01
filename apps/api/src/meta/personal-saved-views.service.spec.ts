@@ -19,7 +19,7 @@ const row = {
 
 function setup(options: { existing?: boolean; count?: number; list?: typeof row[] } = {}) {
   const client = {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, _params?: unknown[]) => {
       if (sql.includes('SELECT id FROM plt.saved_views')) {
         return { rows: options.existing ? [{ id: ID }] : [] };
       }
@@ -35,7 +35,7 @@ function setup(options: { existing?: boolean; count?: number; list?: typeof row[
   };
   const pool = {
     connect: vi.fn(async () => client),
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, _params?: unknown[]) => {
       if (sql.startsWith('SELECT')) return { rows: options.list ?? [row] };
       if (sql.startsWith('DELETE')) return { rows: [] };
       return { rows: [] };
