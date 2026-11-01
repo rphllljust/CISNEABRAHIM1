@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   deletePersonalSavedView,
+  PersonalSavedViewsApiError,
   listPersonalSavedViews,
   savePersonalSavedView,
 } from './personal-saved-views-api';
@@ -83,11 +84,13 @@ export function useSavedViews(owner: string | null, entity: string): UseSavedVie
   const [ready, setReady] = useState(!remote || owner === null);
   const [notice, setNotice] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [readDenied, setReadDenied] = useState(false);
   const currentScope = useRef(`${owner ?? ''}:${entity}`);
   currentScope.current = `${owner ?? ''}:${entity}`;
 
   useEffect(() => {
     setNotice(null);
+    setReadDenied(false);
     if (!remote) {
       setViews(readSavedViews(owner, entity));
       setLoading(false);
@@ -130,12 +133,16 @@ export function useSavedViews(owner: string | null, entity: string): UseSavedVie
       setViews(imported);
       setReady(true);
       setLoading(false);
-    })().catch(() => {
+    })().catch((error: unknown) => {
       if (!active || currentScope.current !== key || controller.signal.aborted) return;
+      const denied = error instanceof PersonalSavedViewsApiError && (error.status === 401 || error.status === 403);
       setViews([]);
       setReady(false);
       setLoading(false);
-      setNotice('Visões salvas indisponíveis no servidor. Nada foi salvo localmente.');
+      setReadDenied(denied);
+      setNotice(denied
+        ? 'Sem permissão para consultar as visões salvas desta sessão.'
+        : 'Visões salvas indisponíveis no servidor. Nada foi salvo localmente.');
     });
 
     return () => { active = false; controller.abort(); };
@@ -224,7 +231,7 @@ export function useSavedViews(owner: string | null, entity: string): UseSavedVie
     persistable: owner !== null && ready,
     loading,
     notice,
-    canRetry: remote && owner !== null && !loading && !ready,
+    canRetry: remote && owner !== null && !loading && !ready && !readDenied,
     retry,
-  }), [views, save, remove, remote, owner, ready, loading, notice, retry]);
+  }), [views, save, remove, remote, owner, ready, loading, notice, readDenied, retry]);
 }
