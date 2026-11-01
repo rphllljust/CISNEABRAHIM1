@@ -75,6 +75,20 @@ export function assertBankStatementSourceKind(value: string): string {
   return normalized;
 }
 
+/**
+ * A bank statement is denominated in the same currency as its financial account.
+ * Compare actual currency codes; equal nominal amounts are not convertible values.
+ * The access layer calls this only after the account authorization decision.
+ */
+export function assertBankStatementAccountCurrency(
+  statementCurrencyCode: string,
+  accountCurrencyCode: string,
+): void {
+  if (statementCurrencyCode.trim().toUpperCase() !== accountCurrencyCode.trim().toUpperCase()) {
+    throw new BankReconciliationError('BANK_RECON_CURRENCY_MISMATCH');
+  }
+}
+
 export function assertNotAmountApproximation(left: string, right: string): void {
   if (!moneyAmountsEqual(normalizeMoneyAmount(left), normalizeMoneyAmount(right))) {
     throw new BankReconciliationError('BANK_RECON_AMOUNT_NOT_EXACT');
