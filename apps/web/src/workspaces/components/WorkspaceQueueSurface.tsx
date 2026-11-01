@@ -446,6 +446,7 @@ export function WorkspaceQueueSurface({
               views={savedViews.views}
               persistedLocally={savedViews.persistedLocally}
               persistable={savedViews.persistable}
+              statusMessage={savedViews.notice ?? (savedViews.loading ? 'Carregando visões do servidor…' : null)}
               onSave={(name) => savedViews.save(name, scopeToSavedFilters(effectiveScope), 'list')}
               onDelete={savedViews.remove}
               onApply={(view) => applyScope(scopeFromSavedFilters(view.filters))}

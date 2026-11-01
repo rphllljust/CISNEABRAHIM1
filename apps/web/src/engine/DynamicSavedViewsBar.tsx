@@ -23,6 +23,8 @@ export type DynamicSavedViewsBarProps = {
    * entender por quê. A barra DECLARA a indisponibilidade em vez de fingir.
    */
   persistable?: boolean;
+  /** Visible error, loading or authorization state from the server. */
+  statusMessage?: string | null;
 };
 
 export function DynamicSavedViewsBar({
@@ -32,6 +34,7 @@ export function DynamicSavedViewsBar({
   onDelete,
   persistedLocally = false,
   persistable = true,
+  statusMessage = null,
 }: DynamicSavedViewsBarProps): React.ReactElement {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -58,7 +61,7 @@ export function DynamicSavedViewsBar({
 
         {!persistable ? (
           <span className="cisne-type-helper" data-testid="dynamic-saved-views-unavailable">
-            Indisponível sem sessão identificada — não há dono para a visão.
+            {statusMessage ?? 'Indisponível sem sessão identificada — não há dono para a visão.'}
           </span>
         ) : null}
 
@@ -94,6 +97,9 @@ export function DynamicSavedViewsBar({
           </ul>
         )}
       </div>
+      {persistable && statusMessage ? (
+        <p role="alert" className="m-0 text-xs text-red-700">{statusMessage}</p>
+      ) : null}
       {persistable ? (
         <div className="flex items-center gap-2">
           <button
