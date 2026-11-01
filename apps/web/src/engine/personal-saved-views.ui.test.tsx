@@ -15,8 +15,10 @@ const ROW = {
 function response(body: unknown, status = 200): Response {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response;
 }
-const matchesViews = (url: RequestInfo | URL) =>
-  String(url).includes('/api/v1/personalization/saved-views/');
+const matchesViews = (url: RequestInfo | URL) => {
+  const location = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url;
+  return location.includes('/api/v1/personalization/saved-views/');
+};
 
 describe('Diagnostic P2-01 / #179 — Workspace Saved Views server persistence', () => {
   beforeEach(() => {
@@ -87,7 +89,8 @@ describe('Diagnostic P2-01 / #179 — Workspace Saved Views server persistence',
     const fetchMock = vi.fn(async () => response([ROW]));
     vi.stubGlobal('fetch', fetchMock);
     const { result, rerender } = renderHook(
-      ({ owner }) => useSavedViews(owner, KEY), { initialProps: { owner: OWNER as string | null } },
+      ({ owner }: { owner: string | null }) => useSavedViews(owner, KEY),
+      { initialProps: { owner: OWNER } as { owner: string | null } },
     );
     await waitFor(() => expect(result.current.views).toEqual([ROW]));
     rerender({ owner: null });
