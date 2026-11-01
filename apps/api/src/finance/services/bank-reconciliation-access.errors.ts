@@ -76,6 +76,12 @@ export function mapBankReconciliationError(error: unknown): FinanceHttpException
         FINANCE_ERROR_CODES.BANK_RECON_AMOUNT_NOT_EXACT,
         'Automatic match requires exact amount equality.',
       );
+    case 'BANK_RECON_CURRENCY_MISMATCH':
+      return new FinanceHttpException(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        FINANCE_ERROR_CODES.CURRENCY_MISMATCH,
+        'The statement currency must match the financial account currency.',
+      );
     case 'BANK_RECON_NOT_BANK_ACCOUNT':
       return new FinanceHttpException(
         HttpStatus.BAD_REQUEST,
