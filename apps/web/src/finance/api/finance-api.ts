@@ -103,6 +103,67 @@ export type FinanceTitleSummary = {
   }>;
 };
 
+/**
+ * Leitura operacional de integridade Billing → Finance, publicada pela plataforma.
+ * A API já exige platform:diagnostics:read (JWT + PDP); nenhum contador vem de linhas da UI.
+ */
+export type ReceivableIntegritySnapshot = {
+  collectedAt: string;
+  technical: {
+    backlog: {
+      receivableHandoffPending: number;
+      receivableHandoffDead: number;
+      billingReceivableOrphans: number;
+    };
+  };
+};
+
+function invalidIntegritySnapshot(): never {
+  throw new BackofficeApiError(502, 'OBSERVABILITY_INVALID_METRICS', 'unknown');
+}
+
+/** Nunca converter ausência, string, negativo ou payload inválido em zero operacional. */
+export function parseReceivableIntegritySnapshot(raw: unknown): ReceivableIntegritySnapshot {
+  if (!raw || typeof raw !== 'object') return invalidIntegritySnapshot();
+  const result = raw as Record<string, unknown>;
+  const timestamp = result.collectedAt;
+  const technical = result.technical;
+  if (typeof timestamp !== 'string' || !Number.isFinite(Date.parse(timestamp))) {
+    return invalidIntegritySnapshot();
+  }
+  if (!technical || typeof technical !== 'object') return invalidIntegritySnapshot();
+  const backlog = (technical as Record<string, unknown>).backlog;
+  if (!backlog || typeof backlog !== 'object') return invalidIntegritySnapshot();
+  const fields = backlog as Record<string, unknown>;
+  const pending = fields.receivableHandoffPending;
+  const dead = fields.receivableHandoffDead;
+  const orphans = fields.billingReceivableOrphans;
+  if (![pending, dead, orphans].every(
+    (value) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,
+  )) {
+    return invalidIntegritySnapshot();
+  }
+  return {
+    collectedAt: timestamp,
+    technical: {
+      backlog: {
+        receivableHandoffPending: pending as number,
+        receivableHandoffDead: dead as number,
+        billingReceivableOrphans: orphans as number,
+      },
+    },
+  };
+}
+
+export async function getReceivableIntegrity(signal?: AbortSignal): Promise<ReceivableIntegritySnapshot> {
+  const payload = await requestJson<unknown>('/api/v1/observability/metrics', {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+  return parseReceivableIntegritySnapshot(payload);
+}
+
 export type FinanceTitleListQuery = {
   limit?: number;
   offset?: number;

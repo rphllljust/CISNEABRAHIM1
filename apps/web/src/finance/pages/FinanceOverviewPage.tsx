@@ -33,6 +33,7 @@ import { WorkspaceQueueSurface } from '../../workspaces/components/WorkspaceQueu
 import { WorkspaceZone } from '../../workspaces/components/WorkspaceZone';
 import { FinanceTitleQueues } from '../components/FinanceTitleQueues';
 import { FinanceSituationStrip } from '../components/FinanceSituation';
+import { ReceivableIntegrityStrip } from '../components/ReceivableIntegrityStrip';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import { ContextSection, WorkspaceBody, WorkspacePane } from '../../ui/workspace-frame';
@@ -448,6 +449,7 @@ export function FinanceOverviewPage() {
               },
             ]}
           />
+          <ReceivableIntegrityStrip />
         </div>
 
         {/*
