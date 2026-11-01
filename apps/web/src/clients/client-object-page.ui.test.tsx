@@ -226,6 +226,39 @@ function createClientObjectFetchMock(options: FetchFixtureOptions = {}) {
         : clientError('CLIENT_DENIED', 403);
     }
 
+    // Client 360 now loads an authorized aggregate; preserve denial/error fixtures
+    // and the same quality/hierarchy facts used by the dedicated read endpoints.
+    if (pathname === `/api/v1/clients/${client.id}/360` && method === 'GET') {
+      if (options.detail === 'denied') return clientError('CLIENT_DENIED', 403);
+      if (options.detail === 'not_found') return clientError('CLIENT_NOT_FOUND', 404);
+      if (options.detail === 'error') return clientError('CLIENT_INTERNAL', 500);
+
+      const nodes = options.hierarchy?.nodes ?? [
+        {
+          id: client.id,
+          legal_name: client.legalName,
+          trade_name: client.tradeName,
+          status: client.status,
+          parent_client_id: client.parentClientId,
+          group_id: client.groupId,
+          group_name: client.groupName,
+          child_count: client.childCount,
+          depth: 0,
+          relation: 'self' as const,
+        },
+      ];
+      return jsonResponse({
+        client,
+        quality: options.quality ?? { evaluated: true, isComplete: true, findings: [] },
+        hierarchy: {
+          rootId: client.id,
+          nodes,
+          truncated: options.hierarchy?.truncated ?? false,
+          maxDepth: 8,
+        },
+      });
+    }
+
     if (pathname === `/api/v1/clients/${client.id}` && method === 'GET') {
       if (options.detail === 'denied') {
         return clientError('CLIENT_DENIED', 403);
