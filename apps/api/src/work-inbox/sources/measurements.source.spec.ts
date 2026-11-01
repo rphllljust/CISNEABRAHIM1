@@ -9,7 +9,7 @@ import { LEAKAGE_STAGES } from '../../measurements/domain/revenue-leakage';
 import type { MeasurementDetailResponse } from '../../measurements/serializers/measurements-response.serializer';
 import { WorkInboxService } from '../services/work-inbox.service';
 import {
-  MEASUREMENT_QUEUE_LIMIT,
+  MEASUREMENT_AUTHZ_BATCH_SIZE,
   MeasurementsWorkSource,
   toMeasurementWorkItem,
 } from './measurements.source';
@@ -194,12 +194,83 @@ describe('MASTER 001 / Incremento 02 — fonte de medição da Inbox única', ()
     expect(after.total).toBe(0);
   });
 
-  it('nunca exibe contagem truncada quando o limite da fila proprietária é atingido', async () => {
-    const { source } = withMocks({ rows: Array.from({ length: MEASUREMENT_QUEUE_LIMIT }, () => queue()) });
-    await expect(source.collect(ACTOR)).rejects.toThrow('MEASUREMENT_WORK_QUEUE_CAP_REACHED');
+
+  it.each([0, 499, 500, 501, 1500])(
+    'reconcilia KPI/drill para %i ordens no snapshot completo com READ por registro',
+    async (count) => {
+      const rows = Array.from({ length: count }, (_, index) => queue({
+        measurementId: `m-${index}`,
+        serviceOrderId: `o-${index}`,
+        orderNumber: `OS-${index}`,
+      }));
+      let active = 0;
+      let peak = 0;
+      const getWorkbench = vi.fn(async (_actor: unknown, serviceOrderId: string) => {
+        active += 1;
+        peak = Math.max(peak, active);
+        await Promise.resolve();
+        active -= 1;
+        const index = serviceOrderId.slice(2);
+        return workbench({
+          identity: {
+            ...workbench().identity,
+            serviceOrderId,
+            measurementId: `m-${index}`,
+            orderNumber: `OS-${index}`,
+          },
+        });
+      });
+      const getById = vi.fn(async (_actor: unknown, serviceOrderId: string, measurementId: string) =>
+        measurement({ id: measurementId, serviceOrderId }));
+      const { source, getWorkQueue } = withMocks({ rows, getWorkbench, getById });
+      const inbox = new WorkInboxService([source]);
+      const page = await inbox.list(ACTOR, { domain: 'OPERACOES', limit: '100' });
+      expect(getWorkQueue).toHaveBeenCalledWith(ACTOR, { unitId: UNIT, exhaustive: true });
+      expect(page.unavailableDomains).toEqual([]);
+      expect(page.total).toBe(count);
+      expect(page.byDomain.OPERACOES).toBe(count);
+      expect(page.items).toHaveLength(Math.min(count, 100));
+      expect(new Set(page.items.map((item) => item.id)).size).toBe(page.items.length);
+      expect(getWorkbench).toHaveBeenCalledTimes(count);
+      expect(getById).toHaveBeenCalledTimes(count);
+      expect(peak).toBeLessThanOrEqual(MEASUREMENT_AUTHZ_BATCH_SIZE);
+    },
+  );
+
+  it('mantém deduplicação e exclui objetos negados em qualquer página', async () => {
+    const rows = Array.from({ length: 501 }, (_, index) => queue({
+      measurementId: `m-${index}`,
+      serviceOrderId: `o-${index}`,
+      orderNumber: `OS-${index}`,
+    }));
+    rows.push(rows[500]!);
+    const getWorkbench = vi.fn(async (_actor: unknown, serviceOrderId: string) => {
+      if (serviceOrderId === 'o-500') throw new HttpException('Denied', 403);
+      const index = serviceOrderId.slice(2);
+      return workbench({ identity: {
+        ...workbench().identity,
+        serviceOrderId,
+        measurementId: `m-${index}`,
+        orderNumber: `OS-${index}`,
+      } });
+    });
+    const getById = vi.fn(async (_actor: unknown, serviceOrderId: string, measurementId: string) =>
+      measurement({ id: measurementId, serviceOrderId }));
+    const { source } = withMocks({ rows, getWorkbench, getById });
+    const page = await new WorkInboxService([source]).list(ACTOR, { domain: 'OPERACOES' });
+    expect(page.total).toBe(500);
+    expect(page.byDomain.OPERACOES).toBe(500);
+    expect(page.items.every((item) => !item.id.includes('m-500'))).toBe(true);
+  });
+
+  it('falha fechado quando o snapshot do módulo dono está indisponível, sem KPI parcial', async () => {
+    const { source } = withMocks({
+      getWorkQueue: vi.fn().mockRejectedValue(new Error('MEASUREMENT_LEAKAGE_SNAPSHOT_CAP_REACHED')),
+    });
     const page = await new WorkInboxService([source]).list(ACTOR);
     expect(page.unavailableDomains).toContain('OPERACOES');
     expect(page.total).toBe(0);
+    expect(page.byDomain.OPERACOES).toBe(0);
   });
 
   it('não disfarça falha do banco como fila vazia', async () => {
