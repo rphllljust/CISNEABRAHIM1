@@ -27,7 +27,7 @@ describe('Diagnostic P2-01 / #179 — Workspace Saved Views server persistence',
   });
 
   it('loads real server views and never treats local storage as authority', async () => {
-    const fetchMock = vi.fn(async () => response([ROW]));
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => response([ROW]));
     vi.stubGlobal('fetch', fetchMock);
     const { result } = renderHook(() => useSavedViews(OWNER, KEY));
     await waitFor(() => expect(result.current.views).toEqual([ROW]));
