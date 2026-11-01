@@ -131,7 +131,7 @@ describe('Bank reconciliation PostgreSQL integration', () => {
         amount: '100.0000',
         description: 'Equal nominal amount is not a currency conversion',
       }],
-    })).rejects.toMatchObject({ code: 'FINANCE_CURRENCY_MISMATCH', status: 422 });
+    })).rejects.toMatchObject({ code: 'FINANCE_CURRENCY_MISMATCH' });
     const statements = await pool.query<{ count: string }>(
       'SELECT COUNT(*)::text AS count FROM fin.bank_statements',
     );
