@@ -83,6 +83,7 @@ import {
   type LeakageStageSummary,
 } from '../domain/revenue-leakage';
 import { MeasurementCapabilityRepository } from '../repositories/measurement-capability.repository';
+import type { CustomerAcceptanceRow } from '../repositories/measurement-capability.repository.types';
 import type { MeasurementItemRow, MeasurementRow } from '../repositories/measurements.repository.types';
 import { MeasurementsRepository } from '../repositories/measurements.repository';
 import { MeasurementsAccessService } from '../services/measurements-access.service';
@@ -458,16 +459,16 @@ export class MeasurementsCapabilityService {
    */
   async getWorkQueue(
     actor: IdentityAuthzContext,
-    input: { unitId: string; limit?: number; at?: string },
+    input: { unitId: string; limit?: number; at?: string; exhaustive?: boolean },
   ): Promise<MeasurementWorkQueueReadModel> {
     const at = input.at ?? new Date().toISOString();
-    const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
+    const limit = input.exhaustive ? Number.MAX_SAFE_INTEGER : Math.min(Math.max(input.limit ?? 100, 1), 500);
 
     await this.authz.assertUnitReadScope(actor, input.unitId);
 
-    const projection = await this.computeLeakageProjection(input.unitId, limit, at);
+    const projection = await this.computeLeakageProjection(input.unitId, at);
 
-    const items: WorkQueueItem[] = projection.positions.map((position) => ({
+    const items: WorkQueueItem[] = projection.positions.slice(0, limit).map((position) => ({
       measurementId: position.measurementId,
       serviceOrderId: position.serviceOrderId,
       orderNumber: position.orderNumber,
@@ -521,11 +522,16 @@ export class MeasurementsCapabilityService {
     input: { unitId: string; limit?: number; at?: string },
   ): Promise<RevenueLeakageReadModel> {
     const at = input.at ?? new Date().toISOString();
-    const limit = Math.min(Math.max(input.limit ?? 500, 1), LEAKAGE_PROJECTION_LIMIT);
+    const limit = Math.min(Math.max(input.limit ?? LEAKAGE_PROJECTION_LIMIT, 1), 50_000);
 
     await this.authz.assertUnitReadScope(actor, input.unitId);
 
-    const projection = await this.computeLeakageProjection(input.unitId, limit, at);
+    const projection = await this.computeLeakageProjection(input.unitId, at);
+    if (projection.positions.length > limit) {
+      // O contrato atual não publica cursor/truncated. Nunca devolver KPI integral
+      // com drill parcial: exigir leitura integral ou endpoint paginado posterior.
+      throw new Error('MEASUREMENT_REVENUE_LEAKAGE_PAGE_REQUIRED');
+    }
 
     return {
       context: { unitId: input.unitId, at },
@@ -559,7 +565,6 @@ export class MeasurementsCapabilityService {
    */
   private async computeLeakageProjection(
     unitId: string,
-    limit: number,
     at: string,
   ): Promise<{
     stages: LeakageStageSummary[];
@@ -580,7 +585,7 @@ export class MeasurementsCapabilityService {
       statuses: { measurement: string; acceptance: string; billingEligibility: string };
     }>;
   }> {
-    const rows = await this.capabilityRepository.listCompletedOrdersForLeakage(unitId, limit);
+    const rows = await this.capabilityRepository.listCompletedOrdersForLeakage(unitId);
 
     const facts = rows.map((row) => ({
       serviceOrderId: row.service_order_id,
@@ -604,6 +609,7 @@ export class MeasurementsCapabilityService {
       billingPrepared: row.billing_prepared,
     }));
 
+    const factsByOrderId = new Map(facts.map((fact) => [fact.serviceOrderId, fact]));
     const projection = projectRevenueLeakage({ orders: facts, at });
 
     await this.capabilityRepository.refreshLeakage(unitId, {
@@ -611,7 +617,7 @@ export class MeasurementsCapabilityService {
       positions: projection.positions.map((position) => ({
         serviceOrderId: position.serviceOrderId,
         clientId: position.clientId,
-        measurementId: facts.find((item) => item.serviceOrderId === position.serviceOrderId)?.measurementId ?? null,
+        measurementId: factsByOrderId.get(position.serviceOrderId)?.measurementId ?? null,
         stage: position.stage,
         orderNumber: position.orderNumber,
         clientLabel: position.clientLabel,
@@ -629,7 +635,7 @@ export class MeasurementsCapabilityService {
       stages: projection.stages,
       total: projection.total,
       positions: projection.positions.map((position) => {
-        const source = facts.find((item) => item.serviceOrderId === position.serviceOrderId);
+        const source = factsByOrderId.get(position.serviceOrderId);
         return {
           serviceOrderId: position.serviceOrderId,
           measurementId: source?.measurementId ?? null,
@@ -708,7 +714,35 @@ export class MeasurementsCapabilityService {
       throw measurementsAccessNotFound();
     }
 
-    // ── VERSÃO ───────────────────────────────────────────────────────────────
+    // A chave identifica um comando empresarial, não apenas um registro. Um
+    // retry legítimo preserva ator, objeto e decisão; um payload diferente não
+    // pode herdar o sucesso anterior. O instante gerado no servidor e a
+    // correlação HTTP não fazem parte da identidade do retry.
+    const matchesReplay = (row: CustomerAcceptanceRow): boolean =>
+      row.measurement_id === measurementId &&
+      row.service_order_id === serviceOrderId &&
+      row.accepted_by_identity_id === actor.identityId &&
+      row.result === input.result &&
+      row.observation === input.observation &&
+      row.rejection_reason === (input.rejectionReason ?? null) &&
+      row.evidence_id === (input.evidenceId ?? null) &&
+      row.signature_id === (input.signatureId ?? null) &&
+      row.customer_signer_name === (input.customerSignerName ?? null) &&
+      (input.occurredAt === undefined ||
+        new Date(row.occurred_at).getTime() === new Date(input.occurredAt).getTime());
+
+    // IDEMPOTÊNCIA ANTES DA VERSÃO: a versão pode ter avançado depois do
+    // commit original. Reenviar o MESMO comando não é uma nova decisão.
+    const existingAcceptances = await this.capabilityRepository.listAcceptances(measurementId);
+    const replay = existingAcceptances.find((row) => row.idempotency_key === input.idempotencyKey);
+    if (replay) {
+      if (!matchesReplay(replay)) {
+        throw measurementsVersionConflict();
+      }
+      return this.getWorkbench(actor, serviceOrderId, { at });
+    }
+
+    // Uma chave nova continua sujeita à concorrência otimista.
     if (measurement.row_version !== input.expectedVersion) {
       throw measurementsVersionConflict();
     }
@@ -719,8 +753,6 @@ export class MeasurementsCapabilityService {
       serviceSnapshot: context.service_snapshot ?? {},
       clientPurchaseOrderRequirement: context.client_purchase_order_requirement,
     });
-
-    const existingAcceptances = await this.capabilityRepository.listAcceptances(measurementId);
 
     /**
      * ─────────────────────────────────────────────────────────────────────────
@@ -737,11 +769,6 @@ export class MeasurementsCapabilityService {
      * "isto já aconteceu" sem julgar o negócio: ela identifica o REQUEST, não a
      * decisão. Depois dela, qualquer bloqueio é real.
      */
-    const replay = existingAcceptances.find((row) => row.idempotency_key === input.idempotencyKey);
-    if (replay) {
-      return this.getWorkbench(actor, serviceOrderId, { at });
-    }
-
     const cycle = currentCycle(existingAcceptances);
     const decisionForCycle = existingAcceptances.find((row) => row.cycle_number === cycle) ?? null;
 
@@ -797,10 +824,15 @@ export class MeasurementsCapabilityService {
         idempotencyKey: input.idempotencyKey,
       });
 
-      if (recorded.outcome !== 'success' && recorded.outcome !== 'already_recorded') {
-        // `version_conflict` = a UNIQUE do ciclo barrou uma decisão concorrente;
-        // `not_found` = a medição deixou de existir entre a leitura e o INSERT.
-        // Os dois são conflito de estado, não erro do cliente.
+      if (recorded.outcome === 'already_recorded') {
+        // Outra transação concluiu a MESMA chave entre a leitura inicial e
+        // este INSERT. Nunca reavaliar elegibilidade nem emitir outra outbox.
+        return matchesReplay(recorded.acceptance)
+          ? { conflict: false as const, replayed: true as const }
+          : { conflict: true as const };
+      }
+      if (recorded.outcome !== 'success') {
+        // Outra chave venceu o ciclo: nenhuma decisão ou evento é duplicado.
         return { conflict: true as const };
       }
 
@@ -885,6 +917,9 @@ export class MeasurementsCapabilityService {
 
     if (txResult.conflict) {
       throw measurementsVersionConflict();
+    }
+    if ('replayed' in txResult) {
+      return this.getWorkbench(actor, serviceOrderId, { at });
     }
 
     await this.audit(actor, serviceOrderId, 'RECORD_ACCEPTANCE', {

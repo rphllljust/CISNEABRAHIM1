@@ -21,6 +21,16 @@ import { RequestsModule } from '../requests/requests.module';
 import { ServiceOrdersModule } from '../service-orders/service-orders.module';
 import { MeasurementsModule } from '../measurements/measurements.module';
 import { BillingModule } from '../billing/billing.module';
+import { FinanceModule } from '../finance/finance.module';
+import { AccountingModule } from '../accounting/accounting.module';
+import { ContractsAccessService } from '../commercial/services/contracts-access.service';
+import { MeasurementsCapabilityService } from '../measurements/application/measurements-capability.service';
+import { ReceivablesAccessService } from '../finance/services/receivables-access.service';
+import { TreasuryAccessService } from '../finance/services/treasury-access.service';
+import { BankReconciliationAccessService } from '../finance/services/bank-reconciliation-access.service';
+import { AccountingAccessService } from '../accounting/services/accounting-access.service';
+import { EconomicPostingService } from '../accounting/services/economic-posting.service';
+import { ApprovalMatrixAccessService } from '../authorization/services/approval-matrix-access.service';
 import { FaultInjectionModule } from '../platform/fault-injection/fault-injection.module';
 import { ClientAccessService } from '../clients/services/client-access.service';
 import { ServiceCatalogAccessService } from '../catalog/services/service-catalog-access.service';
@@ -80,6 +90,8 @@ export async function createSyntheticSeedHarness(pool: Pool): Promise<SyntheticS
       ServiceOrdersModule,
       MeasurementsModule,
       BillingModule,
+      FinanceModule,
+      AccountingModule,
     ],
   })
     .overrideProvider(DatabaseService)
@@ -92,6 +104,14 @@ export async function createSyntheticSeedHarness(pool: Pool): Promise<SyntheticS
     catalogAccess: moduleRef.get(ServiceCatalogAccessService),
     proposalsAccess: moduleRef.get(ProposalsAccessService),
     purchaseOrdersAccess: moduleRef.get(PurchaseOrdersAccessService),
+    contractsAccess: moduleRef.get(ContractsAccessService),
+    measurementsCapability: moduleRef.get(MeasurementsCapabilityService),
+    receivablesAccess: moduleRef.get(ReceivablesAccessService),
+    treasuryAccess: moduleRef.get(TreasuryAccessService),
+    bankReconciliationAccess: moduleRef.get(BankReconciliationAccessService),
+    accountingAccess: moduleRef.get(AccountingAccessService),
+    economicPosting: moduleRef.get(EconomicPostingService),
+    approvalMatrices: moduleRef.get(ApprovalMatrixAccessService),
     serviceRequestsAccess: moduleRef.get(ServiceRequestsAccessService),
     documentsAccess: moduleRef.get(DocumentsAccessService),
     serviceOrdersAccess: moduleRef.get(ServiceOrdersAccessService),

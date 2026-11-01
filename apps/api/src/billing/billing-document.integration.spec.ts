@@ -14,6 +14,7 @@ import {
   truncateCommercialPurchaseOrderTables,
   truncateCommercialProposalTables,
   truncateDocumentTables,
+  truncateFinanceTables,
   truncateIdentityAndAuthorizationTables,
   truncatePhysicalAssetTables,
   truncateServiceOrderTables,
@@ -43,6 +44,27 @@ import { DocumentsModule } from '../documents/documents.module';
 import { ObjectStorageService } from '../documents/storage/object-storage.service';
 import { BillingModule } from '../billing/billing.module';
 import { BILLING_DOCUMENT_STATUSES } from '../billing/domain/billing-document';
+import { FinanceModule } from '../finance/finance.module';
+import { BillingDocumentRepository } from './repositories/billing-document.repository';
+import { BillingReceivableHandoffJobHandler } from './jobs/billing-receivable-handoff.handler';
+import { BackgroundJobsRepository } from '../platform/background-jobs/repositories/background-jobs.repository';
+import { BACKGROUND_JOB_KINDS, BACKGROUND_JOB_STATUSES } from '../platform/background-jobs/domain/background-job-kind';
+import { ReceivablesAccessService } from '../finance/services/receivables-access.service';
+import { ReceivablesRepository } from '../finance/repositories/receivables.repository';
+import { DatabaseService } from '../infrastructure/database/database.service';
+import { PlatformMetricsCollectorService, type PlatformBacklogSnapshot } from '../observability/services/platform-metrics-collector.service';
+import { MetricsRegistryService } from '../observability/metrics/metrics-registry.service';
+import {
+  buildTechnicalAlertDefinitions,
+  evaluateTechnicalAlertConditions,
+  TechnicalAlertStateTracker,
+} from '../observability/alerts/technical-alert.engine';
+import { loadTechnicalAlertPolicy } from '../observability/alerts/technical-alert-policy';
+import {
+  TECHNICAL_ALERT_SEVERITIES,
+  TECHNICAL_ALERT_TYPES,
+  type TechnicalAlertConditionInput,
+} from '../observability/alerts/technical-alert.types';
 import { BILLING_ERROR_CODES } from '../billing/errors/billing-error-codes';
 import { BillingAccessService } from '../billing/services/billing-access.service';
 import { BillingDocumentAccessService } from '../billing/services/billing-document-access.service';
@@ -124,6 +146,10 @@ describe('Billing document PostgreSQL integration', () => {
   let pool: Pool;
   let billingAccess: BillingAccessService;
   let billingDocumentAccess: BillingDocumentAccessService;
+  let receivablesAccess: ReceivablesAccessService;
+  let receivablesRepository: ReceivablesRepository;
+  let billingDocumentsRepository: BillingDocumentRepository;
+  let jobsRepository: BackgroundJobsRepository;
   let measurementsAccess: MeasurementsAccessService;
   let serviceOrdersAccess: ServiceOrdersAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
@@ -131,6 +157,7 @@ describe('Billing document PostgreSQL integration', () => {
   let catalogAccess: ServiceCatalogAccessService;
   let purchaseOrdersAccess: PurchaseOrdersAccessService;
   let objectStorage: ObjectStorageService;
+  let financialMetrics: PlatformMetricsCollectorService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
 
   beforeAll(async () => {
@@ -155,11 +182,16 @@ describe('Billing document PostgreSQL integration', () => {
         ServiceOrdersModule,
         MeasurementsModule,
         BillingModule,
+        FinanceModule,
       ],
     }).compile();
 
     billingAccess = module.get(BillingAccessService);
     billingDocumentAccess = module.get(BillingDocumentAccessService);
+    receivablesAccess = module.get(ReceivablesAccessService);
+    receivablesRepository = module.get(ReceivablesRepository);
+    billingDocumentsRepository = module.get(BillingDocumentRepository);
+    jobsRepository = module.get(BackgroundJobsRepository);
     measurementsAccess = module.get(MeasurementsAccessService);
     serviceOrdersAccess = module.get(ServiceOrdersAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
@@ -167,11 +199,16 @@ describe('Billing document PostgreSQL integration', () => {
     catalogAccess = module.get(ServiceCatalogAccessService);
     purchaseOrdersAccess = module.get(PurchaseOrdersAccessService);
     objectStorage = module.get(ObjectStorageService);
+    financialMetrics = new PlatformMetricsCollectorService(
+      module.get(DatabaseService), new MetricsRegistryService(),
+    );
     pool = createIntegrationTestPool(testDatabaseUrl);
   });
 
   beforeEach(async () => {
     clientTaxIdCounter = 0;
+    await pool.query('TRUNCATE TABLE plt.background_jobs RESTART IDENTITY CASCADE');
+    await truncateFinanceTables(pool);
     await truncateDocumentTables(pool);
     await truncateBillingTables(pool);
     await truncateServiceRequestTables(pool);
@@ -336,6 +373,518 @@ describe('Billing document PostgreSQL integration', () => {
     expect(document.artifactSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(document.items).toHaveLength(1);
     expect(document.items[0]?.lineAmount).toBe('1000.0000');
+  });
+
+
+  it('MASTER 001-03: issues approved measurement billing into exactly one persisted receivable', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing, client } = await seedPreparedBilling(actor);
+    const idempotencyKey = `master-001-03-${crypto.randomUUID()}`;
+    const dueDate = '2026-12-20';
+
+    const document = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey,
+      dueDate,
+    });
+    expect(document.status).toBe(BILLING_DOCUMENT_STATUSES.Finalized);
+
+    const receivables = await pool.query<{
+      id: string;
+      origin_billing_document_id: string;
+      origin_billing_record_id: string;
+      origin_service_order_id: string;
+      origin_measurement_id: string;
+      client_id: string;
+      unit_id: string;
+      principal: string;
+      currency_code: string;
+      lifecycle: string;
+    }>(
+      `SELECT id, origin_billing_document_id, origin_billing_record_id, origin_service_order_id,
+              origin_measurement_id, client_id, unit_id, principal::text AS principal,
+              currency_code, lifecycle
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+
+    expect(receivables.rows).toHaveLength(1);
+    const receivable = receivables.rows[0]!;
+    expect(receivable.origin_billing_record_id).toBe(billing.id);
+    expect(receivable.origin_service_order_id).toBe(completed.id);
+    expect(receivable.origin_measurement_id).toBe(billing.measurementId);
+    expect(receivable.client_id).toBe(client.id);
+    expect(receivable.unit_id).toBe(UNIT_A);
+    expect(receivable.currency_code).toBe(document.currencyCode);
+    expect(Number(receivable.principal)).toBe(Number(document.totalAmount));
+    expect(receivable.lifecycle).toBe('ACTIVE');
+
+    // Idempotent retry must not duplicate document, receivable or financial principal.
+    const replay = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey,
+      dueDate,
+    });
+    expect(replay.id).toBe(document.id);
+    const afterRetry = await pool.query<{ total: string; principal: string }>(
+      `SELECT COUNT(*)::text AS total, COALESCE(SUM(principal), 0)::text AS principal
+         FROM fin.receivables WHERE origin_billing_record_id = $1`,
+      [billing.id],
+    );
+    expect(afterRetry.rows[0]?.total).toBe('1');
+    expect(Number(afterRetry.rows[0]?.principal)).toBe(Number(billing.totalAmount));
+  });
+
+
+  it('MASTER 001-03: an idempotent replay repairs a finalized document after Finance handoff failure', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const idempotencyKey = `master-001-03-recovery-${crypto.randomUUID()}`;
+
+    // Inject the failure AFTER Billing commits its FINALIZED document, at the
+    // published Finance port boundary. This does not alter production logic.
+    const failedHandoff = vi
+      .spyOn(receivablesAccess, 'openFromBilling')
+      .mockRejectedValueOnce(new Error('SIMULATED_FINANCE_HANDOFF_UNAVAILABLE'));
+
+    try {
+      await expect(
+        billingDocumentAccess.issue(actor, completed.id, billing.id, {
+          idempotencyKey,
+          dueDate: '2026-12-20',
+        }),
+      ).rejects.toBeTruthy();
+    } finally {
+      failedHandoff.mockRestore();
+    }
+
+    const persisted = await pool.query<{
+      id: string;
+      status: string;
+      artifact_sha256: string;
+    }>(
+      `SELECT id, status::text AS status, artifact_sha256
+         FROM bil.billing_documents WHERE billing_record_id = $1`,
+      [billing.id],
+    );
+    expect(persisted.rows).toHaveLength(1);
+    expect(persisted.rows[0]?.status).toBe('FINALIZED');
+    expect(persisted.rows[0]?.artifact_sha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const beforeRecovery = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fin.receivables
+         WHERE origin_billing_document_id = $1`,
+      [persisted.rows[0]!.id],
+    );
+    expect(beforeRecovery.rows[0]?.count).toBe('0');
+
+    // The same command and idempotency key must reuse the committed document
+    // and complete the missing finance handoff exactly once.
+    const recovered = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey,
+      dueDate: '2026-12-20',
+    });
+    expect(recovered.id).toBe(persisted.rows[0]?.id);
+    expect(recovered.artifactSha256).toBe(persisted.rows[0]?.artifact_sha256);
+
+    const again = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey,
+      dueDate: '2026-12-20',
+    });
+    expect(again.id).toBe(recovered.id);
+
+    const repaired = await pool.query<{ count: string; total: string }>(
+      `SELECT COUNT(*)::text AS count, COALESCE(SUM(principal), 0)::text AS total
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [recovered.id],
+    );
+    expect(repaired.rows[0]?.count).toBe('1');
+    expect(Number(repaired.rows[0]?.total)).toBe(Number(billing.totalAmount));
+
+    const pdf = await billingDocumentAccess.downloadPdf(
+      actor, completed.id, billing.id, recovered.id,
+    );
+    expect(pdf.sha256).toBe(recovered.artifactSha256);
+  });
+
+
+  it('MASTER 001-03: worker recovers a committed billing document with no HTTP replay', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const key = `auto-recovery-${crypto.randomUUID()}`;
+    const spy = vi.spyOn(receivablesAccess, 'openFromBilling')
+      .mockRejectedValueOnce(new Error('SIMULATED_AFTER_DOCUMENT_COMMIT'));
+    try {
+      await expect(billingDocumentAccess.issue(actor, completed.id, billing.id, {
+        idempotencyKey: key,
+        dueDate: '2026-12-20',
+      })).rejects.toBeTruthy();
+    } finally {
+      spy.mockRestore();
+    }
+
+    const documents = await pool.query<{ id: string; status: string }>(
+      `SELECT id, status::text AS status FROM bil.billing_documents WHERE billing_record_id = $1`,
+      [billing.id],
+    );
+    expect(documents.rows).toHaveLength(1);
+    expect(documents.rows[0]?.status).toBe('FINALIZED');
+    const billingDocumentId = documents.rows[0]!.id;
+    const pending = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${billingDocumentId}:receivable-handoff`,
+    );
+    expect(pending?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+    expect(pending?.job_kind).toBe(BACKGROUND_JOB_KINDS.BillingReceivableHandoff);
+
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    const context = {
+      jobId: pending!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: pending!.payload,
+      attemptCount: 1,
+      correlationId: billingDocumentId,
+      signal: new AbortController().signal,
+    };
+    await handler.handle(context);
+    await handler.handle(context); // concurrent/at-least-once redelivery must be safe.
+
+    const receivables = await pool.query<{ count: string; principal: string }>(
+      `SELECT COUNT(*)::text AS count, COALESCE(SUM(principal), 0)::text AS principal
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [billingDocumentId],
+    );
+    expect(receivables.rows[0]?.count).toBe('1');
+    expect(Number(receivables.rows[0]?.principal)).toBe(Number(billing.totalAmount));
+
+    // The ordinary cancel path must not be resurrected by a delayed recovery.
+    const issued = await billingDocumentAccess.getById(
+      actor, completed.id, billing.id, billingDocumentId,
+    );
+    await billingDocumentAccess.cancel(actor, completed.id, billing.id, billingDocumentId, {
+      rowVersion: issued.rowVersion,
+      cancelReason: 'cancel after handoff',
+    });
+    await handler.handle(context);
+    const status = await pool.query<{ lifecycle: string }>(
+      `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+         WHERE origin_billing_document_id = $1`,
+      [billingDocumentId],
+    );
+    expect(status.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
+
+
+  // Real NestJS commands and PostgreSQL persistence, with deliberately injected
+  // corruption ONLY in TEST_DATABASE_URL. No mocked Finance port or production seed.
+  function alertConditions(backlog: PlatformBacklogSnapshot): TechnicalAlertConditionInput {
+    return {
+      httpErrorRate: null,
+      httpRequestCount: 0,
+      httpLatencyP95Ms: null,
+      httpLatencyP99Ms: null,
+      dbPoolWaiting: null,
+      dbPoolTotal: null,
+      dbPoolIdle: null,
+      workerPending: backlog.workerPending,
+      workerInFlight: 0,
+      workerProcessed: 0,
+      workerLastActivityAt: null,
+      outboxPending: backlog.outboxPending,
+      outboxFailed: backlog.outboxFailed,
+      receivableHandoffDead: backlog.receivableHandoffDead,
+      billingReceivableOrphans: backlog.billingReceivableOrphans,
+      storageFailures: 0,
+      erpFailures: backlog.erpFailures,
+      trackingFailures: backlog.trackingFailures,
+      erpIntegrationConfigured: false,
+      trackingIntegrationConfigured: false,
+      notificationFailures: backlog.notificationFailures,
+      backupStatus: 'unknown',
+      diskUsagePercent: null,
+    };
+  }
+
+  it('MASTER 001-03: PostgreSQL orphan KPI fires and resolves after durable worker recovery', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const document = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey: `orphan-metric-test-${crypto.randomUUID()}`,
+      dueDate: '2026-12-20',
+    });
+    expect(document.status).toBe(BILLING_DOCUMENT_STATUSES.Finalized);
+    expect(document.artifactSha256).toMatch(/^[a-f0-9]{64}$/);
+
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${document.id}:receivable-handoff`,
+    );
+    expect(job?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+
+    // Fault injection in the isolated test DB: remove ONLY the receivable created
+    // by this test, then age this document beyond the real five-minute threshold.
+    // This reproduces observable persisted orphan state without mocking Finance.
+    const source = await pool.query<{ id: string }>(
+      'SELECT id FROM fin.receivables WHERE origin_billing_document_id = $1',
+      [document.id],
+    );
+    expect(source.rows).toHaveLength(1);
+    await pool.query('DELETE FROM fin.receivable_installments WHERE receivable_id = $1', [source.rows[0]!.id]);
+    const removed = await pool.query(
+      'DELETE FROM fin.receivables WHERE id = $1 RETURNING id', [source.rows[0]!.id],
+    );
+    expect(removed.rowCount).toBe(1);
+    await pool.query(
+      `UPDATE bil.billing_documents SET issued_at = NOW() - INTERVAL '6 minutes' WHERE id = $1`,
+      [document.id],
+    );
+
+    const before = await financialMetrics.collectBacklogs();
+    expect(before.billingReceivableOrphans).toBe(1);
+    expect(before.receivableHandoffPending).toBe(1);
+    expect(before.receivableHandoffDead).toBe(0);
+    const policy = loadTechnicalAlertPolicy();
+    const tracker = new TechnicalAlertStateTracker();
+    const definitions = buildTechnicalAlertDefinitions(policy);
+    const now = new Date('2026-10-31T12:00:00.000Z');
+    const firing = tracker.evaluate({
+      now,
+      conditions: evaluateTechnicalAlertConditions(alertConditions(before), policy),
+      definitions,
+    });
+    const alert = firing.find((item) => item.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure);
+    expect(alert?.severity).toBe(TECHNICAL_ALERT_SEVERITIES.Critical);
+    expect(alert?.observedValue).toContain('orphan_finalized=1');
+
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    const context = {
+      jobId: job!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: job!.payload,
+      attemptCount: 1,
+      correlationId: document.id,
+      signal: new AbortController().signal,
+    };
+    await handler.handle(context);
+    await handler.handle(context); // at-least-once replay must not duplicate principal
+    await jobsRepository.markCompleted(job!.id);
+
+    const restored = await pool.query<{ count: string; principal: string }>(
+      `SELECT COUNT(*)::text AS count, COALESCE(SUM(principal), 0)::text AS principal
+         FROM fin.receivables WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+    expect(restored.rows[0]?.count).toBe('1');
+    expect(Number(restored.rows[0]?.principal)).toBe(Number(document.totalAmount));
+
+    const after = await financialMetrics.collectBacklogs();
+    expect(after.billingReceivableOrphans).toBe(0);
+    expect(after.receivableHandoffPending).toBe(0);
+    expect(after.receivableHandoffDead).toBe(0);
+    tracker.evaluate({
+      now: new Date(now.getTime() + 1_000),
+      conditions: evaluateTechnicalAlertConditions(alertConditions(after), policy),
+      definitions,
+    });
+    expect(tracker.getResolvedSince(now.toISOString()).some(
+      (item) => item.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure,
+    )).toBe(true);
+
+    const persisted = await billingDocumentAccess.getById(
+      actor, completed.id, billing.id, document.id,
+    );
+    expect(persisted.id).toBe(document.id);
+    expect(persisted.artifactSha256).toBe(document.artifactSha256);
+  });
+
+  it('MASTER 001-03: PostgreSQL dead-letter KPI alerts even when receivable exists', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const document = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      idempotencyKey: `dead-metric-test-${crypto.randomUUID()}`,
+      dueDate: '2026-12-20',
+    });
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${document.id}:receivable-handoff`,
+    );
+    expect(job?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+
+    // Test-only dead-letter fault injection; persist the status via the
+    // ordinary repository instead of forging a collector snapshot.
+    await jobsRepository.markDead(job!.id, 'TEST_ONLY_HANDOFF_DEAD_LETTER', 'TRANSIENT');
+    const snapshot = await financialMetrics.collectBacklogs();
+    expect(snapshot.billingReceivableOrphans).toBe(0);
+    expect(snapshot.receivableHandoffDead).toBe(1);
+    expect(snapshot.receivableHandoffPending).toBe(0);
+    const alert = evaluateTechnicalAlertConditions(
+      alertConditions(snapshot), loadTechnicalAlertPolicy(),
+    ).find((item) => item.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure);
+    expect(alert?.breached).toBe(true);
+    expect(alert?.severity).toBe(TECHNICAL_ALERT_SEVERITIES.Critical);
+    expect(alert?.observedValue).toContain('dead_or_failed_handoffs=1');
+  });
+
+  it('MASTER 001-03: compensates a failed Finance cancellation after document commit', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const issued = await billingDocumentAccess.issue(actor, completed.id, billing.id, {
+      dueDate: '2026-12-20',
+    });
+
+    const failedCancel = vi.spyOn(receivablesAccess, 'cancelFromBilling')
+      .mockRejectedValueOnce(new Error('SIMULATED_FINANCE_CANCEL_FAILURE'));
+    try {
+      await expect(billingDocumentAccess.cancel(actor, completed.id, billing.id, issued.id, {
+        rowVersion: issued.rowVersion,
+        cancelReason: 'test failure after Billing commit',
+        idempotencyKey: `billing-cancel-${crypto.randomUUID()}`,
+      })).rejects.toBeTruthy();
+    } finally {
+      failedCancel.mockRestore();
+    }
+
+    const stored = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM bil.billing_documents WHERE id = $1`, [issued.id],
+    );
+    expect(stored.rows[0]?.status).toBe('CANCELLED');
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${issued.id}:receivable-cancel`,
+    );
+    expect(job?.status).toBe(BACKGROUND_JOB_STATUSES.Pending);
+    expect(job?.payload['action']).toBe('CANCEL');
+
+    const handler = new BillingReceivableHandoffJobHandler(
+      billingDocumentsRepository, receivablesAccess,
+    );
+    await handler.handle({
+      jobId: job!.id,
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      payload: job!.payload,
+      attemptCount: 1,
+      correlationId: issued.id,
+      signal: new AbortController().signal,
+    });
+
+    const financial = await pool.query<{ lifecycle: string }>(
+      `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+         WHERE origin_billing_document_id = $1`, [issued.id],
+    );
+    expect(financial.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
+  it('MASTER 001-03: concurrent worker OPEN and API CANCEL converge without resurrection', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const issued = await billingDocumentAccess.issue(actor, completed.id, billing.id, {});
+    const job = await jobsRepository.findByIdempotencyKey(
+      `billing-document:${issued.id}:receivable-handoff`,
+    );
+    expect(job).not.toBeNull();
+
+    const original = receivablesAccess.openFromBilling.bind(receivablesAccess);
+    let entered!: () => void;
+    let release!: () => void;
+    const enteredPromise = new Promise<void>((resolve) => { entered = resolve; });
+    const releasePromise = new Promise<void>((resolve) => { release = resolve; });
+    const spy = vi.spyOn(receivablesAccess, 'openFromBilling').mockImplementationOnce(async (input) => {
+      entered();
+      await releasePromise;
+      return original(input);
+    });
+
+    try {
+      const handler = new BillingReceivableHandoffJobHandler(
+        billingDocumentsRepository, receivablesAccess,
+      );
+      const workerPromise = handler.handle({
+        jobId: job!.id,
+        jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+        payload: job!.payload,
+        attemptCount: 1,
+        correlationId: issued.id,
+        signal: new AbortController().signal,
+      });
+      await enteredPromise;
+      const cancelPromise = billingDocumentAccess.cancel(actor, completed.id, billing.id, issued.id, {
+        rowVersion: issued.rowVersion,
+        cancelReason: 'concurrent cancellation',
+      });
+      release();
+      await Promise.all([workerPromise, cancelPromise]);
+    } finally {
+      release?.();
+      spy.mockRestore();
+    }
+
+    const state = await pool.query<{ lifecycle: string; count: string }>(
+      `SELECT lifecycle::text AS lifecycle, COUNT(*)::text AS count
+         FROM fin.receivables WHERE origin_billing_document_id = $1
+         GROUP BY lifecycle`, [issued.id],
+    );
+    expect(state.rows).toHaveLength(1);
+    expect(state.rows[0]?.count).toBe('1');
+    expect(state.rows[0]?.lifecycle).toBe('CANCELLED');
+  });
+
+
+  it('MASTER 001-03: posted settlement vetoes Billing cancel and replace before any state change', async () => {
+    const { actor } = await seedActor();
+    const { completed, billing } = await seedPreparedBilling(actor);
+    const document = await billingDocumentAccess.issue(
+      actor, completed.id, billing.id, { dueDate: '2026-12-20' },
+    );
+
+    const rows = await pool.query<{
+      id: string; row_version: number; currency_code: string;
+    }>(
+      `SELECT id, row_version, currency_code FROM fin.receivables
+       WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+    expect(rows.rows).toHaveLength(1);
+
+    await receivablesRepository.settle({
+      receivableId: rows.rows[0]!.id,
+      amount: '1.0000',
+      currencyCode: rows.rows[0]!.currency_code,
+      rowVersion: rows.rows[0]!.row_version,
+      idempotencyKey: `billing-veto-${crypto.randomUUID()}`,
+      settledAt: new Date().toISOString(),
+      actorIdentityId: actor.identityId,
+    });
+
+    await expect(billingDocumentAccess.cancel(
+      actor, completed.id, billing.id, document.id, {
+        rowVersion: document.rowVersion,
+        cancelReason: 'should reject settled receivable',
+      },
+    )).rejects.toBeTruthy();
+
+    await expect(billingDocumentAccess.replace(
+      actor, completed.id, billing.id, document.id, {
+        rowVersion: document.rowVersion,
+        replaceReason: 'should reject settled receivable',
+      },
+    )).rejects.toBeTruthy();
+
+    const authoritative = await pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM bil.billing_documents WHERE id = $1`,
+      [document.id],
+    );
+    const financial = await pool.query<{ lifecycle: string }>(
+      `SELECT lifecycle::text AS lifecycle FROM fin.receivables
+       WHERE origin_billing_document_id = $1`,
+      [document.id],
+    );
+    expect(authoritative.rows[0]?.status).toBe('FINALIZED');
+    expect(financial.rows[0]?.lifecycle).toBe('ACTIVE');
+    const history = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM fin.settlements
+       WHERE receivable_id = $1 AND status = 'POSTED'`,
+      [rows.rows[0]!.id],
+    );
+    expect(history.rows[0]?.count).toBe('1');
   });
 
   it('allocates unique numbers under concurrent issuance', async () => {

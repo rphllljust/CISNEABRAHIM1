@@ -61,13 +61,43 @@ async function main(): Promise<void> {
         throw new Error(`business verification failed: ${flow.key} has no valid commercial measurement lines`);
       }
 
-      const billing = await pool.query<{ record_id: string; document_id: string }>(
-        'SELECT br.id AS record_id, bd.id AS document_id FROM bil.billing_records br INNER JOIN bil.billing_documents bd ON bd.billing_record_id = br.id WHERE br.service_order_id = $1::uuid LIMIT 1',
+      const billing = await pool.query<{
+        record_id: string; document_id: string; principal: string; currency_code: string;
+      }>(
+        `SELECT br.id AS record_id, bd.id AS document_id,
+                bd.total_amount::text AS principal, bd.currency_code
+           FROM bil.billing_records br
+           INNER JOIN bil.billing_documents bd ON bd.billing_record_id = br.id
+          WHERE br.service_order_id = $1::uuid AND bd.status = 'FINALIZED'
+          LIMIT 1`,
         [orderRow.id],
       );
       const billingRow = billing.rows[0];
       if (!billingRow) {
         throw new Error(`business verification failed: ${flow.key} has no billing record/document`);
+      }
+
+      const receivables = await pool.query<{
+        id: string; principal: string; currency_code: string;
+        origin_service_order_id: string; origin_measurement_id: string;
+        origin_billing_record_id: string; client_id: string;
+      }>(
+        `SELECT id, principal::text AS principal, currency_code,
+                origin_service_order_id, origin_measurement_id,
+                origin_billing_record_id, client_id
+           FROM fin.receivables
+          WHERE origin_billing_document_id = $1::uuid`,
+        [billingRow.document_id],
+      );
+      const receivable = receivables.rows[0];
+      if (receivables.rows.length !== 1 || !receivable ||
+          receivable.origin_service_order_id !== orderRow.id ||
+          receivable.origin_measurement_id !== measurementRow.id ||
+          receivable.origin_billing_record_id !== billingRow.record_id ||
+          receivable.client_id !== clientRow.id ||
+          receivable.currency_code !== billingRow.currency_code ||
+          receivable.principal !== billingRow.principal) {
+        throw new Error(`business verification failed: ${flow.key} receivable origin or amount is inconsistent`);
       }
 
       evidence.push({
@@ -81,6 +111,9 @@ async function main(): Promise<void> {
         commercialUnits: lines.rows.map((line) => line.unit_code),
         billingRecordId: billingRow.record_id,
         billingDocumentId: billingRow.document_id,
+        receivableId: receivable.id,
+        receivablePrincipal: receivable.principal,
+        currencyCode: receivable.currency_code,
       });
     }
 

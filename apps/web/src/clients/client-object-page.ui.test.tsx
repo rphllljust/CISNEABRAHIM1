@@ -131,6 +131,7 @@ type FetchFixtureOptions = {
   client?: Client;
   capabilities?: { update?: boolean; deactivate?: boolean; activate?: boolean };
   proposals?: ListFixture;
+  contracts?: ListFixture;
   requests?: ListFixture;
   /** Resposta do próprio cadastro — prova o mapeamento de loading/denied/error/empty. */
   detail?: 'denied' | 'not_found' | 'error';
@@ -160,6 +161,7 @@ function createClientObjectFetchMock(options: FetchFixtureOptions = {}) {
     ...options.capabilities,
   };
   const proposals = options.proposals ?? 'complete';
+  const contracts = options.contracts ?? 'complete';
   const requests = options.requests ?? 'complete';
 
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -222,6 +224,39 @@ function createClientObjectFetchMock(options: FetchFixtureOptions = {}) {
       return capabilities.activate
         ? clientError('CLIENT_NOT_FOUND', 404)
         : clientError('CLIENT_DENIED', 403);
+    }
+
+    // Client 360 now loads an authorized aggregate; preserve denial/error fixtures
+    // and the same quality/hierarchy facts used by the dedicated read endpoints.
+    if (pathname === `/api/v1/clients/${client.id}/360` && method === 'GET') {
+      if (options.detail === 'denied') return clientError('CLIENT_DENIED', 403);
+      if (options.detail === 'not_found') return clientError('CLIENT_NOT_FOUND', 404);
+      if (options.detail === 'error') return clientError('CLIENT_INTERNAL', 500);
+
+      const nodes = options.hierarchy?.nodes ?? [
+        {
+          id: client.id,
+          legal_name: client.legalName,
+          trade_name: client.tradeName,
+          status: client.status,
+          parent_client_id: client.parentClientId,
+          group_id: client.groupId,
+          group_name: client.groupName,
+          child_count: client.childCount,
+          depth: 0,
+          relation: 'self' as const,
+        },
+      ];
+      return jsonResponse({
+        client,
+        quality: options.quality ?? { evaluated: true, isComplete: true, findings: [] },
+        hierarchy: {
+          rootId: client.id,
+          nodes,
+          truncated: options.hierarchy?.truncated ?? false,
+          maxDepth: 8,
+        },
+      });
     }
 
     if (pathname === `/api/v1/clients/${client.id}` && method === 'GET') {
@@ -320,6 +355,21 @@ function createClientObjectFetchMock(options: FetchFixtureOptions = {}) {
         });
       }
       return jsonResponse({ items: [proposalItem(1), proposalItem(2)], limit: 20, offset: 0 });
+    }
+
+    if (pathname === '/api/v1/commercial/contracts') {
+      if (contracts === 'denied') return clientError('COMMERCIAL_DENIED', 403);
+      if (contracts === 'error') return clientError('COMMERCIAL_INTERNAL', 500);
+      const items = Array.from(
+        { length: contracts === 'unknown-total' ? 20 : 1 },
+        (_, index) => ({
+          id: `${String(index + 1).padStart(8, '0')}-7777-4777-8777-000000000001`,
+          contractNumber: `CTR-2026-${String(index + 1).padStart(4, '0')}`,
+          title: 'Contrato de prestação de serviços',
+          status: 'ACTIVE',
+        }),
+      );
+      return jsonResponse({ items, limit: 20, offset: 0 });
     }
 
     if (pathname === '/api/v1/commercial/purchase-orders') {
@@ -426,6 +476,11 @@ describe('Object page do Cliente', () => {
     expect(within(purchaseOrders).getByText('0')).toBeInTheDocument();
     expect(purchaseOrders).toHaveAttribute('href', `/app/purchase-orders?clientId=${CLIENT_ID}`);
 
+    // Contratos têm contagem exata apenas quando a página do backend é comprovadamente completa.
+    const contracts = screen.getByRole('link', { name: /contratos/i });
+    expect(within(contracts).getByText('1')).toBeInTheDocument();
+    expect(contracts).toHaveAttribute('href', `/app/contracts?clientId=${CLIENT_ID}`);
+
     // Ordens de serviço usam o montador de href do próprio módulo, que lê o filtro na tela.
     const serviceOrders = screen.getByRole('link', { name: /ordens de serviço/i });
     expect(within(serviceOrders).getByText('0')).toBeInTheDocument();
@@ -449,6 +504,33 @@ describe('Object page do Cliente', () => {
     expect(within(relations).queryByText('Propostas')).not.toBeInTheDocument();
     // O painel de registros relacionados continua mostrando os registros reais do módulo.
     expect(screen.getAllByText('Propostas').length).toBeGreaterThan(0);
+  });
+
+  it('não divulga contratos de outro escopo nem inventa o total de página cheia', async () => {
+    vi.stubGlobal('fetch', createClientObjectFetchMock({ contracts: 'unknown-total' }));
+    renderClientPage();
+    await awaitHeader();
+    await openTab(/relacionamentos/i);
+    const relations = await screen.findByLabelText('Relações');
+    await screen.findByRole('link', { name: 'CTR-2026-0001' });
+    expect(within(relations).queryByRole('link', { name: /contratos/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'CTR-2026-0001' })).toHaveAttribute(
+      'href', '/app/contracts/00000001-7777-4777-8777-000000000001',
+    );
+  });
+
+  it('não revela sequer a existência de contratos quando o domínio retorna 403', async () => {
+    vi.stubGlobal('fetch', createClientObjectFetchMock({ contracts: 'denied' }));
+    renderClientPage();
+    await awaitHeader();
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /solicitações/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('link', { name: /contratos/i })).not.toBeInTheDocument();
+    await openTab(/relacionamentos/i);
+    const relations = screen.getByLabelText('Relações');
+    expect(within(relations).queryByText('Contratos')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Contratos' })).not.toBeInTheDocument();
   });
 
   it('descarta por inteiro a relação não autorizada, sem rótulo, contagem ou "oculto"', async () => {

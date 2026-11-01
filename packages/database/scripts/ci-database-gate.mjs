@@ -1514,6 +1514,65 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0110_accounting_journal_entry_number_read_contract.sql') {
+      // N-1 must reproduce the reported defect: the ledger owns entry_number,
+      // while its published read view still lacks the projected column.
+      const baseline = await client.query(
+        `SELECT
+           to_regclass('rpt.read_journal_entries') IS NOT NULL AS view_exists,
+           EXISTS (
+             SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'acc' AND table_name = 'journal_entries'
+                AND column_name = 'entry_number'
+           ) AS source_has_entry_number,
+           EXISTS (
+             SELECT 1 FROM information_schema.columns
+              WHERE table_schema = 'rpt' AND table_name = 'read_journal_entries'
+                AND column_name = 'entry_number'
+           ) AS read_has_entry_number`,
+      );
+      const state = baseline.rows[0];
+      if (!state?.view_exists || !state.source_has_entry_number) {
+        throw new Error('0110 baseline requires journal entry_number in source and published view');
+      }
+      if (state.read_has_entry_number) {
+        throw new Error('0110 baseline already exposes rpt.read_journal_entries.entry_number');
+      }
+      return;
+    }
+
+    if (deltaFile === '0111_sod_exception_approval.sql') {
+      const before = await client.query(
+        `SELECT to_regclass('"authorization".sod_exceptions') AS exceptions,
+                EXISTS (SELECT 1 FROM information_schema.columns
+                  WHERE table_schema = 'authorization'
+                    AND table_name = 'access_role_assignments'
+                    AND column_name = 'sod_exception_id') AS dependency_column`,
+      );
+      if (before.rows[0]?.exceptions !== null || before.rows[0]?.dependency_column !== false) {
+        throw new Error('0111 N-1 already contains SoD exception schema');
+      }
+      return;
+    }
+
+    if (deltaFile === '0112_billing_receivable_handoff_job.sql') {
+      const prior = await client.query(
+        `SELECT to_regclass('plt.background_jobs') IS NOT NULL AS has_jobs,
+                EXISTS (
+                  SELECT 1 FROM pg_enum e
+                  JOIN pg_type t ON t.oid = e.enumtypid
+                  JOIN pg_namespace n ON n.oid = t.typnamespace
+                  WHERE n.nspname = 'plt'
+                    AND t.typname = 'background_job_kind'
+                    AND e.enumlabel = 'BILLING_RECEIVABLE_HANDOFF'
+                ) AS already_has_handoff`,
+      );
+      if (!prior.rows[0]?.has_jobs || prior.rows[0]?.already_has_handoff) {
+        throw new Error('0112 N-1 must have background_jobs but not the handoff job kind');
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();

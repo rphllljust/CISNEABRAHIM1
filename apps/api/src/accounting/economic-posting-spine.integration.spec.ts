@@ -24,6 +24,7 @@ import { ReceivablesAccessService } from '../finance/services/receivables-access
 import { AccountingModule } from './accounting.module';
 import { AccountingAccessService } from './services/accounting-access.service';
 import { EconomicPostingService } from './services/economic-posting.service';
+import { EconomicTraceReadModelService } from './repositories/economic-trace.read-model';
 import { ACCOUNT_CLASSES } from './domain/ledger';
 import { POSTING_EVENTS, POSTING_ORIGINS } from './domain/posting';
 import {
@@ -101,6 +102,7 @@ describe('F1.1 — economic posting spine (PostgreSQL integration)', () => {
   let pool: Pool;
   let accounting: AccountingAccessService;
   let economicPosting: EconomicPostingService;
+  let economicTrace: EconomicTraceReadModelService;
   let receivables: ReceivablesAccessService;
   let matrices: ApprovalMatrixAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
@@ -115,6 +117,7 @@ describe('F1.1 — economic posting spine (PostgreSQL integration)', () => {
     }).compile();
     accounting = module.get(AccountingAccessService);
     economicPosting = module.get(EconomicPostingService);
+    economicTrace = module.get(EconomicTraceReadModelService);
     receivables = module.get(ReceivablesAccessService);
     matrices = module.get(ApprovalMatrixAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
@@ -349,6 +352,13 @@ describe('F1.1 — economic posting spine (PostgreSQL integration)', () => {
     const first = await economicPosting.consume(events[0]!.payload);
     expect(first.outcome).toBe('POSTED');
     expect(await countPostedJournals()).toBe(1);
+
+    // A trilha pública deve expor entry_number após a migration 0075.
+    // A view SELECT * criada na 0047 não se atualiza ao ALTER TABLE posterior.
+    const trace = await economicTrace.forSettlement(settlementId);
+    expect(trace?.accountingState).toBe('POSTED');
+    expect(trace?.posting.journalEntryId).toBe(first.journalEntryId);
+    expect(trace?.factId).toBe(settlementId);
 
     // Redelivery: MESMO payload, entregue de novo. Journal não duplica.
     const second = await economicPosting.consume(events[0]!.payload);

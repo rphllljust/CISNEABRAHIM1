@@ -127,6 +127,7 @@ function orderDetail(overrides: Partial<ServiceOrderDetail> = {}): ServiceOrderD
     status: SERVICE_ORDER_STATUSES.Completed,
     origin: 'SERVICE_REQUEST',
     clientId: CLIENT_ID,
+    contractId: null,
     clientSnapshot: { legalName: `${CLIENT_NAME} LTDA`, tradeName: CLIENT_NAME },
     serviceDefinitionId: null,
     serviceDefinitionVersionId: null,
@@ -183,6 +184,7 @@ type MockOptions = {
   planned?: PlannedResource[];
   /** Sondagem de alocacao do backend: `denied` (403) ou `allowed` (404 de recurso inexistente). */
   allocationProbe?: 'denied' | 'allowed';
+  businessChain?: { status: number; body: unknown };
   /**
    * Comandos válidos que o BACKEND devolveria em `available-actions` (B5).
    *
@@ -243,6 +245,9 @@ function planningFetchMock(detail: ServiceOrderDetail, options: MockOptions = {}
      * O payload espelha o contrato do metadata store (campos, view `form`, workflow com transicoes),
      * no mesmo formato que as demais suites de engine ja usam.
      */
+    if (pathname === `/api/v1/business-chain/SERVICE_ORDER/${SERVICE_ORDER_ID}` && method === 'GET') {
+      return jsonResponse(options.businessChain?.body ?? { code: 'FORBIDDEN' }, options.businessChain?.status ?? 403);
+    }
     if (pathname === '/api/v1/meta/service-orders' && method === 'GET') {
       return jsonResponse({
         name: 'service-orders',
@@ -775,5 +780,70 @@ describe('ordem de serviço — object page canônica', () => {
     expect(body.cancellationReason).toBe('Cliente suspendeu a obra por prazo indeterminado.');
     // PROVA NEGATIVA: a frase fixa antiga não existe em lugar nenhum do payload.
     expect(JSON.stringify(body)).not.toMatch(/visão geral da ordem de serviço/i);
+  });
+
+  it('OS 360 mostra somente a linhagem persistida e autorizada, sem inferir links ou UUIDs', async () => {
+    const receivableId = 'f6f6f6f6-6666-4666-8666-f6f6f6f6f6f6';
+    const fetchMock = planningFetchMock(orderDetail(), {
+      businessChain: {
+        status: 200,
+        body: {
+          anchor: { kind: 'SERVICE_ORDER', id: SERVICE_ORDER_ID },
+          nodes: [
+            {
+              id: SERVICE_ORDER_ID,
+              kind: 'SERVICE_ORDER',
+              businessReference: ORDER_NUMBER,
+              status: 'COMPLETED',
+              occurredAt: '2026-01-02T09:00:00.000Z',
+              route: `/app/service-orders/${SERVICE_ORDER_ID}`,
+              relation: 'ROOT',
+              summary: 'Ordem concluída',
+              unitId: 'e5e5e5e5-5555-4555-8555-e5e5e5e5e5e5',
+              clientId: CLIENT_ID,
+            },
+            {
+              id: receivableId,
+              kind: 'RECEIVABLE',
+              businessReference: 'Cobrança OS-2026-0007',
+              status: 'OPEN',
+              occurredAt: '2026-01-03T09:00:00.000Z',
+              route: `/app/finance/receivables/${receivableId}`,
+              relation: 'RESULT',
+              summary: 'BRL 150.0000',
+              unitId: 'e5e5e5e5-5555-4555-8555-e5e5e5e5e5e5',
+              clientId: CLIENT_ID,
+            },
+          ],
+          milestones: [],
+        },
+      },
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderServiceOrderRoutes(`/app/service-orders/${SERVICE_ORDER_ID}`);
+
+    const chain = await screen.findByRole('list', { name: 'Linhagem de negócio' });
+    const links = within(chain).getAllByRole('link');
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveTextContent(ORDER_NUMBER);
+    expect(links[1]).toHaveTextContent('Cobrança OS-2026-0007');
+    expect(links[1]).toHaveAttribute('href', `/app/finance/receivables/${receivableId}`);
+    expect(chain.textContent).not.toContain(receivableId);
+    expect(chain.textContent).not.toContain(SERVICE_ORDER_ID);
+    expect(chain.textContent).not.toContain('Documento fiscal');
+    expect(fetchMock.mock.calls.filter(([input]) =>
+      parseRequestPath(input).pathname === `/api/v1/business-chain/SERVICE_ORDER/${SERVICE_ORDER_ID}`,
+    )).toHaveLength(1);
+  });
+
+  it('OS 360 nega a cadeia sem expor nós econômicos quando a leitura recebe 403', async () => {
+    vi.stubGlobal('fetch', planningFetchMock(orderDetail(), {
+      businessChain: { status: 403, body: { code: 'BUSINESS_CHAIN_DENIED' } },
+    }));
+    renderServiceOrderRoutes(`/app/service-orders/${SERVICE_ORDER_ID}`);
+
+    expect(await screen.findByText('Você não tem permissão para ver a linhagem deste registro.')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Linhagem de negócio' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Cobrança OS-2026-0007')).not.toBeInTheDocument();
   });
 });

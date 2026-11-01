@@ -255,6 +255,16 @@ const MIGRATION_EFFECT_CHECKS = {
    */
   '0108_measurement_acceptance_billing_readiness': { table: ['msr', 'customer_acceptances'] },
   '0109_operational_unit_directory': { table: ['pty', 'operational_units'] },
+  // Repair the published read contract, not the source table altered by 0075.
+  '0110_accounting_journal_entry_number_read_contract': {
+    column: ['rpt', 'read_journal_entries', 'entry_number'],
+  },
+  // SoD-007 approval/revocation must have a persistent authority record.
+  '0111_sod_exception_approval': { table: ['authorization', 'sod_exceptions'] },
+  // The 0112 delta publishes the dedicated durable handoff job kind; probe the actual enum.
+  '0112_billing_receivable_handoff_job': {
+    enumLabel: ['plt', 'background_job_kind', 'BILLING_RECEIVABLE_HANDOFF'],
+  },
 };
 
 /**

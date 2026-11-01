@@ -11,6 +11,7 @@ import {
   truncateCommercialProposalTables,
   truncateCommercialPurchaseOrderTables,
   truncateDocumentTables,
+  truncateFinanceTables,
   truncateIdentityAndAuthorizationTables,
   truncatePhysicalAssetTables,
   truncateServiceOrderTables,
@@ -36,6 +37,7 @@ import { ProposalsAccessService } from '../commercial/services/proposals-access.
 import { PurchaseOrdersAccessService } from '../commercial/services/purchase-orders-access.service';
 import { DocumentsModule } from '../documents/documents.module';
 import { DocumentsAccessService } from '../documents/services/documents-access.service';
+import { FinanceModule } from '../finance/finance.module';
 import { MeasurementsModule } from '../measurements/measurements.module';
 import { MeasurementsAccessService } from '../measurements/services/measurements-access.service';
 import { RequestsModule } from '../requests/requests.module';
@@ -81,6 +83,7 @@ describe('First business vertical quality gate (PostgreSQL integration)', () => 
         ServiceOrdersModule,
         MeasurementsModule,
         BillingModule,
+        FinanceModule,
       ],
     }).compile();
 
@@ -106,6 +109,7 @@ describe('First business vertical quality gate (PostgreSQL integration)', () => 
   });
 
   beforeEach(async () => {
+    await truncateFinanceTables(pool);
     await truncateDocumentTables(pool);
     await truncateBillingTables(pool);
     await truncateServiceRequestTables(pool);

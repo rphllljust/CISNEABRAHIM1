@@ -2,6 +2,8 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import { BACKGROUND_JOB_KINDS } from '../../platform/background-jobs/domain/background-job-kind';
+import { BackgroundJobsRepository } from '../../platform/background-jobs/repositories/background-jobs.repository';
 import { FAULT_HOOKS } from '../../platform/fault-injection/fault-hook.ids';
 import { FAULT_INJECTION_PORT, type FaultInjectionPort } from '../../platform/fault-injection/fault-injection.port';
 import { maybeInjectFault } from '../../platform/fault-injection/fault-injection.util';
@@ -36,6 +38,7 @@ import type {
 export class BillingDocumentRepository {
   constructor(
     private readonly databaseService: DatabaseService,
+    private readonly backgroundJobs: BackgroundJobsRepository,
     @Optional() @Inject(FAULT_INJECTION_PORT) private readonly faultInjection?: FaultInjectionPort,
   ) {}
 
@@ -45,6 +48,68 @@ export class BillingDocumentRepository {
       throw new Error('DATABASE_URL is not configured.');
     }
     return connection.pool;
+  }
+
+  /** The handoff obligation is committed atomically with the FINALIZED document.
+   * A worker may retry even if the synchronous Finance call fails or the API crashes.
+   * Neither this Billing repository nor the worker writes Finance tables directly.
+   */
+  private async enqueueReceivableHandoff(client: PoolClient, billingDocumentId: string): Promise<void> {
+    await this.backgroundJobs.enqueueJob({
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      idempotencyKey: `billing-document:${billingDocumentId}:receivable-handoff`,
+      correlationId: billingDocumentId,
+      payload: { schemaVersion: 1, billingDocumentId },
+      priority: 10,
+      maxAttempts: 12,
+    }, client);
+  }
+
+  /**
+   * Serialize financial transitions of a single billing document across the API
+   * command and the background worker. This is a PostgreSQL advisory *transaction*
+   * lock; it owns no cross-context data and is released on commit/rollback.
+   */
+  async withHandoffLock<T>(
+    billingDocumentId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const client = await this.pool().connect();
+    let evict = false;
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`,
+        [`billing-document:${billingDocumentId}:finance`],
+      );
+      const result = await operation();
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // A broken transaction must never return its connection to the pool.
+        evict = true;
+      }
+      throw error;
+    } finally {
+      client.release(evict);
+    }
+  }
+
+  private async enqueueReceivableCancellation(
+    client: PoolClient,
+    billingDocumentId: string,
+  ): Promise<void> {
+    await this.backgroundJobs.enqueueJob({
+      jobKind: BACKGROUND_JOB_KINDS.BillingReceivableHandoff,
+      idempotencyKey: `billing-document:${billingDocumentId}:receivable-cancel`,
+      correlationId: billingDocumentId,
+      payload: { schemaVersion: 1, billingDocumentId, action: 'CANCEL' },
+      priority: 20,
+      maxAttempts: 12,
+    }, client);
   }
 
   async findById(billingDocumentId: string): Promise<BillingDocumentRow | null> {
@@ -325,6 +390,7 @@ export class BillingDocumentRepository {
         );
       }
 
+      await this.enqueueReceivableHandoff(client, billingDocumentId);
       await client.query('COMMIT');
       const billingDocument = inserted.rows[0];
       if (!billingDocument) {
@@ -512,6 +578,8 @@ export class BillingDocumentRepository {
         ],
       );
 
+      await this.enqueueReceivableCancellation(client, input.previousDocumentId);
+      await this.enqueueReceivableHandoff(client, billingDocumentId);
       await client.query('COMMIT');
       const billingDocument = inserted.rows[0];
       if (!billingDocument) {
@@ -613,6 +681,7 @@ export class BillingDocumentRepository {
         );
       }
 
+      await this.enqueueReceivableCancellation(client, input.billingDocumentId);
       await client.query('COMMIT');
       const cancelled = updated.rows[0];
       if (!cancelled) {

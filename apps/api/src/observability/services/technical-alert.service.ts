@@ -75,6 +75,8 @@ export class TechnicalAlertService {
       workerLastActivityAt: this.registry.getWorkerLastActivityAt(),
       outboxPending: metrics.technical.backlog.outboxPending,
       outboxFailed: metrics.technical.backlog.outboxFailed,
+      receivableHandoffDead: metrics.technical.backlog.receivableHandoffDead,
+      billingReceivableOrphans: metrics.technical.backlog.billingReceivableOrphans,
       storageFailures: metrics.technical.failures.storageFailures,
       erpFailures: metrics.technical.backlog.erpFailures,
       trackingFailures: metrics.technical.backlog.trackingFailures,

@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import {
   SYNTHETIC_SEED_DISPLAY_PREFIX,
   SYNTHETIC_SEED_NAMESPACE,
@@ -18,6 +18,14 @@ async function deleteBillingForServiceOrders(client: DbClient, serviceOrderIds: 
   if (serviceOrderIds.length === 0) {
     return;
   }
+  // The HML harness composes Finance: issuing a synthetic document creates a
+  // real receivable. Remove only titles tied to these synthetic OS identities
+  // before deleting their Billing origins; installments cascade. A settlement
+  // keeps its FK and deliberately prevents silent erasure of economic history.
+  await client.query(
+    `DELETE FROM fin.receivables WHERE origin_service_order_id = ANY($1::uuid[])`,
+    [serviceOrderIds],
+  );
   await client.query(
     `DELETE FROM bil.billing_document_items
      WHERE billing_document_id IN (
@@ -52,6 +60,22 @@ async function deleteBillingForServiceOrders(client: DbClient, serviceOrderIds: 
      )`,
     [serviceOrderIds],
   );
+  // The Commercial domain records a PO balance consumption at Billing prepare.
+  // It uses an intentionally RESTRICTED FK to the Billing record. Remove only
+  // entries whose originating Billing record AND PO belong to this same
+  // synthetic client's graph, before removing Billing records. An unrelated
+  // PO remains protected by RESTRICT instead of being deleted opportunistically.
+  // This executes inside the scenario compensation transaction; settled
+  // receivables are checked earlier and prevent the whole cleanup.
+  await client.query(
+    `DELETE FROM com.purchase_order_consumption_entries ce
+      USING bil.billing_records br, com.purchase_orders po
+      WHERE ce.billing_record_id = br.id
+        AND ce.purchase_order_id = po.id
+        AND br.service_order_id = ANY($1::uuid[])
+        AND po.client_id = br.client_id`,
+    [serviceOrderIds],
+  );
   await client.query(
     `DELETE FROM bil.billing_items
      WHERE billing_record_id IN (
@@ -78,6 +102,19 @@ async function deleteBillingForServiceOrders(client: DbClient, serviceOrderIds: 
 async function deleteMeasurementsForServiceOrders(client: DbClient, serviceOrderIds: string[]): Promise<void> {
   if (serviceOrderIds.length === 0) {
     return;
+  }
+  // 0108 keeps acceptance and billing-readiness facts under RESTRICT FKs.
+  // Only the isolated synthetic OS graph may be compensated; production
+  // economic history is never removed by this harness.
+  for (const table of [
+    'msr.customer_acceptances',
+    'msr.billing_eligibility_evaluations',
+    'msr.revenue_leakage_positions',
+    'msr.measurement_variances',
+  ]) {
+    await client.query(`DELETE FROM ${table} WHERE service_order_id = ANY($1::uuid[])`, [
+      serviceOrderIds,
+    ]);
   }
   await client.query(
     `DELETE FROM msr.measurement_history_events
@@ -115,6 +152,25 @@ async function deleteMeasurementsForServiceOrders(client: DbClient, serviceOrder
 async function deleteExecutionForServiceOrders(client: DbClient, serviceOrderIds: string[]): Promise<void> {
   if (serviceOrderIds.length === 0) {
     return;
+  }
+  // 0107 persists real dispatch, actuals, closure and measurement-basis facts
+  // with RESTRICT FKs. Remove descendants before evidence and legacy entries.
+  // Measurements (including basis-linked items) are already compensated.
+  for (const table of [
+    'so.measurement_basis',
+    'so.execution_closures',
+    'so.execution_actuals',
+    'so.execution_meter_readings',
+    'so.execution_fuel_records',
+    'so.execution_signatures',
+    'so.execution_events',
+    'so.execution_situations',
+    'so.service_order_dispatches',
+    'so.operational_cost_entries',
+  ]) {
+    await client.query(`DELETE FROM ${table} WHERE service_order_id = ANY($1::uuid[])`, [
+      serviceOrderIds,
+    ]);
   }
   await client.query(
     `DELETE FROM so.execution_entry_history_events
@@ -328,32 +384,47 @@ export async function compensateSyntheticScenario(
   client: DbClient,
   scenarioKey: string,
 ): Promise<SyntheticScenarioCompensationResult> {
-  const externalRef = syntheticExternalRef(scenarioKey);
-  const clientRow = await client.query<{ id: string }>(
-    `SELECT id FROM pty.clients WHERE external_erp_id = $1 LIMIT 1`,
-    [externalRef],
-  );
-  const clientId = clientRow.rows[0]?.id;
-
-  await client.query('BEGIN');
+  // A Pool does not pin successive query() calls to one connection.
+  // Use one dedicated client so BEGIN, deletes and ROLLBACK are atomic.
+  const connection = client instanceof Pool ? await client.connect() : client;
+  let evictWith: Error | undefined;
   try {
-    let clientRemoved = false;
-    if (clientId) {
-      await deleteClientGraph(client, clientId);
-      clientRemoved = true;
-    }
-    const catalogArtifactsRemoved = await deleteScenarioCatalogArtifacts(client, scenarioKey);
-    const assetsRemoved = await deleteScenarioAssets(client, scenarioKey);
-    await client.query('COMMIT');
-    return {
-      scenarioKey,
-      clientRemoved,
-      catalogArtifactsRemoved,
-      assetsRemoved,
-    };
+    await connection.query('BEGIN');
+    const externalRef = syntheticExternalRef(scenarioKey);
+      const clientRow = await connection.query<{ id: string }>(
+        `SELECT id FROM pty.clients WHERE external_erp_id = $1 LIMIT 1`,
+        [externalRef],
+      );
+      const clientId = clientRow.rows[0]?.id;
+      let clientRemoved = false;
+      if (clientId) {
+        await deleteClientGraph(connection, clientId);
+        clientRemoved = true;
+      }
+      const catalogArtifactsRemoved = await deleteScenarioCatalogArtifacts(connection, scenarioKey);
+      const assetsRemoved = await deleteScenarioAssets(connection, scenarioKey);
+      await connection.query('COMMIT');
+      return {
+        scenarioKey,
+        clientRemoved,
+        catalogArtifactsRemoved,
+        assetsRemoved,
+      };
   } catch (error) {
-    await client.query('ROLLBACK');
+    // Preserve the original transaction failure even if rollback also fails;
+    // evict a potentially broken connection instead of returning it to the pool.
+    try {
+      await connection.query('ROLLBACK');
+    } catch (rollbackError) {
+      evictWith = rollbackError instanceof Error
+        ? rollbackError
+        : new Error(String(rollbackError));
+    }
     throw error;
+  } finally {
+    if (client instanceof Pool) {
+      connection.release(evictWith);
+    }
   }
 }
 

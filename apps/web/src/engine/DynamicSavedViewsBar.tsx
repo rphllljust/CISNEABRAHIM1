@@ -11,7 +11,7 @@ import type { SavedView } from './DynamicSavedViews';
 export type DynamicSavedViewsBarProps = {
   views: SavedView[];
   onApply: (view: SavedView) => void;
-  onSave: (name: string) => void;
+  onSave: (name: string) => boolean | Promise<boolean> | void;
   onDelete: (id: string) => void;
   /** `true` quando o backend ainda não publica visões salvas. */
   persistedLocally?: boolean;
@@ -23,6 +23,10 @@ export type DynamicSavedViewsBarProps = {
    * entender por quê. A barra DECLARA a indisponibilidade em vez de fingir.
    */
   persistable?: boolean;
+  /** Visible error, loading or authorization state from the server. */
+  statusMessage?: string | null;
+  /** Retry a failed authoritative GET; never a localStorage fallback. */
+  onRetry?: () => void;
 };
 
 export function DynamicSavedViewsBar({
@@ -32,9 +36,12 @@ export function DynamicSavedViewsBar({
   onDelete,
   persistedLocally = false,
   persistable = true,
+  statusMessage = null,
+  onRetry,
 }: DynamicSavedViewsBarProps): React.ReactElement {
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pending, setPending] = useState(false);
 
   return (
     <div
@@ -58,8 +65,14 @@ export function DynamicSavedViewsBar({
 
         {!persistable ? (
           <span className="cisne-type-helper" data-testid="dynamic-saved-views-unavailable">
-            Indisponível sem sessão identificada — não há dono para a visão.
+            {statusMessage ?? 'Indisponível sem sessão identificada — não há dono para a visão.'}
           </span>
+        ) : null}
+
+        {!persistable && onRetry ? (
+          <button type="button" onClick={onRetry} className="text-xs font-semibold text-brand-700 underline">
+            Tentar novamente
+          </button>
         ) : null}
 
         {persistable && views.length === 0 ? (
@@ -94,11 +107,15 @@ export function DynamicSavedViewsBar({
           </ul>
         )}
       </div>
+      {persistable && statusMessage ? (
+        <p role="alert" className="m-0 text-xs text-red-700">{statusMessage}</p>
+      ) : null}
       {persistable ? (
         <div className="flex items-center gap-2">
           <button
             type="button"
             aria-expanded={saving}
+            disabled={pending}
             onClick={() => setSaving((previous) => !previous)}
             className="text-xs font-semibold text-[color:var(--color-brand-700)]"
           >
@@ -109,13 +126,26 @@ export function DynamicSavedViewsBar({
             className="ml-auto flex items-center gap-1.5"
             onSubmit={(event) => {
               event.preventDefault();
-              onSave(name);
-              setName('');
-              setSaving(false);
+              if (pending) return;
+              setPending(true);
+              // Acknowledgement comes from the authenticated API, not a click.
+              // Preserve the operator's draft when the server refuses the save.
+              void Promise.resolve()
+                .then(() => onSave(name))
+                .then((confirmed) => {
+                  if (confirmed === false) return;
+                  setName('');
+                  setSaving(false);
+                })
+                .catch(() => {
+                  // Preserve the draft. The owner hook publishes the error.
+                })
+                .finally(() => setPending(false));
             }}
           >
             <input
               type="text"
+              disabled={pending}
               data-testid="dynamic-saved-view-name"
               aria-label={t('views.namePlaceholder')}
               placeholder={t('views.namePlaceholder')}
@@ -126,10 +156,10 @@ export function DynamicSavedViewsBar({
             <button
               type="submit"
               data-testid="dynamic-saved-view-save"
-              disabled={name.trim() === ''}
+              disabled={pending || name.trim() === ''}
               className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-md bg-white px-2 text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {t('views.save')}
+              {pending ? 'Salvando…' : t('views.save')}
             </button>
           </form>
         </div>

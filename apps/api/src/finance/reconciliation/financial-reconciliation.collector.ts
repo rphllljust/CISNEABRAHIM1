@@ -160,7 +160,7 @@ export async function collectEconomicFacts(pool: Pool): Promise<EconomicFact[]> 
   const journalLines = await rows(
     pool,
     `SELECT je.id, je.source_kind, je.source_id, je.source_reference,
-            l.direction, l.amount
+            je.currency_code, l.direction, l.amount
        FROM rpt.read_journal_entries je
        JOIN rpt.read_journal_entry_lines l ON l.journal_entry_id = je.id
       WHERE je.status = 'POSTED'`,
@@ -174,7 +174,7 @@ export async function collectEconomicFacts(pool: Pool): Promise<EconomicFact[]> 
         id: entryId,
         ledger: 'journal_entry',
         amount: '0.0000',
-        currencyCode: 'BRL',
+        currencyCode: text(line, 'currency_code'),
         sourceReference: optionalText(line, 'source_reference'),
         postingSource: {
           sourceContext: text(line, 'source_kind').toUpperCase(),

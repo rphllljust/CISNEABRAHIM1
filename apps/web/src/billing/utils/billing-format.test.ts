@@ -70,6 +70,7 @@ describe('billing process', () => {
     status: SERVICE_ORDER_STATUSES.Completed,
     origin: 'AUTHORIZED_DIRECT',
     clientId: 'client-1',
+    contractId: null,
     clientSnapshot: { legalName: 'Cliente' },
     purchaseOrderSnapshot: { paymentTerms: '07 DDL', poNumber: 'PO-1' },
     serviceDefinitionId: null,

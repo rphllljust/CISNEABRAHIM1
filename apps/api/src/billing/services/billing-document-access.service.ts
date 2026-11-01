@@ -1,4 +1,4 @@
-import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
 import {
   SECURITY_AUDIT_ACTIONS,
   SECURITY_AUDIT_CLASSIFICATIONS,
@@ -71,6 +71,21 @@ function toIsoDate(value: unknown): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+
+/**
+ * Never finalize a billing document without a Finance receivable handoff.
+ * The adapter is optional only for legacy module composition; the COMMAND is
+ * fail-closed. Production AppModule wires FinanceModule's published port.
+ */
+export function requireBillingReceivablePort(
+  port: FinanceReceivablePort | undefined,
+): FinanceReceivablePort {
+  if (!port) {
+    throw new ServiceUnavailableException('BILLING_RECEIVABLE_PORT_UNAVAILABLE');
+  }
+  return port;
+}
+
 @Injectable()
 export class BillingDocumentAccessService {
   constructor(
@@ -138,6 +153,7 @@ export class BillingDocumentAccessService {
     const order = await this.requireServiceOrder(actor, serviceOrderId, AUTHZ_ACTIONS.BillingBillingDocumentIssue);
     const billingRecord = await this.requireBillingRecordForOrder(billingRecordId, order.id);
     const validated = resolveIssueBillingDocumentInput(input);
+    requireBillingReceivablePort(this.receivablePort);
 
     const billingItems = await this.billingRepository.listItems(billingRecord.id);
     const purchaseOrderNumber = billingRecord.purchase_order_id
@@ -199,7 +215,9 @@ export class BillingDocumentAccessService {
         documentNumber: result.billingDocument.document_number,
       });
 
-      await this.openReceivableFromDocument(actor, result.billingDocument);
+      await this.billingDocumentRepository.withHandoffLock(result.billingDocument.id, () =>
+        this.openReceivableFromDocument(actor, result.billingDocument),
+      );
 
       return this.getById(actor, serviceOrderId, billingRecordId, result.billingDocument.id);
     } catch (error) {
@@ -221,16 +239,23 @@ export class BillingDocumentAccessService {
     const order = await this.requireServiceOrder(actor, serviceOrderId, AUTHZ_ACTIONS.BillingBillingDocumentCancel);
     await this.requireBillingRecordForOrder(billingRecordId, order.id);
     const validated = resolveCancelBillingDocumentInput(input);
+    requireBillingReceivablePort(this.receivablePort);
 
     try {
-      await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.cancelReason);
-      const result = await this.billingDocumentRepository.cancelBillingDocument({
-        billingDocumentId,
-        billingRecordId,
-        rowVersion: validated.rowVersion,
-        cancelReason: validated.cancelReason,
-        actorIdentityId: actor.identityId,
-        idempotencyKey: validated.idempotencyKey,
+      // Commit the CANCELLED document and durable Finance-cancel job first:
+      // no financial mutation may precede the Billing authority transition.
+      const result = await this.billingDocumentRepository.withHandoffLock(billingDocumentId, async () => {
+        await this.assertFinancialCancellationAllowed(billingDocumentId);
+        const persisted = await this.billingDocumentRepository.cancelBillingDocument({
+          billingDocumentId,
+          billingRecordId,
+          rowVersion: validated.rowVersion,
+          cancelReason: validated.cancelReason,
+          actorIdentityId: actor.identityId,
+          idempotencyKey: validated.idempotencyKey,
+        });
+        await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.cancelReason);
+        return persisted;
       });
 
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.BillingBillingDocumentCancel, order.id, {
@@ -260,6 +285,7 @@ export class BillingDocumentAccessService {
     const billingRecord = await this.requireBillingRecordForOrder(billingRecordId, order.id);
     const previous = await this.requireBillingDocumentForRecord(billingDocumentId, billingRecordId);
     const validated = resolveReplaceBillingDocumentInput(input);
+    requireBillingReceivablePort(this.receivablePort);
 
     const billingItems = await this.billingRepository.listItems(billingRecord.id);
     const purchaseOrderNumber = billingRecord.purchase_order_id
@@ -283,8 +309,9 @@ export class BillingDocumentAccessService {
     }
 
     try {
-      await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.replaceReason);
-      const result = await this.billingDocumentRepository.replaceBillingDocument(
+      const result = await this.billingDocumentRepository.withHandoffLock(billingDocumentId, async () => {
+        await this.assertFinancialCancellationAllowed(billingDocumentId);
+        const persisted = await this.billingDocumentRepository.replaceBillingDocument(
         {
           billingRecord,
           billingItems,
@@ -314,7 +341,10 @@ export class BillingDocumentAccessService {
             actorIdentityId: actor.identityId,
             ...this.buildDocumentTraceability(order, billingRecord),
           }),
-      );
+        );
+        await this.cancelReceivableFromDocument(actor, billingDocumentId, validated.replaceReason);
+        return persisted;
+      });
 
       await this.audit(actor, SECURITY_AUDIT_ACTIONS.BillingBillingDocumentReplace, order.id, {
         billingRecordId,
@@ -322,7 +352,9 @@ export class BillingDocumentAccessService {
         billingDocumentId: result.billingDocument.id,
       });
 
-      await this.openReceivableFromDocument(actor, result.billingDocument);
+      await this.billingDocumentRepository.withHandoffLock(result.billingDocument.id, () =>
+        this.openReceivableFromDocument(actor, result.billingDocument),
+      );
 
       return this.getById(actor, serviceOrderId, billingRecordId, result.billingDocument.id);
     } catch (error) {
@@ -398,12 +430,10 @@ export class BillingDocumentAccessService {
     actor: IdentityAuthzContext,
     document: BillingDocumentRow,
   ): Promise<void> {
-    if (!this.receivablePort) {
-      return;
-    }
+    const receivablePort = requireBillingReceivablePort(this.receivablePort);
     const issuedAt = toIsoDate(document.issued_at);
     const dueDate = document.due_date ? toIsoDate(document.due_date) : issuedAt;
-    await this.receivablePort.openFromBilling({
+    await receivablePort.openFromBilling({
       billingRecordId: document.billing_record_id,
       billingDocumentId: document.id,
       serviceOrderId: document.service_order_id,
@@ -419,15 +449,21 @@ export class BillingDocumentAccessService {
     });
   }
 
+  /** A posted settlement must veto any Billing cancellation BEFORE commit. */
+  private async assertFinancialCancellationAllowed(billingDocumentId: string): Promise<void> {
+    const port = requireBillingReceivablePort(this.receivablePort);
+    if (!port.assertCancellableFromBilling) {
+      throw new ServiceUnavailableException('BILLING_RECEIVABLE_CANCEL_GUARD_UNAVAILABLE');
+    }
+    await port.assertCancellableFromBilling(billingDocumentId);
+  }
+
   private async cancelReceivableFromDocument(
     actor: IdentityAuthzContext,
     billingDocumentId: string,
     reason: string,
   ): Promise<void> {
-    if (!this.receivablePort) {
-      return;
-    }
-    await this.receivablePort.cancelFromBilling({
+    await requireBillingReceivablePort(this.receivablePort).cancelFromBilling({
       billingDocumentId,
       actorIdentityId: actor.identityId,
       reason,

@@ -6,6 +6,7 @@ import { AUTHZ_ERROR_CODES } from '../errors/authz-error-codes';
 import { AuthzHttpException } from '../errors/authz-http.exception';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { PolicyDecisionPointService } from './policy-decision-point.service';
+import { SodExceptionService } from './sod-exception.service';
 import { AccessAdminRepository } from '../repositories/access-admin.repository';
 import { AuthorizationRepository } from '../repositories/authorization.repository';
 import { ApprovalMatrixRepository } from '../repositories/approval-matrix.repository';
@@ -26,7 +27,6 @@ import {
   assertAccessRoleLabel,
   assertAssignableScope,
   assertExpectedVersion,
-  assertNoSodConflict,
   assertRoleCapabilities,
   findSodConflicts,
   isAnchoredScope,
@@ -61,6 +61,7 @@ export class AccessAdminService {
     private readonly scopeContextRepository: ScopeContextRepository,
     private readonly policyDecisionPoint: PolicyDecisionPointService,
     private readonly securityAudit: SecurityAuditService,
+    private readonly sodExceptions: SodExceptionService,
   ) {}
 
   private async assertAllowed(actor: IdentityAuthzContext, action: AuthzAction): Promise<void> {
@@ -251,6 +252,11 @@ export class AccessAdminService {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      // Every role or assignment mutation participates in the same SoD serialization boundary.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('cisne:sod:access-role-mutation'))");
+      if (command.capabilities !== undefined || command.status === 'ACTIVE') {
+        await this.assertRoleUpdateDoesNotBypassSod(current.id, command.capabilities);
+      }
       const updated = await this.repository.updateRoleFieldsAndBumpVersion(
         client,
         code,
@@ -386,13 +392,6 @@ export class AccessAdminService {
       );
     }
 
-    const prospective = await this.buildIdentityCapabilitySet(command.identityId, role, scopeType, scopeAnchor);
-    try {
-      assertNoSodConflict(prospective);
-    } catch (error) {
-      throw mapRuleError(error);
-    }
-
     const pool = this.databaseService.getConnection()?.pool;
     if (!pool) {
       throw new Error('DATABASE_URL is not configured.');
@@ -400,13 +399,43 @@ export class AccessAdminService {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('cisne:sod:access-role-mutation'))");
+      // Serialize all access-role writes for a subject before evaluating the effective SoD set.
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [command.identityId]);
+      const prospective = await this.buildIdentityCapabilitySet(command.identityId, role, scopeType, scopeAnchor);
+      const conflicts = findSodConflicts(prospective);
+      let sodExceptionId: string | null = null;
+      if (conflicts.length > 0) {
+        sodExceptionId = await this.sodExceptions.findApprovedForAssignment(
+          client, command.identityId, scopeType, scopeAnchor,
+        );
+        if (!sodExceptionId) {
+          throw mapRuleError(new AccessAdminRuleError(
+            'SOD_CONFLICT', 'SOD-007 requires an independently approved exception for this identity and scope.',
+          ));
+        }
+      }
       const row = await this.repository.insertAssignment(client, {
         roleId: role.id,
         identityId: command.identityId,
         scopeType,
         scopeAnchor,
         assignedByIdentityId: actor.identityId,
+        sodExceptionId,
       });
+      // Persist exceptional access consumption in the same transaction as the grant.
+      // The regular access-admin audit remains additive, but cannot be the only evidence.
+      if (sodExceptionId) {
+        await client.query(
+          `INSERT INTO audit.security_audit_events
+             (actor_identity_id, actor_session_id, action, resource_type, resource_id,
+              outcome, scope_type, classification, metadata)
+           VALUES ($1::uuid, $2::uuid, 'security:authz:sod-exception:consume',
+             'access-assignment', $3, 'SUCCESS', $4, 'SECURITY_CRITICAL', $5::jsonb)`,
+          [actor.identityId, actor.sessionId, row.id, scopeType,
+            JSON.stringify({ sod_exception_id: sodExceptionId, subject_identity_id: command.identityId })],
+        );
+      }
       await client.query('COMMIT');
       await this.securityAudit.recordCritical({
         actorIdentityId: actor.identityId,
@@ -526,6 +555,45 @@ export class AccessAdminService {
       }
     }
     return conflicts;
+  }
+
+  /** Capability updates cannot retroactively bypass SoD by modifying an assigned role.
+   *  Existing approved exceptional assignments must be revoked/reassigned on a new role
+   *  if changing its effective class would produce a new conflict. */
+  private async assertRoleUpdateDoesNotBypassSod(
+    roleId: string,
+    newCapabilities?: string[],
+  ): Promise<void> {
+    const allAssignments = await this.repository.listActiveAssignments();
+    const affected = new Set(
+      allAssignments.filter((assignment) => assignment.role_id === roleId)
+        .map((assignment) => assignment.identity_id),
+    );
+    if (affected.size === 0) {
+      return;
+    }
+    const capabilities = await this.groupCapabilitiesByRole();
+    const replacement = newCapabilities ?? capabilities.get(roleId) ?? [];
+    for (const identityId of affected) {
+      const effective: CapabilityWithScope[] = [];
+      for (const assignment of allAssignments) {
+        if (assignment.identity_id !== identityId) {
+          continue;
+        }
+        for (const capability of assignment.role_id === roleId
+          ? replacement : capabilities.get(assignment.role_id) ?? []) {
+          effective.push({
+            capability, scopeType: assignment.scope_type, scopeAnchor: assignment.scope_anchor,
+          });
+        }
+      }
+      if (findSodConflicts(effective).length > 0) {
+        throw mapRuleError(new AccessAdminRuleError(
+          'SOD_CONFLICT',
+          'Role update would create or perpetuate SOD-007 on an existing assignment. Revoke and reassign using the reviewed exception flow.',
+        ));
+      }
+    }
   }
 
   private async groupCapabilitiesByRole(): Promise<Map<string, string[]>> {

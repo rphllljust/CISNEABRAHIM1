@@ -8,7 +8,7 @@ import {
   ServiceOrdersApiError,
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
-import { ActionBar, DynamicBusinessChain, DynamicForm, DynamicTimeline, toDisplayText, useEntitySchema, type ChainNode } from '../../engine';
+import { ActionBar, DynamicForm, DynamicTimeline, toDisplayText, useEntitySchema } from '../../engine';
 import {
   EnterpriseObjectHeader,
   EnterpriseObjectPage,
@@ -66,6 +66,7 @@ export function ServiceOrderEngineDetailPage() {
   );
   const [busy, setBusy] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
+  // Fetch the authorized, persisted lineage only after the OS itself is readable.
   const businessChain = useBusinessChain(
     'SERVICE_ORDER',
     rowStatus === 'ready' ? serviceOrderId ?? '' : '',
@@ -214,7 +215,7 @@ export function ServiceOrderEngineDetailPage() {
   const client = toDisplayText(row['client_snapshot']);
   const deadline = toDisplayText(row['deadline_at']);
   const stateFlowSteps = stateStepsFromSchema(schema);
-  const relations = relationsFromRow(row);
+  const relations = relationsFromRow(row, detail);
   const nextAction = nextActionFromControlCenter(controlCenter, row.id);
 
   /*
@@ -239,7 +240,11 @@ export function ServiceOrderEngineDetailPage() {
    * seria mentir sobre a origem do dinheiro.
    */
   const originFields: ObjectContextField[] = [
-    { label: 'Contrato', value: detail?.contractReference ?? null },
+    { label: 'Contrato', value: detail?.contractId ? (
+      <Link className="text-brand-700 no-underline hover:underline" to={`/app/contracts/${detail.contractId}`}>
+        {detail.contractReference || 'Abrir contrato vinculado'}
+      </Link>
+    ) : detail?.contractReference ?? null },
     {
       label: 'Solicitação',
       value: detail?.serviceRequestId ? 'Vinculada à ordem' : null,
@@ -265,55 +270,6 @@ export function ServiceOrderEngineDetailPage() {
   const measurementDownstream = controlCenter?.downstream.measurement ?? null;
   const billingDownstream = controlCenter?.downstream.billing ?? null;
 
-  /*
-   * CADEIA DE NEGÓCIO — montada do que o PAYLOAD trouxe, sem chamada nova e sem inventar
-   * degrau. Cada nó só existe se o vínculo correspondente veio persistido: uma OS sem pedido de
-   * compra não exibe "PO", porque afirmar uma relação que não está registrada seria mentir
-   * sobre a origem do dinheiro.
-   *
-   * A ORDEM é do domínio (solicitação → proposta → PO → OS), e é a TELA que a conhece — a
-   * engine só desenha os nós na ordem em que chegam.
-   */
-  const chainNodes: ChainNode[] = [
-    ...(toDisplayText(row['service_request_id']).trim() !== ''
-      ? [{
-          kind: 'Solicitação',
-          id: toDisplayText(row['service_request_id']),
-          businessReference: toDisplayText(row['service_request_id']),
-          route: `/app/requests/${toDisplayText(row['service_request_id'])}`,
-          relation: 'ORIGIN',
-        }]
-      : []),
-    ...(toDisplayText(row['proposal_number'] ?? row['proposal_id']).trim() !== ''
-      ? [{
-          kind: 'Proposta',
-          id: toDisplayText(row['proposal_id']),
-          businessReference: toDisplayText(row['proposal_number'] ?? row['proposal_id']),
-          route: `/app/proposals/${toDisplayText(row['proposal_id'])}`,
-          status: toDisplayText(row['status']),
-          relation: 'ORIGIN',
-        }]
-      : []),
-    ...(toDisplayText(row['purchase_order_number'] ?? row['purchase_order_id']).trim() !== ''
-      ? [{
-          kind: 'Pedido de compra',
-          id: toDisplayText(row['purchase_order_id']),
-          businessReference: toDisplayText(
-            row['purchase_order_number'] ?? row['purchase_order_id'],
-          ),
-          route: `/app/purchase-orders/${toDisplayText(row['purchase_order_id'])}`,
-          relation: 'ORIGIN',
-        }]
-      : []),
-    {
-      kind: 'Ordem de serviço',
-      id: row.id,
-      businessReference: toDisplayText(row['order_number']),
-      status: currentState,
-      relation: 'ROOT',
-    },
-  ];
-
   return (
     <EnterpriseObjectPage
       className="service-order-object-page gap-3"
@@ -329,6 +285,8 @@ export function ServiceOrderEngineDetailPage() {
             { label: 'Cliente', value: client },
             { label: 'Unidade', value: toDisplayText(row['unit_id']) },
             { label: 'Prazo', value: deadline, emphasis: true },
+            { label: 'Versão', value: detail?.rowVersion === undefined ? null : String(detail.rowVersion) },
+            { label: 'Contrato', value: detail?.contractReference ?? null },
           ]}
           secondaryActions={[
             { id: 'planning', label: 'Planejamento', to: `/app/service-orders/${row.id}/planning` },
@@ -382,9 +340,13 @@ export function ServiceOrderEngineDetailPage() {
               </p>
             ) : null}
           </ObjectPanel>
-          <ObjectPanel title="Cadeia de negócio" className="service-order-context-panel shadow-none">
-            <DynamicBusinessChain nodes={chainNodes} title="Cadeia de negócio" />
-          </ObjectPanel>
+          <BusinessChain
+            chain={businessChain.chain}
+            phase={businessChain.phase}
+            message={businessChain.message}
+            onRetry={businessChain.retry}
+            title="Cadeia empresarial da OS"
+          />
           <ObjectPanel title="Histórico" className="service-order-context-panel shadow-none">
             <DynamicTimeline schema={schema} recordId={row.id} />
           </ObjectPanel>
@@ -403,13 +365,6 @@ export function ServiceOrderEngineDetailPage() {
         <ObjectContextBlock title="Identidade da ordem" fields={identityFields} columns={3} />
         <ObjectContextBlock title="Origem e vínculos" fields={originFields} columns={3} />
         <ServiceOrderCostToServePanel serviceOrderId={row.id} />
-        <BusinessChain
-          chain={businessChain.chain}
-          phase={businessChain.phase}
-          message={businessChain.message}
-          onRetry={businessChain.retry}
-          title="Cadeia empresarial da OS"
-        />
 
         <section aria-label="Operação" className="service-order-operational-canvas border-b border-gray-200 pb-6">
           <div className="service-order-section-heading mb-3 flex items-end gap-3">
@@ -617,8 +572,14 @@ function stateStepsFromSchema(schema: NonNullable<ReturnType<typeof useEntitySch
   }));
 }
 
-function relationsFromRow(row: ServiceOrderEngineRow): SmartRelation[] {
+function relationsFromRow(row: ServiceOrderEngineRow, detail: ServiceOrderDetail | null): SmartRelation[] {
   const relations: SmartRelation[] = [];
+  if (detail?.clientId) {
+    relations.push({ id: 'client', label: 'Cliente', count: 1, to: `/app/clients/${detail.clientId}` });
+  }
+  if (detail?.contractId) {
+    relations.push({ id: 'contract', label: 'Contrato', count: 1, to: `/app/contracts/${detail.contractId}` });
+  }
   const serviceRequestId = toDisplayText(row['service_request_id']);
   const proposalId = toDisplayText(row['proposal_id']);
   const purchaseOrderId = toDisplayText(row['purchase_order_id']);

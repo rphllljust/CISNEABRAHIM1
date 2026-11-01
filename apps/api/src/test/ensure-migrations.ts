@@ -1132,6 +1132,44 @@ $$;`);
       await applySqlFile(pool, '0109_operational_unit_directory.sql');
     }
 
+    /*
+     * 0110 — o entry_number foi adicionado à tabela acc.journal_entries em
+     * 0075, mas a view rpt.read_journal_entries foi compilada em 0047.
+     * SELECT * de uma view não ganha colunas automaticamente após ALTER TABLE.
+     * A sonda precisa ser a COLUNA PUBLICADA (e não a tabela ou a view).
+     */
+    if (!(await columnExists(pool, 'rpt', 'read_journal_entries', 'entry_number'))) {
+      await applySqlFile(pool, '0110_accounting_journal_entry_number_read_contract.sql');
+    }
+
+    /*
+     * 0111 — SoD-007: the exception record is the source of authority.
+     * A missing table must never be represented as an applied journal entry.
+     */
+    if (!(await tableExists(pool, 'authorization.sod_exceptions'))) {
+      await applySqlFile(pool, '0111_sod_exception_approval.sql');
+    }
+
+    /*
+     * 0112 — durable Billing -> Finance handoff. The enum value is the actual
+     * new artifact; checking only plt.background_jobs (created by 0027)
+     * would mark a database as ready while the worker's INSERT still fails.
+     */
+    const receivableJobKind = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1
+         FROM pg_type t
+         INNER JOIN pg_enum e ON e.enumtypid = t.oid
+         INNER JOIN pg_namespace n ON n.oid = t.typnamespace
+         WHERE n.nspname = 'plt'
+           AND t.typname = 'background_job_kind'
+           AND e.enumlabel = 'BILLING_RECEIVABLE_HANDOFF'
+       ) AS exists`,
+    );
+    if (!receivableJobKind.rows[0]?.exists) {
+      await applySqlFile(pool, '0112_billing_receivable_handoff_job.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

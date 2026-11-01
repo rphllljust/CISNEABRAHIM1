@@ -7,15 +7,17 @@ import { AccountingWorkSource } from './sources/accounting.source';
 import { AlertsWorkSource } from './sources/alerts.source';
 import { CommercialWorkSource } from './sources/commercial.source';
 import { FinanceWorkSource } from './sources/finance.source';
+import { MeasurementsWorkSource } from './sources/measurements.source';
 import { FiscalWorkSource } from './sources/fiscal.source';
 import { ProcurementWorkSource } from './sources/procurement.source';
+import { ServiceOrdersWorkSource } from './sources/service-orders.source';
 import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-source';
 import { WorkInboxModule } from './work-inbox.module';
 
 /**
  * FIACAO DO MODULO (sem banco, sem consulta).
  *
- * O modulo publica as seis fontes pelo token `WORK_ITEM_SOURCES`; se qualquer modulo dono deixar de
+ * O modulo publica as oito fontes pelo token `WORK_ITEM_SOURCES`; se qualquer modulo dono deixar de
  * exportar o servico de acesso injetado (ou a lista do token se perder), a fila fica vazia em silencio
  * em producao. Este teste falha alto nesse caso: compila o grafo de injecao e confere quem esta na
  * lista, na ordem declarada.
@@ -34,11 +36,13 @@ describe('WorkInboxModule wiring', () => {
     await module?.close();
   });
 
-  it('publica as seis fontes na lista do token WORK_ITEM_SOURCES', () => {
+  it('publica as oito fontes na lista do token WORK_ITEM_SOURCES', () => {
     const sources = module.get<WorkItemSource[]>(WORK_ITEM_SOURCES);
 
-    expect(sources).toHaveLength(6);
+    expect(sources).toHaveLength(8);
     expect(sources.map((source) => source.domain)).toEqual([
+      'OPERACOES',
+      'OPERACOES',
       'OPERACOES',
       'FINANCEIRO',
       'CONTABILIDADE',
@@ -47,11 +51,13 @@ describe('WorkInboxModule wiring', () => {
       'SUPRIMENTOS',
     ]);
     expect(sources[0]).toBeInstanceOf(AlertsWorkSource);
-    expect(sources[1]).toBeInstanceOf(FinanceWorkSource);
-    expect(sources[2]).toBeInstanceOf(AccountingWorkSource);
-    expect(sources[3]).toBeInstanceOf(CommercialWorkSource);
-    expect(sources[4]).toBeInstanceOf(FiscalWorkSource);
-    expect(sources[5]).toBeInstanceOf(ProcurementWorkSource);
+    expect(sources[1]).toBeInstanceOf(ServiceOrdersWorkSource);
+    expect(sources[2]).toBeInstanceOf(MeasurementsWorkSource);
+    expect(sources[3]).toBeInstanceOf(FinanceWorkSource);
+    expect(sources[4]).toBeInstanceOf(AccountingWorkSource);
+    expect(sources[5]).toBeInstanceOf(CommercialWorkSource);
+    expect(sources[6]).toBeInstanceOf(FiscalWorkSource);
+    expect(sources[7]).toBeInstanceOf(ProcurementWorkSource);
   });
 
   it('injeta a mesma lista no servico da fila (uma instancia por fonte)', () => {
@@ -60,10 +66,12 @@ describe('WorkInboxModule wiring', () => {
 
     expect(service).toBeDefined();
     expect(sources[0]).toBe(module.get(AlertsWorkSource));
-    expect(sources[1]).toBe(module.get(FinanceWorkSource));
-    expect(sources[2]).toBe(module.get(AccountingWorkSource));
-    expect(sources[3]).toBe(module.get(CommercialWorkSource));
-    expect(sources[4]).toBe(module.get(FiscalWorkSource));
-    expect(sources[5]).toBe(module.get(ProcurementWorkSource));
+    expect(sources[1]).toBe(module.get(ServiceOrdersWorkSource));
+    expect(sources[2]).toBe(module.get(MeasurementsWorkSource));
+    expect(sources[3]).toBe(module.get(FinanceWorkSource));
+    expect(sources[4]).toBe(module.get(AccountingWorkSource));
+    expect(sources[5]).toBe(module.get(CommercialWorkSource));
+    expect(sources[6]).toBe(module.get(FiscalWorkSource));
+    expect(sources[7]).toBe(module.get(ProcurementWorkSource));
   });
 });

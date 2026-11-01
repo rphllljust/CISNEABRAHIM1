@@ -11,6 +11,7 @@ import {
   truncateCommercialProposalTables,
   truncateCommercialPurchaseOrderTables,
   truncateDocumentTables,
+  truncateFinanceTables,
   truncateIdentityAndAuthorizationTables,
   truncatePhysicalAssetTables,
   truncateServiceOrderTables,
@@ -36,6 +37,7 @@ import { CommercialModule } from '../commercial/commercial.module';
 import { ProposalsAccessService } from '../commercial/services/proposals-access.service';
 import { PurchaseOrdersAccessService } from '../commercial/services/purchase-orders-access.service';
 import { DocumentsModule } from '../documents/documents.module';
+import { FinanceModule } from '../finance/finance.module';
 import { DocumentsAccessService } from '../documents/services/documents-access.service';
 import { MeasurementsModule } from '../measurements/measurements.module';
 import { MeasurementsAccessService } from '../measurements/services/measurements-access.service';
@@ -87,6 +89,7 @@ export async function createMasterBusinessTestContext(): Promise<MasterBusinessT
       ServiceOrdersModule,
       MeasurementsModule,
       BillingModule,
+      FinanceModule,
     ],
   }).compile();
 
@@ -122,6 +125,7 @@ export async function createMasterBusinessTestContext(): Promise<MasterBusinessT
    */
   async function resetDatabase(): Promise<void> {
     resetSyntheticCnpjSequence();
+    await truncateFinanceTables(pool);
     await truncateDocumentTables(pool);
     await truncateBillingTables(pool);
     await truncateServiceRequestTables(pool);

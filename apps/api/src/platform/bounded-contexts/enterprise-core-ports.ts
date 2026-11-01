@@ -78,6 +78,8 @@ export type OpenReceivableFromBillingInput = {
 };
 
 export type FinanceReceivablePort = {
+  /** Read-only veto before Billing changes authority state; must fail closed. */
+  assertCancellableFromBilling?(billingDocumentId: string): Promise<void>;
   openFromBilling(
     input: OpenReceivableFromBillingInput,
   ): Promise<{ receivableId: string; idempotent: boolean }>;

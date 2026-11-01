@@ -4,7 +4,7 @@ import {
   activateClient,
   ClientsApiError,
   deactivateClient,
-  getClient,
+  getClient360,
 } from '../api/clients-api';
 import {
   DEACTIVATION_CONSEQUENCE_MESSAGE,
@@ -12,6 +12,7 @@ import {
   VERSION_CONFLICT_MESSAGE,
 } from '../api/client-error-messages';
 import { ClientRelatedRecords } from '../components/ClientRelatedRecords';
+import { Client360ExecutivePanel } from '../components/Client360ExecutivePanel';
 import { ClientContactsPanel } from '../components/ClientContactsPanel';
 import { ClientAddressesPanel, ClientUnitsPanel } from '../components/ClientUnitsPanel';
 import {
@@ -113,8 +114,8 @@ export function ClientDetailPage() {
     setActionError(null);
     setVersionConflict(false);
     try {
-      const client = await getClient(clientId);
-      setState({ phase: 'ready', client });
+      const snapshot = await getClient360(clientId);
+      setState({ phase: 'ready', client: snapshot.client });
     } catch (error) {
       if (error instanceof ClientsApiError) {
         if (error.kind === 'denied') {
@@ -481,6 +482,7 @@ export function ClientDetailPage() {
               label: 'Resumo',
               panel: (
                 <div className="flex flex-col gap-0">
+                  <Client360ExecutivePanel clientId={client.id} modules={related} />
                   <ObjectContextBlock fields={buildClientContextFields(client)} />
                   <BusinessChain
                     chain={businessChain.chain}

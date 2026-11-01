@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, DateTime, Money, cn } from '../../ui';
-import { formatMoneyBrl } from '../../billing/utils/billing-format';
 import { ModulePage } from '../../ui/module-layout';
 import {
   WorklistFooter,
@@ -33,16 +32,20 @@ import { WorkspaceQueueSurface } from '../../workspaces/components/WorkspaceQueu
 import { WorkspaceZone } from '../../workspaces/components/WorkspaceZone';
 import { FinanceTitleQueues } from '../components/FinanceTitleQueues';
 import { FinanceSituationStrip } from '../components/FinanceSituation';
+import { ReceivableIntegrityStrip } from '../components/ReceivableIntegrityStrip';
+import { overduePortfolio } from '../utils/overdue-portfolio';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import { ContextSection, WorkspaceBody, WorkspacePane } from '../../ui/workspace-frame';
 import {
   getPayablesAging,
+  getPayablesSummary,
+  getReceivablesSummary,
   listPayables,
   listReceivables,
   listTreasuryAccounts,
 } from '../api/finance-api';
-import type { FinanceTitlePage } from '../api/finance-api';
+import type { FinanceTitlePage, FinanceTitleSummary } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import type {
   FinancialAccount,
@@ -79,8 +82,7 @@ import type {
  * REGISTROS. Por isso esta tela NAO SOMA a pagina/amostra para exibir "total a receber", "total a
  * pagar", "caixa total" ou "carteira total": somar a amostra e chama-la de total do dominio seria
  * inventar financa. O resumo usa CONTAGENS e ESTADOS; o unico dinheiro que aparece e o valor por
- * REGISTRO publicado pelo servidor (principal/saldo por titulo, saldo por conta), cada um com
- * drilldown para o proprio registro. Nao existe endpoint de conciliacao por unidade: "nao
+ * REGISTRO e os agregados monetarios SQL por moeda, sempre com a mesma autorizacao. Nao existe endpoint de conciliacao por unidade: "nao
  * conciliado" e a leitura real de tesouraria e o drilldown leva a Caixa e Bancos / Conciliacao,
  * onde a conciliacao por conta existe. Nenhum agregado e inventado no navegador.
  *
@@ -97,18 +99,9 @@ type OverviewData = {
   /** Amostra: a posicao que a tela publica na primeira dobra. */
   receivables: OverviewSlice<FinanceTitlePage<ReceivableDetail>>;
   payables: OverviewSlice<FinanceTitlePage<PayableDetail>>;
-  /**
-   * RECORTE VENCIDO — `?status=OVERDUE`, contado E somado pelo SERVIDOR.
-   *
-   * A amostra nao serve para excecao: com 3 titulos dos quais 1 vencido, a pagina carregada
-   * respondia "0 pagaveis vencidos" pelo simples fato de o titulo vencido estar fora das 100
-   * primeiras linhas. Contagem de excecao sobre amostra nao e contagem — e leitura da pagina
-   * disfarcada de posicao do dominio. A excecao passa a vir do unico lugar que conta o dominio
-   * inteiro sob o recorte: o proprio servidor. Ausencia continua sendo ausencia: se a leitura
-   * falhar, a linha declara a falha em vez de exibir zero.
-   */
-  overdueReceivables: OverviewSlice<FinanceTitlePage<ReceivableDetail>>;
-  overduePayables: OverviewSlice<FinanceTitlePage<PayableDetail>>;
+  /** Totalizadores SQL do domínio, segregados por moeda e escopo autorizado. */
+  receivablesSummary: OverviewSlice<FinanceTitleSummary>;
+  payablesSummary: OverviewSlice<FinanceTitleSummary>;
   accounts: OverviewSlice<FinancialAccount[]>;
   aging: OverviewSlice<PayableAgingResponse>;
 };
@@ -163,38 +156,6 @@ function pageTotal(page: FinanceTitlePage<unknown> | null): number | null {
 }
 
 /**
- * Dinheiro do recorte COMPLETO (`?status=OVERDUE`): soma dos SALDOS EM ABERTO que o servidor
- * devolveu para aquele recorte.
- *
- * A soma envolve o recorte inteiro — nao uma pagina apresentada como dominio. Quando a leitura
- * do recorte devolve mais linhas do que a pagina carregada, o valor e declarado como piso
- * (`+`), com a contagem que o acompanha, em vez de passar por total do dominio.
- */
-function sumOpenBalance(
-  page: FinanceTitlePage<{ remainingBalance: string }> | null,
-): string | null {
-  if (!page || !Array.isArray(page.items)) {
-    return null;
-  }
-  let total = 0;
-  for (const item of page.items) {
-    const numeric = Number(item.remainingBalance);
-    if (Number.isFinite(numeric)) {
-      total += numeric;
-    }
-  }
-  return total.toFixed(4);
-}
-
-/** Recorte carregado por inteiro? Sem `total` publicado, a tela nao afirma cobertura. */
-function isFullyLoaded(page: FinanceTitlePage<unknown> | null): boolean {
-  if (!page || typeof page.total !== 'number') {
-    return false;
-  }
-  return page.items.length >= page.total;
-}
-
-/**
  * Drilldown dos indicadores: o `href` abre o conjunto EXATO do indicador.
  *
  * RECEBER: "em aberto" -> `status=OPEN`; "vencidos" -> `status=OVERDUE`; "nao conciliado" nao
@@ -210,18 +171,14 @@ function payableHref(kind: 'open' | 'overdue'): string {
 
 export function FinanceOverviewPage() {
   const loader = useCallback(async (signal?: AbortSignal): Promise<OverviewData> => {
-    const [receivables, payables, overdueReceivables, overduePayables, accounts, aging] =
+    const [receivables, payables, receivablesSummary, payablesSummary, accounts, aging] =
       await Promise.allSettled([
         // A visao geral mostra POSICAO, nao pagina: pede o maior lote aceito e usa `total`.
         listReceivables({ limit: 100, offset: 0 }, signal),
         listPayables({ limit: 100, offset: 0 }, signal),
-        /*
-         * EXCECAO — mesmo lote, recorte de VENCIDO aplicado no servidor. A leitura de excecao
-         * custa uma requisicao a mais e e o unico caminho honesto para dizer "quantos vencidos
-         * existem" e "quanto esta vencido, a receber e a pagar".
-         */
-        listReceivables({ limit: 100, offset: 0, status: 'OVERDUE' }, signal),
-        listPayables({ limit: 100, offset: 0, status: 'OVERDUE' }, signal),
+        // Resumo SQL da carteira completa (não da página de 100 títulos).
+        getReceivablesSummary({}, signal),
+        getPayablesSummary({}, signal),
         listTreasuryAccounts(signal),
         getPayablesAging(signal),
       ]);
@@ -242,14 +199,14 @@ export function FinanceOverviewPage() {
           : failed(receivables.reason),
       payables:
         payables.status === 'fulfilled' ? fulfilled(payables.value) : failed(payables.reason),
-      overdueReceivables:
-        overdueReceivables.status === 'fulfilled'
-          ? fulfilled(overdueReceivables.value)
-          : failed(overdueReceivables.reason),
-      overduePayables:
-        overduePayables.status === 'fulfilled'
-          ? fulfilled(overduePayables.value)
-          : failed(overduePayables.reason),
+      receivablesSummary:
+        receivablesSummary.status === 'fulfilled'
+          ? fulfilled(receivablesSummary.value)
+          : failed(receivablesSummary.reason),
+      payablesSummary:
+        payablesSummary.status === 'fulfilled'
+          ? fulfilled(payablesSummary.value)
+          : failed(payablesSummary.reason),
       accounts:
         accounts.status === 'fulfilled' ? fulfilled(accounts.value) : failed(accounts.reason),
       aging: aging.status === 'fulfilled' ? fulfilled(aging.value) : failed(aging.reason),
@@ -275,7 +232,7 @@ export function FinanceOverviewPage() {
     return null;
   }
 
-  const { receivables, payables, overdueReceivables, overduePayables, accounts, aging } =
+  const { receivables, payables, receivablesSummary, payablesSummary, accounts, aging } =
     state.data;
   const agingEntries = aging.data ? Object.entries(aging.data.buckets) : [];
 
@@ -304,27 +261,14 @@ export function FinanceOverviewPage() {
    */
   const receivablesInFlight = pageTotal(receivables.data);
   const payablesInFlight = pageTotal(payables.data);
-  const overdueReceivableCount = pageTotal(overdueReceivables.data);
-  const overduePayableCount = pageTotal(overduePayables.data);
+  const receivableOverdue = overduePortfolio(receivablesSummary.data);
+  const payableOverdue = overduePortfolio(payablesSummary.data);
+  const overdueReceivableCount = receivableOverdue.count;
+  const overduePayableCount = payableOverdue.count;
+  const overdueReceivableLabel = receivableOverdue.amountLabel;
+  const overduePayableLabel = payableOverdue.amountLabel;
 
-  /** Dinheiro do recorte vencido — somado sobre o recorte inteiro, nunca sobre a amostra. */
-  const overdueReceivableAmount = sumOpenBalance(overdueReceivables.data);
-  const overduePayableAmount = sumOpenBalance(overduePayables.data);
-  const overdueCurrency =
-    overdueReceivables.data?.items[0]?.currencyCode ?? receivableItems[0]?.currencyCode ?? 'BRL';
-  /** Recorte vencido maior que a pagina carregada: o valor e piso, e a tela diz isso. */
-  const overdueIsPartial =
-    !isFullyLoaded(overdueReceivables.data) || !isFullyLoaded(overduePayables.data);
-
-  /**
-   * DRILLDOWN/contagem apenas. O contrato NAO publica totalizador monetario global, entao esta
-   * tela NAO soma a amostra para exibir "total a receber", "total a pagar", "caixa total" ou
-   * "carteira total". Somar a pagina e chama-la de total do dominio seria inventar financa.
-   * Aqui so existem QUANTIDADES, ESTADOS, VENCIMENTOS e EXCECOES — todos vem do servidor.
-   *
-   * A UNICA excecao e o vencido, e ela e deliberada: aquele valor vem do recorte
-   * `?status=OVERDUE` inteiro, contado e somado pelo servidor — nao da amostra da primeira dobra.
-   */
+  /** Valores vencidos: cálculo SQL, sem aritmética monetária no navegador. */
   const agingTitleCount = agingEntries.reduce(
     (total, [, item]) => total + Number(item.count || 0),
     0,
@@ -345,10 +289,8 @@ export function FinanceOverviewPage() {
     receivables.data
       ? `Em aberto: contagem do recorte completo (${receivablesInFlight ?? '—'} títulos a receber, ${payablesInFlight ?? '—'} a pagar).`
       : 'Contas a receber indisponíveis nesta leitura.',
-    overdueReceivables.data && overduePayables.data
-      ? `Vencidos: recorte completo (${overdueReceivableCount ?? '—'} a receber, ${overduePayableCount ?? '—'} a pagar)${
-          overdueIsPartial ? ' — valor é o mínimo confirmado nas linhas lidas' : ''
-        }.`
+    receivablesSummary.data && payablesSummary.data
+      ? 'Vencidos: totais autoritativos por moeda calculados no banco.'
       : 'Recorte de vencidos indisponível nesta leitura.',
   ].join(' ');
 
@@ -403,10 +345,7 @@ export function FinanceOverviewPage() {
                 id: 'overdue-receivable',
                 label: 'Vencido a receber',
                 value: overdueReceivableCount === null ? null : String(overdueReceivableCount),
-                note:
-                  overdueReceivableAmount === null
-                    ? 'valor não publicado'
-                    : `${formatMoneyBrl(overdueReceivableAmount)}${overdueIsPartial ? ' (mínimo nas linhas lidas)' : ''}`,
+                note: overdueReceivableLabel ?? 'valor indisponível',
                 tone: (overdueReceivableCount ?? 0) > 0 ? 'critical' : 'neutral',
                 to: receivableHref('overdue'),
               },
@@ -414,10 +353,7 @@ export function FinanceOverviewPage() {
                 id: 'overdue-payable',
                 label: 'Vencido a pagar',
                 value: overduePayableCount === null ? null : String(overduePayableCount),
-                note:
-                  overduePayableAmount === null
-                    ? 'valor não publicado'
-                    : `${formatMoneyBrl(overduePayableAmount)}${overdueIsPartial ? ' (mínimo nas linhas lidas)' : ''}`,
+                note: overduePayableLabel ?? 'valor indisponível',
                 tone: (overduePayableCount ?? 0) > 0 ? 'critical' : 'neutral',
                 to: payableHref('overdue'),
               },
@@ -448,6 +384,7 @@ export function FinanceOverviewPage() {
               },
             ]}
           />
+          <ReceivableIntegrityStrip />
         </div>
 
         {/*
@@ -500,9 +437,9 @@ export function FinanceOverviewPage() {
                   emptyTitle="Nenhuma exceção financeira"
                   emptyDescription="Nenhum título vencido e nenhuma conta pendente de leitura neste escopo."
                 >
-                  {overdueReceivables.error ? (
+                  {receivablesSummary.error ? (
                     <p role="alert" className="m-0 py-2 text-[13px] text-red-700">
-                      Recorte de recebíveis vencidos indisponível: {overdueReceivables.error}
+                      Recorte de recebíveis vencidos indisponível: {receivablesSummary.error}
                     </p>
                   ) : (overdueReceivableCount ?? 0) > 0 ? (
                     <WorkbenchQueueItem
@@ -514,14 +451,11 @@ export function FinanceOverviewPage() {
                         <>
                           {overdueReceivableCount}{' '}
                           {overdueReceivableCount === 1 ? 'título' : 'títulos'} ·{' '}
-                          <Money
-                            value={overdueReceivableAmount ?? '0'}
-                            currencyCode={overdueCurrency}
-                            emphasis
-                          />
+                          <span className="cisne-type-money font-semibold">
+                            {overdueReceivableLabel ?? 'valor indisponível'}
+                          </span>
                         </>
                       }
-                      age={overdueIsPartial ? 'valor somado nas linhas devolvidas' : undefined}
                       action={
                         <Link
                           to={receivableHref('overdue')}
@@ -541,9 +475,9 @@ export function FinanceOverviewPage() {
                     />
                   ) : null}
 
-                  {overduePayables.error ? (
+                  {payablesSummary.error ? (
                     <p role="alert" className="m-0 py-2 text-[13px] text-red-700">
-                      Recorte de pagáveis vencidos indisponível: {overduePayables.error}
+                      Recorte de pagáveis vencidos indisponível: {payablesSummary.error}
                     </p>
                   ) : (overduePayableCount ?? 0) > 0 ? (
                     <WorkbenchQueueItem
@@ -554,14 +488,11 @@ export function FinanceOverviewPage() {
                       context={
                         <>
                           {overduePayableCount} {overduePayableCount === 1 ? 'título' : 'títulos'} ·{' '}
-                          <Money
-                            value={overduePayableAmount ?? '0'}
-                            currencyCode={overdueCurrency}
-                            emphasis
-                          />
+                          <span className="cisne-type-money font-semibold">
+                            {overduePayableLabel ?? 'valor indisponível'}
+                          </span>
                         </>
                       }
-                      age={overdueIsPartial ? 'valor somado nas linhas devolvidas' : undefined}
                       action={
                         <Link
                           to={payableHref('overdue')}
@@ -681,38 +612,18 @@ export function FinanceOverviewPage() {
                         </p>
                         {/*
                 O VALOR DO VENCIDO — o único dinheiro que esta tela publica, e ele vem do recorte
-                `status=OVERDUE` INTEIRO contado pelo servidor, nao da amostra da primeira dobra.
+                SQL sobre a carteira autorizada, sem limite da primeira página.
                 É o número que decide a operação do dia: quanto está atrasado, a receber e a pagar.
               */}
                         <p className="m-0 text-[11px] text-gray-500 tabular-nums">
                           {overdueReceivableCount === null
                             ? '—'
                             : `${overdueReceivableCount} a receber`}
-                          {overdueReceivableAmount !== null ? (
-                            <>
-                              {' ('}
-                              <Money
-                                value={overdueReceivableAmount}
-                                currencyCode={overdueCurrency}
-                              />
-                              {')'}
-                            </>
-                          ) : null}
+                          {overdueReceivableLabel !== null ? ` (${overdueReceivableLabel})` : null}
                           {' · '}
                           {overduePayableCount === null ? '—' : `${overduePayableCount} a pagar`}
-                          {overduePayableAmount !== null ? (
-                            <>
-                              {' ('}
-                              <Money value={overduePayableAmount} currencyCode={overdueCurrency} />
-                              {')'}
-                            </>
-                          ) : null}
+                          {overduePayableLabel !== null ? ` (${overduePayableLabel})` : null}
                         </p>
-                        {overdueIsPartial ? (
-                          <p className="m-0 text-[11px] text-gray-500">
-                            Valores somados sobre as linhas que o servidor devolveu neste recorte.
-                          </p>
-                        ) : null}
                       </li>
                       <li className="min-w-0">
                         <p className="m-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase">
@@ -1196,10 +1107,9 @@ export function FinanceOverviewPage() {
                 </WorklistFooter>
                 <span className={worklistGroupClass}>
                   Contagens e recortes vêm do servidor. Vencidos:{' '}
-                  {formatMoneyBrl(overdueReceivableAmount ?? '0')} a receber e{' '}
-                  {formatMoneyBrl(overduePayableAmount ?? '0')} a pagar
-                  {overdueIsPartial ? ', sobre as linhas devolvidas neste recorte' : ''}. Nada é
-                  recalculado no navegador.
+                  {overdueReceivableLabel ?? 'valor indisponível'} a receber e{' '}
+                  {overduePayableLabel ?? 'valor indisponível'} a pagar. Agregados no banco, por
+                  moeda.
                 </span>
               </div>
             </WorkspacePane>

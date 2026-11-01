@@ -4,6 +4,7 @@ export const BACKGROUND_JOB_KINDS = {
   DocumentProcessing: 'DOCUMENT_PROCESSING',
   ReportGeneration: 'REPORT_GENERATION',
   OperationalAlertScan: 'OPERATIONAL_ALERT_SCAN',
+  BillingReceivableHandoff: 'BILLING_RECEIVABLE_HANDOFF',
 } as const;
 
 export type BackgroundJobKind = (typeof BACKGROUND_JOB_KINDS)[keyof typeof BACKGROUND_JOB_KINDS];

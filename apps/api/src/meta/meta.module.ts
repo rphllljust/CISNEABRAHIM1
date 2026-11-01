@@ -4,6 +4,8 @@ import { AuthorizationModule } from '../authorization/authorization.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
 import { MetaController } from './meta.controller';
 import { MetaService } from './meta.service';
+import { PersonalSavedViewsController } from './personal-saved-views.controller';
+import { PersonalSavedViewsService } from './personal-saved-views.service';
 
 /**
  * Módulo da engine de metadados.
@@ -15,8 +17,8 @@ import { MetaService } from './meta.service';
 @Global()
 @Module({
   imports: [DatabaseModule, AuthModule, AuthorizationModule],
-  controllers: [MetaController],
-  providers: [MetaService],
+  controllers: [MetaController, PersonalSavedViewsController],
+  providers: [MetaService, PersonalSavedViewsService],
   exports: [MetaService],
 })
 export class MetaModule {}

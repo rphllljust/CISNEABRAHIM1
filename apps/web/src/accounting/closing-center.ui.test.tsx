@@ -161,9 +161,14 @@ describe('Central de fechamento', () => {
       expect(screen.getByLabelText(/competência/i)).not.toBeDisabled();
     });
     const periodSelect = screen.getByLabelText(/competência/i);
+    // The filter becomes enabled before the async period list necessarily resolves.
+    // Wait for the actual authorized server option, not a transient placeholder.
+    await waitFor(() => {
+      const options = within(periodSelect).getAllByRole('option');
+      expect(options.some((option) => /2099-09/.test(option.textContent ?? ''))).toBe(true);
+    });
     const options = within(periodSelect).getAllByRole('option');
     // Rótulo humano: competência + intervalo. O uuid nunca é o texto da opção.
-    expect(options.some((option) => /2099-09/.test(option.textContent ?? ''))).toBe(true);
     expect(options.every((option) => !(option.textContent ?? '').includes(PERIOD_ID))).toBe(true);
 
     await user.selectOptions(periodSelect, PERIOD_ID);

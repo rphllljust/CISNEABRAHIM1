@@ -166,6 +166,31 @@ function createFetchMock(options: MockOptions = {}) {
       return clientError('CLIENT_NOT_FOUND', 404);
     }
 
+    // The detail page now reads the atomic Client 360 snapshot instead of the legacy client GET.
+    if (pathname === `/api/v1/clients/${client.id}/360` && method === 'GET') {
+      return jsonResponse({
+        client,
+        quality: options.quality ?? { evaluated: true, isComplete: true, findings: [] },
+        hierarchy: {
+          rootId: client.id,
+          nodes: [{
+            id: client.id,
+            legal_name: client.legalName,
+            trade_name: client.tradeName,
+            status: client.status,
+            parent_client_id: client.parentClientId,
+            group_id: client.groupId,
+            group_name: client.groupName,
+            child_count: client.childCount,
+            depth: 0,
+            relation: 'self',
+          }],
+          truncated: false,
+          maxDepth: 8,
+        },
+      });
+    }
+
     if (pathname === `/api/v1/clients/${client.id}` && method === 'GET') {
       return jsonResponse(client);
     }

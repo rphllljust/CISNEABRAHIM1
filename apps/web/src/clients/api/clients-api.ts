@@ -22,6 +22,12 @@ import {
   type UpdateClientPayload,
 } from '../types/client.types';
 
+export type Client360Snapshot = {
+  client: Client;
+  quality: ClientDataQuality;
+  hierarchy: ClientHierarchy;
+};
+
 export type ClientApiErrorKind =
   | 'denied'
   | 'not_found'
@@ -185,6 +191,14 @@ export async function listClients(
 
 export async function getClient(clientId: string, signal?: AbortSignal): Promise<Client> {
   return requestJson<Client>(`/api/v1/clients/${clientId}`, {
+    method: 'GET',
+    headers: authHeaders(),
+    signal,
+  });
+}
+
+export async function getClient360(clientId: string, signal?: AbortSignal): Promise<Client360Snapshot> {
+  return requestJson<Client360Snapshot>(`/api/v1/clients/${clientId}/360`, {
     method: 'GET',
     headers: authHeaders(),
     signal,

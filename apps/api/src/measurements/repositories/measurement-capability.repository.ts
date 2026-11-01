@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { rollbackKeepingPrimaryCause } from '../../infrastructure/database/rollback';
@@ -51,6 +51,7 @@ import type {
  */
 @Injectable()
 export class MeasurementCapabilityRepository {
+  private readonly logger = new Logger(MeasurementCapabilityRepository.name);
   constructor(private readonly databaseService: DatabaseService) {}
 
   private pool(): Pool {
@@ -267,12 +268,25 @@ export class MeasurementCapabilityRepository {
    * Consultar por ordem produziria um retrato costurado: a primeira ordem lida em
    * T1, a última em T2, e o total somaria estados que nunca coexistiram.
    */
-  async listCompletedOrdersForLeakage(
-    unitId: string,
-    limit: number,
-  ): Promise<LeakageOrderFactsRow[]> {
-    const result = await this.pool().query<LeakageOrderFactsRow>(
-      `WITH latest_measurement AS (
+  /**
+   * Cursor do módulo dono: uma única transação REPEATABLE READ e uma única
+   * fotografia dos fatos, mesmo se outras sessões modificarem ordens durante
+   * a leitura. FETCH sequencial limita pressão no pool e evita OFFSET instável.
+   * Uma falha ou teto excedido aborta tudo: nenhum refresh parcial é permitido.
+   */
+  async listCompletedOrdersForLeakage(unitId: string): Promise<LeakageOrderFactsRow[]> {
+    const client = await this.pool().connect();
+    let evictWith: Error | undefined;
+    const rows: LeakageOrderFactsRow[] = [];
+    let pages = 0;
+    const startedAt = Date.now();
+    try {
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      await client.query("SET LOCAL statement_timeout = '15000ms'");
+      await client.query("SET LOCAL idle_in_transaction_session_timeout = '30000ms'");
+      await client.query<LeakageOrderFactsRow>(
+        `DECLARE measurement_leakage_scan NO SCROLL CURSOR FOR
+WITH latest_measurement AS (
          SELECT DISTINCT ON (m.service_order_id)
                 m.service_order_id, m.id, m.status::text AS status, m.updated_at,
                 m.commercial_reference_snapshot
@@ -348,11 +362,33 @@ export class MeasurementCapabilityRepository {
          ) ec ON TRUE
         WHERE so.status = 'COMPLETED'
           AND so.unit_id = $1
-        ORDER BY so.completed_at ASC NULLS LAST, so.order_number ASC
-        LIMIT $2`,
-      [unitId, limit],
-    );
-    return result.rows;
+        ORDER BY so.completed_at ASC NULLS LAST, so.order_number ASC, so.id ASC
+        `,
+        [unitId],
+      );
+      while (true) {
+        const page = await client.query<LeakageOrderFactsRow>(
+          'FETCH FORWARD 250 FROM measurement_leakage_scan',
+        );
+        if (page.rows.length === 0) break;
+        if (rows.length + page.rows.length > 50_000) {
+          throw new Error('MEASUREMENT_LEAKAGE_SNAPSHOT_CAP_REACHED');
+        }
+        rows.push(...page.rows);
+        pages += 1;
+      }
+      await client.query('CLOSE measurement_leakage_scan');
+      await client.query('COMMIT');
+      this.logger.log(
+        `measurement_leakage_snapshot pages=${pages} rows=${rows.length} duration_ms=${Date.now() - startedAt}`,
+      );
+      return rows;
+    } catch (error) {
+      evictWith = await rollbackKeepingPrimaryCause(client);
+      throw error;
+    } finally {
+      client.release(evictWith);
+    }
   }
 
   /** Contexto de processo de UMA ordem: contrato, marcos e faturamento. */
@@ -522,7 +558,7 @@ export class MeasurementCapabilityRepository {
          $12, $13, $14::timestamptz, $15,
          $16
        )
-       ON CONFLICT (measurement_id, cycle_number) DO NOTHING
+       ON CONFLICT DO NOTHING
        RETURNING id, measurement_id, service_order_id, client_id, unit_id, cycle_number,
                  policy::text AS policy, result::text AS result, observation,
                  rejection_reason, evidence_id, signature_id, customer_signer_name,
@@ -549,7 +585,24 @@ export class MeasurementCapabilityRepository {
     );
 
     if (!inserted.rows[0]) {
-      // A UNIQUE barrou: alguém registrou a decisão deste ciclo em paralelo.
+      // READ COMMITTED: após o ON CONFLICT aguardar a transação vencedora,
+      // esta consulta enxerga o commit da mesma chave. Uma chave distinta no
+      // mesmo ciclo continua sendo conflito, não replay.
+      if (input.idempotencyKey) {
+        const replay = await client.query<CustomerAcceptanceRow>(
+          `SELECT id, measurement_id, service_order_id, client_id, unit_id, cycle_number,
+                  policy::text AS policy, result::text AS result, observation,
+                  rejection_reason, evidence_id, signature_id, customer_signer_name,
+                  accepted_by_identity_id, occurred_at, correlation_id, idempotency_key,
+                  row_version, created_at
+             FROM msr.customer_acceptances
+            WHERE idempotency_key = $1`,
+          [input.idempotencyKey],
+        );
+        if (replay.rows[0]) {
+          return { outcome: 'already_recorded', acceptance: replay.rows[0] };
+        }
+      }
       return { outcome: 'version_conflict' };
     }
     return { outcome: 'success', acceptance: inserted.rows[0] };

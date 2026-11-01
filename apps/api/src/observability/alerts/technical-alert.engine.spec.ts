@@ -68,6 +68,32 @@ describe('evaluateTechnicalAlertConditions', () => {
     expect(alert?.severity).toBe(TECHNICAL_ALERT_SEVERITIES.Warning);
   });
 
+  it('fires a critical alert on orphan invoices or dead financial handoff jobs, and clears on recovery', () => {
+    const definitions = buildTechnicalAlertDefinitions(policy);
+    const tracker = new TechnicalAlertStateTracker();
+    const now = new Date('2026-10-31T12:00:00.000Z');
+    const broken = evaluateTechnicalAlertConditions(baseInput({
+      billingReceivableOrphans: 2,
+      receivableHandoffDead: 1,
+    }), policy);
+    const active = tracker.evaluate({ now, conditions: broken, definitions });
+    const alert = active.find(x => x.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure);
+    expect(alert?.severity).toBe(TECHNICAL_ALERT_SEVERITIES.Critical);
+    expect(alert?.observedValue).toContain('orphan_finalized=2');
+    expect(alert?.observedValue).toContain('dead_or_failed_handoffs=1');
+    expect(alert?.runbook).toBeDefined();
+
+    const healthy = evaluateTechnicalAlertConditions(baseInput({
+      billingReceivableOrphans: 0,
+      receivableHandoffDead: 0,
+    }), policy);
+    const after = tracker.evaluate({ now: new Date(now.getTime() + 1000), conditions: healthy, definitions });
+    expect(after.some(x => x.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure)).toBe(false);
+    expect(tracker.getResolvedSince(now.toISOString()).some(x =>
+      x.alertType === TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure
+    )).toBe(true);
+  });
+
   it('fires backup failure immediately without duration window', () => {
     const definitions = buildTechnicalAlertDefinitions(policy);
     const tracker = new TechnicalAlertStateTracker();

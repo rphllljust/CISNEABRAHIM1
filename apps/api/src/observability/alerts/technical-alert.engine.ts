@@ -63,6 +63,14 @@ export function buildTechnicalAlertDefinitions(
       runbook: TECHNICAL_ALERT_RUNBOOKS[TECHNICAL_ALERT_TYPES.OutboxBacklog],
     },
     {
+      alertType: TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure,
+      title: 'Faturamento finalizado sem recebível ou recuperação financeira falhada',
+      defaultSeverity: TECHNICAL_ALERT_SEVERITIES.Critical,
+      thresholdDescription: 'receivable_handoff_dead >= 1 OR billing_receivable_orphans_over_5m >= 1',
+      durationMs: 0,
+      runbook: TECHNICAL_ALERT_RUNBOOKS[TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure],
+    },
+    {
       alertType: TECHNICAL_ALERT_TYPES.StorageFailure,
       title: 'Falhas de object storage',
       defaultSeverity: TECHNICAL_ALERT_SEVERITIES.Critical,
@@ -197,6 +205,19 @@ export function evaluateTechnicalAlertConditions(
       observedValue: String(input.outboxPending),
     }),
   );
+
+  const deadReceivableJobs = input.receivableHandoffDead;
+  const orphanInvoices = input.billingReceivableOrphans;
+  // Null/undefined means not measured; do NOT report a false-zero recovery.
+  if (deadReceivableJobs !== undefined && orphanInvoices !== undefined) {
+    results.push(condition({
+      alertType: TECHNICAL_ALERT_TYPES.BillingReceivableHandoffFailure,
+      breached: deadReceivableJobs > 0 || orphanInvoices > 0,
+      severity: TECHNICAL_ALERT_SEVERITIES.Critical,
+      message: 'Documento FINALIZED sem recebível há mais de cinco minutos ou handoff financeiro em DEAD/FAILED.',
+      observedValue: `orphan_finalized=${orphanInvoices},dead_or_failed_handoffs=${deadReceivableJobs}`,
+    }));
+  }
 
   const storageFailures = input.storageFailures;
   results.push(

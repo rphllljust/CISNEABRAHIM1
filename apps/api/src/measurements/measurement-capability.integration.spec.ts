@@ -18,13 +18,19 @@ import {
   truncateServiceRequestTables,
 } from '@cisne/database';
 import { Test, TestingModule } from '@nestjs/testing';
+import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
+import { AppModule } from '../app.module';
+import { configureApiTestApp } from '../infrastructure/http/configure-api-test-app';
+import { parseAuthTokenResponse } from '../auth/test/auth-response-test-types';
 import { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AuditModule } from '../audit/audit.module';
+import { SECURITY_AUDIT_ACTIONS } from '../audit/types/security-audit.types';
 import { AuthModule } from '../auth/auth.module';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
 import { AuthorizationModule } from '../authorization/authorization.module';
+import { ScopeContextRepository } from '../authorization/repositories/scope-context.repository';
 import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
@@ -46,6 +52,8 @@ import { ServiceOrderExecutionAccessService } from '../service-orders/services/s
 import { ServiceOrderPlanningAccessService } from '../service-orders/services/service-order-planning-access.service';
 import { ServiceOrdersAccessService } from '../service-orders/services/service-orders-access.service';
 import { OperationsService } from '../service-orders/services/operations.service';
+import { WorkInboxService } from '../work-inbox/services/work-inbox.service';
+import { MeasurementsWorkSource } from '../work-inbox/sources/measurements.source';
 
 /**
  * MEDIÇÃO → ACEITE → FATURAMENTO — PROVA DE INTEGRAÇÃO DA CAPABILITY.
@@ -203,6 +211,7 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
   let operationsService: OperationsService;
   let measurementsAccess: MeasurementsAccessService;
   let capability: MeasurementsCapabilityService;
+  let measurementWorkSource: MeasurementsWorkSource;
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
@@ -235,6 +244,11 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     operationsService = module.get(OperationsService);
     measurementsAccess = module.get(MeasurementsAccessService);
     capability = module.get(MeasurementsCapabilityService);
+    measurementWorkSource = new MeasurementsWorkSource(
+      capability,
+      measurementsAccess,
+      module.get(ScopeContextRepository),
+    );
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
@@ -265,7 +279,7 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
     const { identityId } = await insertIdentity(pool, login, passwordHash);
     await grantCapabilityActions(pool, identityId, identityId);
-    return { identityId, sessionId: 'sid' };
+    return { identityId, sessionId: 'sid', login };
   }
 
   /** Ordem concluída com a BASE publicada pelo fechamento real da execução. */
@@ -1071,7 +1085,7 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     ).rejects.toMatchObject({ code: MEASUREMENTS_ERROR_CODES.VERSION_CONFLICT });
   });
 
-  it('is idempotent: the same key produces ONE business effect', async () => {
+  it('replays the identical acceptance with a stale version without new eligibility, audit or outbox', async () => {
     const actor = await seedActor();
     const seeded = await seedOrderWithBasis({
       actor,
@@ -1081,29 +1095,98 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
     const measurement = await measurementsAccess.create(actor, seeded.completed.id);
     const approved = await approveMeasurement(actor, seeded.completed.id, measurement.id);
     const idempotencyKey = `idem-${crypto.randomUUID()}`;
+    const decision = {
+      idempotencyKey,
+      result: 'ACCEPTED' as const,
+      observation: 'Aceite empresarial com reenvio idêntico.',
+    };
 
-    await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+    const first = await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+      ...decision,
       expectedVersion: approved.rowVersion,
-      idempotencyKey,
-      result: 'ACCEPTED',
-      observation: 'Primeira execução do comando.',
     });
+    expect(first.acceptance.state).toBe('ACCEPTED');
 
-    // O retry chega com a versão que o PRIMEIRO comando produziu — é o que um
-    // cliente faria depois de um timeout de rede.
-    const current = await measurementsAccess.getById(actor, seeded.completed.id, measurement.id);
-    await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
-      expectedVersion: current.rowVersion,
-      idempotencyKey,
-      result: 'ACCEPTED',
-      observation: 'Reenvio do mesmo comando.',
+    const effects = async () => {
+      const [acceptances, eligibility, outbox] = await Promise.all([
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM msr.customer_acceptances WHERE measurement_id = $1`,
+          [measurement.id],
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM msr.billing_eligibility_evaluations WHERE measurement_id = $1`,
+          [measurement.id],
+        ),
+        pool.query<{ count: string }>(
+          `SELECT COUNT(*)::text AS count FROM evt.outbox_events WHERE aggregate_id = $1`,
+          [measurement.id],
+        ),
+      ]);
+      return {
+        acceptances: Number(acceptances.rows[0]!.count),
+        eligibility: Number(eligibility.rows[0]!.count),
+        outbox: Number(outbox.rows[0]!.count),
+      };
+    };
+
+    const before = await effects();
+    expect(before.acceptances).toBe(1);
+
+    // A versão enviada no retry já não corresponde ao agregado. O comando
+    // original é reconhecido antes da validação de versão, sem segundo efeito.
+    const replay = await capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+      ...decision,
+      expectedVersion: approved.rowVersion + 99,
     });
+    expect(replay.acceptance.latest?.id).toBe(first.acceptance.latest?.id);
+    expect(await effects()).toEqual(before);
 
-    const acceptances = await pool.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM msr.customer_acceptances WHERE measurement_id = $1`,
-      [measurement.id],
-    );
+    // Reutilizar a mesma chave com outra decisão NÃO é idempotência.
+    await expect(
+      capability.recordAcceptance(actor, seeded.completed.id, measurement.id, {
+        ...decision,
+        observation: 'Outro conteúdo sob a mesma chave.',
+        expectedVersion: approved.rowVersion,
+      }),
+    ).rejects.toMatchObject({ code: MEASUREMENTS_ERROR_CODES.VERSION_CONFLICT });
+    expect(await effects()).toEqual(before);
+  });
+
+  it('serializes concurrent retries of the same acceptance key into one business effect', async () => {
+    const actor = await seedActor();
+    const seeded = await seedOrderWithBasis({
+      actor,
+      plannedQuantity: '12.5',
+      contractSnapshot: { acceptanceRequired: true },
+    });
+    const measurement = await measurementsAccess.create(actor, seeded.completed.id);
+    const approved = await approveMeasurement(actor, seeded.completed.id, measurement.id);
+    const decision = {
+      expectedVersion: approved.rowVersion,
+      idempotencyKey: `concurrent-accept-${crypto.randomUUID()}`,
+      result: 'ACCEPTED' as const,
+      observation: 'Uma decisão com duas tentativas concorrentes.',
+    };
+
+    const [left, right] = await Promise.all([
+      capability.recordAcceptance(actor, seeded.completed.id, measurement.id, decision),
+      capability.recordAcceptance(actor, seeded.completed.id, measurement.id, decision),
+    ]);
+    expect(left.acceptance.latest?.id).toBe(right.acceptance.latest?.id);
+
+    const [acceptances, outbox] = await Promise.all([
+      pool.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM msr.customer_acceptances WHERE measurement_id = $1`,
+        [measurement.id],
+      ),
+      pool.query<{ event_type: string }>(
+        `SELECT event_type::text AS event_type FROM evt.outbox_events WHERE aggregate_id = $1`,
+        [measurement.id],
+      ),
+    ]);
     expect(acceptances.rows[0]!.count).toBe('1');
+    expect(outbox.rows.filter((row) => row.event_type === 'CUSTOMER_ACCEPTANCE_RECORDED')).toHaveLength(1);
+    expect(outbox.rows.filter((row) => row.event_type === 'BILLING_ELIGIBILITY_GRANTED')).toHaveLength(1);
   });
 
   it('denies acceptance to an actor without the acceptance capability', async () => {
@@ -1202,6 +1285,159 @@ describe('Measurement → Acceptance → Billing readiness (PostgreSQL integrati
       expect(position.ownerRole.length).toBeGreaterThan(0);
       expect(position.nextAction.code.length).toBeGreaterThan(0);
       expect(position.orderNumber.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('MASTER 001-02: authenticated HTTP commands -> PostgreSQL -> Inbox -> KPI -> Billing eligibility', async () => {
+    const actor = await seedActor();
+    const seeded = await seedOrderWithBasis({
+      actor,
+      plannedQuantity: '12.5',
+      contractSnapshot: { acceptanceRequired: true, paymentTerms: '30 DDL' },
+    });
+    const measurement = await measurementsAccess.create(actor, seeded.completed.id);
+    const inbox = new WorkInboxService([measurementWorkSource]);
+
+    // The HTTP commands use the SAME Nest controllers/guards as production,
+    // while the database is disposable TEST_DATABASE_URL only.
+    const httpModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const httpApp = httpModule.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
+    configureApiTestApp(httpApp);
+    try {
+      await httpApp.init();
+      await httpApp.getHttpAdapter().getInstance().ready();
+      const login = await httpApp.inject({
+        method: 'POST',
+        url: '/api/v1/auth/login',
+        headers: { 'user-agent': `master-001-02-${crypto.randomUUID()}` },
+        payload: { login: actor.login, password: AUTH_TEST_PASSWORD },
+      });
+      expect(login.statusCode).toBe(200);
+      const headers = { authorization: `Bearer ${parseAuthTokenResponse(login.body).accessToken}` };
+      const path = `/api/v1/service-orders/${seeded.completed.id}/measurements/${measurement.id}`;
+
+      const submitResponse = await httpApp.inject({
+        method: 'POST', url: `${path}/submit`, headers,
+        payload: { rowVersion: measurement.rowVersion },
+      });
+      expect(submitResponse.statusCode).toBe(200);
+      const submitted = JSON.parse(submitResponse.body) as { status: string; rowVersion: number };
+      expect(submitted.status).toBe(MEASUREMENT_STATUSES.Submitted);
+
+      const pendingApproval = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
+      expect(pendingApproval.unavailableDomains).toEqual([]);
+      expect(pendingApproval.total).toBe(1);
+      expect(pendingApproval.byDomain.OPERACOES).toBe(pendingApproval.total);
+      expect(pendingApproval.items[0]?.id).toBe(`OPERACOES:MEASUREMENT:APPROVAL:${measurement.id}`);
+
+      const reviewResponse = await httpApp.inject({
+        method: 'POST', url: `${path}/start-review`, headers,
+        payload: { rowVersion: submitted.rowVersion },
+      });
+      expect(reviewResponse.statusCode).toBe(200);
+      const reviewed = JSON.parse(reviewResponse.body) as { rowVersion: number };
+
+      const approveResponse = await httpApp.inject({
+        method: 'POST', url: `${path}/approve`, headers,
+        payload: { rowVersion: reviewed.rowVersion },
+      });
+      expect(approveResponse.statusCode).toBe(200);
+      const approved = JSON.parse(approveResponse.body) as { status: string; rowVersion: number };
+      expect(approved.status).toBe(MEASUREMENT_STATUSES.Approved);
+
+      const afterApproval = await inbox.list(actor, { domain: 'OPERACOES', unitId: UNIT_A });
+      expect(afterApproval.items.find((item) => item.id.includes(measurement.id))).toBeUndefined();
+
+      const pendingAcceptance = await inbox.list(actor, { domain: 'COMERCIAL', unitId: UNIT_A });
+      expect(pendingAcceptance.unavailableDomains).toEqual([]);
+      expect(pendingAcceptance.total).toBe(1);
+      expect(pendingAcceptance.byDomain.COMERCIAL).toBe(pendingAcceptance.total);
+      expect(pendingAcceptance.items[0]?.id).toBe(`COMERCIAL:MEASUREMENT:ACCEPTANCE:${measurement.id}`);
+
+      const idem = `master-001-02-${crypto.randomUUID()}`;
+      const acceptanceResponse = await httpApp.inject({
+        method: 'POST', url: `${path}/acceptance`, headers,
+        payload: {
+          expectedVersion: approved.rowVersion,
+          idempotencyKey: idem,
+          result: 'ACCEPTED',
+          observation: 'Cliente conferiu e aceitou a entrega.',
+          customerSignerName: 'Representante do cliente',
+        },
+      });
+      expect(acceptanceResponse.statusCode).toBe(200);
+      const accepted = JSON.parse(acceptanceResponse.body) as {
+        acceptance: { state: string; history: unknown[] };
+        billingEligibility: { result: string };
+      };
+      expect(accepted.acceptance.state).toBe('ACCEPTED');
+      expect(accepted.acceptance.history).toHaveLength(1);
+      expect(accepted.billingEligibility.result).toBe('READY');
+
+      const retry = await httpApp.inject({
+        method: 'POST', url: `${path}/acceptance`, headers,
+        payload: {
+          expectedVersion: approved.rowVersion,
+          idempotencyKey: idem,
+          result: 'ACCEPTED',
+          observation: 'Cliente conferiu e aceitou a entrega.',
+          customerSignerName: 'Representante do cliente',
+        },
+      });
+      expect(retry.statusCode).toBe(200);
+      expect((JSON.parse(retry.body) as { acceptance: { history: unknown[] } }).acceptance.history).toHaveLength(1);
+
+      const cleared = await inbox.list(actor, { domain: 'COMERCIAL', unitId: UNIT_A });
+      expect(cleared.unavailableDomains).toEqual([]);
+      expect(cleared.total).toBe(0);
+      expect(cleared.byDomain.COMERCIAL).toBe(0);
+
+      const persisted = await measurementsAccess.getById(actor, seeded.completed.id, measurement.id);
+      expect(persisted.status).toBe(MEASUREMENT_STATUSES.Approved);
+      expect(persisted.historyEvents.map((event) => event.eventType)).toEqual(
+        expect.arrayContaining(['SUBMITTED', 'REVIEW_STARTED', 'APPROVED']),
+      );
+
+      // Prove the HTTP retry did not create a second persisted customer decision.
+      const acceptanceRows = await pool.query<{ count: string }>(
+        'SELECT COUNT(*)::text AS count FROM msr.customer_acceptances WHERE measurement_id = $1',
+        [measurement.id],
+      );
+      expect(acceptanceRows.rows[0]?.count).toBe('1');
+
+      // All three HTTP state transitions and customer acceptance must be
+      // attributable to the authenticated identity in PostgreSQL audit.
+      const security = await pool.query<{ action: string; command: string | null }>(
+        `SELECT action, metadata ->> 'command' AS command
+         FROM audit.security_audit_events
+         WHERE resource_id = $1 AND actor_identity_id = $2`,
+        [seeded.completed.id, actor.identityId],
+      );
+      expect(security.rows.map((row) => row.action)).toEqual(
+        expect.arrayContaining([
+          SECURITY_AUDIT_ACTIONS.MeasurementsMeasurementSubmit,
+          SECURITY_AUDIT_ACTIONS.MeasurementsMeasurementReview,
+          SECURITY_AUDIT_ACTIONS.MeasurementsMeasurementApprove,
+        ]),
+      );
+      expect(security.rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: SECURITY_AUDIT_ACTIONS.MeasurementsMeasurementUpdate,
+            command: 'RECORD_ACCEPTANCE',
+          }),
+        ]),
+      );
+      const outbox = await pool.query<{ event_type: string }>(
+        `SELECT event_type::text AS event_type FROM evt.outbox_events
+         WHERE aggregate_id = $1`,
+        [measurement.id],
+      );
+      expect(outbox.rows.map((row) => row.event_type)).toEqual(
+        expect.arrayContaining(['CUSTOMER_ACCEPTANCE_RECORDED', 'BILLING_ELIGIBILITY_GRANTED']),
+      );
+    } finally {
+      await httpApp.close();
     }
   });
 

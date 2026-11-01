@@ -18,6 +18,7 @@ import { RequireAuthz } from '../decorators/require-authz.decorator';
 import { AUTHZ_ACTIONS } from '../types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../types/authz-resources';
 import { AccessAdminService } from '../services/access-admin.service';
+import { SodExceptionService } from '../services/sod-exception.service';
 import {
   parseAssignAccessRoleInput,
   parseCreateAccessRoleInput,
@@ -26,7 +27,10 @@ import {
 
 @Controller('authz/access-admin')
 export class AccessAdminController {
-  constructor(private readonly accessAdmin: AccessAdminService) {}
+  constructor(
+    private readonly accessAdmin: AccessAdminService,
+    private readonly sodExceptions: SodExceptionService,
+  ) {}
 
   @Get('catalog')
   @UseGuards(JwtAuthGuard, AuthorizationGuard)
@@ -220,4 +224,35 @@ export class AccessAdminController {
   sodConflicts(@CurrentAuth() auth: AccessTokenClaims) {
     return this.accessAdmin.sodConflicts({ identityId: auth.sub, sessionId: auth.sid });
   }
+  @Get('sod-exceptions')
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @RequireAuthz({ action: AUTHZ_ACTIONS.AccessAdminRead, resourceType: AUTHZ_RESOURCE_TYPES.AccessAdmin })
+  listSodExceptions(@CurrentAuth() auth: AccessTokenClaims) {
+    return this.sodExceptions.list({ identityId: auth.sub, sessionId: auth.sid });
+  }
+
+  @Post('sod-exceptions')
+  @HttpCode(201)
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @RequireAuthz({ action: AUTHZ_ACTIONS.AccessAdminManage, resourceType: AUTHZ_RESOURCE_TYPES.AccessAdmin })
+  requestSodException(@CurrentAuth() auth: AccessTokenClaims, @Req() request: FastifyRequest) {
+    return this.sodExceptions.request({ identityId: auth.sub, sessionId: auth.sid }, request.body);
+  }
+
+  @Post('sod-exceptions/:exceptionId/approve')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @RequireAuthz({ action: AUTHZ_ACTIONS.AccessAdminManage, resourceType: AUTHZ_RESOURCE_TYPES.AccessAdmin })
+  approveSodException(@CurrentAuth() auth: AccessTokenClaims, @Param('exceptionId') id: string) {
+    return this.sodExceptions.approve({ identityId: auth.sub, sessionId: auth.sid }, id);
+  }
+
+  @Post('sod-exceptions/:exceptionId/revoke')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, AuthorizationGuard)
+  @RequireAuthz({ action: AUTHZ_ACTIONS.AccessAdminManage, resourceType: AUTHZ_RESOURCE_TYPES.AccessAdmin })
+  revokeSodException(@CurrentAuth() auth: AccessTokenClaims, @Param('exceptionId') id: string) {
+    return this.sodExceptions.revoke({ identityId: auth.sub, sessionId: auth.sid }, id);
+  }
+
 }

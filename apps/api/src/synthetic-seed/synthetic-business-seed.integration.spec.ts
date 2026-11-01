@@ -6,6 +6,7 @@ import {
   findSyntheticNamespaceClientId,
   hashPassword,
   insertIdentity,
+  syntheticExternalRef,
   SYNTHETIC_SEED_CONFIRM_ENV,
   SYNTHETIC_SEED_CONFIRM_VALUE,
   SYNTHETIC_SEED_NAMESPACE,
@@ -22,6 +23,7 @@ import {
   type SyntheticSeedHarness,
 } from './synthetic-seed-harness';
 import { runSyntheticBusinessSeed } from './synthetic-business-seed-runner';
+import { ensureTestDefaultIssuer } from '../test/ensure-test-issuer';
 
 describe('synthetic business seed (integration)', () => {
   let pool: Pool;
@@ -75,6 +77,52 @@ describe('synthetic business seed (integration)', () => {
         scenarios: [scenario],
       });
       expect(second.scenarios[0]?.outcome).toBe('already_present');
+    } finally {
+      await compensateSyntheticScenario(pool, scenarioKey).catch(() => undefined);
+    }
+  });
+
+  it('opens exactly one receivable from a finalized synthetic billing document and cleans its origin', async () => {
+    const identityId = await seedActor();
+    const actor = buildSyntheticActor(identityId);
+    const scenarioKey = `test-receivable-${randomUUID().slice(0, 8)}`;
+    await ensureTestDefaultIssuer(pool);
+    try {
+      const seeded = await runSyntheticBusinessSeed(pool, actor, harness.services, {
+        scenarios: [{
+          key: scenarioKey,
+          displayLabel: 'Cliente teste recebível',
+          cnpjIndex: 9801,
+          flow: { kind: 'vertical', uatScenarioId: 'locacao', stopAfter: 'complete' },
+        }],
+      });
+      expect(seeded.scenarios[0]?.outcome).toBe('created');
+
+      const result = await pool.query<{
+        service_order_id: string; document_id: string; receivable_id: string;
+        document_amount: string; principal: string; document_currency: string; currency_code: string;
+      }>(
+        `SELECT so.id AS service_order_id, bd.id AS document_id, r.id AS receivable_id,
+                bd.total_amount::text AS document_amount, r.principal::text AS principal,
+                bd.currency_code AS document_currency, r.currency_code
+           FROM pty.clients c
+           JOIN so.service_orders so ON so.client_id = c.id
+           JOIN bil.billing_documents bd ON bd.service_order_id = so.id AND bd.status = 'FINALIZED'
+           JOIN fin.receivables r ON r.origin_billing_document_id = bd.id
+          WHERE c.external_erp_id = $1`,
+        [syntheticExternalRef(scenarioKey)],
+      );
+      expect(result.rows).toHaveLength(1);
+      expect(result.rows[0]?.principal).toBe(result.rows[0]?.document_amount);
+      expect(result.rows[0]?.currency_code).toBe(result.rows[0]?.document_currency);
+
+      const serviceOrderId = result.rows[0]!.service_order_id;
+      await compensateSyntheticScenario(pool, scenarioKey);
+      const remaining = await pool.query<{ count: string }>(
+        'SELECT COUNT(*)::text AS count FROM fin.receivables WHERE origin_service_order_id = $1',
+        [serviceOrderId],
+      );
+      expect(remaining.rows[0]?.count).toBe('0');
     } finally {
       await compensateSyntheticScenario(pool, scenarioKey).catch(() => undefined);
     }
