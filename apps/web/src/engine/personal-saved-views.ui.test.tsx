@@ -1,7 +1,9 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../auth/storage/token-store';
 import { useSavedViews } from './DynamicSavedViews';
+import { DynamicSavedViewsBar } from './DynamicSavedViewsBar';
 
 const KEY = 'workspace.FINANCEIRO';
 const OWNER = '11111111-1111-4111-8111-111111111111';
@@ -47,7 +49,8 @@ describe('Diagnostic P2-01 / #179 — Workspace Saved Views server persistence',
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.persistable).toBe(false);
     expect(result.current.views).toEqual([]);
-    expect(result.current.notice).toMatch(/indisponíveis no servidor/i);
+    expect(result.current.notice).toMatch(/sem permissão/i);
+    expect(result.current.canRetry).toBe(false);
     expect(window.localStorage.getItem(localStorageKey)).not.toBeNull();
   });
 
@@ -101,4 +104,106 @@ describe('Diagnostic P2-01 / #179 — Workspace Saved Views server persistence',
     await waitFor(() => expect(result.current.views).toEqual([ROW]));
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('restores remote views after a transient GET fails, without fake empty state', async () => {
+    let reads = 0;
+    const fetchMock = vi.fn(async () => {
+      reads += 1;
+      return reads === 1 ? response({}, 503) : response([ROW]);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useSavedViews(OWNER, KEY));
+
+    await waitFor(() => expect(result.current.canRetry).toBe(true));
+    expect(result.current.persistable).toBe(false);
+    expect(result.current.notice).toMatch(/indisponíveis/i);
+
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.views).toEqual([ROW]));
+    expect(result.current.persistable).toBe(true);
+    expect(result.current.canRetry).toBe(false);
+    expect(result.current.notice).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns failure acknowledgement for rejected writes and allows retry without local persistence', async () => {
+    let posts = 0;
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        posts += 1;
+        return posts === 1 ? response({}, 503) : response(ROW, 201);
+      }
+      return response([]);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { result } = renderHook(() => useSavedViews(OWNER, KEY));
+    await waitFor(() => expect(result.current.persistable).toBe(true));
+
+    let first = true;
+    await act(async () => {
+      first = await result.current.save(ROW.name, ROW.filters, 'list');
+    });
+    expect(first).toBe(false);
+    expect(result.current.views).toEqual([]);
+    expect(result.current.notice).toMatch(/não foi salva/i);
+    expect(window.localStorage.length).toBe(0);
+
+    let second = false;
+    await act(async () => {
+      second = await result.current.save(ROW.name, ROW.filters, 'list');
+    });
+    expect(second).toBe(true);
+    expect(result.current.views).toEqual([ROW]);
+    expect(result.current.notice).toBeNull();
+  });
+
+  it('keeps the operator draft and form open until Save acknowledgement', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    render(
+      <DynamicSavedViewsBar
+        views={[]}
+        onApply={vi.fn()}
+        onDelete={vi.fn()}
+        onSave={onSave}
+        persistable
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Salvar visão' }));
+    const field = screen.getByTestId('dynamic-saved-view-name') as HTMLInputElement;
+    await user.type(field, 'Vencidos da unidade');
+    await user.click(screen.getByTestId('dynamic-saved-view-save'));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId('dynamic-saved-view-save')).toBeEnabled());
+    expect(field.value).toBe('Vencidos da unidade');
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveAttribute('aria-expanded', 'true');
+
+    await user.click(screen.getByTestId('dynamic-saved-view-save'));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(field.value).toBe(''));
+    expect(screen.getByRole('button', { name: 'Salvar visão' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('offers a retry control on recoverable loading failures', async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    render(
+      <DynamicSavedViewsBar
+        views={[]}
+        onApply={vi.fn()}
+        onDelete={vi.fn()}
+        onSave={vi.fn()}
+        persistable={false}
+        statusMessage="Visões salvas indisponíveis no servidor."
+        onRetry={retry}
+      />,
+    );
+    expect(screen.getByTestId('dynamic-saved-views-unavailable')).toHaveTextContent('indisponíveis');
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
 });
