@@ -76,11 +76,74 @@ describe('continuous financial reconciliation engine', () => {
     expect(kinds(report)).toContain('DUPLICATE_POSTING');
   });
 
-  it('detects a divergent amount between settlement and its receivable source', () => {
+  it('accepts a legitimate partial settlement and payment without false amount divergence', () => {
+    const billing = rootBilling('b-1', '1000.0000');
     const receivable = linked('r-1', 'receivable', '1000.0000', { ledger: 'billing', id: 'b-1' });
-    const settlement = linked('s-1', 'settlement', '999.9900', { ledger: 'receivable', id: 'r-1' });
-    const report = runContinuousReconciliation([receivable, settlement]);
-    expect(kinds(report)).toContain('AMOUNT_DIVERGENT');
+    const settlement = linked('s-1', 'settlement', '400.0000', { ledger: 'receivable', id: 'r-1' });
+    const treasury = linked('t-1', 'treasury', '400.0000', { ledger: 'settlement', id: 's-1' });
+    const payable = linked('p-1', 'payable', '200.0000', null);
+    const payment = linked('pay-1', 'payment', '50.0000', { ledger: 'payable', id: 'p-1' });
+    const report = runContinuousReconciliation([billing, receivable, settlement, treasury, payable, payment]);
+    expect(report.status).toBe('PASS');
+    expect(report.findings).toEqual([]);
+  });
+
+  it('accepts multiple partial settlements and payments within principal, including exact total', () => {
+    const billing = rootBilling('b-1', '100.0000');
+    const receivable = linked('r-1', 'receivable', '100.0000', { ledger: 'billing', id: 'b-1' });
+    const settlements = [
+      linked('s-1', 'settlement', '40.0000', { ledger: 'receivable', id: 'r-1' }),
+      linked('s-2', 'settlement', '60.0000', { ledger: 'receivable', id: 'r-1' }),
+    ];
+    const payable = linked('p-1', 'payable', '100.0000', null);
+    const payments = [
+      linked('pay-1', 'payment', '40.0000', { ledger: 'payable', id: 'p-1' }),
+      linked('pay-2', 'payment', '59.9900', { ledger: 'payable', id: 'p-1' }),
+    ];
+    const report = runContinuousReconciliation([billing, receivable, ...settlements, payable, ...payments]);
+    expect(report.status).toBe('PASS');
+    expect(report.findings).toEqual([]);
+  });
+
+  it('flags aggregate overpayment of a receivable and payable, without rounding', () => {
+    const billing = rootBilling('b-1', '100.0000');
+    const receivable = linked('r-1', 'receivable', '100.0000', { ledger: 'billing', id: 'b-1' });
+    const payable = linked('p-1', 'payable', '100.0000', null);
+    const report = runContinuousReconciliation([
+      billing, receivable, payable,
+      linked('s-1', 'settlement', '60.0000', { ledger: 'receivable', id: 'r-1' }),
+      linked('s-2', 'settlement', '40.0001', { ledger: 'receivable', id: 'r-1' }),
+      linked('pay-1', 'payment', '60.0000', { ledger: 'payable', id: 'p-1' }),
+      linked('pay-2', 'payment', '40.0001', { ledger: 'payable', id: 'p-1' }),
+    ]);
+    expect(report.status).toBe('FAIL');
+    expect(report.findings.filter((finding) => finding.kind === 'AMOUNT_DIVERGENT')).toHaveLength(2);
+    expect(report.findings.some((finding) => finding.detail.includes('100.0001'))).toBe(true);
+  });
+
+  it('retains strict equality for treasury movements linked to a partial settlement', () => {
+    const billing = rootBilling('b-1', '100.0000');
+    const receivable = linked('r-1', 'receivable', '100.0000', { ledger: 'billing', id: 'b-1' });
+    const settlement = linked('s-1', 'settlement', '40.0000', { ledger: 'receivable', id: 'r-1' });
+    const treasury = linked('t-1', 'treasury', '39.9900', { ledger: 'settlement', id: 's-1' });
+    const report = runContinuousReconciliation([billing, receivable, settlement, treasury]);
+    expect(report.status).toBe('FAIL');
+    expect(report.findings).toEqual([
+      expect.objectContaining({ kind: 'AMOUNT_DIVERGENT', ledger: 'treasury', factId: 't-1' }),
+    ]);
+  });
+
+  it('fails closed on currency changes in otherwise valid partial settlements', () => {
+    const billing = rootBilling('b-1', '100.0000');
+    const receivable = linked('r-1', 'receivable', '100.0000', { ledger: 'billing', id: 'b-1' });
+    const settlement = {
+      ...linked('s-1', 'settlement', '40.0000', { ledger: 'receivable', id: 'r-1' }),
+      currencyCode: 'USD',
+    };
+    const report = runContinuousReconciliation([billing, receivable, settlement]);
+    expect(report.status).toBe('FAIL');
+    expect(kinds(report)).toContain('CURRENCY_DIVERGENT');
+    expect(kinds(report)).not.toContain('AMOUNT_DIVERGENT');
   });
 
   it('detects a nonexistent economic origin and a missing sourceReference', () => {
