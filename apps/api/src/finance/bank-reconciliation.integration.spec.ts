@@ -112,6 +112,36 @@ describe('Bank reconciliation PostgreSQL integration', () => {
     });
   }
 
+  it('rejects a manual USD statement for a BRL bank account without persisting a statement', async () => {
+    const actor = await seedActor();
+    const bank = await openBank(actor);
+    await expect(recon.importStatement(actor, {
+      unitId: UNIT,
+      financialAccountId: bank.id,
+      sourceKind: 'MANUAL',
+      sourceReference: 'CROSS-CURRENCY-REJECTED',
+      periodStartsOn: DAY,
+      periodEndsOn: DAY,
+      currencyCode: 'USD',
+      idempotencyKey: `currency-reject-${crypto.randomUUID()}`,
+      lines: [{
+        sourceLineKey: 'USD-100',
+        occurredOn: DAY,
+        direction: FINANCIAL_DIRECTIONS.Credit,
+        amount: '100.0000',
+        description: 'Equal nominal amount is not a currency conversion',
+      }],
+    })).rejects.toMatchObject({ code: 'FINANCE_CURRENCY_MISMATCH' });
+    const statements = await pool.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM fin.bank_statements',
+    );
+    const lines = await pool.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM fin.bank_statement_lines',
+    );
+    expect(statements.rows[0]?.count).toBe('0');
+    expect(lines.rows[0]?.count).toBe('0');
+  });
+
   it('auto-matches exact settlement/payment/transfer and leaves approximation and leftover partial unmatched', async () => {
     const { originator: actor, checker } = await seedReconPair();
     const bank = await openBank(actor);

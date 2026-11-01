@@ -161,6 +161,31 @@ describe('Bank statement import PostgreSQL integration', () => {
     expect(duplicateFingerprints.rows[0]?.count).toBe('0');
   }
 
+  it('rejects USD file content for an authorized BRL bank account before replay or persistence', async () => {
+    const actor = await seedActor();
+    const bank = await openBank(actor);
+    const validShape = JSON.parse(cisneFile([{
+      sourceLineKey: 'FOREIGN-1',
+      amount: '100.0000',
+      externalReference: 'FITID-FOREIGN-1',
+    }])) as Record<string, unknown>;
+    const content = JSON.stringify({ ...validShape, currencyCode: 'USD' });
+
+    await expect(recon.importFile(actor, {
+      unitId: UNIT,
+      financialAccountId: bank.id,
+      fileName: 'foreign-currency.json',
+      content,
+    })).rejects.toMatchObject({ code: 'FINANCE_CURRENCY_MISMATCH' });
+
+    expect(await countStatements()).toBe(0);
+    expect(await countLines()).toBe(0);
+    const imports = await pool.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM fin.bank_statement_imports',
+    );
+    expect(imports.rows[0]?.count).toBe('0');
+  });
+
   it('imports a valid documented file and reconciles exact movements', async () => {
     const actor = await seedActor();
     const bank = await openBank(actor);
