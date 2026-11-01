@@ -12,8 +12,9 @@ import type { MeasurementDetailResponse } from '../../measurements/serializers/m
 import type { WorkItem } from '../contracts/work-item.contract';
 import type { WorkItemActor, WorkItemSource } from './work-item-source';
 
-/** Max supported by the domain's existing work-queue read contract. */
-export const MEASUREMENT_QUEUE_LIMIT = 500;
+/** PDP revalidation is deliberately bounded to avoid unbounded DB fan-out. */
+export const MEASUREMENT_AUTHZ_BATCH_SIZE = 8;
+export const MEASUREMENT_UNIT_BATCH_SIZE = 4;
 
 /**
  * Project the EXISTING measurement control tower into the single ERP Inbox.
@@ -37,21 +38,30 @@ export class MeasurementsWorkSource implements WorkItemSource {
 
   async collect(actor: WorkItemActor): Promise<WorkItem[]> {
     const units = await this.scopes.listUnitScopeRefs();
-    const batches = await Promise.all(units.map((unitId) => this.collectUnit(actor, unitId)));
     const seen = new Set<string>();
-    return batches.flat().filter((item) => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
+    const results: WorkItem[] = [];
+    for (let offset = 0; offset < units.length; offset += MEASUREMENT_UNIT_BATCH_SIZE) {
+      const batches = await Promise.all(
+        units.slice(offset, offset + MEASUREMENT_UNIT_BATCH_SIZE)
+          .map((unitId) => this.collectUnit(actor, unitId)),
+      );
+      for (const item of batches.flat()) {
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        results.push(item);
+      }
+    }
+    return results;
   }
 
   private async collectUnit(actor: WorkItemActor, unitId: string): Promise<WorkItem[]> {
     let rows: WorkQueueItem[];
     try {
+      // O módulo dono monta TODAS as páginas no mesmo snapshot. Nenhum KPI
+      // é publicado antes da leitura integral e da revalidação PDP por objeto.
       const queue = await this.capability.getWorkQueue(actor, {
         unitId,
-        limit: MEASUREMENT_QUEUE_LIMIT,
+        exhaustive: true,
       });
       rows = queue.items;
     } catch (error) {
@@ -59,28 +69,24 @@ export class MeasurementsWorkSource implements WorkItemSource {
       throw error;
     }
 
-    // The domain query is capped at 500 and has no offset contract. Never
-    // publish a partial count as if it were the complete KPI.
-    if (rows.length >= MEASUREMENT_QUEUE_LIMIT) {
-      throw new Error('MEASUREMENT_WORK_QUEUE_CAP_REACHED');
+    const results: WorkItem[] = [];
+    for (let offset = 0; offset < rows.length; offset += MEASUREMENT_AUTHZ_BATCH_SIZE) {
+      const batch = await Promise.all(rows.slice(offset, offset + MEASUREMENT_AUTHZ_BATCH_SIZE).map(async (row) => {
+        if (!row.measurementId || !isMeasurementWorkStage(row.stage)) return null;
+        try {
+          const [workbench, measurement] = await Promise.all([
+            this.capability.getWorkbench(actor, row.serviceOrderId),
+            this.access.getById(actor, row.serviceOrderId, row.measurementId),
+          ]);
+          return toMeasurementWorkItem(row, unitId, workbench, measurement);
+        } catch (error) {
+          if (isNotReadable(error)) return null;
+          throw error;
+        }
+      }));
+      results.push(...batch.filter((item): item is WorkItem => item !== null));
     }
-
-    const results = await Promise.all(rows.map(async (row) => {
-      if (!row.measurementId || !isMeasurementWorkStage(row.stage)) return null;
-
-      try {
-        const [workbench, measurement] = await Promise.all([
-          this.capability.getWorkbench(actor, row.serviceOrderId),
-          this.access.getById(actor, row.serviceOrderId, row.measurementId),
-        ]);
-        return toMeasurementWorkItem(row, unitId, workbench, measurement);
-      } catch (error) {
-        if (isNotReadable(error)) return null;
-        throw error;
-      }
-    }));
-
-    return results.filter((item): item is WorkItem => item !== null);
+    return results;
   }
 }
 

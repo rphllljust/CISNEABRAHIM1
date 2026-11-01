@@ -459,16 +459,16 @@ export class MeasurementsCapabilityService {
    */
   async getWorkQueue(
     actor: IdentityAuthzContext,
-    input: { unitId: string; limit?: number; at?: string },
+    input: { unitId: string; limit?: number; at?: string; exhaustive?: boolean },
   ): Promise<MeasurementWorkQueueReadModel> {
     const at = input.at ?? new Date().toISOString();
-    const limit = Math.min(Math.max(input.limit ?? 100, 1), 500);
+    const limit = input.exhaustive ? Number.MAX_SAFE_INTEGER : Math.min(Math.max(input.limit ?? 100, 1), 500);
 
     await this.authz.assertUnitReadScope(actor, input.unitId);
 
-    const projection = await this.computeLeakageProjection(input.unitId, limit, at);
+    const projection = await this.computeLeakageProjection(input.unitId, at);
 
-    const items: WorkQueueItem[] = projection.positions.map((position) => ({
+    const items: WorkQueueItem[] = projection.positions.slice(0, limit).map((position) => ({
       measurementId: position.measurementId,
       serviceOrderId: position.serviceOrderId,
       orderNumber: position.orderNumber,
@@ -522,11 +522,16 @@ export class MeasurementsCapabilityService {
     input: { unitId: string; limit?: number; at?: string },
   ): Promise<RevenueLeakageReadModel> {
     const at = input.at ?? new Date().toISOString();
-    const limit = Math.min(Math.max(input.limit ?? 500, 1), LEAKAGE_PROJECTION_LIMIT);
+    const limit = Math.min(Math.max(input.limit ?? LEAKAGE_PROJECTION_LIMIT, 1), 50_000);
 
     await this.authz.assertUnitReadScope(actor, input.unitId);
 
-    const projection = await this.computeLeakageProjection(input.unitId, limit, at);
+    const projection = await this.computeLeakageProjection(input.unitId, at);
+    if (projection.positions.length > limit) {
+      // O contrato atual não publica cursor/truncated. Nunca devolver KPI integral
+      // com drill parcial: exigir leitura integral ou endpoint paginado posterior.
+      throw new Error('MEASUREMENT_REVENUE_LEAKAGE_PAGE_REQUIRED');
+    }
 
     return {
       context: { unitId: input.unitId, at },
@@ -560,7 +565,6 @@ export class MeasurementsCapabilityService {
    */
   private async computeLeakageProjection(
     unitId: string,
-    limit: number,
     at: string,
   ): Promise<{
     stages: LeakageStageSummary[];
@@ -581,7 +585,7 @@ export class MeasurementsCapabilityService {
       statuses: { measurement: string; acceptance: string; billingEligibility: string };
     }>;
   }> {
-    const rows = await this.capabilityRepository.listCompletedOrdersForLeakage(unitId, limit);
+    const rows = await this.capabilityRepository.listCompletedOrdersForLeakage(unitId);
 
     const facts = rows.map((row) => ({
       serviceOrderId: row.service_order_id,
@@ -605,6 +609,7 @@ export class MeasurementsCapabilityService {
       billingPrepared: row.billing_prepared,
     }));
 
+    const factsByOrderId = new Map(facts.map((fact) => [fact.serviceOrderId, fact]));
     const projection = projectRevenueLeakage({ orders: facts, at });
 
     await this.capabilityRepository.refreshLeakage(unitId, {
@@ -612,7 +617,7 @@ export class MeasurementsCapabilityService {
       positions: projection.positions.map((position) => ({
         serviceOrderId: position.serviceOrderId,
         clientId: position.clientId,
-        measurementId: facts.find((item) => item.serviceOrderId === position.serviceOrderId)?.measurementId ?? null,
+        measurementId: factsByOrderId.get(position.serviceOrderId)?.measurementId ?? null,
         stage: position.stage,
         orderNumber: position.orderNumber,
         clientLabel: position.clientLabel,
@@ -630,7 +635,7 @@ export class MeasurementsCapabilityService {
       stages: projection.stages,
       total: projection.total,
       positions: projection.positions.map((position) => {
-        const source = facts.find((item) => item.serviceOrderId === position.serviceOrderId);
+        const source = factsByOrderId.get(position.serviceOrderId);
         return {
           serviceOrderId: position.serviceOrderId,
           measurementId: source?.measurementId ?? null,
