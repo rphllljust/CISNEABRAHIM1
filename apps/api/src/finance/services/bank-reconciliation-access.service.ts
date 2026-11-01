@@ -20,6 +20,7 @@ import {
   RECONCILIATION_MATCH_METHODS,
   RECONCILIATION_STATUSES,
   BankReconciliationError,
+  assertBankStatementAccountCurrency,
   assertConfirmedImmutable,
   assertFinancialReconciliationIntegrity,
   assertNotAmountApproximation,
@@ -103,6 +104,8 @@ export class BankReconciliationAccessService {
         id: account.id,
         unitId: account.unit_id,
       });
+      // Authorized account currency is authoritative; reject before idempotent replay/INSERT.
+      assertBankStatementAccountCurrency(validated.currencyCode, account.currency_code);
       const persisted = await this.repository.withTransaction(async (client) => {
         const existing = await this.repository.findStatementByIdempotency(
           validated.unitId,
@@ -194,6 +197,9 @@ export class BankReconciliationAccessService {
         declaredFormat: validated.declaredFormat,
       });
       const parsed = parseCisneStatementV1(validated.content);
+      // File currency is untrusted; assert against the authorized financial account
+      // before replaying a previous import or creating any statement or line.
+      assertBankStatementAccountCurrency(parsed.currencyCode, account.currency_code);
       const normalized = normalizeBankImportLines(account.id, uploaded.fileChecksum, parsed.lines);
       const idempotencyKey = validated.idempotencyKey ?? `bank-import:${uploaded.fileChecksum}`;
 
