@@ -104,4 +104,68 @@ describe('continuous financial reconciliation engine', () => {
     expect(report.unbalancedPostings).toBe(1);
     expect(kinds(report)).toContain('UNBALANCED_POSTING');
   });
+  it('accepts a fully consistent USD chain without converting nominal amounts', () => {
+    const billing = { ...rootBilling('b-usd', '100.0000'), currencyCode: 'USD' };
+    const receivable = {
+      ...linked('r-usd', 'receivable', '100.0000', { ledger: 'billing', id: 'b-usd' }),
+      currencyCode: 'USD',
+    };
+    const settlement: EconomicFact = {
+      ...linked('s-usd', 'settlement', '100.0000', { ledger: 'receivable', id: 'r-usd' }),
+      currencyCode: 'USD',
+      expectedPostingSourceContext: 'SETTLEMENT',
+    };
+    const treasury = {
+      ...linked('t-usd', 'treasury', '100.0000', { ledger: 'settlement', id: 's-usd' }),
+      currencyCode: 'USD',
+    };
+    const journal = { ...posted('j-usd', 'SETTLEMENT', 's-usd', '100.0000'), currencyCode: 'USD' };
+
+    const report = runContinuousReconciliation([billing, receivable, settlement, treasury, journal]);
+    expect(report.status).toBe('PASS');
+    expect(report.findings).toEqual([]);
+  });
+
+  it('fails closed when a downstream economic fact changes currency despite equal nominal amount', () => {
+    const billing = rootBilling('b-brl', '100.0000');
+    const receivable = {
+      ...linked('r-usd', 'receivable', '100.0000', { ledger: 'billing', id: 'b-brl' }),
+      currencyCode: 'USD',
+    };
+
+    const report = runContinuousReconciliation([billing, receivable]);
+    expect(report.status).toBe('FAIL');
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        kind: 'CURRENCY_DIVERGENT',
+        factId: 'r-usd',
+        ledger: 'receivable',
+      }),
+    ]);
+    expect(kinds(report)).not.toContain('AMOUNT_DIVERGENT');
+  });
+
+  it('rejects a balanced journal in a different currency from its settled source', () => {
+    const settlement: EconomicFact = {
+      ...linked('s-brl', 'settlement', '50.0000', null),
+      expectedPostingSourceContext: 'SETTLEMENT',
+    };
+    const journal = {
+      ...posted('j-usd', 'SETTLEMENT', 's-brl', '50.0000'),
+      currencyCode: 'USD',
+    };
+
+    const report = runContinuousReconciliation([settlement, journal]);
+    expect(report.status).toBe('FAIL');
+    expect(report.findings).toEqual([
+      expect.objectContaining({
+        kind: 'CURRENCY_DIVERGENT',
+        factId: 'j-usd',
+        ledger: 'journal_entry',
+      }),
+    ]);
+    expect(report.unbalancedPostings).toBe(0);
+    expect(kinds(report)).not.toContain('MISSING_POSTING');
+  });
+
 });
