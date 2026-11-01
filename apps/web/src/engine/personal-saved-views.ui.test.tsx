@@ -64,7 +64,7 @@ describe('Diagnostic P2-01 / #179 — Workspace Saved Views server persistence',
     vi.stubGlobal('fetch', fetchMock);
     const { result } = renderHook(() => useSavedViews(OWNER, KEY));
     await waitFor(() => expect(result.current.persistable).toBe(true));
-    act(() => result.current.save(ROW.name, ROW.filters, 'list'));
+    await act(async () => { await result.current.save(ROW.name, ROW.filters, 'list'); });
     await waitFor(() => expect(result.current.views).toEqual([ROW]));
     expect(window.localStorage.length).toBe(0);
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true);
@@ -173,17 +173,17 @@ describe('Diagnostic P2-01 / #179 — Workspace Saved Views server persistence',
     );
 
     await user.click(screen.getByRole('button', { name: 'Salvar visão' }));
-    const field = screen.getByTestId('dynamic-saved-view-name') as HTMLInputElement;
+    const field = screen.getByTestId('dynamic-saved-view-name');
     await user.type(field, 'Vencidos da unidade');
     await user.click(screen.getByTestId('dynamic-saved-view-save'));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByTestId('dynamic-saved-view-save')).toBeEnabled());
-    expect(field.value).toBe('Vencidos da unidade');
+    expect(field).toHaveValue('Vencidos da unidade');
     expect(screen.getByRole('button', { name: 'Cancelar' })).toHaveAttribute('aria-expanded', 'true');
 
     await user.click(screen.getByTestId('dynamic-saved-view-save'));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(field.value).toBe(''));
+    await waitFor(() => expect(field).toHaveValue(''));
     expect(screen.getByRole('button', { name: 'Salvar visão' })).toHaveAttribute('aria-expanded', 'false');
   });
 
