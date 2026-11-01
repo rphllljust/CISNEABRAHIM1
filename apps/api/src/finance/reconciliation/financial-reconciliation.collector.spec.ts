@@ -6,7 +6,7 @@ import { collectEconomicFacts, runFinancialReconciliation } from './financial-re
  * MASTER 001-04: the collector uses the published rpt accounting read contract,
  * never assumes BRL, and performs no writes. No production database is contacted.
  */
-function economicPool(journalCurrencyCode: string): Pool {
+function economicPool(journalCurrencyCode: string, settlementAmount = '100.0000'): Pool {
   const query = vi.fn(async (sql: string) => {
     if (sql.includes('FROM rpt.read_billing_documents')) {
       return {
@@ -33,7 +33,7 @@ function economicPool(journalCurrencyCode: string): Pool {
       return {
         rows: [{
           id: 's-usd',
-          amount: '100.0000',
+          amount: settlementAmount,
           currency_code: 'USD',
           receivable_id: 'r-usd',
         }],
@@ -43,7 +43,7 @@ function economicPool(journalCurrencyCode: string): Pool {
       return {
         rows: [{
           id: 't-usd',
-          amount: '100.0000',
+          amount: settlementAmount,
           currency_code: 'USD',
           origin_kind: 'RECEIVABLE_SETTLEMENT',
           origin_id: 's-usd',
@@ -66,7 +66,7 @@ function economicPool(journalCurrencyCode: string): Pool {
             source_reference: 'SETTLE-s-usd',
             currency_code: journalCurrencyCode,
             direction: 'DEBIT',
-            amount: '100.0000',
+            amount: settlementAmount,
           },
           {
             id: 'j-usd',
@@ -75,7 +75,7 @@ function economicPool(journalCurrencyCode: string): Pool {
             source_reference: 'SETTLE-s-usd',
             currency_code: journalCurrencyCode,
             direction: 'CREDIT',
-            amount: '100.0000',
+            amount: settlementAmount,
           },
         ],
       };
@@ -97,6 +97,12 @@ describe('MASTER 001-04 — published accounting currency provenance', () => {
     });
 
     const result = await runFinancialReconciliation(pool);
+    expect(result.status).toBe('PASS');
+    expect(result.findings).toEqual([]);
+  });
+
+  it('accepts a partially settled USD receivable through real collector and balanced journal', async () => {
+    const result = await runFinancialReconciliation(economicPool('USD', '40.0000'));
     expect(result.status).toBe('PASS');
     expect(result.findings).toEqual([]);
   });
