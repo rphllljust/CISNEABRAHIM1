@@ -86,7 +86,7 @@ describe('Diagnostic P2-01 — personal Saved Views', () => {
       name: row.name, filters: row.config.filters, viewType: 'list',
     })).resolves.toMatchObject({ id: ID, name: row.name });
     const insert = client.query.mock.calls.find((call) => String(call[0]).includes('INSERT INTO'));
-    const insertParams = insert?.[1] as unknown[] | undefined;
+    const insertParams = insert?.[1];
     expect(insertParams?.slice(0, 3)).toEqual([OWNER, VIEW_KEY, row.name]);
     // jsonb key order is irrelevant; assert the actual stored document shape.
     expect(JSON.parse(String(insertParams?.[3]))).toEqual(row.config);
