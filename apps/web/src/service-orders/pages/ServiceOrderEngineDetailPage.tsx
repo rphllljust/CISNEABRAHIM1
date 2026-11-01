@@ -8,7 +8,7 @@ import {
   ServiceOrdersApiError,
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
-import { ActionBar, DynamicBusinessChain, DynamicForm, DynamicTimeline, toDisplayText, useEntitySchema, type ChainNode } from '../../engine';
+import { ActionBar, DynamicForm, DynamicTimeline, toDisplayText, useEntitySchema } from '../../engine';
 import {
   EnterpriseObjectHeader,
   EnterpriseObjectPage,
@@ -24,6 +24,7 @@ import {
   type SmartRelation,
 } from '../../enterprise-object';
 import { ConfirmAction, Money } from '../../ui';
+import { BusinessChain, useBusinessChain } from '../../business-chain';
 import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
@@ -65,6 +66,11 @@ export function ServiceOrderEngineDetailPage() {
   );
   const [busy, setBusy] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
+  // Fetch the authorized, persisted lineage only after the OS itself is readable.
+  const businessChain = useBusinessChain(
+    'SERVICE_ORDER',
+    rowStatus === 'ready' ? serviceOrderId ?? '' : '',
+  );
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
@@ -264,55 +270,6 @@ export function ServiceOrderEngineDetailPage() {
   const measurementDownstream = controlCenter?.downstream.measurement ?? null;
   const billingDownstream = controlCenter?.downstream.billing ?? null;
 
-  /*
-   * CADEIA DE NEGÓCIO — montada do que o PAYLOAD trouxe, sem chamada nova e sem inventar
-   * degrau. Cada nó só existe se o vínculo correspondente veio persistido: uma OS sem pedido de
-   * compra não exibe "PO", porque afirmar uma relação que não está registrada seria mentir
-   * sobre a origem do dinheiro.
-   *
-   * A ORDEM é do domínio (solicitação → proposta → PO → OS), e é a TELA que a conhece — a
-   * engine só desenha os nós na ordem em que chegam.
-   */
-  const chainNodes: ChainNode[] = [
-    ...(toDisplayText(row['service_request_id']).trim() !== ''
-      ? [{
-          kind: 'Solicitação',
-          id: toDisplayText(row['service_request_id']),
-          businessReference: toDisplayText(row['service_request_id']),
-          route: `/app/requests/${toDisplayText(row['service_request_id'])}`,
-          relation: 'ORIGIN',
-        }]
-      : []),
-    ...(toDisplayText(row['proposal_number'] ?? row['proposal_id']).trim() !== ''
-      ? [{
-          kind: 'Proposta',
-          id: toDisplayText(row['proposal_id']),
-          businessReference: toDisplayText(row['proposal_number'] ?? row['proposal_id']),
-          route: `/app/proposals/${toDisplayText(row['proposal_id'])}`,
-          status: toDisplayText(row['status']),
-          relation: 'ORIGIN',
-        }]
-      : []),
-    ...(toDisplayText(row['purchase_order_number'] ?? row['purchase_order_id']).trim() !== ''
-      ? [{
-          kind: 'Pedido de compra',
-          id: toDisplayText(row['purchase_order_id']),
-          businessReference: toDisplayText(
-            row['purchase_order_number'] ?? row['purchase_order_id'],
-          ),
-          route: `/app/purchase-orders/${toDisplayText(row['purchase_order_id'])}`,
-          relation: 'ORIGIN',
-        }]
-      : []),
-    {
-      kind: 'Ordem de serviço',
-      id: row.id,
-      businessReference: toDisplayText(row['order_number']),
-      status: currentState,
-      relation: 'ROOT',
-    },
-  ];
-
   return (
     <EnterpriseObjectPage
       className="service-order-object-page gap-3"
@@ -383,9 +340,13 @@ export function ServiceOrderEngineDetailPage() {
               </p>
             ) : null}
           </ObjectPanel>
-          <ObjectPanel title="Cadeia de negócio" className="service-order-context-panel shadow-none">
-            <DynamicBusinessChain nodes={chainNodes} title="Cadeia de negócio" />
-          </ObjectPanel>
+          <BusinessChain
+            chain={businessChain.chain}
+            phase={businessChain.phase}
+            message={businessChain.message}
+            onRetry={businessChain.retry}
+            title="Cadeia empresarial da OS"
+          />
           <ObjectPanel title="Histórico" className="service-order-context-panel shadow-none">
             <DynamicTimeline schema={schema} recordId={row.id} />
           </ObjectPanel>
