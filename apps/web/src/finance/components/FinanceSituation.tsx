@@ -68,9 +68,11 @@ const TONE_CLASS: Record<FinanceSituationTone, string> = {
 export function FinanceSituationStrip({
   items,
   className,
+  ariaLabel = 'Situação financeira do recorte',
 }: {
   items: FinanceSituationItem[];
   className?: string;
+  ariaLabel?: string;
 }) {
   if (items.length === 0) {
     return null;
@@ -82,7 +84,7 @@ export function FinanceSituationStrip({
         'm-0 flex min-w-0 flex-wrap items-stretch gap-x-0 gap-y-2 border-b border-[color:var(--color-divider)] pb-2',
         className,
       )}
-      aria-label="Situação financeira do recorte"
+      aria-label={ariaLabel}
     >
       {items.map((item, index) => (
         <div
