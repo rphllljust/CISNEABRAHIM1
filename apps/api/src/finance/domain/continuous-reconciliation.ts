@@ -1,4 +1,4 @@
-import { moneyAmountsEqual, sumMoneyAmounts } from '../../platform/kernel/money-math';
+import { compareMoneyAmounts, moneyAmountsEqual, sumMoneyAmounts } from '../../platform/kernel/money-math';
 
 /**
  * Continuous financial reconciliation engine (pure, ledger-agnostic, read-only).
@@ -164,26 +164,58 @@ export function runContinuousReconciliation(facts: EconomicFact[]): ContinuousRe
     }
   }
 
-  // 4) Value divergence between an effect and its declared source.
+  // 4) Value integrity for 1:1 effects and authorized partial payments.
+  //
+  // Settlement → Receivable and Payment → Payable are 1:N relationships:
+  // a legitimate partial settlement of 40 must not equal principal 100.
+  // Compare the aggregate of posted effects against principal instead. Do not
+  // aggregate across currencies: the currency mismatch is reported separately.
+  const partialsBySource = new Map<string, EconomicFact[]>();
   for (const fact of facts) {
     if (!fact.source) {
       continue;
     }
-    const source = byId.get(`${fact.source.ledger}:${fact.source.id}`);
-    if (source && source.currencyCode !== fact.currencyCode) {
+    const sourceKey = `${fact.source.ledger}:${fact.source.id}`;
+    const source = byId.get(sourceKey);
+    if (!source) {
+      continue; // Missing origin is already flagged in phase 1.
+    }
+    if (source.currencyCode !== fact.currencyCode) {
       addFinding(
         findings,
         'CURRENCY_DIVERGENT',
         fact,
         `${fact.ledger}:${fact.id} currency ${fact.currencyCode} != source ${fact.source.ledger}:${fact.source.id} currency ${source.currencyCode}`,
       );
-    } else if (source && !moneyAmountsEqual(source.amount, fact.amount)) {
-      // Comparing nominal amounts across currencies is not an economic equality check.
+      continue;
+    }
+    const isPartial =
+      (fact.ledger === 'settlement' && fact.source.ledger === 'receivable') ||
+      (fact.ledger === 'payment' && fact.source.ledger === 'payable');
+    if (isPartial) {
+      const current = partialsBySource.get(sourceKey) ?? [];
+      current.push(fact);
+      partialsBySource.set(sourceKey, current);
+    } else if (!moneyAmountsEqual(source.amount, fact.amount)) {
       addFinding(
         findings,
         'AMOUNT_DIVERGENT',
         fact,
         `${fact.ledger}:${fact.id} amount ${fact.amount} != source ${fact.source.ledger}:${fact.source.id} amount ${source.amount}`,
+      );
+    }
+  }
+  for (const [sourceKey, effects] of partialsBySource) {
+    const source = byId.get(sourceKey);
+    const representative = effects[0];
+    if (!source || !representative) continue;
+    const total = sumMoneyAmounts(effects.map((effect) => effect.amount));
+    if (compareMoneyAmounts(total, source.amount) > 0) {
+      addFinding(
+        findings,
+        'AMOUNT_DIVERGENT',
+        representative,
+        `total ${representative.ledger} amount ${total} exceeds source ${sourceKey} principal ${source.amount}`,
       );
     }
   }
