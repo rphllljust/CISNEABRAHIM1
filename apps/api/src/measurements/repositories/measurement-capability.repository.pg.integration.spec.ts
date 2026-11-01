@@ -52,13 +52,14 @@ describe('MASTER 001-02 / #157 — completed-order snapshot against PostgreSQL',
     await pool.query(
       `INSERT INTO so.service_orders
          (internal_code, order_number, unit_id, status, origin,
-          client_snapshot, service_snapshot, description, completed_at,
+          client_snapshot, service_snapshot, description, started_at, completed_at,
           created_by_identity_id, updated_by_identity_id)
        SELECT $1 || '-I-' || lpad(n::text, 6, '0'),
               $1 || '-O-' || lpad(n::text, 6, '0'),
               $2, 'COMPLETED'::so.service_order_status,
               'AUTHORIZED_DIRECT'::so.service_order_origin,
               '{}'::jsonb, '{}'::jsonb, 'Database-only pagination evidence',
+              '2026-09-30T12:00:00Z'::timestamptz,
               '2026-10-01T12:00:00Z'::timestamptz, $3::uuid, $3::uuid
          FROM generate_series($4::int, $5::int) AS n`,
       [`${prefix}-${unitId === primaryUnit ? 'A' : 'B'}`, unitId, identityId, from, to],
