@@ -3,6 +3,7 @@ import {
   AUTO_EXACT_MATCH_CRITERIA,
   BANK_LINE_MATCH_STATUSES,
   RECONCILIATION_TARGET_KINDS,
+  assertBankStatementAccountCurrency,
   assertBankStatementSourceKind,
   assertConfirmedImmutable,
   assertFinancialReconciliationIntegrity,
@@ -21,6 +22,16 @@ const line = {
 };
 
 describe('bank reconciliation domain', () => {
+  it('enforces exact account currency without converting nominal amounts', () => {
+    expect(() => assertBankStatementAccountCurrency('BRL', 'BRL')).not.toThrow();
+    expect(() => assertBankStatementAccountCurrency('brl', 'BRL')).not.toThrow();
+    expect(() => assertBankStatementAccountCurrency('USD', 'BRL')).toThrowError(
+      'BANK_RECON_CURRENCY_MISMATCH',
+    );
+    expect(() => assertBankStatementAccountCurrency('BRL', 'USD')).toThrowError(
+      'BANK_RECON_CURRENCY_MISMATCH',
+    );
+  });
   it('matches only on explicit exact account+amount+direction+date', () => {
     expect(AUTO_EXACT_MATCH_CRITERIA).toBe('ACCOUNT+AMOUNT+DIRECTION+OCCURRED_ON');
     expect(
