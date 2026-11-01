@@ -86,9 +86,10 @@ describe('Diagnostic P2-01 — personal Saved Views', () => {
       name: row.name, filters: row.config.filters, viewType: 'list',
     })).resolves.toMatchObject({ id: ID, name: row.name });
     const insert = client.query.mock.calls.find((call) => String(call[0]).includes('INSERT INTO'));
-    expect(insert?.[1]).toEqual([
-      OWNER, VIEW_KEY, row.name, JSON.stringify(row.config),
-    ]);
+    const insertParams = insert?.[1] as unknown[] | undefined;
+    expect(insertParams?.slice(0, 3)).toEqual([OWNER, VIEW_KEY, row.name]);
+    // jsonb key order is irrelevant; assert the actual stored document shape.
+    expect(JSON.parse(String(insertParams?.[3]))).toEqual(row.config);
     expect(client.query.mock.calls.map((call) => call[0])).toContain('COMMIT');
     expect(client.release).toHaveBeenCalledWith(undefined);
   });
