@@ -88,9 +88,10 @@ describe('Diagnostic P2-01 / #179 — Workspace Saved Views server persistence',
     const other = '33333333-3333-4333-8333-333333333333';
     const fetchMock = vi.fn(async () => response([ROW]));
     vi.stubGlobal('fetch', fetchMock);
+    const initialProps: { owner: string | null } = { owner: OWNER };
     const { result, rerender } = renderHook(
       ({ owner }: { owner: string | null }) => useSavedViews(owner, KEY),
-      { initialProps: { owner: OWNER } as { owner: string | null } },
+      { initialProps },
     );
     await waitFor(() => expect(result.current.views).toEqual([ROW]));
     rerender({ owner: null });
