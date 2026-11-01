@@ -35,6 +35,9 @@ describe('Diagnostic P2-01 / #179 — PostgreSQL personal Saved Views', () => {
     if (!pool) return;
     try {
       await pool.query('DELETE FROM plt.saved_views WHERE owner_id = ANY($1::uuid[])', [[first, second]]);
+      // insertIdentity also creates an identity.credentials row (RESTRICT FK).
+      // Delete the dependent test-only credentials before deleting their owners.
+      await pool.query('DELETE FROM identity.credentials WHERE identity_id = ANY($1::uuid[])', [[first, second]]);
       await pool.query('DELETE FROM identity.identities WHERE id = ANY($1::uuid[])', [[first, second]]);
     } finally {
       await pool.end();
