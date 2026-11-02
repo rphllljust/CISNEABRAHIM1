@@ -6,6 +6,7 @@ import { CommercialModule } from '../commercial/commercial.module';
 import { BusinessChainModule } from '../business-chain/business-chain.module';
 import { IssuerRegistryModule } from '../establishments/issuer-registry.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
+import { InventoryModule } from '../inventory/inventory.module';
 import { OutboxModule } from '../platform/outbox/outbox.module';
 import { SERVICE_REQUEST_CONVERSION_PORT } from '../requests/domain/service-request-conversion.port';
 import { ServiceOrderExecutionController } from './controllers/service-order-execution.controller';
@@ -39,7 +40,7 @@ import { ServiceOrdersReferenceValidationService } from './services/service-orde
 import { ServiceRequestConversionService } from './services/service-request-conversion.service';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, OutboxModule, CommercialModule, BusinessChainModule, IssuerRegistryModule],
+  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, OutboxModule, InventoryModule, CommercialModule, BusinessChainModule, IssuerRegistryModule],
   controllers: [
     ServiceOrdersController,
     ServiceOrderMetadataController,
