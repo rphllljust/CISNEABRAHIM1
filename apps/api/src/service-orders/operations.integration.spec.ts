@@ -740,7 +740,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     expect(replayConsumption.stockMovementId).toBe(posted.stockMovementId);
     expect(replayConsumption.idempotent).toBe(true);
     const afterOut = await inventory.getBalance(actor, warehouse.id, item.id);
-    expect(afterOut.onHand).toBe('8.0000');
+    expect(afterOut.onHand).toBe('8');
     expect((await materialBindings.reconcile(actor, released.id, actualId)))
       .toMatchObject({ stockPostingStatus: 'POSTED', stockMovementId: posted.stockMovementId });
 
