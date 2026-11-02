@@ -1459,7 +1459,7 @@ export class OperationsService {
     } catch (error) {
       // Execution-read permission does not grant financial-cost permission.
       // Preserve the OS overview, but do not disclose amounts on a 403.
-      if (error instanceof ServiceOrdersHttpException && error.getStatus() === HttpStatus.FORBIDDEN) {
+      if (error instanceof ServiceOrdersHttpException && error.getStatus() === Number(HttpStatus.FORBIDDEN)) {
         return this.emptyEconomics();
       }
       // Database/reader errors must surface as errors, never as fabricated zero.
