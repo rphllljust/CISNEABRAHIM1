@@ -43,6 +43,8 @@ import { InventoryAccessService } from '../inventory/services/inventory-access.s
 import { SERVICE_ORDER_ORIGINS } from './domain/service-order';
 import { OperationsService } from './services/operations.service';
 import { MaterialInventoryBindingService } from './services/material-inventory-binding.service';
+import { MaterialInventoryWorkSource } from '../work-inbox/sources/material-inventory.source';
+import { WorkInboxService } from '../work-inbox/services/work-inbox.service';
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
 import { ServiceOrderPlanningAccessService } from './services/service-order-planning-access.service';
 import { ServiceOrdersAccessService } from './services/service-orders-access.service';
@@ -702,6 +704,18 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
       stockMovementId: null, stockPostingStatus: 'NOT_POSTED',
       costingStatus: 'NOT_DECIDED', idempotent: false,
     });
+    const materialInbox = new WorkInboxService([
+      new MaterialInventoryWorkSource(serviceOrdersAccess, materialBindings),
+    ]);
+    const awaitingOut = await materialInbox.list(actor, { domain: 'OPERACOES' });
+    expect(awaitingOut.items).toHaveLength(1);
+    expect(awaitingOut.items[0]).toMatchObject({
+      id: `OPERACOES:OS:MATERIAL:${actualId}:NOT_POSTED`,
+      status: 'NOT_POSTED', kind: 'CONTINUITY',
+      targetRoute: `/app/service-orders/${released.id}`,
+    });
+    expect(awaitingOut.unavailableDomains).toEqual([]);
+
     const replay = await materialBindings.bind(actor, released.id, command);
     expect(replay.id).toBe(bound.id);
     expect(replay.idempotent).toBe(true);
@@ -734,6 +748,14 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
       idempotent: false, costingStatus: 'PENDING_COSTING',
       totalCost: null, accountingStatus: 'NOT_APPLICABLE',
     });
+    const pendingCost = await materialInbox.list(actor, { domain: 'OPERACOES' });
+    expect(pendingCost.items).toHaveLength(1);
+    expect(pendingCost.items[0]).toMatchObject({
+      id: `OPERACOES:OS:MATERIAL:${actualId}:PENDING_COSTING`,
+      status: 'PENDING_COSTING', kind: 'EXCEPTION',
+    });
+    expect(pendingCost.byDomain.OPERACOES).toBe(1);
+
     const replayConsumption = await materialBindings.consume(actor, released.id, {
       actualId, rowVersion, idempotencyKey: `retry-${crypto.randomUUID()}`,
     });
@@ -751,6 +773,10 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
       reason: 'Material returned after real execution correction',
     });
     expect(compensated).toMatchObject({ stockPostingStatus: 'REVERSED', idempotent: false, costingStatus: 'NOT_APPLICABLE' });
+    const reconciledInbox = await materialInbox.list(actor, { domain: 'OPERACOES' });
+    expect(reconciledInbox.items).toEqual([]);
+    expect(reconciledInbox.byDomain.OPERACOES).toBe(0);
+
     const replayReverse = await materialBindings.reverseConsumption(actor, released.id, {
       actualId, rowVersion, idempotencyKey: `reverse-retry-${crypto.randomUUID()}`,
       reason: 'Material returned after real execution correction',
