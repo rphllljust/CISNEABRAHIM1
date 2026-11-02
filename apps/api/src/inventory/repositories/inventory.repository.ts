@@ -32,6 +32,7 @@ const MOVEMENT_RETURNING = `
   status::text AS status, quantity::text AS quantity, signed_quantity::text AS signed_quantity,
   counterpart_warehouse_id, transfer_group_id, transfer_leg::text AS transfer_leg,
   adjustment_effect::text AS adjustment_effect, reservation_id, reversal_of_movement_id,
+  source_kind, source_id,
   command_idempotency_key, idempotency_key, occurred_on::text AS occurred_on, description,
   unit_cost::text AS unit_cost, total_cost::text AS total_cost,
   costing_rule_version_id, origin_kind::text AS origin_kind
@@ -56,6 +57,7 @@ const MOVEMENT_RETURNING_ALIASED = `
   m.status::text AS status, m.quantity::text AS quantity, m.signed_quantity::text AS signed_quantity,
   m.counterpart_warehouse_id, m.transfer_group_id, m.transfer_leg::text AS transfer_leg,
   m.adjustment_effect::text AS adjustment_effect, m.reservation_id, m.reversal_of_movement_id,
+  m.source_kind, m.source_id,
   m.command_idempotency_key, m.idempotency_key, m.occurred_on::text AS occurred_on, m.description,
   m.unit_cost::text AS unit_cost, m.total_cost::text AS total_cost,
   m.costing_rule_version_id, m.origin_kind::text AS origin_kind
