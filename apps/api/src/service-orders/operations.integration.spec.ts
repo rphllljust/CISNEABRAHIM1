@@ -13,6 +13,7 @@ import {
   truncateCommercialPurchaseOrderTables,
   truncateDocumentTables,
   truncateIdentityAndAuthorizationTables,
+  truncateInventoryTables,
   truncatePhysicalAssetTables,
   truncateServiceOrderTables,
   truncateServiceRequestTables,
@@ -35,6 +36,10 @@ import { CONTACT_PURPOSES } from '../clients/domain/client-status';
 import { ClientAccessService } from '../clients/services/client-access.service';
 import { ResourcesModule } from '../resources/resources.module';
 import { PLANNED_RESOURCE_KINDS } from './domain/resource-planning';
+import { ACTUAL_KINDS } from './domain/execution-actuals';
+import { STOCK_MOVEMENT_TYPES } from '../inventory/domain/inventory';
+import { InventoryModule } from '../inventory/inventory.module';
+import { InventoryAccessService } from '../inventory/services/inventory-access.service';
 import { SERVICE_ORDER_ORIGINS } from './domain/service-order';
 import { OperationsService } from './services/operations.service';
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
@@ -130,6 +135,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
   let planningAccess: ServiceOrderPlanningAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
   let operations: OperationsService;
+  let inventory: InventoryAccessService;
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
@@ -151,6 +157,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
         CatalogModule,
         ResourcesModule,
         ServiceOrdersModule,
+        InventoryModule,
       ],
     }).compile();
 
@@ -158,6 +165,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     planningAccess = module.get(ServiceOrderPlanningAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
     operations = module.get(OperationsService);
+    inventory = module.get(InventoryAccessService);
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
@@ -166,6 +174,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
   beforeEach(async () => {
     await truncateServiceRequestTables(pool);
     await truncateServiceOrderTables(pool);
+    await truncateInventoryTables(pool);
     await truncatePhysicalAssetTables(pool);
     await truncateCommercialPurchaseOrderTables(pool);
     await truncateCommercialProposalTables(pool);
@@ -503,6 +512,99 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
   // ═══════════════════════════════════════════════════════════════════════════
   // ACTUALS
   // ═══════════════════════════════════════════════════════════════════════════
+
+  it('MATERIAL_QUANTITY sem SKU/warehouse vinculados não debita Inventory', async () => {
+    const { actor } = await seedActor();
+    const { released, assetId } = await seedReleasedOrder(actor);
+    // O ator recebe permissões explícitas de estoque: ausência de OUT não pode
+    // ser explicada por falta de autorização nem por inexistência de saldo.
+    for (const action of [
+      AUTHZ_ACTIONS.InventoryWarehouseManage,
+      AUTHZ_ACTIONS.InventoryItemManage,
+      AUTHZ_ACTIONS.InventoryMove,
+      AUTHZ_ACTIONS.InventoryMovementList,
+      AUTHZ_ACTIONS.InventoryRead,
+    ]) {
+      await insertGrant(pool, {
+        identityId: actor.identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: actor.identityId,
+      });
+    }
+    const warehouse = await inventory.createWarehouse(actor, {
+      unitId: UNIT_A,
+      code: 'WH-MATERIAL-OS',
+      name: 'Depósito para prova de material',
+    });
+    const item = await inventory.createItem(actor, {
+      unitId: UNIT_A,
+      sku: 'SKU-MATERIAL-OS',
+      name: 'Material identificado somente no Inventory',
+    });
+    await inventory.postStock(actor, {
+      unitId: UNIT_A,
+      warehouseId: warehouse.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.In,
+      quantity: '10.0000',
+      occurredOn: '2026-11-02',
+      description: 'Saldo isolado para regressão PostgreSQL',
+      idempotencyKey: `receipt-${crypto.randomUUID()}`,
+    });
+    const balanceBefore = await inventory.getBalance(actor, warehouse.id, item.id);
+    const movementsBefore = await inventory.listMovements(actor, {
+      limit: 20,
+      offset: 0,
+      warehouseId: warehouse.id,
+    });
+    expect(balanceBefore).toMatchObject({ onHand: '10', reserved: '0', available: '10' });
+    expect(movementsBefore.total).toBe(1);
+
+    await operations.dispatch(actor, released.id, {
+      rowVersion: released.rowVersion,
+      idempotencyKey: `dispatch-${crypto.randomUUID()}`,
+    });
+    await startOrder(actor, released.id);
+    const current = await serviceOrdersAccess.getById(actor, released.id);
+    // physicalAssetId identifica o recurso operacional, NÃO o SKU. O comando
+    // atual não possui inventoryItemId nem warehouseId: não inferir o vínculo.
+    await operations.registerActual(actor, released.id, {
+      actualKind: ACTUAL_KINDS.MaterialQuantity,
+      physicalAssetId: assetId!,
+      actualValue: '2',
+      unitOfMeasure: 'UNIT',
+      rowVersion: current.rowVersion,
+      idempotencyKey: `actual-${crypto.randomUUID()}`,
+    });
+
+    const facts = await pool.query<{
+      id: string;
+      actual_kind: string;
+      actual_value: string;
+    }>(
+      `SELECT id, actual_kind::text AS actual_kind, actual_value::text AS actual_value
+       FROM so.execution_actuals WHERE service_order_id = $1`,
+      [released.id],
+    );
+    expect(facts.rows).toHaveLength(1);
+    expect(facts.rows[0]).toMatchObject({
+      actual_kind: ACTUAL_KINDS.MaterialQuantity,
+      actual_value: '2.000000',
+    });
+    const balanceAfter = await inventory.getBalance(actor, warehouse.id, item.id);
+    const movementsAfter = await inventory.listMovements(actor, {
+      limit: 20,
+      offset: 0,
+      warehouseId: warehouse.id,
+    });
+    expect(balanceAfter).toEqual(balanceBefore);
+    expect(movementsAfter.total).toBe(1);
+    expect(movementsAfter.items.map((row) => row.id)).toEqual(
+      movementsBefore.items.map((row) => row.id),
+    );
+  });
 
   it('registra realizado SEM sobrescrever o planejado', async () => {
     const { actor } = await seedActor();
