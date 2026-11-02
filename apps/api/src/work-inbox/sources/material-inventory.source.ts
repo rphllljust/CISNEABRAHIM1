@@ -29,6 +29,7 @@ export class MaterialInventoryWorkSource implements WorkItemSource {
         SERVICE_ORDER_STATUSES.InExecution,
         SERVICE_ORDER_STATUSES.Paused,
         SERVICE_ORDER_STATUSES.Completed,
+        SERVICE_ORDER_STATUSES.Cancelled,
       ]) {
         for (let offset = 0; ; offset += MAX_LIST_LIMIT) {
           const page = await this.orders.listReadableForWorkInbox(actor, {
