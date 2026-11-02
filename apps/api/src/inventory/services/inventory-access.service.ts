@@ -400,6 +400,8 @@ export class InventoryAccessService implements InventoryStockPort {
   async postBoundMaterialActual(input: BoundMaterialActualStockInput): Promise<BoundMaterialStockResult> {
     this.assertBoundActualInput(input);
     const key = materialCommandKey(input.actualId);
+    const alreadyReversed = await this.repository.findMovementsByCommand(input.unitId, materialReversalKey(input.actualId));
+    if (alreadyReversed.length > 0) throw new InventoryError('INVENTORY_INVALID_MOVEMENT_TYPE');
     const prior = await this.repository.findMovementsByCommand(input.unitId, key);
     if (prior.length > 0) {
       if (prior.length !== 1) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
@@ -427,6 +429,9 @@ export class InventoryAccessService implements InventoryStockPort {
     const persisted = await this.repository.findMovementsByCommand(input.unitId, key);
     if (persisted.length !== 1) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
     this.assertBoundMovement(persisted[0]!, input);
+    if (persisted[0]!.reservation_id !== (input.reservationId ?? null)) {
+      throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    }
     return boundMaterialResult(persisted[0]!, result.idempotent);
   }
 
@@ -452,6 +457,12 @@ export class InventoryAccessService implements InventoryStockPort {
       reversed[0]!.movement_type !== STOCK_MOVEMENT_TYPES.In) {
       throw new InventoryError('INVENTORY_VALIDATION_FAILED');
     }
+    await this.audit(
+      { identityId: input.actorIdentityId, sessionId: input.actorSessionId },
+      SECURITY_AUDIT_ACTIONS.InventoryMove,
+      original[0]!.inventory_item_id,
+      { command: 'REVERSE_OS_MATERIAL', actualId: input.actualId, originalMovementId: original[0]!.id, reason: input.reason.trim() },
+    );
     return boundMaterialResult(reversed[0]!, result.idempotent);
   }
 
