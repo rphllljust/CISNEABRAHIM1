@@ -799,6 +799,13 @@
       "when": 179091400000000000,
       "tag": "0113_material_inventory_binding_contract",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 179091450000000000,
+      "tag": "0114_material_stock_exactly_once",
+      "breakpoints": true
     }
   ]
 }

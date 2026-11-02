@@ -1180,6 +1180,19 @@ $$;`);
       await applySqlFile(pool, '0113_material_inventory_binding_contract.sql');
     }
 
+    // 0114: PostgreSQL must protect one OUT per actual and one reversal per
+    // movement before the journal is reconciled. Never mark unproven indexes.
+    const movementIndexes = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM pg_indexes
+       WHERE schemaname = 'inv' AND indexname IN (
+         'stock_movement_os_actual_out_once_uidx',
+         'stock_movement_reversal_once_uidx'
+       )`,
+    );
+    if (movementIndexes.rows[0]?.count !== '2') {
+      await applySqlFile(pool, '0114_material_stock_exactly_once.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

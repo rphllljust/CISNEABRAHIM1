@@ -1575,6 +1575,23 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0114_material_stock_exactly_once.sql') {
+      const baseline = await client.query(
+        `SELECT to_regclass('inv.stock_movements') IS NOT NULL AS has_movements,
+                to_regclass('so.material_inventory_bindings') IS NOT NULL AS has_binding,
+                EXISTS (
+                  SELECT 1 FROM pg_indexes
+                  WHERE schemaname = 'inv' AND
+                    indexname IN ('stock_movement_os_actual_out_once_uidx', 'stock_movement_reversal_once_uidx')
+                ) AS already_guarded`,
+      );
+      const state = baseline.rows[0];
+      if (!state?.has_movements || !state.has_binding || state.already_guarded) {
+        throw new Error('0114 N-1 must have OS binding and Inventory movements but no source/reversal uniqueness guards');
+      }
+      return;
+    }
+
     if (deltaFile === '0113_material_inventory_binding_contract.sql') {
       const baseline = await client.query(
         `SELECT

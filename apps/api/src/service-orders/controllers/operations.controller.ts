@@ -196,6 +196,63 @@ export class OperationsCommandController {
     );
   }
 
+  /** #193 / 2D: OUT is a second, explicitly authorized command after binding. */
+  @Post('post-material-inventory')
+  @HttpCode(200)
+  postMaterialInventory(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('serviceOrderId') serviceOrderId: string,
+    @Req() request: FastifyRequest,
+  ) {
+    const command = parseCommandBody(request.body);
+    const raw = request.body as Record<string, unknown>;
+    return this.materialBindings.consume(
+      { identityId: auth.sub, sessionId: auth.sid },
+      serviceOrderId,
+      {
+        actualId: readRequiredString(raw['actualId'], 'actualId'),
+        reservationId: typeof raw['reservationId'] === 'string' ? raw['reservationId'] : null,
+        rowVersion: command.rowVersion,
+        idempotencyKey: command.idempotencyKey,
+      },
+    );
+  }
+
+  /** #193 / 2E: reversal is a compensating Inventory movement, never DELETE. */
+  @Post('reverse-material-inventory')
+  @HttpCode(200)
+  reverseMaterialInventory(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('serviceOrderId') serviceOrderId: string,
+    @Req() request: FastifyRequest,
+  ) {
+    const command = parseCommandBody(request.body);
+    const raw = request.body as Record<string, unknown>;
+    return this.materialBindings.reverseConsumption(
+      { identityId: auth.sub, sessionId: auth.sid },
+      serviceOrderId,
+      {
+        actualId: readRequiredString(raw['actualId'], 'actualId'),
+        rowVersion: command.rowVersion,
+        idempotencyKey: command.idempotencyKey,
+        reason: readRequiredString(raw['reason'], 'reason'),
+      },
+    );
+  }
+
+  @Get('material-inventory/:actualId/reconciliation')
+  materialInventoryReconciliation(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('serviceOrderId') serviceOrderId: string,
+    @Param('actualId') actualId: string,
+  ) {
+    return this.materialBindings.reconcile(
+      { identityId: auth.sub, sessionId: auth.sid },
+      serviceOrderId,
+      actualId,
+    );
+  }
+
   @Post('register-actual')
   @HttpCode(201)
   registerActual(

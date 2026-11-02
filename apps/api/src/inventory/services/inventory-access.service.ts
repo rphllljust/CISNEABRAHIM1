@@ -10,7 +10,11 @@ import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
-import type { InventoryStockPort } from '../../platform/bounded-contexts/enterprise-core-ports';
+import type {
+  InventoryStockPort,
+  BoundMaterialActualStockInput,
+  BoundMaterialStockResult,
+} from '../../platform/bounded-contexts/enterprise-core-ports';
 import { assertUuid } from '../../platform/kernel/uuid';
 import {
   applyExplicitCosting,
@@ -387,6 +391,130 @@ export class InventoryAccessService implements InventoryStockPort {
     }
   }
 
+  /**
+   * #193 / 2D-2F: domain-specific inventory port, not the generic port with IN/1 defaults.
+   * One deterministic movement command per immutable actual; replays must match
+   * the complete persisted origin, SKU, warehouse, unit and quantity.
+   * InventoryRepository owns the stock position lock and economic outbox atomically.
+   */
+  async postBoundMaterialActual(input: BoundMaterialActualStockInput): Promise<BoundMaterialStockResult> {
+    this.assertBoundActualInput(input);
+    const key = materialCommandKey(input.actualId);
+    const alreadyReversed = await this.repository.findMovementsByCommand(input.unitId, materialReversalKey(input.actualId));
+    if (alreadyReversed.length > 0) throw new InventoryError('INVENTORY_INVALID_MOVEMENT_TYPE');
+    const prior = await this.repository.findMovementsByCommand(input.unitId, key);
+    if (prior.length > 0) {
+      if (prior.length !== 1) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+      this.assertBoundMovement(prior[0]!, input);
+    }
+    const result = await this.postStock(
+      { identityId: input.actorIdentityId, sessionId: input.actorSessionId },
+      {
+        unitId: input.unitId,
+        warehouseId: input.warehouseId,
+        inventoryItemId: input.inventoryItemId,
+        movementType: STOCK_MOVEMENT_TYPES.Out,
+        quantity: input.quantity,
+        occurredOn: input.occurredOn,
+        description: `Material consumption from execution actual ${input.actualId}`,
+        idempotencyKey: key,
+        sourceKind: 'SERVICE_ORDER_EXECUTION_ACTUAL',
+        sourceId: input.actualId,
+        reservationId: input.reservationId ?? null,
+        // No invented unit cost: Inventory keeps costing undecided without
+        // an authoritative published business rule and cost evidence.
+      },
+    );
+    if (result.movements.length !== 1) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    const persisted = await this.repository.findMovementsByCommand(input.unitId, key);
+    if (persisted.length !== 1) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    this.assertBoundMovement(persisted[0]!, input);
+    if (persisted[0]!.reservation_id !== (input.reservationId ?? null)) {
+      throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    }
+    return boundMaterialResult(persisted[0]!, result.idempotent);
+  }
+
+  async reverseBoundMaterialActual(
+    input: BoundMaterialActualStockInput & { reason: string },
+  ): Promise<BoundMaterialStockResult> {
+    this.assertBoundActualInput(input);
+    if (typeof input.reason !== 'string' || input.reason.trim().length < 8) {
+      throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    }
+    const original = await this.repository.findMovementsByCommand(input.unitId, materialCommandKey(input.actualId));
+    if (original.length !== 1) throw new InventoryError('INVENTORY_NOT_FOUND');
+    this.assertBoundMovement(original[0]!, input);
+    const result = await this.reverse(
+      { identityId: input.actorIdentityId, sessionId: input.actorSessionId },
+      materialCommandKey(input.actualId),
+      input.unitId,
+      materialReversalKey(input.actualId),
+      input.reason.trim(),
+    );
+    const reversed = await this.repository.findMovementsByCommand(input.unitId, materialReversalKey(input.actualId));
+    if (result.movements.length !== 1 || reversed.length !== 1 ||
+      reversed[0]!.reversal_of_movement_id !== original[0]!.id ||
+      reversed[0]!.description !== `Reversal of ${original[0]!.id}: ${input.reason.trim()}` ||
+      reversed[0]!.movement_type !== STOCK_MOVEMENT_TYPES.In) {
+      throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    }
+    await this.audit(
+      { identityId: input.actorIdentityId, sessionId: input.actorSessionId },
+      SECURITY_AUDIT_ACTIONS.InventoryMove,
+      original[0]!.inventory_item_id,
+      { command: 'REVERSE_OS_MATERIAL', actualId: input.actualId, originalMovementId: original[0]!.id, reason: input.reason.trim() },
+    );
+    return boundMaterialResult(reversed[0]!, result.idempotent);
+  }
+
+  async readBoundMaterialActual(
+    input: Omit<BoundMaterialActualStockInput, 'actorIdentityId' | 'actorSessionId' | 'occurredOn' | 'reservationId'>,
+  ): Promise<{ posted: BoundMaterialStockResult | null; reversed: BoundMaterialStockResult | null }> {
+    assertUuid(input.actualId, 'actualId');
+    const orig = await this.repository.findMovementsByCommand(input.unitId, materialCommandKey(input.actualId));
+    if (orig.length > 1) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    if (orig[0]) this.assertBoundMovement(orig[0], input);
+    const undo = await this.repository.findMovementsByCommand(input.unitId, materialReversalKey(input.actualId));
+    if (undo.length > 1 || (undo[0] && (!orig[0] ||
+      undo[0].reversal_of_movement_id !== orig[0].id ||
+      undo[0].movement_type !== STOCK_MOVEMENT_TYPES.In))) {
+      throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    }
+    return {
+      posted: orig[0] ? boundMaterialResult(orig[0], true) : null,
+      reversed: undo[0] ? boundMaterialResult(undo[0], true) : null,
+    };
+  }
+
+  private assertBoundActualInput(input: BoundMaterialActualStockInput): void {
+    assertUuid(input.actualId, 'actualId');
+    assertUuid(input.actorIdentityId, 'actorIdentityId');
+    assertUuid(input.inventoryItemId, 'inventoryItemId');
+    assertUuid(input.warehouseId, 'warehouseId');
+    if (!input.actorSessionId || !input.unitId ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.occurredOn) ||
+        normalizeQuantity(input.quantity) !== input.quantity) {
+      throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    }
+  }
+
+  private assertBoundMovement(
+    row: StockMovementRow,
+    input: Pick<BoundMaterialActualStockInput,
+      'actualId' | 'inventoryItemId' | 'warehouseId' | 'unitId' | 'quantity'>,
+  ): void {
+    if (row.source_kind !== 'SERVICE_ORDER_EXECUTION_ACTUAL' ||
+      row.source_id !== input.actualId ||
+      row.unit_id !== input.unitId ||
+      row.warehouse_id !== input.warehouseId ||
+      row.inventory_item_id !== input.inventoryItemId ||
+      row.movement_type !== STOCK_MOVEMENT_TYPES.Out ||
+      normalizeQuantity(row.quantity) !== normalizeQuantity(input.quantity)) {
+      throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    }
+  }
+
   async postMovementFromPort(input: {
     inventoryItemId: string;
     warehouseId: string;
@@ -496,6 +624,7 @@ export class InventoryAccessService implements InventoryStockPort {
     commandIdempotencyKey: string,
     unitId: string,
     reversalKey: string,
+    reason?: string,
   ): Promise<PostMovementResponse> {
     try {
       await this.authz.assertInventoryAction(actor, AUTHZ_ACTIONS.InventoryMove, {
@@ -554,7 +683,7 @@ export class InventoryAccessService implements InventoryStockPort {
                 commandIdempotencyKey: reversalKey,
                 idempotencyKey: `${reversalKey}:${original.id}`,
                 occurredOn: original.occurred_on.slice(0, 10),
-                description: `Reversal of ${original.id}`,
+                description: reason ? `Reversal of ${original.id}: ${reason}` : `Reversal of ${original.id}`,
                 actorIdentityId: actor.identityId,
                 unitCost: original.unit_cost,
                 totalCost: original.total_cost,
@@ -1082,3 +1211,22 @@ function oppositeMovement(original: {
   };
 }
 
+
+function materialCommandKey(actualId: string): string {
+  return `os-material-out:${actualId}`;
+}
+
+function materialReversalKey(actualId: string): string {
+  return `os-material-reversal:${actualId}`;
+}
+
+function boundMaterialResult(row: StockMovementRow, idempotent: boolean): BoundMaterialStockResult {
+  return {
+    movementId: row.id,
+    idempotent,
+    quantity: row.quantity,
+    unitCost: row.unit_cost,
+    totalCost: row.total_cost,
+    costingRuleVersionId: row.costing_rule_version_id,
+  };
+}

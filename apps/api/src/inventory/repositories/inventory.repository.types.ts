@@ -31,6 +31,8 @@ export type StockMovementRow = {
   adjustment_effect: string | null;
   reservation_id: string | null;
   reversal_of_movement_id: string | null;
+  source_kind: string | null;
+  source_id: string | null;
   command_idempotency_key: string;
   idempotency_key: string;
   occurred_on: string;

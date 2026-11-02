@@ -283,7 +283,36 @@ export type AccountingLedgerPort = {
   }>;
 };
 
+export type BoundMaterialActualStockInput = {
+  // Only an already-persisted, PDP-authorized so.material_inventory_bindings
+  // snapshot may supply these fields. No defaults or inferred SKUs.
+  actualId: string;
+  inventoryItemId: string;
+  warehouseId: string;
+  unitId: string;
+  quantity: string;
+  occurredOn: string;
+  actorIdentityId: string;
+  actorSessionId: string;
+  reservationId?: string | null;
+};
+
+export type BoundMaterialStockResult = {
+  movementId: string;
+  idempotent: boolean;
+  quantity: string;
+  unitCost: string | null;
+  totalCost: string | null;
+  costingRuleVersionId: string | null;
+};
+
 export type InventoryStockPort = {
+  /** Exact MATERIAL_QUANTITY source; Inventory is the sole owner of inv.* writes. */
+  postBoundMaterialActual(input: BoundMaterialActualStockInput): Promise<BoundMaterialStockResult>;
+  /** Compensating movement, never delete or overwrite the original. */
+  reverseBoundMaterialActual(input: BoundMaterialActualStockInput & { reason: string }): Promise<BoundMaterialStockResult>;
+  /** Inventory-owned reconciliation view; consumers never query inv tables. */
+  readBoundMaterialActual(input: Omit<BoundMaterialActualStockInput, 'actorIdentityId' | 'actorSessionId' | 'occurredOn' | 'reservationId'>): Promise<{ posted: BoundMaterialStockResult | null; reversed: BoundMaterialStockResult | null }>;
   postMovement(input: {
     inventoryItemId: string;
     warehouseId: string;
