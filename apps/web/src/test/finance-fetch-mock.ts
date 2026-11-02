@@ -23,6 +23,7 @@ export type FinanceFetchMockOptions = {
   payablePaid?: boolean;
   treasuryListAllowed?: boolean;
   reconciliationAllowed?: boolean;
+  bankStatementCurrencyCode?: string;
   fiscalAllowed?: boolean;
   taxAllowed?: boolean;
   accountingAllowed?: boolean;
@@ -624,7 +625,7 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
             sourceReference: 'STMT-1',
             periodStartsOn: '2026-08-01',
             periodEndsOn: '2026-08-31',
-            currencyCode: 'BRL',
+            currencyCode: options.bankStatementCurrencyCode ?? 'BRL',
             status: 'OPEN',
             lineCount: 60,
             matchedLineCount: 0,
@@ -655,6 +656,7 @@ export function createFinanceFetchMock(options: FinanceFetchMockOptions = {}) {
           sourceReference: 'STMT-1',
           periodStartsOn: '2026-08-01',
           periodEndsOn: '2026-08-31',
+          currencyCode: options.bankStatementCurrencyCode ?? 'BRL',
           status: 'IMPORTED',
           idempotent: false,
           lines: Array.from({ length: 60 }, (_, index) => ({
