@@ -127,6 +127,8 @@ export async function truncateServiceOrderTables(client: DbClient): Promise<void
   await client.query('DELETE FROM so.execution_closures');
   await client.query('DELETE FROM so.execution_situations');
   await client.query('DELETE FROM so.execution_events');
+  // 0113: binding referencia actual, OS e Inventory com FKs RESTRICT.
+  await client.query('DELETE FROM so.material_inventory_bindings');
   await client.query('DELETE FROM so.execution_actuals');
   await client.query('DELETE FROM so.execution_meter_readings');
   await client.query('DELETE FROM so.execution_fuel_records');
