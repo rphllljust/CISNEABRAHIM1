@@ -311,6 +311,13 @@ export type InventoryStockPort = {
   postBoundMaterialActual(input: BoundMaterialActualStockInput): Promise<BoundMaterialStockResult>;
   /** Compensating movement, never delete or overwrite the original. */
   reverseBoundMaterialActual(input: BoundMaterialActualStockInput & { reason: string }): Promise<BoundMaterialStockResult>;
+  /** One Inventory-owned read for a bounded page; no per-actual database queries. */
+  readBoundMaterialActuals(inputs: Array<Omit<BoundMaterialActualStockInput,
+    'actorIdentityId' | 'actorSessionId' | 'occurredOn' | 'reservationId'>>): Promise<Array<{
+    actualId: string;
+    posted: BoundMaterialStockResult | null;
+    reversed: BoundMaterialStockResult | null;
+  }>>;
   /** Inventory-owned reconciliation view; consumers never query inv tables. */
   readBoundMaterialActual(input: Omit<BoundMaterialActualStockInput, 'actorIdentityId' | 'actorSessionId' | 'occurredOn' | 'reservationId'>): Promise<{ posted: BoundMaterialStockResult | null; reversed: BoundMaterialStockResult | null }>;
   postMovement(input: {

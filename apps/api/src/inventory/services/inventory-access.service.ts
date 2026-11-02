@@ -471,20 +471,58 @@ export class InventoryAccessService implements InventoryStockPort {
   async readBoundMaterialActual(
     input: Omit<BoundMaterialActualStockInput, 'actorIdentityId' | 'actorSessionId' | 'occurredOn' | 'reservationId'>,
   ): Promise<{ posted: BoundMaterialStockResult | null; reversed: BoundMaterialStockResult | null }> {
-    assertUuid(input.actualId, 'actualId');
-    const orig = await this.repository.findMovementsByCommand(input.unitId, materialCommandKey(input.actualId));
-    if (orig.length > 1) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
-    if (orig[0]) this.assertBoundMovement(orig[0], input);
-    const undo = await this.repository.findMovementsByCommand(input.unitId, materialReversalKey(input.actualId));
-    if (undo.length > 1 || (undo[0] && (!orig[0] ||
-      undo[0].reversal_of_movement_id !== orig[0].id ||
-      undo[0].movement_type !== STOCK_MOVEMENT_TYPES.In))) {
-      throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    const [result] = await this.readBoundMaterialActuals([input]);
+    if (!result) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    return { posted: result.posted, reversed: result.reversed };
+  }
+
+  /**
+   * A bounded, owner-authoritative reconciliation read for Work Inbox. Both
+   * command keys are read in ONE Inventory query; the consumer never joins inv.*.
+   * Every returned movement is checked against the immutable SO binding.
+   */
+  async readBoundMaterialActuals(
+    inputs: Array<Omit<BoundMaterialActualStockInput,
+      'actorIdentityId' | 'actorSessionId' | 'occurredOn' | 'reservationId'>>,
+  ): Promise<Array<{ actualId: string; posted: BoundMaterialStockResult | null; reversed: BoundMaterialStockResult | null }>> {
+    if (inputs.length > 500) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+    const seen = new Set<string>();
+    for (const input of inputs) {
+      assertUuid(input.actualId, 'actualId');
+      assertUuid(input.inventoryItemId, 'inventoryItemId');
+      assertUuid(input.warehouseId, 'warehouseId');
+      if (!input.unitId || normalizeQuantity(input.quantity) !== input.quantity ||
+          seen.has(input.actualId)) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+      seen.add(input.actualId);
     }
-    return {
-      posted: orig[0] ? boundMaterialResult(orig[0], true) : null,
-      reversed: undo[0] ? boundMaterialResult(undo[0], true) : null,
-    };
+    if (inputs.length === 0) return [];
+    const rows = await this.repository.findMaterialMovementsByCommands(
+      [...new Set(inputs.map((input) => input.unitId))],
+      inputs.flatMap((input) => [materialCommandKey(input.actualId), materialReversalKey(input.actualId)]),
+    );
+    const byCommand = new Map<string, StockMovementRow[]>();
+    for (const row of rows) {
+      const key = `${row.unit_id}:${row.command_idempotency_key}`;
+      const group = byCommand.get(key) ?? [];
+      group.push(row);
+      byCommand.set(key, group);
+    }
+    return inputs.map((input) => {
+      const orig = byCommand.get(`${input.unitId}:${materialCommandKey(input.actualId)}`) ?? [];
+      const undo = byCommand.get(`${input.unitId}:${materialReversalKey(input.actualId)}`) ?? [];
+      if (orig.length > 1 || undo.length > 1) throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+      if (orig[0]) this.assertBoundMovement(orig[0], input);
+      if (undo[0] && (!orig[0] ||
+          undo[0].reversal_of_movement_id !== orig[0].id ||
+          undo[0].movement_type !== STOCK_MOVEMENT_TYPES.In)) {
+        throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+      }
+      return {
+        actualId: input.actualId,
+        posted: orig[0] ? boundMaterialResult(orig[0], true) : null,
+        reversed: undo[0] ? boundMaterialResult(undo[0], true) : null,
+      };
+    });
   }
 
   private assertBoundActualInput(input: BoundMaterialActualStockInput): void {
