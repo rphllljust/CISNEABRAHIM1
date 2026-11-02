@@ -40,6 +40,7 @@ import { SERVICE_ORDER_ORIGINS } from './domain/service-order';
 import { SERVICE_ORDERS_ERROR_CODES } from './errors/service-orders-error-codes';
 import { ServiceOrdersModule } from './service-orders.module';
 import { OperationalCostAccessService } from './services/operational-cost-access.service';
+import { OperationsService } from './services/operations.service';
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
 import { ServiceOrderPlanningAccessService } from './services/service-order-planning-access.service';
 import { ServiceOrdersAccessService } from './services/service-orders-access.service';
@@ -113,6 +114,7 @@ describe('Operational costs PostgreSQL integration', () => {
   let planningAccess: ServiceOrderPlanningAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
   let operationalCostAccess: OperationalCostAccessService;
+  let operations: OperationsService;
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
@@ -142,6 +144,7 @@ describe('Operational costs PostgreSQL integration', () => {
     planningAccess = module.get(ServiceOrderPlanningAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
     operationalCostAccess = module.get(OperationalCostAccessService);
+    operations = module.get(OperationsService);
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
@@ -228,6 +231,68 @@ describe('Operational costs PostgreSQL integration', () => {
 
     return { released };
   }
+
+  it('publishes no invented BRL cost for physical execution without a cost entry', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    const initial = await operations.getServiceOrderOverview(actor, released.id);
+    expect(initial.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+
+    const started = await executionAccess.start(actor, released.id, { rowVersion: released.rowVersion });
+    await executionAccess.recordQuantity(actor, started.id, {
+      rowVersion: started.rowVersion,
+      quantityValue: '42.000000',
+      unitCode: 'SERVICE',
+    });
+    const afterQuantity = await operations.getServiceOrderOverview(actor, started.id);
+    expect(afterQuantity.economics.plannedCost).toBeNull();
+    expect(afterQuantity.economics.currencyCode).toBeNull();
+  });
+
+  it('projects precise monetary estimates from the authorized ledger, not actual cost', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    await operationalCostAccess.recordCost(actor, released.id, {
+      origin: OPERATIONAL_COST_ORIGINS.ServiceOrder,
+      category: OPERATIONAL_COST_CATEGORIES.ThirdParty,
+      costKind: OPERATIONAL_COST_KINDS.Estimated,
+      amount: '500.0001',
+      currencyCode: 'USD',
+      rowVersion: released.rowVersion,
+    });
+    const overview = await operations.getServiceOrderOverview(actor, released.id);
+    expect(overview.economics).toEqual({
+      plannedRevenue: null,
+      plannedCost: '500.0001',
+      currencyCode: 'USD',
+    });
+  });
+
+  it('does not leak cost amounts to an OS reader without operational-cost permission', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    await operationalCostAccess.recordCost(actor, released.id, {
+      origin: OPERATIONAL_COST_ORIGINS.ServiceOrder,
+      category: OPERATIONAL_COST_CATEGORIES.ThirdParty,
+      costKind: OPERATIONAL_COST_KINDS.Estimated,
+      amount: '150.0000',
+      currencyCode: 'BRL',
+      rowVersion: released.rowVersion,
+    });
+    const login = normalizeLoginIdentifier(`cost-reader-${crypto.randomUUID()}@cisne.invalid`);
+    const { identityId } = await insertIdentity(pool, login, await hashPassword(AUTH_TEST_PASSWORD));
+    await insertGrant(pool, {
+      identityId,
+      action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: actor.identityId,
+    });
+    const reader = { identityId, sessionId: 'sid-cost-reader' };
+    await expect(operationalCostAccess.listByServiceOrder(reader, released.id)).rejects.toBeDefined();
+    const overview = await operations.getServiceOrderOverview(reader, released.id);
+    expect(overview.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+  });
 
   it('records estimated cost at service order level with traceable origin', async () => {
     const { actor } = await seedActor();
