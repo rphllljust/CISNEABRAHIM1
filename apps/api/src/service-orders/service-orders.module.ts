@@ -3,6 +3,7 @@ import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { CommercialModule } from '../commercial/commercial.module';
+import { BusinessChainModule } from '../business-chain/business-chain.module';
 import { IssuerRegistryModule } from '../establishments/issuer-registry.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
 import { OutboxModule } from '../platform/outbox/outbox.module';
@@ -36,7 +37,7 @@ import { ServiceOrdersReferenceValidationService } from './services/service-orde
 import { ServiceRequestConversionService } from './services/service-request-conversion.service';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, OutboxModule, CommercialModule, IssuerRegistryModule],
+  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, OutboxModule, CommercialModule, BusinessChainModule, IssuerRegistryModule],
   controllers: [
     ServiceOrdersController,
     ServiceOrderMetadataController,

@@ -78,6 +78,8 @@ import type { ServiceOrderRow } from '../repositories/service-orders.repository.
 import { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
 import { ServiceOrdersAccessService } from './service-orders-access.service';
 import { OperationalCostAccessService } from './operational-cost-access.service';
+import { BusinessChainService } from '../../business-chain/services/business-chain.service';
+import { projectAuthorizedEconomicStatuses } from '../domain/authorized-economic-statuses';
 import { SERVICE_ORDERS_ERROR_CODES } from '../errors/service-orders-error-codes';
 import { ServiceOrdersHttpException } from '../errors/service-orders-http.exception';
 import {
@@ -354,6 +356,7 @@ export class OperationsService {
     private readonly serviceOrdersRepository: ServiceOrdersRepository,
     private readonly serviceOrdersAccess: ServiceOrdersAccessService,
     private readonly operationalCostAccess: OperationalCostAccessService,
+    private readonly businessChain: BusinessChainService,
     private readonly authz: ServiceOrdersAccessAuthz,
     private readonly metadata: ServiceOrderMetadataService,
     private readonly securityAudit: SecurityAuditService,
@@ -490,9 +493,17 @@ export class OperationsService {
     // reader. Command responses intentionally do not perform an extra finance
     // read after their transaction has committed.
     const overview = await this.buildOverview(actor, order, facts, at);
+    // Billing and accounting are not OS lifecycle states. The existing business-chain
+    // owner contract filters each node through its own PDP before exposing facts.
+    // Unknown includes both absent evidence and evidence outside this actor's grants.
+    const [economics, chain] = await Promise.all([
+      this.readAuthorizedEconomics(actor, serviceOrderId),
+      this.businessChain.getChain(actor, 'SERVICE_ORDER', serviceOrderId),
+    ]);
     return {
       ...overview,
-      economics: await this.readAuthorizedEconomics(actor, serviceOrderId),
+      statuses: { ...overview.statuses, ...projectAuthorizedEconomicStatuses(chain.nodes) },
+      economics,
     };
   }
 
@@ -1301,8 +1312,8 @@ export class OperationsService {
    * Estados INDEPENDENTES.
    *
    * A object page não reduz o processo a `status`. Cada eixo declara sua própria
-   * verdade — e `billing`/`accounting` só aparecem quando o domínio dono publica
-   * fato; caso contrário `NOT_ELIGIBLE` / `NOT_APPLICABLE`, nunca um palpite.
+   * verdade. Os eixos externos iniciam como UNKNOWN, e somente a leitura
+   * autorizada da business chain no GET de overview pode projetar fatos dos donos.
    */
   private buildStatuses(
     facts: ExecutionOperationsFacts,
@@ -1347,9 +1358,9 @@ export class OperationsService {
           : completed
             ? 'NOT_CLOSED'
             : 'NOT_READY',
-      // Faturamento e contabilidade são de OUTRA capability. Lido pelo que existe.
-      billing: 'NOT_ELIGIBLE',
-      accounting: 'NOT_APPLICABLE',
+      // Sem leitura autorizada do dono, NÃO declarar inelegibilidade nem ausência.
+      billing: 'UNKNOWN',
+      accounting: 'UNKNOWN',
     };
 
     function sameAsProcess(current: string, blocking: boolean): string {

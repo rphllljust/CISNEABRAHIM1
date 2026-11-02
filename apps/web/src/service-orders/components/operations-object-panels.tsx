@@ -72,7 +72,7 @@ export function ProcessBar({
  *
  * A object page não reduz o processo a `status`. Cada eixo declara sua própria
  * verdade — e quando o domínio dono não publicou fato, o valor diz isso
- * (`NOT_APPLICABLE`, `NOT_ELIGIBLE`) em vez de mostrar um verde falso.
+ * (`UNKNOWN` quando não há fato autorizado) em vez de mostrar um verde falso.
  */
 export function StatusAxes({ statuses }: { statuses: Record<string, string> }) {
   const order = [
@@ -99,7 +99,7 @@ export function StatusAxes({ statuses }: { statuses: Record<string, string> }) {
             <dt className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
               {label}
             </dt>
-            <dd className="truncate font-semibold text-gray-800">{value}</dd>
+            <dd className="truncate font-semibold text-gray-800">{value === 'UNKNOWN' ? 'Indisponível' : value === 'MIXED' ? 'Estados distintos' : value}</dd>
           </div>
         );
       })}
