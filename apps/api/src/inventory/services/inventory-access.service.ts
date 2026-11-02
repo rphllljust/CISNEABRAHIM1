@@ -493,7 +493,7 @@ export class InventoryAccessService implements InventoryStockPort {
     assertUuid(input.inventoryItemId, 'inventoryItemId');
     assertUuid(input.warehouseId, 'warehouseId');
     if (!input.actorSessionId || !input.unitId ||
-        !/^\\d{4}-\\d{2}-\\d{2}$/.test(input.occurredOn) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.occurredOn) ||
         normalizeQuantity(input.quantity) !== input.quantity) {
       throw new InventoryError('INVENTORY_VALIDATION_FAILED');
     }
