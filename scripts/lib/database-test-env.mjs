@@ -265,6 +265,8 @@ const MIGRATION_EFFECT_CHECKS = {
   '0112_billing_receivable_handoff_job': {
     enumLabel: ['plt', 'background_job_kind', 'BILLING_RECEIVABLE_HANDOFF'],
   },
+  // 0113 adds the explicit OS actual -> Inventory binding; never mark unverified hashes applied.
+  '0113_material_inventory_binding_contract': { table: ['so', 'material_inventory_bindings'] },
 };
 
 /**
