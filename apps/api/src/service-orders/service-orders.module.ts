@@ -87,6 +87,7 @@ import { ServiceRequestConversionService } from './services/service-request-conv
     ServiceOrderPlanningAccessService,
     ServiceOrderExecutionAccessService,
     OperationalCostAccessService,
+    MaterialInventoryBindingService,
   ],
 })
 export class ServiceOrdersModule {}
