@@ -73,6 +73,16 @@ export class MaterialInventoryBindingRepository {
     }
   }
 
+  /** Owned SO snapshot; Inventory movement data must be read exclusively via its port. */
+  async findByActual(serviceOrderId: string, actualId: string): Promise<MaterialInventoryBindingRow | null> {
+    const result = await this.pool().query<MaterialInventoryBindingRow>(
+      `SELECT ${RETURNING} FROM so.material_inventory_bindings
+       WHERE service_order_id = $1 AND actual_id = $2`,
+      [serviceOrderId, actualId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async bind(input: BindMaterialInventoryInput): Promise<{ row: MaterialInventoryBindingRow; idempotent: boolean }> {
     const client = await this.pool().connect();
     let evictWith: Error | undefined;
