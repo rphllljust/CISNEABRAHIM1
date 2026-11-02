@@ -1259,7 +1259,7 @@ export class OperationsService {
       },
       actuals,
       completionGate,
-      economics: this.buildEconomics(facts),
+      economics: this.buildEconomics(),
       situations: detection.situations,
       timeline: facts.events.map((row) => ({
         at: row.occurred_at,
@@ -1411,25 +1411,19 @@ export class OperationsService {
   }
 
   /**
-   * Economia PREVISTA.
+   * Economia da OS 360: a leitura de execução não contém custos autorizados.
    *
-   * Lida do que o domínio já publicou: `billing_records` (receita prevista) e
-   * `operational_cost_entries` ESTIMATED (custo previsto). Quando não existe, o
-   * campo é `null` — a tela mostra "não informado" em vez de R$ 0,00, que seria
-   * uma afirmação falsa sobre o valor da ordem.
+   * `execution_actuals.planned_value` é QUANTIDADE física (H, KM, L, UNIT),
+   * não preço. Somá-la e publicar BRL mistura unidades e fabrica custo.
+   * Até integrar a leitura com o contrato PDP de OperationalCostAccessService,
+   * manter montantes e moeda indisponíveis, inclusive com realizado registrado.
+   * Não inferir custo zero, moeda padrão nem receita de apontamentos físicos.
    */
-  private buildEconomics(
-    facts: ExecutionOperationsFacts,
-  ): ServiceOrderExecutionReadModel['economics'] {
-    const plannedCost = facts.actuals.reduce((sum, row) => {
-      const value = Number(row.planned_value ?? '0');
-      return Number.isFinite(value) ? sum + value : sum;
-    }, 0);
-
+  private buildEconomics(): ServiceOrderExecutionReadModel['economics'] {
     return {
       plannedRevenue: null,
-      plannedCost: plannedCost > 0 ? String(plannedCost) : null,
-      currencyCode: plannedCost > 0 ? 'BRL' : null,
+      plannedCost: null,
+      currencyCode: null,
     };
   }
 
