@@ -208,6 +208,23 @@ describe('Finance backoffice UI', () => {
     expect(fetchMock.mock.calls.some(([input]) => requestedUrl(input).includes(MOCK_STATEMENT_ID))).toBe(true);
   });
 
+  it('renders persisted USD statement amounts without inventing BRL', async () => {
+    vi.stubGlobal('fetch', createFinanceFetchMock({ bankStatementCurrencyCode: 'USD' }));
+    renderWithProviders(
+      <Routes>
+        <Route path="/app/finance/reconciliation/:statementId" element={<BankReconciliationPage />} />
+      </Routes>,
+      { router: { initialEntries: [`/app/finance/reconciliation/${MOCK_STATEMENT_ID}`] } },
+    );
+    const table = await screen.findByRole('table', { name: /movimentos do extrato bancário/i });
+    await waitFor(() => {
+      const first = within(table).getByText('Linha 1').closest('tr');
+      expect(first).not.toBeNull();
+      expect(within(first as HTMLElement).getByText(/US\$\s*10,00/)).toBeInTheDocument();
+      expect(within(first as HTMLElement).queryByText(/R\$\s*10,00/)).not.toBeInTheDocument();
+    });
+  });
+
   it('sends the statement status filter that arrived through the URL to the API', async () => {
     const fetchMock = createFinanceFetchMock();
     vi.stubGlobal('fetch', fetchMock);
