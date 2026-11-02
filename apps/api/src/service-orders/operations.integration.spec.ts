@@ -723,6 +723,54 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     expect(movementsAfter.total).toBe(movementsBefore.total);
     expect(movementsAfter.items.map((row) => row.id))
       .toEqual(movementsBefore.items.map((row) => row.id));
+
+    // #193 2D-2F: binding did not move stock; only the distinct authorized
+    // command posts one OUT with the exact persisted actual as Inventory source.
+    const posted = await materialBindings.consume(actor, released.id, {
+      actualId, rowVersion, idempotencyKey: `consume-${crypto.randomUUID()}`,
+    });
+    expect(posted).toMatchObject({
+      actualId, stockPostingStatus: 'POSTED', quantity: '2.0000',
+      idempotent: false, costingStatus: 'NOT_DECIDED',
+      totalCost: null, accountingStatus: 'NOT_APPLICABLE',
+    });
+    const replayConsumption = await materialBindings.consume(actor, released.id, {
+      actualId, rowVersion, idempotencyKey: `retry-${crypto.randomUUID()}`,
+    });
+    expect(replayConsumption.stockMovementId).toBe(posted.stockMovementId);
+    expect(replayConsumption.idempotent).toBe(true);
+    const afterOut = await inventory.getBalance(actor, warehouse.id, item.id);
+    expect(afterOut.onHand).toBe('8.0000');
+    expect((await materialBindings.reconcile(actor, released.id, actualId)))
+      .toMatchObject({ stockPostingStatus: 'POSTED', stockMovementId: posted.stockMovementId });
+
+    // #193 2E: reversal is an IN compensation with an immutable reference to
+    // the source movement; retries never restore the saldo twice.
+    const compensated = await materialBindings.reverseConsumption(actor, released.id, {
+      actualId, rowVersion, idempotencyKey: `reverse-${crypto.randomUUID()}`,
+      reason: 'Material returned after real execution correction',
+    });
+    expect(compensated).toMatchObject({ stockPostingStatus: 'REVERSED', idempotent: false });
+    const replayReverse = await materialBindings.reverseConsumption(actor, released.id, {
+      actualId, rowVersion, idempotencyKey: `reverse-retry-${crypto.randomUUID()}`,
+      reason: 'Material returned after real execution correction',
+    });
+    expect(replayReverse.compensationMovementId).toBe(compensated.compensationMovementId);
+    expect(replayReverse.idempotent).toBe(true);
+    expect(await inventory.getBalance(actor, warehouse.id, item.id)).toEqual(before);
+    expect((await materialBindings.reconcile(actor, released.id, actualId)))
+      .toMatchObject({
+        stockPostingStatus: 'REVERSED', stockMovementId: posted.stockMovementId,
+        reversalMovementId: compensated.compensationMovementId,
+        costingStatus: 'NOT_DECIDED',
+      });
+    const traced = await pool.query<{ movement_type: string; source_kind: string; source_id: string }>(
+      `SELECT movement_type::text, source_kind, source_id
+       FROM inv.stock_movements WHERE id = $1`, [posted.stockMovementId],
+    );
+    expect(traced.rows).toEqual([{
+      movement_type: 'OUT', source_kind: 'SERVICE_ORDER_EXECUTION_ACTUAL', source_id: actualId,
+    }]);
   });
 
   it('contrato MATERIAL_QUANTITY exige actual/SKU/deposito/unidade/quantidade exatos sem gerar OUT', async () => {
