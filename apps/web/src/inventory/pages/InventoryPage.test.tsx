@@ -99,8 +99,8 @@ describe('InventoryPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Criar item' }));
     await user.type(screen.getByLabelText(/^Unidade\b/), 'unit-1');
-    await user.type(screen.getByLabelText('SKU'), 'SKU-NOVO-02');
-    await user.type(screen.getByLabelText('Nome do item'), 'Material cadastrado');
+    await user.type(screen.getByLabelText(/^SKU\b/), 'SKU-NOVO-02');
+    await user.type(screen.getByLabelText(/^Nome do item\b/), 'Material cadastrado');
     await user.click(screen.getAllByRole('button', { name: 'Criar item' }).at(-1)!);
 
     expect(await screen.findByRole('link', { name: 'Material cadastrado' })).toHaveAttribute(
@@ -121,8 +121,8 @@ describe('InventoryPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Criar depósito' }));
     await user.type(screen.getByLabelText(/^Unidade\b/), 'unit-1');
-    await user.type(screen.getByLabelText('Código'), 'WH-NOVO');
-    await user.type(screen.getByLabelText('Nome'), 'Depósito de operação');
+    await user.type(screen.getByLabelText(/^Código\b/), 'WH-NOVO');
+    await user.type(screen.getByLabelText(/^Nome\b/), 'Depósito de operação');
     await user.click(screen.getAllByRole('button', { name: 'Criar depósito' }).at(-1)!);
 
     expect(await screen.findByRole('link', { name: 'Depósito de operação' })).toHaveAttribute(
@@ -157,8 +157,8 @@ describe('InventoryPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Criar item' }));
     await user.type(screen.getByLabelText(/^Unidade\b/), 'unit-1');
-    await user.type(screen.getByLabelText('SKU'), 'SKU-REJEITADO');
-    await user.type(screen.getByLabelText('Nome do item'), 'Material inválido');
+    await user.type(screen.getByLabelText(/^SKU\b/), 'SKU-REJEITADO');
+    await user.type(screen.getByLabelText(/^Nome do item\b/), 'Material inválido');
     await user.click(screen.getAllByRole('button', { name: 'Criar item' }).at(-1)!);
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
