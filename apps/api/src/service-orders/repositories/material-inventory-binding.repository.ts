@@ -83,6 +83,18 @@ export class MaterialInventoryBindingRepository {
     return result.rows[0] ?? null;
   }
 
+  /** Owned SO bindings for already READ-authorized order IDs; no inv.* joins. */
+  async findByServiceOrders(serviceOrderIds: string[]): Promise<MaterialInventoryBindingRow[]> {
+    if (serviceOrderIds.length === 0) return [];
+    const result = await this.pool().query<MaterialInventoryBindingRow>(
+      `SELECT ${RETURNING} FROM so.material_inventory_bindings
+       WHERE service_order_id = ANY($1::uuid[])
+       ORDER BY authorized_at, actual_id`,
+      [serviceOrderIds],
+    );
+    return result.rows;
+  }
+
   async bind(input: BindMaterialInventoryInput): Promise<{ row: MaterialInventoryBindingRow; idempotent: boolean }> {
     const client = await this.pool().connect();
     let evictWith: Error | undefined;
