@@ -4,8 +4,8 @@
 -- as fatias posteriores, via portas publicas e gates empresariais.
 --
 -- A FK composta do actual congela o snapshot de quantidade/unidade/instante/kind:
--- um realizado vinculado nao pode ser alterado silenciosamente, e uma quantidade
--- com precisao superior a 4 casas nao pode ser arredondada para gerar OUT.
+-- um realizado vinculado nao pode ser alterado silenciosamente. A API devera
+-- rejeitar escala superior a 4 casas ANTES do cast numeric(18,4), que arredonda.
 CREATE UNIQUE INDEX IF NOT EXISTS "execution_actuals_material_binding_ref_uidx"
   ON "so"."execution_actuals"
   ("id", "service_order_id", "actual_kind", "actual_value", "unit_of_measure", "occurred_at");
