@@ -55,6 +55,20 @@ describe('Enterprise financial integrity gate', () => {
     const artifacts = journey.artifacts!;
     await assertFinancialReconciliation(ctx.services, actor, artifacts);
 
+    // #194: real PostgreSQL billing fact through the unmocked owner read model.
+    // No accounting source has been posted at this point.
+    const persistedBilling = await ctx.pool.query<{ status: string }>(
+      `SELECT status::text AS status FROM rpt.read_billing_documents WHERE id = $1`,
+      [artifacts.billingDocumentId],
+    );
+    expect(persistedBilling.rows).toEqual([{ status: 'FINALIZED' }]);
+    const beforePosting = await ctx.services.operationsAccess.getServiceOrderOverview(
+      actor, artifacts.serviceOrderId,
+    );
+    expect(beforePosting.statuses).toMatchObject({
+      billing: 'FINALIZED', accounting: 'UNKNOWN',
+    });
+
     const billing = await ctx.services.billingDocumentAccess.getById(
       actor,
       artifacts.serviceOrderId,
@@ -229,6 +243,36 @@ describe('Enterprise financial integrity gate', () => {
     });
     expect(replayJournal.journalEntryId).toBe(firstJournal.journalEntryId);
     expect(replayJournal.idempotent).toBe(true);
+
+    // The posted journal is linked by its persisted SETTLEMENT source, not by
+    // amount, timestamp, a mocked BusinessChainService or an invented status.
+    const persistedJournal = await ctx.pool.query<{ status: string; source_kind: string; source_id: string }>(
+      `SELECT status::text AS status, source_kind::text AS source_kind, source_id::text AS source_id
+       FROM acc.journal_entries WHERE id = $1`,
+      [firstJournal.journalEntryId],
+    );
+    expect(persistedJournal.rows).toEqual([{
+      status: 'POSTED', source_kind: JOURNAL_SOURCE_KINDS.Settlement, source_id: settlementId,
+    }]);
+    const authorizedOverview = await ctx.services.operationsAccess.getServiceOrderOverview(
+      actor, artifacts.serviceOrderId,
+    );
+    // The overview endpoint returns this object directly; JSON serialization
+    // must retain both owner states, with no hardcoded fallback.
+    const serializedOverview = JSON.parse(JSON.stringify(authorizedOverview)) as typeof authorizedOverview;
+    expect(serializedOverview.statuses).toMatchObject({
+      billing: 'FINALIZED', accounting: 'POSTED',
+    });
+
+    // The same persisted chain must not leak billing or GL facts to an
+    // operational reader whose grants cover only the OS.
+    const restrictedActor = await ctx.seedOperationalActor();
+    const restrictedOverview = await ctx.services.operationsAccess.getServiceOrderOverview(
+      restrictedActor, artifacts.serviceOrderId,
+    );
+    expect(restrictedOverview.statuses).toMatchObject({
+      billing: 'UNKNOWN', accounting: 'UNKNOWN',
+    });
 
     const journalsBeforeFiscal = await count(
       ctx.pool,
