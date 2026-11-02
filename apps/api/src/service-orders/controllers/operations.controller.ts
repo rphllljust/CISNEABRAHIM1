@@ -7,6 +7,7 @@ import { resolveCorrelationId } from '../../infrastructure/http/correlation-id';
 import { SERVICE_ORDERS_ERROR_CODES } from '../errors/service-orders-error-codes';
 import { ServiceOrdersHttpException } from '../errors/service-orders-http.exception';
 import { OperationsService } from '../services/operations.service';
+import { MaterialInventoryBindingService } from '../services/material-inventory-binding.service';
 import { ServiceOrdersAccessService } from '../services/service-orders-access.service';
 
 /**
@@ -136,7 +137,10 @@ export class ServiceOrderOperationsQueryController {
 @Controller('service-orders/:serviceOrderId/commands')
 @UseGuards(JwtAuthGuard)
 export class OperationsCommandController {
-  constructor(private readonly operations: OperationsService) {}
+  constructor(
+    private readonly operations: OperationsService,
+    private readonly materialBindings: MaterialInventoryBindingService,
+  ) {}
 
   @Post('dispatch')
   @HttpCode(200)
@@ -167,6 +171,29 @@ export class OperationsCommandController {
       rowVersion: body.rowVersion,
       idempotencyKey: body.idempotencyKey,
     });
+  }
+
+  /** #193 / 2C: explicit authorized OS actual -> SKU/warehouse binding, without OUT. */
+  @Post('bind-material-inventory')
+  @HttpCode(201)
+  bindMaterialInventory(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('serviceOrderId') serviceOrderId: string,
+    @Req() request: FastifyRequest,
+  ) {
+    const body = parseCommandBody(request.body);
+    const raw = request.body as Record<string, unknown>;
+    return this.materialBindings.bind(
+      { identityId: auth.sub, sessionId: auth.sid },
+      serviceOrderId,
+      {
+        actualId: readRequiredString(raw['actualId'], 'actualId'),
+        inventoryItemId: readRequiredString(raw['inventoryItemId'], 'inventoryItemId'),
+        warehouseId: readRequiredString(raw['warehouseId'], 'warehouseId'),
+        rowVersion: body.rowVersion,
+        idempotencyKey: body.idempotencyKey,
+      },
+    );
   }
 
   @Post('register-actual')

@@ -42,6 +42,7 @@ import { InventoryModule } from '../inventory/inventory.module';
 import { InventoryAccessService } from '../inventory/services/inventory-access.service';
 import { SERVICE_ORDER_ORIGINS } from './domain/service-order';
 import { OperationsService } from './services/operations.service';
+import { MaterialInventoryBindingService } from './services/material-inventory-binding.service';
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
 import { ServiceOrderPlanningAccessService } from './services/service-order-planning-access.service';
 import { ServiceOrdersAccessService } from './services/service-orders-access.service';
@@ -135,6 +136,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
   let planningAccess: ServiceOrderPlanningAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
   let operations: OperationsService;
+  let materialBindings: MaterialInventoryBindingService;
   let inventory: InventoryAccessService;
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
@@ -165,6 +167,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     planningAccess = module.get(ServiceOrderPlanningAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
     operations = module.get(OperationsService);
+    materialBindings = module.get(MaterialInventoryBindingService);
     inventory = module.get(InventoryAccessService);
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
@@ -604,6 +607,122 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     expect(movementsAfter.items.map((row) => row.id)).toEqual(
       movementsBefore.items.map((row) => row.id),
     );
+  });
+
+  it('autoriza binding por PDP duplo e idempotência sem OUT/custo inventado', async () => {
+    const { actor } = await seedActor();
+    const { released, assetId } = await seedReleasedOrder(actor);
+    for (const action of [
+      AUTHZ_ACTIONS.InventoryWarehouseManage,
+      AUTHZ_ACTIONS.InventoryItemManage,
+      AUTHZ_ACTIONS.InventoryRead,
+      AUTHZ_ACTIONS.InventoryMovementList,
+    ]) {
+      await insertGrant(pool, {
+        identityId: actor.identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: actor.identityId,
+      });
+    }
+    const warehouse = await inventory.createWarehouse(actor, {
+      unitId: UNIT_A, code: 'WH-AUTH-BIND', name: 'Deposito de binding autorizado',
+    });
+    const item = await inventory.createItem(actor, {
+      unitId: UNIT_A, sku: 'SKU-AUTH-BIND', name: 'SKU autorizado para binding',
+    });
+    await operations.dispatch(actor, released.id, {
+      rowVersion: released.rowVersion,
+      idempotencyKey: `dispatch-${crypto.randomUUID()}`,
+    });
+    await startOrder(actor, released.id);
+    const beforeActual = await serviceOrdersAccess.getById(actor, released.id);
+    await operations.registerActual(actor, released.id, {
+      actualKind: ACTUAL_KINDS.MaterialQuantity,
+      physicalAssetId: assetId!,
+      actualValue: '2',
+      unitOfMeasure: 'UNIT',
+      rowVersion: beforeActual.rowVersion,
+      idempotencyKey: `actual-${crypto.randomUUID()}`,
+    });
+    const actual = await pool.query<{ id: string }>(
+      'SELECT id FROM so.execution_actuals WHERE service_order_id = $1',
+      [released.id],
+    );
+    const actualId = actual.rows[0]!.id;
+    const rowVersion = (await serviceOrdersAccess.getById(actor, released.id)).rowVersion;
+    const key = `bind-${crypto.randomUUID()}`;
+    const command = {
+      actualId, inventoryItemId: item.id, warehouseId: warehouse.id,
+      rowVersion, idempotencyKey: key,
+    };
+
+    // OS grant alone is insufficient: Inventory MOVE authorization is mandatory.
+    await expect(materialBindings.bind(actor, released.id, command))
+      .rejects.toMatchObject({ code: 'SERVICE_ORDERS_DENIED' });
+    expect((await pool.query(
+      'SELECT id FROM so.material_inventory_bindings WHERE actual_id = $1', [actualId],
+    )).rowCount).toBe(0);
+
+    await insertGrant(pool, {
+      identityId: actor.identityId,
+      action: AUTHZ_ACTIONS.InventoryMove,
+      resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: actor.identityId,
+    });
+    await inventory.postStock(actor, {
+      unitId: UNIT_A,
+      warehouseId: warehouse.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.In,
+      quantity: '10.0000',
+      occurredOn: '2026-11-02',
+      description: 'Saldo real do teste de contrato, sem OUT',
+      idempotencyKey: `receipt-${crypto.randomUUID()}`,
+    });
+    const before = await inventory.getBalance(actor, warehouse.id, item.id);
+    const movementsBefore = await inventory.listMovements(actor, {
+      limit: 20, offset: 0, warehouseId: warehouse.id,
+    });
+
+    await expect(materialBindings.bind(actor, released.id, {
+      ...command, inventoryItemId: crypto.randomUUID(),
+    })).rejects.toMatchObject({ code: 'SERVICE_ORDERS_INVALID_STATE' });
+    await expect(materialBindings.bind(actor, released.id, {
+      ...command, rowVersion: rowVersion + 1,
+    })).rejects.toMatchObject({ code: 'SERVICE_ORDERS_VERSION_CONFLICT' });
+
+    const bound = await materialBindings.bind(actor, released.id, command);
+    expect(bound).toMatchObject({
+      actualId, inventoryItemId: item.id, warehouseId: warehouse.id,
+      sourceKind: 'SERVICE_ORDER_EXECUTION_ACTUAL', sourceId: actualId,
+      quantity: '2.0000', unitOfMeasure: 'UNIT',
+      stockMovementId: null, stockPostingStatus: 'NOT_POSTED',
+      costingStatus: 'NOT_DECIDED', idempotent: false,
+    });
+    const replay = await materialBindings.bind(actor, released.id, command);
+    expect(replay.id).toBe(bound.id);
+    expect(replay.idempotent).toBe(true);
+    await expect(materialBindings.bind(actor, released.id, {
+      ...command, idempotencyKey: `different-${crypto.randomUUID()}`,
+    })).rejects.toMatchObject({ code: 'SERVICE_ORDERS_IDEMPOTENCY_KEY_CONFLICT' });
+
+    const persisted = await pool.query<{ authorized_by_identity_id: string; source_id: string }>(
+      'SELECT authorized_by_identity_id, source_id FROM so.material_inventory_bindings WHERE actual_id = $1',
+      [actualId],
+    );
+    expect(persisted.rows).toEqual([{
+      authorized_by_identity_id: actor.identityId, source_id: actualId,
+    }]);
+    expect(await inventory.getBalance(actor, warehouse.id, item.id)).toEqual(before);
+    const movementsAfter = await inventory.listMovements(actor, {
+      limit: 20, offset: 0, warehouseId: warehouse.id,
+    });
+    expect(movementsAfter.total).toBe(movementsBefore.total);
+    expect(movementsAfter.items.map((row) => row.id))
+      .toEqual(movementsBefore.items.map((row) => row.id));
   });
 
   it('contrato MATERIAL_QUANTITY exige actual/SKU/deposito/unidade/quantidade exatos sem gerar OUT', async () => {
