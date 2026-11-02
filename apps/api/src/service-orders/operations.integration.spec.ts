@@ -606,6 +606,136 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     );
   });
 
+  it('contrato MATERIAL_QUANTITY exige actual/SKU/deposito/unidade/quantidade exatos sem gerar OUT', async () => {
+    const { actor } = await seedActor();
+    const { released, assetId } = await seedReleasedOrder(actor);
+    for (const action of [
+      AUTHZ_ACTIONS.InventoryWarehouseManage,
+      AUTHZ_ACTIONS.InventoryItemManage,
+      AUTHZ_ACTIONS.InventoryMove,
+      AUTHZ_ACTIONS.InventoryMovementList,
+      AUTHZ_ACTIONS.InventoryRead,
+    ]) {
+      await insertGrant(pool, {
+        identityId: actor.identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: actor.identityId,
+      });
+    }
+    const warehouse = await inventory.createWarehouse(actor, {
+      unitId: UNIT_A,
+      code: 'WH-BINDING-OS',
+      name: 'Deposito para contrato de vinculo',
+    });
+    const item = await inventory.createItem(actor, {
+      unitId: UNIT_A,
+      sku: 'SKU-BINDING-OS',
+      name: 'Material com vinculo explicito',
+    });
+    await inventory.postStock(actor, {
+      unitId: UNIT_A,
+      warehouseId: warehouse.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.In,
+      quantity: '10.0000',
+      occurredOn: '2026-11-02',
+      description: 'Saldo isolado para contrato de vinculo',
+      idempotencyKey: `receipt-${crypto.randomUUID()}`,
+    });
+    await operations.dispatch(actor, released.id, {
+      rowVersion: released.rowVersion,
+      idempotencyKey: `dispatch-${crypto.randomUUID()}`,
+    });
+    await startOrder(actor, released.id);
+    const current = await serviceOrdersAccess.getById(actor, released.id);
+    await operations.registerActual(actor, released.id, {
+      actualKind: ACTUAL_KINDS.MaterialQuantity,
+      physicalAssetId: assetId!,
+      actualValue: '2',
+      unitOfMeasure: 'UNIT',
+      rowVersion: current.rowVersion,
+      idempotencyKey: `actual-${crypto.randomUUID()}`,
+    });
+    const actual = await pool.query<{
+      id: string;
+      actual_value: string;
+      unit_of_measure: string;
+      occurred_at: Date;
+    }>(
+      `SELECT id, actual_value::text, unit_of_measure, occurred_at
+       FROM so.execution_actuals WHERE service_order_id = $1`,
+      [released.id],
+    );
+    expect(actual.rows).toHaveLength(1);
+    const fact = actual.rows[0]!;
+    const balanceBefore = await inventory.getBalance(actor, warehouse.id, item.id);
+    const movementsBefore = await inventory.listMovements(actor, {
+      limit: 20,
+      offset: 0,
+      warehouseId: warehouse.id,
+    });
+
+    // Contrato estrutural, ainda NAO e comando autorizado por PDP e NAO debita estoque.
+    const insertSql = `INSERT INTO so.material_inventory_bindings
+      (service_order_id, actual_id, unit_id, inventory_item_id, warehouse_id,
+       actual_kind, quantity, unit_of_measure, source_kind, source_id,
+       authorized_by_identity_id, authorized_at, occurred_at, idempotency_key)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`;
+    const params: unknown[] = [
+      released.id,
+      fact.id,
+      UNIT_A,
+      item.id,
+      warehouse.id,
+      ACTUAL_KINDS.MaterialQuantity,
+      '2.0000',
+      fact.unit_of_measure,
+      'SERVICE_ORDER_EXECUTION_ACTUAL',
+      fact.id,
+      actor.identityId,
+      new Date(),
+      fact.occurred_at,
+      `binding-${crypto.randomUUID()}`,
+    ];
+
+    const wrongQuantity = [...params];
+    wrongQuantity[6] = '1.0000';
+    await expect(pool.query(insertSql, wrongQuantity)).rejects.toMatchObject({ code: '23503' });
+
+    const wrongUnit = [...params];
+    wrongUnit[2] = 'unit-not-authorized';
+    await expect(pool.query(insertSql, wrongUnit)).rejects.toMatchObject({ code: '23503' });
+
+    const wrongSource = [...params];
+    wrongSource[8] = 'INFERRED_FROM_ASSET';
+    await expect(pool.query(insertSql, wrongSource)).rejects.toMatchObject({ code: '23514' });
+
+    const bound = await pool.query<{ id: string }>(insertSql, params);
+    expect(bound.rows).toHaveLength(1);
+
+    const replay = [...params];
+    replay[13] = `binding-${crypto.randomUUID()}`;
+    await expect(pool.query(insertSql, replay)).rejects.toMatchObject({ code: '23505' });
+
+    await expect(
+      pool.query('UPDATE so.execution_actuals SET actual_value = 3 WHERE id = $1', [fact.id]),
+    ).rejects.toMatchObject({ code: '23001' });
+
+    const balanceAfter = await inventory.getBalance(actor, warehouse.id, item.id);
+    const movementsAfter = await inventory.listMovements(actor, {
+      limit: 20,
+      offset: 0,
+      warehouseId: warehouse.id,
+    });
+    expect(balanceAfter).toEqual(balanceBefore);
+    expect(movementsAfter.items.map((row) => row.id)).toEqual(
+      movementsBefore.items.map((row) => row.id),
+    );
+    expect(movementsAfter.total).toBe(movementsBefore.total);
+  });
+
   it('registra realizado SEM sobrescrever o planejado', async () => {
     const { actor } = await seedActor();
     const { released, workforceMemberId } = await seedReleasedOrder(actor);
