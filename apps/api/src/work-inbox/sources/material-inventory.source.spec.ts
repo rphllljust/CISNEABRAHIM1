@@ -46,12 +46,10 @@ describe('Work Inbox — material reconciliation #193', () => {
     const result = await makeSource(list, material).collect(ACTOR);
     expect(result).toEqual([]);
     expect(list).toHaveBeenCalledTimes(4);
-    expect(list.mock.calls.map((call) => call[1].status)).toEqual([
-      SERVICE_ORDER_STATUSES.InExecution,
-      SERVICE_ORDER_STATUSES.Paused,
-      SERVICE_ORDER_STATUSES.Completed,
-      SERVICE_ORDER_STATUSES.Cancelled,
-    ]);
+    expect(list).toHaveBeenNthCalledWith(1, ACTOR, expect.objectContaining({ status: SERVICE_ORDER_STATUSES.InExecution }));
+    expect(list).toHaveBeenNthCalledWith(2, ACTOR, expect.objectContaining({ status: SERVICE_ORDER_STATUSES.Paused }));
+    expect(list).toHaveBeenNthCalledWith(3, ACTOR, expect.objectContaining({ status: SERVICE_ORDER_STATUSES.Completed }));
+    expect(list).toHaveBeenNthCalledWith(4, ACTOR, expect.objectContaining({ status: SERVICE_ORDER_STATUSES.Cancelled }));
     expect(material).toHaveBeenCalledTimes(4);
     expect(material).toHaveBeenCalledWith(ACTOR, []);
   });
