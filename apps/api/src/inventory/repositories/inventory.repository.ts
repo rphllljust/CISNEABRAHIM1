@@ -136,6 +136,24 @@ export class InventoryRepository {
     return result.rows[0] ?? null;
   }
 
+  /**
+   * The reservation must be read on the SAME client/transaction that posts the
+   * movement. FOR UPDATE also serializes concurrent release/consume attempts.
+   */
+  async findReservationByIdInside(
+    client: PoolClient,
+    id: string,
+  ): Promise<StockReservationRow | null> {
+    const result = await client.query<StockReservationRow>(
+      `SELECT ${RESERVATION_RETURNING}
+       FROM inv.stock_reservations
+       WHERE id = $1
+       FOR UPDATE`,
+      [id],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async getBalance(warehouseId: string, inventoryItemId: string): Promise<StockBalanceRow> {
     const result = await this.pool().query<StockBalanceRow>(
       `SELECT unit_id, warehouse_id, inventory_item_id,
