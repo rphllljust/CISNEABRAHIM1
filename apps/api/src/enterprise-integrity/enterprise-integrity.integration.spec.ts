@@ -259,7 +259,8 @@ describe('Enterprise financial integrity gate', () => {
     );
     // The overview endpoint returns this object directly; JSON serialization
     // must retain both owner states, with no hardcoded fallback.
-    expect(JSON.parse(JSON.stringify(authorizedOverview)).statuses).toMatchObject({
+    const serializedOverview = JSON.parse(JSON.stringify(authorizedOverview)) as typeof authorizedOverview;
+    expect(serializedOverview.statuses).toMatchObject({
       billing: 'FINALIZED', accounting: 'POSTED',
     });
 
