@@ -4,6 +4,7 @@ import { AlertsModule } from '../alerts/alerts.module';
 import { AuthModule } from '../auth/auth.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { FinanceModule } from '../finance/finance.module';
+import { InventoryModule } from '../inventory/inventory.module';
 import { MeasurementsModule } from '../measurements/measurements.module';
 import { FiscalModule } from '../fiscal/fiscal.module';
 import { ProcurementModule } from '../procurement/procurement.module';
@@ -19,6 +20,7 @@ import { MeasurementsWorkSource } from './sources/measurements.source';
 import { FiscalWorkSource } from './sources/fiscal.source';
 import { ProcurementWorkSource } from './sources/procurement.source';
 import { ServiceOrdersWorkSource } from './sources/service-orders.source';
+import { MaterialInventoryWorkSource } from './sources/material-inventory.source';
 import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-source';
 
 /**
@@ -45,6 +47,7 @@ import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-sour
     AccountingModule,
     RequestsModule,
     ServiceOrdersModule,
+    InventoryModule,
     MeasurementsModule,
     FiscalModule,
     ProcurementModule,
@@ -56,6 +59,7 @@ import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-sour
     WorkInboxService,
     AlertsWorkSource,
     ServiceOrdersWorkSource,
+    MaterialInventoryWorkSource,
     MeasurementsWorkSource,
     FinanceWorkSource,
     AccountingWorkSource,
@@ -67,16 +71,18 @@ import { WORK_ITEM_SOURCES, type WorkItemSource } from './sources/work-item-sour
       useFactory: (
         alerts: AlertsWorkSource,
         serviceOrders: ServiceOrdersWorkSource,
+        materialInventory: MaterialInventoryWorkSource,
         measurements: MeasurementsWorkSource,
         finance: FinanceWorkSource,
         accounting: AccountingWorkSource,
         commercial: CommercialWorkSource,
         fiscal: FiscalWorkSource,
         procurement: ProcurementWorkSource,
-      ): WorkItemSource[] => [alerts, serviceOrders, measurements, finance, accounting, commercial, fiscal, procurement],
+      ): WorkItemSource[] => [alerts, serviceOrders, materialInventory, measurements, finance, accounting, commercial, fiscal, procurement],
       inject: [
         AlertsWorkSource,
         ServiceOrdersWorkSource,
+        MaterialInventoryWorkSource,
         MeasurementsWorkSource,
         FinanceWorkSource,
         AccountingWorkSource,
