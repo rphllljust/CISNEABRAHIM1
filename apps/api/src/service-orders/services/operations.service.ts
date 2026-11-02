@@ -31,7 +31,7 @@
  * e o custeio consomem pelo contrato.
  */
 
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import {
   SECURITY_AUDIT_ACTIONS,
@@ -77,6 +77,7 @@ import { ServiceOrdersRepository } from '../repositories/service-orders.reposito
 import type { ServiceOrderRow } from '../repositories/service-orders.repository.types';
 import { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
 import { ServiceOrdersAccessService } from './service-orders-access.service';
+import { OperationalCostAccessService } from './operational-cost-access.service';
 import { SERVICE_ORDERS_ERROR_CODES } from '../errors/service-orders-error-codes';
 import { ServiceOrdersHttpException } from '../errors/service-orders-http.exception';
 import {
@@ -352,6 +353,7 @@ export class OperationsService {
     private readonly repository: OperationsRepository,
     private readonly serviceOrdersRepository: ServiceOrdersRepository,
     private readonly serviceOrdersAccess: ServiceOrdersAccessService,
+    private readonly operationalCostAccess: OperationalCostAccessService,
     private readonly authz: ServiceOrdersAccessAuthz,
     private readonly metadata: ServiceOrderMetadataService,
     private readonly securityAudit: SecurityAuditService,
@@ -484,7 +486,14 @@ export class OperationsService {
       throw serviceOrdersAccessNotFound();
     }
 
-    return this.buildOverview(actor, order, facts, at);
+    // The overview may show money only through the separately authorized cost
+    // reader. Command responses intentionally do not perform an extra finance
+    // read after their transaction has committed.
+    const overview = await this.buildOverview(actor, order, facts, at);
+    return {
+      ...overview,
+      economics: await this.readAuthorizedEconomics(actor, serviceOrderId),
+    };
   }
 
   async getMeasurementReadiness(
@@ -1259,7 +1268,7 @@ export class OperationsService {
       },
       actuals,
       completionGate,
-      economics: this.buildEconomics(facts),
+      economics: this.emptyEconomics(),
       situations: detection.situations,
       timeline: facts.events.map((row) => ({
         at: row.occurred_at,
@@ -1410,27 +1419,52 @@ export class OperationsService {
     };
   }
 
-  /**
-   * Economia PREVISTA.
-   *
-   * Lida do que o domínio já publicou: `billing_records` (receita prevista) e
-   * `operational_cost_entries` ESTIMATED (custo previsto). Quando não existe, o
-   * campo é `null` — a tela mostra "não informado" em vez de R$ 0,00, que seria
-   * uma afirmação falsa sobre o valor da ordem.
-   */
-  private buildEconomics(
-    facts: ExecutionOperationsFacts,
-  ): ServiceOrderExecutionReadModel['economics'] {
-    const plannedCost = facts.actuals.reduce((sum, row) => {
-      const value = Number(row.planned_value ?? '0');
-      return Number.isFinite(value) ? sum + value : sum;
-    }, 0);
+  /** No financial evidence is equivalent to UNKNOWN, never zero or BRL. */
+  private emptyEconomics(): ServiceOrderExecutionReadModel['economics'] {
+    return { plannedRevenue: null, plannedCost: null, currencyCode: null };
+  }
 
-    return {
-      plannedRevenue: null,
-      plannedCost: plannedCost > 0 ? String(plannedCost) : null,
-      currencyCode: plannedCost > 0 ? 'BRL' : null,
-    };
+  /**
+   * The authorized operational-cost capability owns estimated monetary amounts.
+   * Execution actuals (H, KM, L, UNIT) are physical quantities, NOT money.
+   * Never derive a currency or a monetary total from those records.
+   */
+  private async readAuthorizedEconomics(
+    actor: IdentityAuthzContext,
+    serviceOrderId: string,
+  ): Promise<ServiceOrderExecutionReadModel['economics']> {
+    try {
+      const bundle = await this.operationalCostAccess.listByServiceOrder(actor, serviceOrderId);
+      const estimated = bundle.entries.filter((entry) => entry.costKind === 'ESTIMATED');
+      if (estimated.length === 0 || bundle.summary.totalEstimatedCost === null) {
+        return this.emptyEconomics();
+      }
+
+      // The existing cost summary already sums exact decimals and rejects mixed
+      // currencies. Recheck the source lines so that a fallback summary currency
+      // cannot be mistaken for authoritative financial evidence.
+      const currencyCode = estimated[0]?.currencyCode ?? null;
+      if (
+        !currencyCode ||
+        bundle.summary.currencyCode !== currencyCode ||
+        bundle.entries.some((entry) => entry.currencyCode !== currencyCode)
+      ) {
+        return this.emptyEconomics();
+      }
+      return {
+        plannedRevenue: null,
+        plannedCost: bundle.summary.totalEstimatedCost,
+        currencyCode,
+      };
+    } catch (error) {
+      // Execution-read permission does not grant financial-cost permission.
+      // Preserve the OS overview, but do not disclose amounts on a 403.
+      if (error instanceof ServiceOrdersHttpException && error.getStatus() === HttpStatus.FORBIDDEN) {
+        return this.emptyEconomics();
+      }
+      // Database/reader errors must surface as errors, never as fabricated zero.
+      throw error;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
