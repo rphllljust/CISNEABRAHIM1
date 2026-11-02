@@ -296,6 +296,119 @@ describe('Inventory core PostgreSQL integration', () => {
     expect(originAfter.onHand).toBe('25');
   });
 
+  it('rejects partial and non-OUT reservation consumption without releasing reserved stock', async () => {
+    const actor = await seedActor();
+    const { origin, item } = await seedStock(actor);
+    await inventory.postStock(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.In,
+      quantity: '20.0000',
+      occurredOn: '2026-09-01',
+      description: 'Receipt for reservation regression',
+      idempotencyKey: `receipt-${crypto.randomUUID()}`,
+    });
+    const reserved = await inventory.reserve(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      quantity: '10.0000',
+      idempotencyKey: `reserve-${crypto.randomUUID()}`,
+    });
+    const partialKey = `partial-${crypto.randomUUID()}`;
+    await expect(inventory.postStock(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.Out,
+      quantity: '1.0000',
+      occurredOn: '2026-09-01',
+      description: 'Partial withdrawal must fail closed',
+      reservationId: reserved.id,
+      idempotencyKey: partialKey,
+    })).rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.INVALID_QUANTITY });
+
+    await expect(inventory.postStock(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.In,
+      quantity: '10.0000',
+      occurredOn: '2026-09-01',
+      description: 'Inbound must not consume a reservation',
+      reservationId: reserved.id,
+      idempotencyKey: `invalid-in-${crypto.randomUUID()}`,
+    })).rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.INVALID_MOVEMENT_TYPE });
+
+    const unchanged = await inventory.getBalance(actor, origin.id, item.id);
+    expect(unchanged).toMatchObject({ onHand: '20', reserved: '10', available: '10' });
+    expect((await repository.findReservationById(reserved.id))?.status).toBe('ACTIVE');
+    expect(await repository.findMovementsByCommand(UNIT, partialKey)).toHaveLength(0);
+
+    const fullKey = `full-${crypto.randomUUID()}`;
+    const input = {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.Out,
+      quantity: '10.0000',
+      occurredOn: '2026-09-01',
+      description: 'Exact reservation consumption',
+      reservationId: reserved.id,
+      idempotencyKey: fullKey,
+    };
+    const posted = await inventory.postStock(actor, input);
+    expect(posted.idempotent).toBe(false);
+    expect(posted.balance).toMatchObject({ onHand: '10', reserved: '0', available: '10' });
+    expect((await repository.findReservationById(reserved.id))?.status).toBe('CONSUMED');
+    const replay = await inventory.postStock(actor, input);
+    expect(replay.idempotent).toBe(true);
+    expect(await repository.findMovementsByCommand(UNIT, fullKey)).toHaveLength(1);
+  });
+
+  it('serializes concurrent consumption of one reservation with distinct command keys', async () => {
+    const actor = await seedActor();
+    const { origin, item } = await seedStock(actor);
+    await inventory.postStock(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.In,
+      quantity: '20.0000',
+      occurredOn: '2026-09-01',
+      description: 'Receipt',
+      idempotencyKey: `receipt-${crypto.randomUUID()}`,
+    });
+    const reserved = await inventory.reserve(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      quantity: '10.0000',
+      idempotencyKey: `reserve-${crypto.randomUUID()}`,
+    });
+    const attempt = (idempotencyKey: string) => inventory.postStock(actor, {
+      unitId: UNIT,
+      warehouseId: origin.id,
+      inventoryItemId: item.id,
+      movementType: STOCK_MOVEMENT_TYPES.Out,
+      quantity: '10.0000',
+      occurredOn: '2026-09-01',
+      description: 'Concurrent reservation withdrawal',
+      reservationId: reserved.id,
+      idempotencyKey,
+    });
+    const outcomes = await Promise.allSettled([
+      attempt(`consume-a-${crypto.randomUUID()}`),
+      attempt(`consume-b-${crypto.randomUUID()}`),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    const balance = await inventory.getBalance(actor, origin.id, item.id);
+    expect(balance).toMatchObject({ onHand: '10', reserved: '0', available: '10' });
+    expect((await repository.findReservationById(reserved.id))?.status).toBe('CONSUMED');
+  });
+
   it('reserves available quantity, consumes it on exit, and reverses a movement', async () => {
     const actor = await seedActor();
     const { origin, item } = await seedStock(actor);
