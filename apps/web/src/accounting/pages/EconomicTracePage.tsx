@@ -162,9 +162,9 @@ export function EconomicTracePage() {
       <div data-region="work-surface">
         <div data-region="operating-header">
           <WorklistHeader
-            title={trace.factKind === 'SETTLEMENT' ? 'Trilha da liquidação' : 'Trilha do pagamento'}
+            title={trace.factKind === 'SETTLEMENT' ? 'Trilha da liquidação' : trace.factKind === 'PAYMENT' ? 'Trilha do pagamento' : 'Trilha do fato econômico'}
             count={null}
-            context="Cadeia completa: título → fato financeiro → evento econômico → posting → lançamento contábil."
+            context="Cadeia auditável: fato de origem → evento econômico → posting → lançamento contábil."
             action={
               <Button type="button" variant="secondary" onClick={reload}>
                 Atualizar

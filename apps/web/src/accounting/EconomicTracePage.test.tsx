@@ -291,4 +291,38 @@ describe('F1.1 — EconomicTracePage', () => {
     expect(mockFetchPaymentTrace).toHaveBeenCalledWith('payment-1', expect.anything());
     expect(mockFetchSettlementTrace).not.toHaveBeenCalled();
   });
+  it('renderiza INVENTORY sem erro de map e sem inventar liquidação financeira', async () => {
+    mockFetchSettlementTrace.mockResolvedValue(
+      traceView({
+        factKind: 'INVENTORY_MOVEMENT',
+        financialState: 'NOT_APPLICABLE',
+        summary: 'FINANCEIRO: NÃO SE APLICA · CONTABILIDADE: FALHOU',
+        trace: [
+          {
+            kind: 'INVENTORY_MOVEMENT',
+            reference: 'inventory-1',
+            status: 'PUBLISHED',
+            occurredAt: '2026-11-02',
+            route: null,
+          },
+          {
+            kind: 'ECONOMIC_EVENT',
+            reference: 'INVENTORY_MOVEMENT_POSTED',
+            status: 'FAILED',
+            occurredAt: '2026-11-02',
+            route: null,
+          },
+        ],
+        posting: { ...traceView().posting, rule: null },
+      }),
+    );
+    renderAt('inventory_movement');
+
+    expect(await screen.findByText('Trilha do fato econômico')).toBeInTheDocument();
+    expect(screen.getByText('Movimento de estoque')).toBeInTheDocument();
+    expect(screen.getByText('Não se aplica')).toBeInTheDocument();
+    expect(screen.getByText('INVENTORY_MOVEMENT_POSTED')).toBeInTheDocument();
+    expect(screen.queryByText('Trilha do pagamento')).not.toBeInTheDocument();
+  });
+
 });

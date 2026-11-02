@@ -264,41 +264,33 @@ export class EconomicTraceReadModelService {
       eventRow.source_kind,
       eventRow.event_kind.startsWith('PAYMENT'),
     );
-    const accountingState =
-      posting?.status === 'POSTED'
-        ? ECONOMIC_ACCOUNTING_STATES.Posted
-        : outbox?.status === 'FAILED'
-          ? ECONOMIC_ACCOUNTING_STATES.Failed
-          : ECONOMIC_ACCOUNTING_STATES.Pending;
-    const financialState = ECONOMIC_FINANCIAL_STATES.Settled;
+    // Apenas journal POSTED autoriza contabilizado; nunca inferir do posting request.
+    const accountingState = this.resolveAccountingState({ eventRow, outbox, posting, journal });
+    const financialState = ECONOMIC_FINANCIAL_STATES.NotApplicable;
     const { situation, severity } = resolveSituation(financialState, accountingState);
-    const failure = outbox?.last_error ?? null;
-
-    /**
-     * COMANDOS: só os que a trilha de um fato publicado pode oferecer.
-     *
-     * Reprocessar o posting é decisão do ACCOUNTING e é oferecido quando ainda há falha
-     * ou posting pendente; abrir o evento é leitura. Nada de estorno aqui — estorno de
-     * fato não financeiro é comando do domínio de origem, não desta superfície.
-     */
     const availableCommands: EconomicCommand[] = [ECONOMIC_COMMANDS.OpenEconomicEvent];
-    if (accountingState !== ECONOMIC_ACCOUNTING_STATES.Posted) {
+    if (
+      accountingState === ECONOMIC_ACCOUNTING_STATES.Failed ||
+      accountingState === ECONOMIC_ACCOUNTING_STATES.Pending
+    ) {
       availableCommands.push(ECONOMIC_COMMANDS.RetryPosting);
     }
-
+    if (journal?.status === 'POSTED') {
+      availableCommands.push(ECONOMIC_COMMANDS.OpenJournal);
+    }
     const nextAction: EconomicNextAction =
       accountingState === ECONOMIC_ACCOUNTING_STATES.Failed ||
       accountingState === ECONOMIC_ACCOUNTING_STATES.Pending
         ? {
             command: ECONOMIC_COMMANDS.RetryPosting,
             label: 'Reprocessar contabilização',
-            reason: 'O fato econômico existe, mas o lançamento contábil ainda não foi gerado.',
+            reason: 'O fato econômico existe, mas o lançamento contábil ainda não foi confirmado.',
             owner: 'accounting:posting-request:create',
           }
         : {
             command: ECONOMIC_COMMANDS.OpenEconomicEvent,
             label: 'Ver evento econômico',
-            reason: 'O fato está contabilizado; a trilha permite auditar a cadeia.',
+            reason: 'A trilha permite auditar o reconhecimento contábil do fato.',
             owner: null,
           };
 
@@ -313,38 +305,14 @@ export class EconomicTraceReadModelService {
       accountingState,
       situation,
       severity,
-      summary: `FINANCEIRO: ${financialState} · CONTABILIDADE: ${accountingState}`,
-      impact: resolveImpact({
-        financialState,
-        accountingState,
-        amount: eventRow.amount,
-      }),
+      summary: buildEconomicSummary({ financialState, accountingState }),
+      impact: resolveImpact({ financialState, accountingState, amount: eventRow.amount }),
       nextAction,
       availableCommands,
-      economicEvent: {
-        id: eventRow.id,
-        eventKind: eventRow.event_kind,
-        sourceKind: eventRow.source_kind,
-        sourceId: eventRow.source_id,
-        amount: eventRow.amount,
-        currencyCode: eventRow.currency_code,
-        occurredOn: eventRow.occurred_on,
-        outboxEventId: eventRow.outbox_event_id,
-        transportState: outbox?.status ?? 'NOT_PUBLISHED',
-        transportAttempts: outbox?.attempts ?? 0,
-        transportLastError: failure,
-      },
-      posting: {
-        state: accountingState,
-        postingRequestId: posting?.id ?? null,
-        journalEntryId: journal?.id ?? null,
-        journalNumber: journal?.entry_number ?? null,
-        journalKind: journal?.kind ?? null,
-        postedAt: journal?.posted_at ?? null,
-        failure: failure ? { code: failure, message: failure } : null,
-      },
-      nodes: [],
-    } as unknown as EconomicTraceView;
+      economicEvent: this.toEventSummary(eventRow, outbox),
+      posting: this.toPostingFact({ accountingState, posting, journal, rule: null, outbox }),
+      trace: buildNonFinancialTraceNodes({ factKind, eventRow, outbox, posting, journal }),
+    };
   }
 
   async forSettlement(settlementId: string): Promise<EconomicTraceView | null> {
@@ -886,6 +854,9 @@ export function resolveImpact(input: {
     input.accountingState === ECONOMIC_ACCOUNTING_STATES.Failed ||
     input.accountingState === ECONOMIC_ACCOUNTING_STATES.NotReached
   ) {
+    if (input.financialState === ECONOMIC_FINANCIAL_STATES.NotApplicable) {
+      return 'O fato econômico foi publicado, mas seu lançamento contábil não foi confirmado.';
+    }
     return `O caixa reconhece ${input.amount}, mas o lançamento contábil correspondente não existe — o balanço fica divergente até a contabilização ser concluída.`;
   }
   if (input.accountingState === ECONOMIC_ACCOUNTING_STATES.Pending) {
@@ -970,6 +941,54 @@ export function resolveAvailableCommands(input: {
     commands.push(input.reversalCommand);
   }
   return commands;
+}
+
+
+/** Cadeia de fato não financeiro. Não inventa journal, regra ou rota do domínio de origem. */
+export function buildNonFinancialTraceNodes(input: {
+  factKind: EconomicFactKind;
+  eventRow: EconomicEventRow;
+  outbox: OutboxRow | null;
+  posting: PostingRow | null;
+  journal: JournalRow | null;
+}): EconomicTraceNode[] {
+  const nodes: EconomicTraceNode[] = [
+    {
+      kind: input.factKind,
+      reference: input.eventRow.source_id.slice(0, 8),
+      status: 'PUBLISHED',
+      occurredAt: input.eventRow.occurred_on,
+      route: null,
+    },
+    {
+      kind: 'ECONOMIC_EVENT',
+      reference: input.eventRow.event_kind,
+      status: input.outbox?.status ?? 'NOT_PUBLISHED',
+      occurredAt: input.eventRow.occurred_on,
+      route: `${ECONOMIC_TRACE_ROUTE_BASE}/${input.factKind.toLowerCase()}/${input.eventRow.source_id}`,
+    },
+  ];
+  if (input.posting) {
+    nodes.push({
+      kind: 'POSTING',
+      reference: input.posting.event_kind,
+      status: input.posting.status,
+      occurredAt: input.posting.occurred_on,
+      route: '/app/accounting/posting-origins',
+    });
+  }
+  if (input.journal) {
+    nodes.push({
+      kind: 'JOURNAL',
+      reference: input.journal.entry_number
+        ? `#${input.journal.entry_number}`
+        : input.journal.id.slice(0, 8),
+      status: input.journal.status,
+      occurredAt: input.journal.posted_at,
+      route: '/app/accounting/journals',
+    });
+  }
+  return nodes;
 }
 
 export function buildTraceNodes(input: {
