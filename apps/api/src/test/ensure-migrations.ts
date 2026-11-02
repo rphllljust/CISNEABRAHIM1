@@ -1170,6 +1170,16 @@ $$;`);
       await applySqlFile(pool, '0112_billing_receivable_handoff_job.sql');
     }
 
+    /*
+     * 0113 — Structural, explicit OS material actual -> Inventory item/warehouse
+     * binding. Verify its own table before reconciling the Drizzle journal so a
+     * missing migration cannot be silently recorded as applied. This is not
+     * evidence of authorized stock OUT, costing, or accounting.
+     */
+    if (!(await tableExists(pool, 'so.material_inventory_bindings'))) {
+      await applySqlFile(pool, '0113_material_inventory_binding_contract.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();
