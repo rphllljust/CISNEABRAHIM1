@@ -76,14 +76,47 @@ function page<T>(items: T[], searchParams: URLSearchParams): Record<string, unkn
   return { items: filtered.slice(offset, offset + limit), limit, offset, total: filtered.length, totalPages: 1 };
 }
 
-export type InventoryFetchMockOptions = { denied?: boolean };
+export type InventoryFetchMockOptions = { denied?: boolean; failMovementsOnce?: boolean; createItemFails?: boolean };
 
 /** Tráfego determinístico do Estoque. A sessão vem do mock de shell. */
 export function createInventoryFetchMock(options: InventoryFetchMockOptions = {}) {
   const shellMock = createShellFetchMock();
+  // Estado de teste por instância: não altera fixtures compartilhadas entre suites.
+  const warehouses = [...WAREHOUSES];
+  const items = [...ITEMS];
+  let movementsFailureRemaining = options.failMovementsOnce ? 1 : 0;
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
     const { pathname, searchParams } = parseRequestPath(input);
+
+    if (pathname.endsWith('/inventory/items') && method === 'POST') {
+      if (options.createItemFails) {
+        return jsonResponse({ error: { code: 'INVENTORY_VALIDATION_FAILED' } }, 422);
+      }
+      const body = JSON.parse(String(init?.body ?? '{}')) as { unitId: string; sku: string; name: string };
+      const created = {
+        id: '99999999-9999-4999-8999-999999999992',
+        unitId: body.unitId,
+        sku: body.sku,
+        name: body.name,
+        status: 'ACTIVE',
+        costingMethodStatus: 'UNDECIDED',
+      };
+      items.unshift(created);
+      return jsonResponse(created);
+    }
+    if (pathname.endsWith('/inventory/warehouses') && method === 'POST') {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { unitId: string; code: string; name: string };
+      const created = {
+        id: 'ffffffff-ffff-4fff-8fff-fffffffffff3',
+        unitId: body.unitId,
+        code: body.code,
+        name: body.name,
+        status: 'ACTIVE',
+      };
+      warehouses.unshift(created);
+      return jsonResponse(created);
+    }
 
     const listed =
       pathname.endsWith('/inventory/warehouses') ||
@@ -96,12 +129,16 @@ export function createInventoryFetchMock(options: InventoryFetchMockOptions = {}
         return jsonResponse({ error: { code: 'INVENTORY_DENIED' } }, 403);
       }
       if (pathname.endsWith('/inventory/warehouses')) {
-        return jsonResponse(page(WAREHOUSES, searchParams));
+        return jsonResponse(page(warehouses, searchParams));
       }
       if (pathname.endsWith('/inventory/items')) {
-        return jsonResponse(page(ITEMS, searchParams));
+        return jsonResponse(page(items, searchParams));
       }
       if (pathname.endsWith('/inventory/movements')) {
+        if (movementsFailureRemaining > 0) {
+          movementsFailureRemaining -= 1;
+          return jsonResponse({ error: { code: 'INVENTORY_UNAVAILABLE' } }, 503);
+        }
         return jsonResponse(page(MOVEMENTS, searchParams));
       }
       return jsonResponse(page(RESERVATIONS, searchParams));
