@@ -93,7 +93,7 @@ export function createInventoryFetchMock(options: InventoryFetchMockOptions = {}
       if (options.createItemFails) {
         return jsonResponse({ error: { code: 'INVENTORY_VALIDATION_FAILED' } }, 422);
       }
-      const body = JSON.parse(String(init?.body ?? '{}')) as { unitId: string; sku: string; name: string };
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { unitId: string; sku: string; name: string };
       const created = {
         id: '99999999-9999-4999-8999-999999999992',
         unitId: body.unitId,
@@ -106,7 +106,7 @@ export function createInventoryFetchMock(options: InventoryFetchMockOptions = {}
       return jsonResponse(created);
     }
     if (pathname.endsWith('/inventory/warehouses') && method === 'POST') {
-      const body = JSON.parse(String(init?.body ?? '{}')) as { unitId: string; code: string; name: string };
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { unitId: string; code: string; name: string };
       const created = {
         id: 'ffffffff-ffff-4fff-8fff-fffffffffff3',
         unitId: body.unitId,
