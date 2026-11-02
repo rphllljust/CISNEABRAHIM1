@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
@@ -83,6 +83,88 @@ describe('InventoryPage', () => {
       ).toBe(true);
     });
     expect(screen.getByLabelText('Tipo de movimento')).toHaveValue('IN');
+  });
+
+  it('refreshes authorized stock items after the create command is acknowledged', async () => {
+    const fetchMock = createInventoryFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />);
+
+    await screen.findByRole('link', { name: 'Cabo de aço 10mm' });
+    const initialReads = fetchMock.mock.calls.filter(
+      ([input, init]) => String(input).includes('/inventory/items') && (init?.method ?? 'GET') === 'GET',
+    ).length;
+
+    await user.click(screen.getByRole('button', { name: 'Criar item' }));
+    await user.type(screen.getByLabelText('Unidade'), 'unit-1');
+    await user.type(screen.getByLabelText('SKU'), 'SKU-NOVO-02');
+    await user.type(screen.getByLabelText('Nome do item'), 'Material cadastrado');
+    await user.click(screen.getAllByRole('button', { name: 'Criar item' }).at(-1)!);
+
+    expect(await screen.findByRole('link', { name: 'Material cadastrado' })).toHaveAttribute(
+      'href',
+      '/app/inventory/items/99999999-9999-4999-8999-999999999992',
+    );
+    const newReads = fetchMock.mock.calls.filter(
+      ([input, init]) => String(input).includes('/inventory/items') && (init?.method ?? 'GET') === 'GET',
+    ).length;
+    expect(newReads).toBeGreaterThan(initialReads);
+  });
+
+  it('refreshes deposits only after the authorized create POST succeeds', async () => {
+    vi.stubGlobal('fetch', createInventoryFetchMock());
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />);
+    await screen.findByRole('link', { name: 'Depósito Central' });
+
+    await user.click(screen.getByRole('button', { name: 'Criar depósito' }));
+    await user.type(screen.getByLabelText('Unidade'), 'unit-1');
+    await user.type(screen.getByLabelText('Código'), 'WH-NOVO');
+    await user.type(screen.getByLabelText('Nome'), 'Depósito de operação');
+    await user.click(screen.getAllByRole('button', { name: 'Criar depósito' }).at(-1)!);
+
+    expect(await screen.findByRole('link', { name: 'Depósito de operação' })).toHaveAttribute(
+      'href',
+      '/app/inventory/warehouses/ffffffff-ffff-4fff-8fff-fffffffffff3',
+    );
+  });
+
+  it('shows recoverable server errors instead of inventing a permission denial', async () => {
+    vi.stubGlobal('fetch', createInventoryFetchMock({ failMovementsOnce: true }));
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />);
+    const movementsTable = screen.getByRole('table', { name: 'Movimentos de estoque' });
+    const retry = await within(movementsTable).findByRole('button', { name: 'Tentar novamente' });
+    expect(within(movementsTable).queryByText(/não tem permissão/i)).not.toBeInTheDocument();
+
+    await user.click(retry);
+    await waitFor(() => {
+      expect(within(movementsTable).getByText('Recebimento inicial')).toBeInTheDocument();
+    });
+  });
+
+  it('does not refresh or invent a record after a rejected create command', async () => {
+    const fetchMock = createInventoryFetchMock({ createItemFails: true });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderWithProviders(<InventoryPage />);
+    await screen.findByRole('link', { name: 'Cabo de aço 10mm' });
+    const initialReads = fetchMock.mock.calls.filter(
+      ([input, init]) => String(input).includes('/inventory/items') && (init?.method ?? 'GET') === 'GET',
+    ).length;
+
+    await user.click(screen.getByRole('button', { name: 'Criar item' }));
+    await user.type(screen.getByLabelText('Unidade'), 'unit-1');
+    await user.type(screen.getByLabelText('SKU'), 'SKU-REJEITADO');
+    await user.type(screen.getByLabelText('Nome do item'), 'Material inválido');
+    await user.click(screen.getAllByRole('button', { name: 'Criar item' }).at(-1)!);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(screen.queryByRole('link', { name: 'Material inválido' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(
+      ([input, init]) => String(input).includes('/inventory/items') && (init?.method ?? 'GET') === 'GET',
+    )).toHaveLength(initialReads);
   });
 
   it('states the refusal per list when the server denies the list grant', async () => {
