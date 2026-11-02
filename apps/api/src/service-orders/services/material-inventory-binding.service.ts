@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { toResourceContextFromAccounting } from '../../authorization/scope/scope-matcher';
 import { assertPolicyAndGrantScope } from '../../authorization/services/domain-grant-authz.helper';
@@ -46,8 +46,9 @@ export class MaterialInventoryBindingService {
     private readonly authorizationRepository: AuthorizationRepository,
     private readonly policyDecisionPoint: PolicyDecisionPointService,
     private readonly bindings: MaterialInventoryBindingRepository,
+    @Optional()
     @Inject(ENTERPRISE_CORE_PORT.InventoryStock)
-    private readonly inventory: InventoryStockPort,
+    private readonly inventory: InventoryStockPort | undefined,
   ) {}
 
   /**
@@ -62,7 +63,7 @@ export class MaterialInventoryBindingService {
   ) {
     const binding = await this.requireActionableBinding(actor, serviceOrderId, input);
     if (input.reservationId && !UUID.test(input.reservationId)) throw serviceOrdersValidationFailed();
-    const result = await this.inventory.postBoundMaterialActual({
+    const result = await this.requireInventory().postBoundMaterialActual({
       ...this.toInventorySnapshot(binding),
       actorIdentityId: actor.identityId,
       actorSessionId: actor.sessionId,
@@ -92,7 +93,7 @@ export class MaterialInventoryBindingService {
     if (typeof input.reason !== 'string' || input.reason.trim().length < 8) {
       throw serviceOrdersValidationFailed();
     }
-    const result = await this.inventory.reverseBoundMaterialActual({
+    const result = await this.requireInventory().reverseBoundMaterialActual({
       ...this.toInventorySnapshot(binding),
       actorIdentityId: actor.identityId,
       actorSessionId: actor.sessionId,
@@ -121,7 +122,7 @@ export class MaterialInventoryBindingService {
       return { actualId, stockPostingStatus: 'UNBOUND' as const, costingStatus: 'NOT_DECIDED' as const };
     }
     await this.assertInventoryGrant(actor, binding.inventory_item_id, binding.unit_id);
-    const movements = await this.inventory.readBoundMaterialActual(this.toInventorySnapshot(binding));
+    const movements = await this.requireInventory().readBoundMaterialActual(this.toInventorySnapshot(binding));
     return {
       actualId: binding.actual_id,
       stockPostingStatus: movements.reversed ? 'REVERSED' as const :
@@ -131,6 +132,18 @@ export class MaterialInventoryBindingService {
       costingStatus: movements.posted?.totalCost ? 'VALUED' as const : 'NOT_DECIDED' as const,
       totalCost: movements.posted?.totalCost ?? null,
     };
+  }
+
+  /**
+   * In full API composition InventoryModule exports this neutral port.
+   * Worker/Inbox isolated Nest compositions need not own Inventory: the
+   * command is explicitly unavailable there rather than executing a default.
+   */
+  private requireInventory(): InventoryStockPort {
+    if (!this.inventory) {
+      throw serviceOrdersInvalidState('Inventory integration is not configured for this execution context.');
+    }
+    return this.inventory;
   }
 
   private toInventorySnapshot(binding: {
