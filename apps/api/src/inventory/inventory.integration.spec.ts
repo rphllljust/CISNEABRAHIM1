@@ -339,7 +339,7 @@ describe('Inventory core PostgreSQL integration', () => {
       description: 'Inbound must not consume a reservation',
       reservationId: reserved.id,
       idempotencyKey: `invalid-in-${crypto.randomUUID()}`,
-    })).rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.INVALID_MOVEMENT_TYPE });
+    })).rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.VALIDATION_FAILED });
 
     const unchanged = await inventory.getBalance(actor, origin.id, item.id);
     expect(unchanged).toMatchObject({ onHand: '20', reserved: '10', available: '10' });
