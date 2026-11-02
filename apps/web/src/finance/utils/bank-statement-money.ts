@@ -8,7 +8,9 @@ const MONEY = /^(-?)(\d{1,14})(?:\.(\d{1,4}))?$/;
 function units(value: string): bigint | null {
   const match = MONEY.exec(value.trim());
   if (!match) return null;
-  const integer = BigInt(match[2]);
+  const integerPart = match[2];
+  if (!integerPart) return null;
+  const integer = BigInt(integerPart);
   const fraction = BigInt((match[3] ?? '').padEnd(4, '0'));
   const amount = integer * 10_000n + fraction;
   return match[1] === '-' ? -amount : amount;
