@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { createInventoryFetchMock, INVENTORY_TEST_DATA } from '../../test/inventory-fetch-mock';
 import { renderWithProviders } from '../../test/render-with-providers';
+import { parseRequestPath } from '../../test/request-url';
 import { InventoryPage } from './InventoryPage';
 
 describe('InventoryPage', () => {
@@ -93,11 +94,11 @@ describe('InventoryPage', () => {
 
     await screen.findByRole('link', { name: 'Cabo de aço 10mm' });
     const initialReads = fetchMock.mock.calls.filter(
-      ([input, init]) => String(input).includes('/inventory/items') && (init?.method ?? 'GET') === 'GET',
+      ([input, init]) => parseRequestPath(input).pathname.endsWith('/inventory/items') && (init?.method ?? 'GET') === 'GET',
     ).length;
 
     await user.click(screen.getByRole('button', { name: 'Criar item' }));
-    await user.type(screen.getByLabelText('Unidade'), 'unit-1');
+    await user.type(screen.getByLabelText(/^Unidade\b/), 'unit-1');
     await user.type(screen.getByLabelText('SKU'), 'SKU-NOVO-02');
     await user.type(screen.getByLabelText('Nome do item'), 'Material cadastrado');
     await user.click(screen.getAllByRole('button', { name: 'Criar item' }).at(-1)!);
@@ -107,7 +108,7 @@ describe('InventoryPage', () => {
       '/app/inventory/items/99999999-9999-4999-8999-999999999992',
     );
     const newReads = fetchMock.mock.calls.filter(
-      ([input, init]) => String(input).includes('/inventory/items') && (init?.method ?? 'GET') === 'GET',
+      ([input, init]) => parseRequestPath(input).pathname.endsWith('/inventory/items') && (init?.method ?? 'GET') === 'GET',
     ).length;
     expect(newReads).toBeGreaterThan(initialReads);
   });
@@ -119,7 +120,7 @@ describe('InventoryPage', () => {
     await screen.findByRole('link', { name: 'Depósito Central' });
 
     await user.click(screen.getByRole('button', { name: 'Criar depósito' }));
-    await user.type(screen.getByLabelText('Unidade'), 'unit-1');
+    await user.type(screen.getByLabelText(/^Unidade\b/), 'unit-1');
     await user.type(screen.getByLabelText('Código'), 'WH-NOVO');
     await user.type(screen.getByLabelText('Nome'), 'Depósito de operação');
     await user.click(screen.getAllByRole('button', { name: 'Criar depósito' }).at(-1)!);
@@ -151,11 +152,11 @@ describe('InventoryPage', () => {
     renderWithProviders(<InventoryPage />);
     await screen.findByRole('link', { name: 'Cabo de aço 10mm' });
     const initialReads = fetchMock.mock.calls.filter(
-      ([input, init]) => String(input).includes('/inventory/items') && (init?.method ?? 'GET') === 'GET',
+      ([input, init]) => parseRequestPath(input).pathname.endsWith('/inventory/items') && (init?.method ?? 'GET') === 'GET',
     ).length;
 
     await user.click(screen.getByRole('button', { name: 'Criar item' }));
-    await user.type(screen.getByLabelText('Unidade'), 'unit-1');
+    await user.type(screen.getByLabelText(/^Unidade\b/), 'unit-1');
     await user.type(screen.getByLabelText('SKU'), 'SKU-REJEITADO');
     await user.type(screen.getByLabelText('Nome do item'), 'Material inválido');
     await user.click(screen.getAllByRole('button', { name: 'Criar item' }).at(-1)!);
@@ -163,7 +164,7 @@ describe('InventoryPage', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     expect(screen.queryByRole('link', { name: 'Material inválido' })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(
-      ([input, init]) => String(input).includes('/inventory/items') && (init?.method ?? 'GET') === 'GET',
+      ([input, init]) => parseRequestPath(input).pathname.endsWith('/inventory/items') && (init?.method ?? 'GET') === 'GET',
     )).toHaveLength(initialReads);
   });
 
