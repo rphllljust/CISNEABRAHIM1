@@ -117,6 +117,19 @@ export class InventoryRepository {
     return result.rows;
   }
 
+  /** Batched owner-only read for OS material reconciliation; no cross-schema joins. */
+  async findMaterialMovementsByCommands(unitIds: string[], commandKeys: string[]): Promise<StockMovementRow[]> {
+    if (unitIds.length === 0 || commandKeys.length === 0) return [];
+    const result = await this.pool().query<StockMovementRow>(
+      `SELECT ${MOVEMENT_RETURNING}
+       FROM inv.stock_movements
+       WHERE unit_id = ANY($1::text[]) AND command_idempotency_key = ANY($2::text[])
+       ORDER BY created_at, id`,
+      [unitIds, commandKeys],
+    );
+    return result.rows;
+  }
+
   async findReservationByIdempotency(
     unitId: string,
     idempotencyKey: string,
