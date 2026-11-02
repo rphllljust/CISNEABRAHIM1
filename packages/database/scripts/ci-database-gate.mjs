@@ -79,6 +79,8 @@ const EXPECTED_TABLES = [
   'so.planned_resources',
   'res.resource_allocations',
   'so.execution_entries',
+  // 0113: the material actual -> Inventory binding must exist in fresh and N-1+delta schemas.
+  'so.material_inventory_bindings',
   'so.operational_cost_entries',
   'msr.measurements',
   // ── MEASUREMENT → ACCEPTANCE → BILLING READINESS (0108) ─────────────────────
@@ -1569,6 +1571,34 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       );
       if (!prior.rows[0]?.has_jobs || prior.rows[0]?.already_has_handoff) {
         throw new Error('0112 N-1 must have background_jobs but not the handoff job kind');
+      }
+      return;
+    }
+
+    if (deltaFile === '0113_material_inventory_binding_contract.sql') {
+      const baseline = await client.query(
+        `SELECT
+           to_regclass('so.execution_actuals') IS NOT NULL AS has_actuals,
+           to_regclass('so.service_orders') IS NOT NULL AS has_orders,
+           to_regclass('inv.inventory_items') IS NOT NULL AS has_inventory_items,
+           to_regclass('inv.warehouses') IS NOT NULL AS has_warehouses,
+           to_regclass('so.material_inventory_bindings') AS already_bound,
+           EXISTS (
+             SELECT 1 FROM pg_indexes
+             WHERE schemaname = 'so'
+               AND indexname = 'execution_actuals_material_binding_ref_uidx'
+           ) AS already_snapshot_index`,
+      );
+      const state = baseline.rows[0];
+      if (
+        !state?.has_actuals ||
+        !state.has_orders ||
+        !state.has_inventory_items ||
+        !state.has_warehouses ||
+        state.already_bound !== null ||
+        state.already_snapshot_index
+      ) {
+        throw new Error('0113 N-1 requires OS actuals and Inventory but no material binding schema');
       }
       return;
     }
