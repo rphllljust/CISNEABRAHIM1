@@ -731,7 +731,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     });
     expect(posted).toMatchObject({
       actualId, stockPostingStatus: 'POSTED', quantity: '2.0000',
-      idempotent: false, costingStatus: 'NOT_DECIDED',
+      idempotent: false, costingStatus: 'PENDING_COSTING',
       totalCost: null, accountingStatus: 'NOT_APPLICABLE',
     });
     const replayConsumption = await materialBindings.consume(actor, released.id, {
@@ -742,7 +742,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     const afterOut = await inventory.getBalance(actor, warehouse.id, item.id);
     expect(afterOut.onHand).toBe('8');
     expect((await materialBindings.reconcile(actor, released.id, actualId)))
-      .toMatchObject({ stockPostingStatus: 'POSTED', stockMovementId: posted.stockMovementId });
+      .toMatchObject({ stockPostingStatus: 'POSTED', stockMovementId: posted.stockMovementId, costingStatus: 'PENDING_COSTING' });
 
     // #193 2E: reversal is an IN compensation with an immutable reference to
     // the source movement; retries never restore the saldo twice.
@@ -750,7 +750,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
       actualId, rowVersion, idempotencyKey: `reverse-${crypto.randomUUID()}`,
       reason: 'Material returned after real execution correction',
     });
-    expect(compensated).toMatchObject({ stockPostingStatus: 'REVERSED', idempotent: false });
+    expect(compensated).toMatchObject({ stockPostingStatus: 'REVERSED', idempotent: false, costingStatus: 'NOT_APPLICABLE' });
     const replayReverse = await materialBindings.reverseConsumption(actor, released.id, {
       actualId, rowVersion, idempotencyKey: `reverse-retry-${crypto.randomUUID()}`,
       reason: 'Material returned after real execution correction',
@@ -762,7 +762,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
       .toMatchObject({
         stockPostingStatus: 'REVERSED', stockMovementId: posted.stockMovementId,
         reversalMovementId: compensated.compensationMovementId,
-        costingStatus: 'NOT_DECIDED',
+        costingStatus: 'NOT_APPLICABLE',
       });
     const traced = await pool.query<{ movement_type: string; source_kind: string; source_id: string }>(
       `SELECT movement_type::text, source_kind, source_id
