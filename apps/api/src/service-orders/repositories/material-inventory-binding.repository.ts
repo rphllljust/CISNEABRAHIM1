@@ -64,8 +64,18 @@ export class MaterialInventoryBindingRepository {
     return connection.pool;
   }
 
+  private async rollbackKeepingPrimaryCause(client: PoolClient): Promise<Error | undefined> {
+    try {
+      await client.query('ROLLBACK');
+      return undefined;
+    } catch (rollbackFailure) {
+      return rollbackFailure instanceof Error ? rollbackFailure : new Error(String(rollbackFailure));
+    }
+  }
+
   async bind(input: BindMaterialInventoryInput): Promise<{ row: MaterialInventoryBindingRow; idempotent: boolean }> {
     const client = await this.pool().connect();
+    let evictWith: Error | undefined;
     try {
       await client.query('BEGIN');
       // Lock OS before the fact, so status/version and actual snapshot cannot race
@@ -145,7 +155,7 @@ export class MaterialInventoryBindingRepository {
       await client.query('COMMIT');
       return { row: raced, idempotent: true };
     } catch (error) {
-      await client.query('ROLLBACK');
+      evictWith = await this.rollbackKeepingPrimaryCause(client);
       if (error instanceof MaterialBindingPersistenceError) throw error;
       const code = (error as { code?: string })?.code;
       if (code === '23503') throw new MaterialBindingPersistenceError('INVALID_REFERENCE');
@@ -153,7 +163,7 @@ export class MaterialInventoryBindingRepository {
       if (code === '23514' || code === '22003') throw new MaterialBindingPersistenceError('INVALID_FACT');
       throw error;
     } finally {
-      client.release();
+      client.release(evictWith);
     }
   }
 
