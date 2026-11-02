@@ -38,6 +38,7 @@ import {
   assertNegativeStockUnauthorized,
   assertSufficientStock,
   deriveStockPosition,
+  normalizeQuantity,
   reconcileOnHand,
   signedQuantityForMovement,
 } from '../domain/inventory';
@@ -843,19 +844,38 @@ export class InventoryAccessService implements InventoryStockPort {
       );
       let reservationQuantities = loaded.activeReservationQuantities;
       if (validated.reservationId) {
-        const reservation = await this.repository.findReservationById(validated.reservationId);
+        // Reservation consumption is currently all-or-nothing. Until a partial
+        // consumption contract exists, never release the unconsumed remainder.
+        if (validated.movementType !== STOCK_MOVEMENT_TYPES.Out) {
+          throw new InventoryError('INVENTORY_INVALID_MOVEMENT_TYPE');
+        }
+        const reservation = await this.repository.findReservationByIdInside(
+          client,
+          validated.reservationId,
+        );
         if (
           !reservation ||
           reservation.status !== RESERVATION_STATUSES.Active ||
+          reservation.unit_id !== validated.unitId ||
           reservation.warehouse_id !== validated.warehouseId ||
           reservation.inventory_item_id !== validated.inventoryItemId
         ) {
           throw new InventoryError('INVENTORY_NOT_FOUND');
         }
-        reservationQuantities = reservationQuantities.filter(
-          (quantity, index) =>
-            !(index === reservationQuantities.indexOf(reservation.quantity) && quantity === reservation.quantity),
+        if (normalizeQuantity(reservation.quantity) !== validated.quantity) {
+          throw new InventoryError('INVENTORY_INVALID_QUANTITY');
+        }
+        // Remove exactly this reservation from the position calculation, not
+        // an arbitrary reservation with the same quantity.
+        const remaining = [...loaded.activeReservationQuantities];
+        const reservedIndex = remaining.findIndex(
+          (quantity) => normalizeQuantity(quantity) === validated.quantity,
         );
+        if (reservedIndex === -1) {
+          throw new InventoryError('INVENTORY_NOT_FOUND');
+        }
+        remaining.splice(reservedIndex, 1);
+        reservationQuantities = remaining;
         await this.repository.consumeReservation(client, reservation.id, actor.identityId);
       }
       const position = deriveStockPosition({
