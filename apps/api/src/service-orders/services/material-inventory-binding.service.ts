@@ -77,7 +77,7 @@ export class MaterialInventoryBindingService {
       stockPostingStatus: 'POSTED' as const,
       quantity: result.quantity,
       idempotent: result.idempotent,
-      costingStatus: result.totalCost === null ? 'NOT_DECIDED' as const : 'VALUED' as const,
+      costingStatus: result.totalCost === null ? 'PENDING_COSTING' as const : 'VALUED' as const,
       totalCost: result.totalCost,
       // Accounting is owned by Inventory's economic outbox; not a fabricated journal.
       accountingStatus: result.totalCost === null ? 'NOT_APPLICABLE' as const : 'EVENT_PUBLISHED' as const,
@@ -106,7 +106,7 @@ export class MaterialInventoryBindingService {
       stockPostingStatus: 'REVERSED' as const,
       idempotent: result.idempotent,
       totalCost: result.totalCost,
-      costingStatus: result.totalCost === null ? 'NOT_DECIDED' as const : 'VALUED' as const,
+      costingStatus: result.totalCost === null ? 'NOT_APPLICABLE' as const : 'VALUED' as const,
     };
   }
 
@@ -129,7 +129,11 @@ export class MaterialInventoryBindingService {
         movements.posted ? 'POSTED' as const : 'NOT_POSTED' as const,
       stockMovementId: movements.posted?.movementId ?? null,
       reversalMovementId: movements.reversed?.movementId ?? null,
-      costingStatus: movements.posted?.totalCost ? 'VALUED' as const : 'NOT_DECIDED' as const,
+      costingStatus: movements.reversed
+        ? (movements.posted?.totalCost === null ? 'NOT_APPLICABLE' as const : 'VALUED' as const)
+        : movements.posted
+          ? (movements.posted.totalCost === null ? 'PENDING_COSTING' as const : 'VALUED' as const)
+          : 'NOT_APPLICABLE' as const,
       totalCost: movements.posted?.totalCost ?? null,
     };
   }
