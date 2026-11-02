@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import { toResourceContextFromAccounting } from '../../authorization/scope/scope-matcher';
 import { assertPolicyAndGrantScope } from '../../authorization/services/domain-grant-authz.helper';
@@ -110,6 +110,75 @@ export class MaterialInventoryBindingService {
     };
   }
 
+  /**
+   * Work Inbox projection from persisted bindings and Inventory's own movement
+   * ledger. The caller supplies ONLY OS records already authorized for LIST+READ.
+   * Inventory READ is checked per binding; no Inventory grant means no item.
+   * Failures of the owner read fail the entire source, never a false empty queue.
+   */
+  async listMaterialExceptionsForReadableOrders(
+    actor: IdentityAuthzContext,
+    orders: Array<{ id: string; unitId: string; orderNumber: string }>,
+  ): Promise<Array<{
+    actualId: string;
+    serviceOrderId: string;
+    orderNumber: string;
+    unitId: string;
+    occurredAt: string;
+    status: 'NOT_POSTED' | 'PENDING_COSTING';
+  }>> {
+    if (orders.length === 0) return [];
+    const byId = new Map(orders.map((order) => [order.id, order]));
+    const bindings = await this.bindings.findByServiceOrders([...byId.keys()]);
+    const authorized = await Promise.all(bindings.map(async (binding) => {
+      const order = byId.get(binding.service_order_id);
+      if (!order || binding.unit_id !== order.unitId ||
+          binding.source_kind !== 'SERVICE_ORDER_EXECUTION_ACTUAL' ||
+          binding.source_id !== binding.actual_id) {
+        throw serviceOrdersInvalidState('Invalid persisted material origin for Work Inbox.');
+      }
+      try {
+        await this.assertInventoryGrant(
+          actor, binding.inventory_item_id, binding.unit_id, AUTHZ_ACTIONS.InventoryRead,
+        );
+        return binding;
+      } catch (error) {
+        if (error instanceof HttpException && error.getStatus() === 403) return null;
+        throw error;
+      }
+    }));
+    const visible = authorized.filter((binding): binding is NonNullable<typeof binding> => binding !== null);
+    if (visible.length === 0) return [];
+
+    const states: Array<{ actualId: string; posted: { totalCost: string | null } | null; reversed: unknown }> = [];
+    for (let offset = 0; offset < visible.length; offset += 500) {
+      const page = visible.slice(offset, offset + 500);
+      states.push(...await this.requireInventory().readBoundMaterialActuals(page.map((binding) => ({
+        actualId: binding.actual_id,
+        inventoryItemId: binding.inventory_item_id,
+        warehouseId: binding.warehouse_id,
+        unitId: binding.unit_id,
+        quantity: binding.quantity,
+      }))));
+    }
+    return visible.flatMap((binding, index) => {
+      const state = states[index];
+      const order = byId.get(binding.service_order_id);
+      if (!state || !order || state.actualId !== binding.actual_id) {
+        throw serviceOrdersInvalidState('Inventory reconciliation did not match persisted material origin.');
+      }
+      if (state.reversed || (state.posted && state.posted.totalCost !== null)) return [];
+      return [{
+        actualId: binding.actual_id,
+        serviceOrderId: binding.service_order_id,
+        orderNumber: order.orderNumber,
+        unitId: binding.unit_id,
+        occurredAt: new Date(binding.authorized_at).toISOString(),
+        status: state.posted ? 'PENDING_COSTING' as const : 'NOT_POSTED' as const,
+      }];
+    });
+  }
+
   /** Reconciliation for authorized work queues: no direct read of inv.*. */
   async reconcile(actor: IdentityAuthzContext, serviceOrderId: string, actualId: string) {
     const order = await this.serviceOrders.findById(serviceOrderId);
@@ -164,12 +233,15 @@ export class MaterialInventoryBindingService {
     };
   }
 
-  private async assertInventoryGrant(actor: IdentityAuthzContext, itemId: string, unitId: string) {
+  private async assertInventoryGrant(
+    actor: IdentityAuthzContext, itemId: string, unitId: string,
+    action: typeof AUTHZ_ACTIONS.InventoryMove | typeof AUTHZ_ACTIONS.InventoryRead = AUTHZ_ACTIONS.InventoryMove,
+  ) {
     await assertPolicyAndGrantScope(
       { authorizationRepository: this.authorizationRepository, policyDecisionPoint: this.policyDecisionPoint },
       {
         actor,
-        action: AUTHZ_ACTIONS.InventoryMove,
+        action,
         resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
         context: toResourceContextFromAccounting({ id: itemId, unitId }),
         onDenied: serviceOrdersAccessDenied,
