@@ -721,7 +721,7 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
 
     await expect(
       pool.query('UPDATE so.execution_actuals SET actual_value = 3 WHERE id = $1', [fact.id]),
-    ).rejects.toMatchObject({ code: '23503' });
+    ).rejects.toMatchObject({ code: '23001' });
 
     const balanceAfter = await inventory.getBalance(actor, warehouse.id, item.id);
     const movementsAfter = await inventory.listMovements(actor, {
