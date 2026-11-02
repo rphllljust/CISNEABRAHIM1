@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input, Money, Select, worklistTableCardClass } from '../../ui';
 import {
@@ -21,6 +21,7 @@ import {
   worklistHeadCellClass,
   worklistRowClass,
 } from '../../ui/enterprise-list';
+import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
@@ -66,7 +67,7 @@ export function InventoryRoute({ children }: { children: ReactNode }) {
 type ListPhase<T> =
   | { phase: 'loading' }
   | { phase: 'denied' }
-  | { phase: 'error' }
+  | { phase: 'error'; message: string }
   | { phase: 'ready'; items: T[]; total: number };
 
 function ListMessageRow({ colSpan, children }: { colSpan: number; children: ReactNode }) {
@@ -76,6 +77,26 @@ function ListMessageRow({ colSpan, children }: { colSpan: number; children: Reac
         {children}
       </td>
     </tr>
+  );
+}
+
+/** Uma falha de API não é uma negativa de acesso. O retry refaz as leituras autorizadas. */
+function ListFailureRow({
+  colSpan,
+  message,
+  onRetry,
+}: {
+  colSpan: number;
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <ListMessageRow colSpan={colSpan}>
+      <div role="alert">{message}</div>
+      <button type="button" className={rowSecondaryActionClass} onClick={onRetry}>
+        Tentar novamente
+      </button>
+    </ListMessageRow>
   );
 }
 
@@ -145,6 +166,8 @@ const INVENTORY_BUILT_IN_VIEWS = [
  * listas, e a unidade é derivada do depósito escolhido pelo servidor.
  */
 export function InventoryPage() {
+  const [refreshRevision, setRefreshRevision] = useState(0);
+  const requestSequence = useRef(0);
   const [term, setTerm] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
   // ADOCAO DE MECANISMO: o tipo de movimento passa a viver na URL, o mesmo mecanismo das
@@ -171,6 +194,7 @@ export function InventoryPage() {
 
   const loadAll = useCallback(
     async (signal?: AbortSignal) => {
+      const requestId = ++requestSequence.current;
       const q = appliedTerm || undefined;
       setWarehouses({ phase: 'loading' });
       setItems({ phase: 'loading' });
@@ -182,8 +206,23 @@ export function InventoryPage() {
         apply: (value: ListPhase<T>) => void,
       ) => {
         void promise.then(
-          (response) => apply({ phase: 'ready', items: response.items, total: response.total }),
-          () => apply({ phase: 'denied' }),
+          (response) => {
+            if (signal?.aborted || requestId !== requestSequence.current) return;
+            apply({ phase: 'ready', items: response.items, total: response.total });
+          },
+          (error: unknown) => {
+            if (signal?.aborted || requestId !== requestSequence.current) return;
+            if (error instanceof BackofficeApiError && error.kind === 'denied') {
+              apply({ phase: 'denied' });
+              return;
+            }
+            apply({
+              phase: 'error',
+              message: error instanceof BackofficeApiError
+                ? mapInventoryErrorToMessage(error.code, error.status)
+                : 'Não foi possível carregar esta lista de estoque.',
+            });
+          },
         );
       };
 
@@ -201,7 +240,7 @@ export function InventoryPage() {
       );
       settle(listStockReservations({ limit: PAGE_SIZE, offset: 0, q }, signal), setReservations);
     },
-    [appliedTerm, movementType],
+    [appliedTerm, movementType, refreshRevision],
   );
 
   useEffect(() => {
@@ -304,6 +343,9 @@ export function InventoryPage() {
             {warehouses.phase === 'ready' && warehouses.items.length === 0 ? (
               <ListMessageRow colSpan={4}>Nenhum depósito encontrado.</ListMessageRow>
             ) : null}
+            {warehouses.phase === 'error' ? (
+              <ListFailureRow colSpan={4} message={warehouses.message} onRetry={() => void loadAll()} />
+            ) : null}
             {warehouses.phase === 'denied' ? (
               <ListMessageRow colSpan={4}>
                 Você não tem permissão para listar depósitos.
@@ -349,6 +391,9 @@ export function InventoryPage() {
           <tbody className="divide-y divide-gray-100">
             {items.phase === 'ready' && items.items.length === 0 ? (
               <ListMessageRow colSpan={4}>Nenhum item de estoque encontrado.</ListMessageRow>
+            ) : null}
+            {items.phase === 'error' ? (
+              <ListFailureRow colSpan={4} message={items.message} onRetry={() => void loadAll()} />
             ) : null}
             {items.phase === 'denied' ? (
               <ListMessageRow colSpan={4}>Você não tem permissão para listar itens.</ListMessageRow>
@@ -413,6 +458,9 @@ export function InventoryPage() {
                   : 'Nenhum movimento encontrado.'}
               </ListMessageRow>
             ) : null}
+            {movements.phase === 'error' ? (
+              <ListFailureRow colSpan={7} message={movements.message} onRetry={() => void loadAll()} />
+            ) : null}
             {movements.phase === 'denied' ? (
               <ListMessageRow colSpan={7}>Você não tem permissão para listar movimentos.</ListMessageRow>
             ) : null}
@@ -473,6 +521,9 @@ export function InventoryPage() {
             {reservations.phase === 'ready' && reservations.items.length === 0 ? (
               <ListMessageRow colSpan={5}>Nenhuma reserva encontrada.</ListMessageRow>
             ) : null}
+            {reservations.phase === 'error' ? (
+              <ListFailureRow colSpan={5} message={reservations.message} onRetry={() => void loadAll()} />
+            ) : null}
             {reservations.phase === 'denied' ? (
               <ListMessageRow colSpan={5}>Você não tem permissão para listar reservas.</ListMessageRow>
             ) : null}
@@ -519,7 +570,7 @@ export function InventoryPage() {
           : 'Carregando reservas…'}
       </p>
 
-      <CatalogForms />
+      <CatalogForms onCreated={() => setRefreshRevision((current) => current + 1)} />
       <CostingRuleForm />
 
       <p className="mt-6 text-sm text-gray-500">
@@ -578,8 +629,9 @@ function buildInventoryPreview(
 }
 
 /** Cadastro de depósito e item: a unidade é a âncora de escopo informada uma vez, no cadastro. */
-function CatalogForms() {
-  const [unitId, setUnitId] = useState('');
+function CatalogForms({ onCreated }: { onCreated: () => void }) {
+  const [warehouseUnitId, setWarehouseUnitId] = useState('');
+  const [itemUnitId, setItemUnitId] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -595,15 +647,16 @@ function CatalogForms() {
         mapError={mapInventoryErrorToMessage}
         onSubmit={async () => {
           const warehouse = await createWarehouse({
-            unitId: unitId.trim(),
+            unitId: warehouseUnitId.trim(),
             code: code.trim(),
             name: name.trim(),
           });
           setCreated(`Depósito ${warehouse.code} criado.`);
+          onCreated();
         }}
       >
         <Field label="Unidade" htmlFor="wh-unit" required>
-          <Input id="wh-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} required />
+          <Input id="wh-unit" value={warehouseUnitId} onChange={(event) => setWarehouseUnitId(event.target.value)} required />
         </Field>
         <Field label="Código" htmlFor="wh-code" required>
           <Input id="wh-code" value={code} onChange={(event) => setCode(event.target.value)} required />
@@ -619,13 +672,17 @@ function CatalogForms() {
         mapError={mapInventoryErrorToMessage}
         onSubmit={async () => {
           const item = await createInventoryItem({
-            unitId: unitId.trim(),
+            unitId: itemUnitId.trim(),
             sku: sku.trim(),
             name: itemName.trim(),
           });
           setCreated(`Item ${item.sku} criado.`);
+          onCreated();
         }}
       >
+        <Field label="Unidade" htmlFor="item-unit" required>
+          <Input id="item-unit" value={itemUnitId} onChange={(event) => setItemUnitId(event.target.value)} required />
+        </Field>
         <Field label="SKU" htmlFor="item-sku" required>
           <Input id="item-sku" value={sku} onChange={(event) => setSku(event.target.value)} required />
         </Field>
