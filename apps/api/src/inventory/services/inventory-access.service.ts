@@ -450,10 +450,12 @@ export class InventoryAccessService implements InventoryStockPort {
       materialCommandKey(input.actualId),
       input.unitId,
       materialReversalKey(input.actualId),
+      input.reason.trim(),
     );
     const reversed = await this.repository.findMovementsByCommand(input.unitId, materialReversalKey(input.actualId));
     if (result.movements.length !== 1 || reversed.length !== 1 ||
       reversed[0]!.reversal_of_movement_id !== original[0]!.id ||
+      reversed[0]!.description !== `Reversal of ${original[0]!.id}: ${input.reason.trim()}` ||
       reversed[0]!.movement_type !== STOCK_MOVEMENT_TYPES.In) {
       throw new InventoryError('INVENTORY_VALIDATION_FAILED');
     }
@@ -622,6 +624,7 @@ export class InventoryAccessService implements InventoryStockPort {
     commandIdempotencyKey: string,
     unitId: string,
     reversalKey: string,
+    reason?: string,
   ): Promise<PostMovementResponse> {
     try {
       await this.authz.assertInventoryAction(actor, AUTHZ_ACTIONS.InventoryMove, {
@@ -680,7 +683,7 @@ export class InventoryAccessService implements InventoryStockPort {
                 commandIdempotencyKey: reversalKey,
                 idempotencyKey: `${reversalKey}:${original.id}`,
                 occurredOn: original.occurred_on.slice(0, 10),
-                description: `Reversal of ${original.id}`,
+                description: reason ? `Reversal of ${original.id}: ${reason}` : `Reversal of ${original.id}`,
                 actorIdentityId: actor.identityId,
                 unitCost: original.unit_cost,
                 totalCost: original.total_cost,
