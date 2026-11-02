@@ -34,6 +34,7 @@ export const ECONOMIC_FINANCIAL_STATES = {
   Settled: 'SETTLED',
   Reversed: 'REVERSED',
   Cancelled: 'CANCELLED',
+  NotApplicable: 'NOT_APPLICABLE',
 } as const;
 
 export type EconomicFinancialState =
@@ -102,7 +103,7 @@ export type EconomicCommand = (typeof ECONOMIC_COMMANDS)[keyof typeof ECONOMIC_C
 
 /** Um nó da cadeia rastreável. `route` é o deep link real quando existe. */
 export type EconomicTraceNode = {
-  kind: 'RECEIVABLE' | 'PAYABLE' | 'SETTLEMENT' | 'PAYMENT' | 'ECONOMIC_EVENT' | 'POSTING' | 'JOURNAL';
+  kind: EconomicFactKind | 'ECONOMIC_EVENT' | 'POSTING' | 'JOURNAL';
   reference: string;
   status: string;
   occurredAt: string | null;
@@ -265,6 +266,7 @@ export function buildEconomicSummary(input: {
     SETTLED: 'FINANCEIRO: LIQUIDADO',
     REVERSED: 'FINANCEIRO: ESTORNADO',
     CANCELLED: 'FINANCEIRO: CANCELADO',
+    NOT_APPLICABLE: 'FINANCEIRO: NÃO SE APLICA',
   }[input.financialState];
   const accounting = {
     NOT_REACHED: 'CONTABILIDADE: NÃO ALCANÇADA',

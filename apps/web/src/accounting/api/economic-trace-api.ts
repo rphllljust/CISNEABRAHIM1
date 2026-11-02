@@ -17,6 +17,7 @@ import { tokenStore } from '../../auth/storage/token-store';
  */
 
 export type EconomicFinancialState =
+  | 'NOT_APPLICABLE'
   | 'OPEN'
   | 'PARTIALLY_SETTLED'
   | 'SETTLED'
@@ -45,8 +46,13 @@ export type EconomicCommand =
   | 'VIEW_PAYABLE'
   | 'OPEN_ACCOUNTING_PERIOD';
 
+export type EconomicFactKind =
+  | 'SETTLEMENT' | 'PAYMENT' | 'RECEIVABLE' | 'PAYABLE'
+  | 'FISCAL_DOCUMENT' | 'TAX_CALCULATION' | 'INVENTORY_MOVEMENT'
+  | 'PAYROLL_PERIOD' | 'FIXED_ASSET';
+
 export type EconomicTraceNode = {
-  kind: 'RECEIVABLE' | 'PAYABLE' | 'SETTLEMENT' | 'PAYMENT' | 'ECONOMIC_EVENT' | 'POSTING' | 'JOURNAL';
+  kind: EconomicFactKind | 'ECONOMIC_EVENT' | 'POSTING' | 'JOURNAL';
   reference: string;
   status: string;
   occurredAt: string | null;
@@ -102,7 +108,7 @@ export type EconomicPostingFact = {
 };
 
 export type EconomicTraceView = {
-  factKind: 'SETTLEMENT' | 'PAYMENT';
+  factKind: EconomicFactKind;
   factId: string;
   unitId: string;
   amount: string;
@@ -122,7 +128,7 @@ export type EconomicTraceView = {
 };
 
 export type EconomicWorkItem = {
-  factKind: 'SETTLEMENT' | 'PAYMENT';
+  factKind: EconomicFactKind;
   factId: string;
   unitId: string;
   reference: string;
@@ -288,6 +294,7 @@ export const ECONOMIC_STATE_LABELS: Record<EconomicAccountingState, string> = {
 };
 
 export const ECONOMIC_FINANCIAL_LABELS: Record<EconomicFinancialState, string> = {
+  NOT_APPLICABLE: 'Não se aplica',
   OPEN: 'Aberto',
   PARTIALLY_SETTLED: 'Parcial',
   SETTLED: 'Liquidado',
@@ -303,6 +310,11 @@ export const ECONOMIC_SEVERITY_TONE: Record<EconomicSeverity, 'critical' | 'warn
 };
 
 export const ECONOMIC_TRACE_KIND_LABELS: Record<EconomicTraceNode['kind'], string> = {
+  FISCAL_DOCUMENT: 'Documento fiscal',
+  TAX_CALCULATION: 'Apuração tributária',
+  INVENTORY_MOVEMENT: 'Movimento de estoque',
+  PAYROLL_PERIOD: 'Folha de pagamento',
+  FIXED_ASSET: 'Ativo imobilizado',
   RECEIVABLE: 'Título a receber',
   PAYABLE: 'Título a pagar',
   SETTLEMENT: 'Liquidação',
