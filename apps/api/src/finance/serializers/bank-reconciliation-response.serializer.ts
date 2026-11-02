@@ -22,6 +22,7 @@ export type BankStatementResponse = {
   id: string;
   unitId: string;
   financialAccountId: string;
+  currencyCode: string;
   sourceKind: string;
   sourceReference: string;
   periodStartsOn: string;
@@ -59,6 +60,7 @@ export function toStatementResponse(
     id: statement.id,
     unitId: statement.unit_id,
     financialAccountId: statement.financial_account_id,
+    currencyCode: statement.currency_code,
     sourceKind: statement.source_kind,
     sourceReference: statement.source_reference,
     periodStartsOn: statement.period_starts_on,

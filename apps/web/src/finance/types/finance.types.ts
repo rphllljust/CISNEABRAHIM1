@@ -195,6 +195,7 @@ export type BankStatement = {
   id: string;
   unitId: string;
   financialAccountId: string;
+  currencyCode: string;
   sourceKind: string;
   sourceReference: string;
   periodStartsOn: string;

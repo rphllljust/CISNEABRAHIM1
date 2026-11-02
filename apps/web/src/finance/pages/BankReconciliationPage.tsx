@@ -32,6 +32,7 @@ import {
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { FinanceStatusBadge } from '../components/FinanceStatusBadge';
+import { bankStatementAbsoluteDifference } from '../utils/bank-statement-money';
 import type {
   AutoMatchResult,
   BankStatement,
@@ -183,10 +184,6 @@ function reconciliationForLine(
   tracked: ReconciliationMatch[],
 ): ReconciliationMatch | undefined {
   return tracked.find((item) => item.bankStatementLineId === lineId);
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
 function errorInfo(error: unknown): { message: string; retryable: boolean; conflict: boolean } {
@@ -912,7 +909,7 @@ export function BankReconciliationPage() {
                         );
                         const systemAmount = reconciliation?.match?.amount ?? null;
                         const difference =
-                          systemAmount === null ? null : Number(line.amount) - Number(systemAmount);
+                          systemAmount === null ? null : bankStatementAbsoluteDifference(line.amount, systemAmount);
                         const isDuplicate = line.duplicate;
                         const needsWork = line.matchStatus !== 'MATCHED';
                         return (
@@ -946,7 +943,7 @@ export function BankReconciliationPage() {
                               <DateTime value={line.occurredOn} mode="date" />
                             </td>
                             <td className={worklistNumericCellClass}>
-                              <Money value={line.amount} emphasis />
+                              <Money value={line.amount} currencyCode={statement.currencyCode} emphasis />
                             </td>
                             <td className={worklistCellClass}>
                               {reconciliation?.match ? (
@@ -968,19 +965,19 @@ export function BankReconciliationPage() {
                               {systemAmount === null ? (
                                 <span className="text-gray-400">—</span>
                               ) : (
-                                <Money value={systemAmount} />
+                                <Money value={systemAmount} currencyCode={statement.currencyCode} />
                               )}
                             </td>
                             <td className={worklistNumericCellClass}>
                               {difference === null ? (
                                 <span className="text-gray-400">—</span>
-                              ) : difference === 0 ? (
+                              ) : difference === '0.0000' ? (
                                 <span className="text-[11px] font-medium text-green-700">
                                   Sem diferença
                                 </span>
                               ) : (
                                 <span className="font-semibold text-red-700">
-                                  {formatCurrency(Math.abs(difference))}
+                                  <Money value={difference} currencyCode={statement.currencyCode} />
                                 </span>
                               )}
                             </td>
