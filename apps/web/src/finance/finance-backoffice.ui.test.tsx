@@ -220,8 +220,8 @@ describe('Finance backoffice UI', () => {
     await waitFor(() => {
       const first = within(table).getByText('Linha 1').closest('tr');
       expect(first).not.toBeNull();
-      expect(within(first as HTMLElement).getByText(/US\\$\\s*10,00/)).toBeInTheDocument();
-      expect(within(first as HTMLElement).queryByText(/R\\$\\s*10,00/)).not.toBeInTheDocument();
+      expect(within(first as HTMLElement).getByText(/US\$\s*10,00/)).toBeInTheDocument();
+      expect(within(first as HTMLElement).queryByText(/R\$\s*10,00/)).not.toBeInTheDocument();
     });
   });
 
