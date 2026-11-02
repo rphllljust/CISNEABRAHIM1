@@ -267,6 +267,7 @@ const MIGRATION_EFFECT_CHECKS = {
   },
   // 0113 adds the explicit OS actual -> Inventory binding; never mark unverified hashes applied.
   '0113_material_inventory_binding_contract': { table: ['so', 'material_inventory_bindings'] },
+  '0114_material_stock_exactly_once': { index: 'stock_movement_os_actual_out_once_uidx' },
 };
 
 /**
