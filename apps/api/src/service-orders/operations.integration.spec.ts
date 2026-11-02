@@ -780,6 +780,49 @@ describe('DISPATCH + EXECUTION + ACTUALS (PostgreSQL)', () => {
     expect(dispatchCmd?.enabled).toBe(true);
   });
 
+  it('não publica horas e quilômetros como custo monetário na OS 360', async () => {
+    const { actor } = await seedActor();
+    const { released, workforceMemberId, assetId } = await seedReleasedOrder(actor);
+    await operations.dispatch(actor, released.id, {
+      rowVersion: released.rowVersion,
+      idempotencyKey: `dispatch-${crypto.randomUUID()}`,
+    });
+    await startOrder(actor, released.id);
+
+    const beforeLabor = await serviceOrdersAccess.getById(actor, released.id);
+    await operations.registerActual(actor, released.id, {
+      actualKind: 'LABOR_HOURS',
+      workforceMemberId,
+      actualValue: '7.5',
+      unitOfMeasure: 'H',
+      rowVersion: beforeLabor.rowVersion,
+      idempotencyKey: `actual-${crypto.randomUUID()}`,
+    });
+
+    const beforeDistance = await serviceOrdersAccess.getById(actor, released.id);
+    await operations.registerActual(actor, released.id, {
+      actualKind: 'VEHICLE_DISTANCE',
+      physicalAssetId: assetId!,
+      actualValue: '125',
+      unitOfMeasure: 'KM',
+      rowVersion: beforeDistance.rowVersion,
+      idempotencyKey: `actual-${crypto.randomUUID()}`,
+    });
+
+    const overview = await operations.getServiceOrderOverview(actor, released.id);
+    expect(overview.actuals.records.map((row) => row.unitOfMeasure).sort()).toEqual(['H', 'KM']);
+    // O plano de mão de obra contém quantidade positiva; o código anterior
+    // a somava como se fosse valor em BRL, mesmo sem custo ESTIMATED.
+    expect(
+      overview.actuals.records.find((row) => row.actualKind === 'LABOR_HOURS')?.plannedValue,
+    ).not.toBeNull();
+    expect(overview.economics).toEqual({
+      plannedRevenue: null,
+      plannedCost: null,
+      currencyCode: null,
+    });
+  });
+
   it('o dispatch board conta prontas e bloqueadas a partir do servidor', async () => {
     const { actor } = await seedActor();
     await seedReleasedOrder(actor);
