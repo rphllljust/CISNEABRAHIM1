@@ -21,6 +21,8 @@ import { MeController, ServiceOrderMetadataController } from './controllers/serv
 import { ServiceOrderMetadataRepository } from './services/service-order-metadata.repository';
 import { ServiceOrderMetadataService } from './services/service-order-metadata.service';
 import { ServiceOrderExecutionRepository } from './repositories/service-order-execution.repository';
+import { MaterialInventoryBindingRepository } from './repositories/material-inventory-binding.repository';
+import { MaterialInventoryBindingService } from './services/material-inventory-binding.service';
 import { OperationsRepository } from './repositories/operations.repository';
 import { OperationsService } from './services/operations.service';
 import { OperationalCostRepository } from './repositories/operational-cost.repository';
@@ -54,6 +56,8 @@ import { ServiceRequestConversionService } from './services/service-request-conv
     ServiceOrdersRepository,
     ResourcePlanningRepository,
     ServiceOrderExecutionRepository,
+    MaterialInventoryBindingRepository,
+    MaterialInventoryBindingService,
     OperationsRepository,
     OperationsService,
     OperationalCostRepository,
