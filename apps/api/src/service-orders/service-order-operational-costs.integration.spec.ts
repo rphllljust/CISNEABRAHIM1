@@ -29,6 +29,7 @@ import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
 import { CatalogModule } from '../catalog/catalog.module';
+import { BusinessChainService } from '../business-chain/services/business-chain.service';
 import { ServiceCatalogAccessService } from '../catalog/services/service-catalog-access.service';
 import { ClientsModule } from '../clients/clients.module';
 import { CONTACT_PURPOSES } from '../clients/domain/client-status';
@@ -114,6 +115,7 @@ describe('Operational costs PostgreSQL integration', () => {
   let planningAccess: ServiceOrderPlanningAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
   let operationalCostAccess: OperationalCostAccessService;
+  let businessChain: BusinessChainService;
   let operations: OperationsService;
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
@@ -144,6 +146,7 @@ describe('Operational costs PostgreSQL integration', () => {
     planningAccess = module.get(ServiceOrderPlanningAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
     operationalCostAccess = module.get(OperationalCostAccessService);
+    businessChain = module.get(BusinessChainService);
     operations = module.get(OperationsService);
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
@@ -237,6 +240,8 @@ describe('Operational costs PostgreSQL integration', () => {
     const { released } = await seedReleasedOrder(actor);
     const initial = await operations.getServiceOrderOverview(actor, released.id);
     expect(initial.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+    expect(initial.statuses.billing).toBe('UNKNOWN');
+    expect(initial.statuses.accounting).toBe('UNKNOWN');
 
     const started = await executionAccess.start(actor, released.id, { rowVersion: released.rowVersion });
     await executionAccess.recordQuantity(actor, started.id, {
@@ -295,6 +300,8 @@ describe('Operational costs PostgreSQL integration', () => {
     });
     const overview = await operations.getServiceOrderOverview(reader, released.id);
     expect(overview.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+    expect(overview.statuses.billing).toBe('UNKNOWN');
+    expect(overview.statuses.accounting).toBe('UNKNOWN');
   });
 
   it('propagates operational cost reader failure instead of fabricating a zero or unknown amount', async () => {
@@ -372,6 +379,51 @@ describe('Operational costs PostgreSQL integration', () => {
     expect(bundle.summary.totalActualCost).toBeNull();
     const overview = await operations.getServiceOrderOverview(actor, released.id);
     expect(overview.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+  });
+
+
+  it('projects only authorized persisted billing/accounting statuses from the owner contract', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    const reader = vi.spyOn(businessChain, 'getChain').mockResolvedValueOnce({
+      anchor: { kind: 'SERVICE_ORDER', id: released.id },
+      nodes: [
+        {
+          id: crypto.randomUUID(), kind: 'BILLING_DOCUMENT', businessReference: 'NF-TEST-001',
+          status: 'FINALIZED', occurredAt: '2026-01-01T00:00:00.000Z',
+          route: '/app/service-orders/test/billing/document', relation: 'RESULT',
+          summary: 'Documento persistido', unitId: UNIT_A, clientId: null,
+        },
+        {
+          id: crypto.randomUUID(), kind: 'ACCOUNTING_ENTRY', businessReference: 'Lançamento 1',
+          status: 'POSTED', occurredAt: '2026-01-02T00:00:00.000Z',
+          route: '/app/accounting/journals/test', relation: 'ACCOUNTING',
+          summary: 'Lançamento persistido', unitId: UNIT_A, clientId: null,
+        },
+      ],
+      milestones: [],
+    });
+    try {
+      const overview = await operations.getServiceOrderOverview(actor, released.id);
+      expect(reader).toHaveBeenCalledWith(actor, 'SERVICE_ORDER', released.id);
+      expect(overview.statuses.billing).toBe('FINALIZED');
+      expect(overview.statuses.accounting).toBe('POSTED');
+    } finally {
+      reader.mockRestore();
+    }
+  });
+
+  it('propagates owner read-model failures instead of publishing invented downstream states', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    const reader = vi.spyOn(businessChain, 'getChain')
+      .mockRejectedValueOnce(new Error('BUSINESS_CHAIN_READ_UNAVAILABLE_TEST'));
+    try {
+      await expect(operations.getServiceOrderOverview(actor, released.id))
+        .rejects.toThrow('BUSINESS_CHAIN_READ_UNAVAILABLE_TEST');
+    } finally {
+      reader.mockRestore();
+    }
   });
 
   it('records estimated cost at service order level with traceable origin', async () => {
