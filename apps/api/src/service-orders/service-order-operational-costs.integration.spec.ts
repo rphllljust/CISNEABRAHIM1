@@ -19,7 +19,7 @@ import {
 } from '@cisne/database';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Pool } from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
@@ -40,6 +40,7 @@ import { SERVICE_ORDER_ORIGINS } from './domain/service-order';
 import { SERVICE_ORDERS_ERROR_CODES } from './errors/service-orders-error-codes';
 import { ServiceOrdersModule } from './service-orders.module';
 import { OperationalCostAccessService } from './services/operational-cost-access.service';
+import { OperationsService } from './services/operations.service';
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
 import { ServiceOrderPlanningAccessService } from './services/service-order-planning-access.service';
 import { ServiceOrdersAccessService } from './services/service-orders-access.service';
@@ -113,6 +114,7 @@ describe('Operational costs PostgreSQL integration', () => {
   let planningAccess: ServiceOrderPlanningAccessService;
   let executionAccess: ServiceOrderExecutionAccessService;
   let operationalCostAccess: OperationalCostAccessService;
+  let operations: OperationsService;
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
@@ -142,6 +144,7 @@ describe('Operational costs PostgreSQL integration', () => {
     planningAccess = module.get(ServiceOrderPlanningAccessService);
     executionAccess = module.get(ServiceOrderExecutionAccessService);
     operationalCostAccess = module.get(OperationalCostAccessService);
+    operations = module.get(OperationsService);
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
@@ -228,6 +231,148 @@ describe('Operational costs PostgreSQL integration', () => {
 
     return { released };
   }
+
+  it('publishes no invented BRL cost for physical execution without a cost entry', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    const initial = await operations.getServiceOrderOverview(actor, released.id);
+    expect(initial.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+
+    const started = await executionAccess.start(actor, released.id, { rowVersion: released.rowVersion });
+    await executionAccess.recordQuantity(actor, started.id, {
+      rowVersion: started.rowVersion,
+      quantityValue: '42.000000',
+      unitCode: 'SERVICE',
+    });
+    const afterQuantity = await operations.getServiceOrderOverview(actor, started.id);
+    expect(afterQuantity.economics.plannedCost).toBeNull();
+    expect(afterQuantity.economics.currencyCode).toBeNull();
+  });
+
+  it('projects precise monetary estimates from the authorized ledger, not actual cost', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    await operationalCostAccess.recordCost(actor, released.id, {
+      origin: OPERATIONAL_COST_ORIGINS.ServiceOrder,
+      category: OPERATIONAL_COST_CATEGORIES.ThirdParty,
+      costKind: OPERATIONAL_COST_KINDS.Estimated,
+      amount: '500.0001',
+      currencyCode: 'USD',
+      rowVersion: released.rowVersion,
+    });
+    const overview = await operations.getServiceOrderOverview(actor, released.id);
+    expect(overview.economics).toEqual({
+      plannedRevenue: null,
+      plannedCost: '500.0001',
+      currencyCode: 'USD',
+    });
+  });
+
+  it('does not leak cost amounts to an OS reader without operational-cost permission', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    await operationalCostAccess.recordCost(actor, released.id, {
+      origin: OPERATIONAL_COST_ORIGINS.ServiceOrder,
+      category: OPERATIONAL_COST_CATEGORIES.ThirdParty,
+      costKind: OPERATIONAL_COST_KINDS.Estimated,
+      amount: '150.0000',
+      currencyCode: 'BRL',
+      rowVersion: released.rowVersion,
+    });
+    const login = normalizeLoginIdentifier(`cost-reader-${crypto.randomUUID()}@cisne.invalid`);
+    const { identityId } = await insertIdentity(pool, login, await hashPassword(AUTH_TEST_PASSWORD));
+    await insertGrant(pool, {
+      identityId,
+      action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+      resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: actor.identityId,
+    });
+    const reader = { identityId, sessionId: 'sid-cost-reader' };
+    await expect(operationalCostAccess.listByServiceOrder(reader, released.id)).rejects.toMatchObject({
+      code: SERVICE_ORDERS_ERROR_CODES.DENIED,
+      status: 403,
+    });
+    const overview = await operations.getServiceOrderOverview(reader, released.id);
+    expect(overview.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+  });
+
+  it('propagates operational cost reader failure instead of fabricating a zero or unknown amount', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    const reader = vi.spyOn(operationalCostAccess, 'listByServiceOrder')
+      .mockRejectedValueOnce(new Error('COST_READER_UNAVAILABLE_TEST'));
+    try {
+      await expect(operations.getServiceOrderOverview(actor, released.id))
+        .rejects.toThrow('COST_READER_UNAVAILABLE_TEST');
+      expect(reader).toHaveBeenCalledTimes(1);
+    } finally {
+      reader.mockRestore();
+    }
+  });
+
+  it('does not aggregate estimated costs across different currencies', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    await operationalCostAccess.recordCost(actor, released.id, {
+      origin: OPERATIONAL_COST_ORIGINS.ServiceOrder,
+      category: OPERATIONAL_COST_CATEGORIES.ThirdParty,
+      costKind: OPERATIONAL_COST_KINDS.Estimated,
+      amount: '125.0001',
+      currencyCode: 'USD',
+      rowVersion: released.rowVersion,
+    });
+    const latest = await serviceOrdersAccess.getById(actor, released.id);
+    await operationalCostAccess.recordCost(actor, released.id, {
+      origin: OPERATIONAL_COST_ORIGINS.ServiceOrder,
+      category: OPERATIONAL_COST_CATEGORIES.Fuel,
+      costKind: OPERATIONAL_COST_KINDS.Estimated,
+      amount: '100.0002',
+      currencyCode: 'BRL',
+      rowVersion: latest.rowVersion,
+    });
+    const bundle = await operationalCostAccess.listByServiceOrder(actor, released.id);
+    expect(bundle.summary.blockingReasons).toContain('COST_CURRENCY_MISMATCH');
+    expect(bundle.summary.totalEstimatedCost).toBeNull();
+    const overview = await operations.getServiceOrderOverview(actor, released.id);
+    expect(overview.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+  });
+
+  it('does not publish an estimated currency when actual cost is in another currency', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    await operationalCostAccess.recordCost(actor, released.id, {
+      origin: OPERATIONAL_COST_ORIGINS.ServiceOrder,
+      category: OPERATIONAL_COST_CATEGORIES.ThirdParty,
+      costKind: OPERATIONAL_COST_KINDS.Estimated,
+      amount: '500.0001',
+      currencyCode: 'USD',
+      rowVersion: released.rowVersion,
+    });
+    const afterEstimate = await serviceOrdersAccess.getById(actor, released.id);
+    const started = await executionAccess.start(actor, released.id, { rowVersion: afterEstimate.rowVersion });
+    const quantity = await executionAccess.recordQuantity(actor, started.id, {
+      rowVersion: started.rowVersion,
+      quantityValue: '1',
+      unitCode: 'SERVICE',
+    });
+    const afterQuantity = await serviceOrdersAccess.getById(actor, released.id);
+    await operationalCostAccess.recordCost(actor, released.id, {
+      origin: OPERATIONAL_COST_ORIGINS.Execution,
+      sourceExecutionEntryId: quantity.entry.id,
+      category: OPERATIONAL_COST_CATEGORIES.Fuel,
+      costKind: OPERATIONAL_COST_KINDS.Actual,
+      amount: '75.0001',
+      currencyCode: 'BRL',
+      rowVersion: afterQuantity.rowVersion,
+    });
+    const bundle = await operationalCostAccess.listByServiceOrder(actor, released.id);
+    expect(bundle.summary.blockingReasons).toContain('COST_CURRENCY_MISMATCH');
+    expect(bundle.summary.totalEstimatedCost).toBeNull();
+    expect(bundle.summary.totalActualCost).toBeNull();
+    const overview = await operations.getServiceOrderOverview(actor, released.id);
+    expect(overview.economics).toEqual({ plannedRevenue: null, plannedCost: null, currencyCode: null });
+  });
 
   it('records estimated cost at service order level with traceable origin', async () => {
     const { actor } = await seedActor();
