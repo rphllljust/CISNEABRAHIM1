@@ -630,7 +630,8 @@ function buildInventoryPreview(
 
 /** Cadastro de depósito e item: a unidade é a âncora de escopo informada uma vez, no cadastro. */
 function CatalogForms({ onCreated }: { onCreated: () => void }) {
-  const [unitId, setUnitId] = useState('');
+  const [warehouseUnitId, setWarehouseUnitId] = useState('');
+  const [itemUnitId, setItemUnitId] = useState('');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
@@ -646,7 +647,7 @@ function CatalogForms({ onCreated }: { onCreated: () => void }) {
         mapError={mapInventoryErrorToMessage}
         onSubmit={async () => {
           const warehouse = await createWarehouse({
-            unitId: unitId.trim(),
+            unitId: warehouseUnitId.trim(),
             code: code.trim(),
             name: name.trim(),
           });
@@ -655,7 +656,7 @@ function CatalogForms({ onCreated }: { onCreated: () => void }) {
         }}
       >
         <Field label="Unidade" htmlFor="wh-unit" required>
-          <Input id="wh-unit" value={unitId} onChange={(event) => setUnitId(event.target.value)} required />
+          <Input id="wh-unit" value={warehouseUnitId} onChange={(event) => setWarehouseUnitId(event.target.value)} required />
         </Field>
         <Field label="Código" htmlFor="wh-code" required>
           <Input id="wh-code" value={code} onChange={(event) => setCode(event.target.value)} required />
@@ -671,7 +672,7 @@ function CatalogForms({ onCreated }: { onCreated: () => void }) {
         mapError={mapInventoryErrorToMessage}
         onSubmit={async () => {
           const item = await createInventoryItem({
-            unitId: unitId.trim(),
+            unitId: itemUnitId.trim(),
             sku: sku.trim(),
             name: itemName.trim(),
           });
@@ -679,6 +680,9 @@ function CatalogForms({ onCreated }: { onCreated: () => void }) {
           onCreated();
         }}
       >
+        <Field label="Unidade" htmlFor="item-unit" required>
+          <Input id="item-unit" value={itemUnitId} onChange={(event) => setItemUnitId(event.target.value)} required />
+        </Field>
         <Field label="SKU" htmlFor="item-sku" required>
           <Input id="item-sku" value={sku} onChange={(event) => setSku(event.target.value)} required />
         </Field>
