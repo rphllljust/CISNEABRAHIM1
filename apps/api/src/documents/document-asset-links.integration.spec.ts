@@ -16,10 +16,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Pool } from 'pg';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AUTH_TEST_PASSWORD, applyAuthTestEnv } from '../auth/test/auth-test-env';
 import { normalizeLoginIdentifier } from '../auth/crypto/token-crypto';
 import { AUTHZ_ACTIONS } from '../authorization/types/authz-actions';
+import { SecurityAuditService } from '../audit/services/security-audit.service';
+import { SECURITY_AUDIT_ACTIONS } from '../audit/types/security-audit.types';
 import { AUTHZ_RESOURCE_TYPES } from '../authorization/types/authz-resources';
 import { DocumentsAccessService } from '../documents/services/documents-access.service';
 import { DOCUMENT_CATEGORIES } from '../documents/domain/document-categories';
@@ -39,6 +41,7 @@ describe('E05/E06 authoritative document ↔ asset PostgreSQL integration', () =
   let types: PhysicalResourceTypesAccessService;
   let documents: DocumentsAccessService;
   let links: PhysicalAssetDocumentsService;
+  let audit: SecurityAuditService;
 
   beforeAll(async () => {
     const url = process.env['TEST_DATABASE_URL'];
@@ -52,6 +55,7 @@ describe('E05/E06 authoritative document ↔ asset PostgreSQL integration', () =
     types = app.get(PhysicalResourceTypesAccessService);
     documents = app.get(DocumentsAccessService);
     links = app.get(PhysicalAssetDocumentsService);
+    audit = app.get(SecurityAuditService);
     pool = new Pool({ connectionString: url });
   });
 
@@ -152,8 +156,36 @@ describe('E05/E06 authoritative document ↔ asset PostgreSQL integration', () =
       [assetId],
     );
     expect(relation.rows[0]?.count).toBe('1');
+    const auditRows = await pool.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count
+         FROM audit.security_audit_events
+        WHERE action = $1 AND resource_id = $2`,
+      [SECURITY_AUDIT_ACTIONS.DocumentsDocumentLinkAsset, documentId],
+    );
+    expect(auditRows.rows[0]?.count).toBe('1');
     const versions = await documents.listVersions(owner, documentId);
     expect(versions).toHaveLength(1);
+  });
+
+  it('rolls back the GED link when mandatory critical audit persistence fails', async () => {
+    const owner = await actor();
+    const assetId = await assetIdFor(owner, UNIT_A);
+    const documentId = await documentIdFor(owner, UNIT_A);
+    const failure = vi.spyOn(audit, 'recordCritical').mockRejectedValueOnce(
+      new Error('simulated audit write failure'),
+    );
+    try {
+      await expect(links.attach(owner, assetId, documentId)).rejects.toThrow(
+        'simulated audit write failure',
+      );
+    } finally {
+      failure.mockRestore();
+    }
+    const rows = await pool.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM doc.physical_asset_document_links WHERE physical_asset_id = $1',
+      [assetId],
+    );
+    expect(rows.rows[0]?.count).toBe('0');
   });
 
   it('rejects linking documents across units, even with global grants', async () => {
