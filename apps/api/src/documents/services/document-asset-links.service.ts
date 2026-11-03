@@ -8,7 +8,6 @@ import {
 import { SecurityAuditService } from '../../audit/services/security-audit.service';
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
-import { DOCUMENT_ERROR_CODES } from '../errors/document-error-codes';
 import { DocumentHttpException } from '../errors/document-http.exception';
 import { DocumentAssetLinksRepository } from '../repositories/document-asset-links.repository';
 import { DocumentsRepository } from '../repositories/documents.repository';
