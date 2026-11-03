@@ -65,6 +65,17 @@ export const ALL_WORKSPACE_QUEUE_SCOPE: WorkspaceQueueScope = {
   unitId: null,
 };
 
+/**
+ * Deep links nao podem injetar offsets negativos, parciais ou fora do intervalo seguro no read model.
+ * Somente inteiros decimais canonicos e nao negativos representam um deslocamento de pagina.
+ * A API continua sendo a autoridade final de limites e autorizacao.
+ */
+export function parseWorkspaceOffset(raw: string | null): number {
+  if (raw === null || !/^(0|[1-9]\d*)$/.test(raw)) return 0;
+  const offset = Number(raw);
+  return Number.isSafeInteger(offset) ? offset : 0;
+}
+
 /** Naturezas validas para recorte — o mesmo vocabulario do read model. */
 function findKind(value: string | null): WorkKind | null {
   return WORKSPACE_QUEUE_KINDS.find((candidate) => candidate.kind === value)?.kind ?? null;
