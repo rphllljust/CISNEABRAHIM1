@@ -252,22 +252,56 @@ export class ServiceOrdersAccessAuthz {
    * One PDP batch and one direct-grant fetch per page (no per-row queries).
    * This method returns no denied rows or metadata to the caller.
    */
+  async assertWorkforceAllocationDiscovery(actor: IdentityAuthzContext): Promise<void> {
+    const [orderGrants, allocationGrants] = await Promise.all([
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      ),
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      ),
+    ]);
+    // A denied collection is not an empty list. Individual rows must also pass
+    // both PDP and the direct-grant predicates before becoming visible.
+    if (orderGrants.length === 0 || allocationGrants.length === 0) {
+      throw serviceOrdersAccessDenied();
+    }
+  }
+
   async filterReadableRows(
     actor: IdentityAuthzContext,
     rows: ServiceOrderRow[],
   ): Promise<ServiceOrderRow[]> {
+    return this.filterRowsByAction(actor, rows, AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead);
+  }
+
+  async filterAllocationReadableRows(
+    actor: IdentityAuthzContext,
+    rows: ServiceOrderRow[],
+  ): Promise<ServiceOrderRow[]> {
+    return this.filterRowsByAction(actor, rows, AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead);
+  }
+
+  private async filterRowsByAction(
+    actor: IdentityAuthzContext,
+    rows: ServiceOrderRow[],
+    action: AuthzAction,
+  ): Promise<ServiceOrderRow[]> {
     if (rows.length === 0) return [];
     const grants = await this.authorizationRepository.findActiveGrants(
       actor.identityId,
-      AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+      action,
       AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
     );
     if (grants.length === 0) return [];
-
     const decisions = await this.policyDecisionPoint.decideBatch(
       actor,
       {
-        action: AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+        action,
         resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
       },
       rows.map(toResourceContextFromServiceOrder),

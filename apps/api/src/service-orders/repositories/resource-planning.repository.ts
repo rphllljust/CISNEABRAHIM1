@@ -88,6 +88,26 @@ export class ResourcePlanningRepository {
     return result.rows;
   }
 
+  /**
+   * Raw workforce candidates remain PRIVATE to the Service Orders domain.
+   * The application service must enforce both record READ and ALLOCATION READ
+   * before projecting any service order metadata or pagination information.
+   */
+  async listWorkforceAllocationCandidates(
+    workforceMemberId: string,
+    limit: number,
+    offset: number,
+  ): Promise<ResourceAllocationRow[]> {
+    const result = await this.pool().query<ResourceAllocationRow>(
+      `${ALLOCATION_SELECT}
+       WHERE workforce_member_id = $1
+       ORDER BY allocated_at DESC, id DESC
+       LIMIT $2 OFFSET $3`,
+      [workforceMemberId, limit, offset],
+    );
+    return result.rows;
+  }
+
   async findPlannedResourceById(
     plannedResourceId: string,
     serviceOrderId: string,
