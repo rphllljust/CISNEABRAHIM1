@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import {
   coerceOptionalUuid,
@@ -20,9 +21,9 @@ export class SecurityAuditPersistenceError extends Error {
 export class SecurityAuditRepository {
   constructor(private readonly databaseService: DatabaseService) {}
 
-  async insert(input: RecordSecurityAuditInput): Promise<string> {
+  async insert(input: RecordSecurityAuditInput, transaction?: PoolClient): Promise<string> {
     const pool = this.databaseService.getConnection()?.pool;
-    if (!pool) {
+    if (!pool && !transaction) {
       throw new SecurityAuditPersistenceError('database_not_configured');
     }
 
@@ -31,7 +32,9 @@ export class SecurityAuditRepository {
       ? sanitizeAuditText(input.correlationId).slice(0, 64)
       : null;
 
-    const result = await pool.query<{ id: string }>(
+    const connection = transaction ?? pool;
+    if (!connection) throw new SecurityAuditPersistenceError('database_not_configured');
+    const result = await connection.query<{ id: string }>(
       `INSERT INTO audit.security_audit_events (
          actor_identity_id,
          actor_session_id,
