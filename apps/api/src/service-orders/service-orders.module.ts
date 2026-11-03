@@ -7,6 +7,7 @@ import { BusinessChainModule } from '../business-chain/business-chain.module';
 import { IssuerRegistryModule } from '../establishments/issuer-registry.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
 import { OutboxModule } from '../platform/outbox/outbox.module';
+import { PeopleModule } from '../people/people.module';
 import { SERVICE_REQUEST_CONVERSION_PORT } from '../requests/domain/service-request-conversion.port';
 import { ServiceOrderExecutionController } from './controllers/service-order-execution.controller';
 import { OperationalCostController } from './controllers/operational-cost.controller';
@@ -17,6 +18,7 @@ import {
 } from './controllers/operations.controller';
 import { ServiceOrdersController } from './controllers/service-orders.controller';
 import { ServiceOrderPlanningController } from './controllers/service-order-planning.controller';
+import { PersonWorkforceAllocationsController } from './controllers/person-workforce-allocations.controller';
 import { MeController, ServiceOrderMetadataController } from './controllers/service-order-metadata.controller';
 import { ServiceOrderMetadataRepository } from './services/service-order-metadata.repository';
 import { ServiceOrderMetadataService } from './services/service-order-metadata.service';
@@ -35,16 +37,18 @@ import { OperationalCostAccessService } from './services/operational-cost-access
 import { ServiceOrdersAccessService } from './services/service-orders-access.service';
 import { ServiceOrderControlCenterAuthz } from './services/service-order-control-center.authz';
 import { ServiceOrderPlanningAccessService } from './services/service-order-planning-access.service';
+import { PersonWorkforceAllocationsService } from './services/person-workforce-allocations.service';
 import { ServiceOrdersReferenceValidationService } from './services/service-orders-reference-validation.service';
 import { ServiceRequestConversionService } from './services/service-request-conversion.service';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, OutboxModule, CommercialModule, BusinessChainModule, IssuerRegistryModule],
+  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, OutboxModule, PeopleModule, CommercialModule, BusinessChainModule, IssuerRegistryModule],
   controllers: [
     ServiceOrdersController,
     ServiceOrderMetadataController,
     MeController,
     ServiceOrderPlanningController,
+    PersonWorkforceAllocationsController,
     ServiceOrderExecutionController,
     OperationalCostController,
     // DISPATCH + EXECUTION + ACTUALS — leitura e comandos separados.
@@ -69,6 +73,7 @@ import { ServiceRequestConversionService } from './services/service-request-conv
     ServiceOrdersAccessService,
     ServiceOrderControlCenterAuthz,
     ServiceOrderPlanningAccessService,
+    PersonWorkforceAllocationsService,
     ServiceOrderExecutionAccessService,
     OperationalCostAccessService,
     ServiceRequestConversionService,
