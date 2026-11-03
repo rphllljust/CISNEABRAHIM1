@@ -31,16 +31,16 @@ import { OperationsObjectContext } from '../components/OperationsObjectContext';
  *
  * A operacao tinha uma lista e uma object page. O operador via OS em tabela, abria uma, voltava,
  * abria outra — o modo "menu -> tabela -> formulario -> voltar" que nao e trabalho. Aqui a operacao
- * e uma AREA DE TRABALHO com quatro camadas, na ordem em que a decisao acontece:
+ * e uma AREA DE TRABALHO com tres camadas, na ordem em que a decisao acontece:
  *
  *   1. EXECUCAO AGORA      — o que esta em execucao e o que esta pausado. Sao os unicos estados em
  *                            que existe trabalho fisico em curso e o operador pode agir.
- *   2. AGUARDANDO MEDICAO  — OS liberadas/encerradas sem medicao registrada. E a pendencia real que
- *                            trava faturamento, e ela nao aparecia em lugar nenhum.
- *   3. FILA DE OPERACOES   — o read model unificado (`GET /work-inbox`, `domain=OPERACOES`), com
+ *   2. FILA DE OPERACOES   — inclui execução fechada sem medição a partir de fatos persistidos,
+ *                            autorizados pelo domínio Measurements, sem inferência por status.
+ *                            Usa o read model unificado (`GET /work-inbox`, `domain=OPERACOES`), com
  *                            contexto, proxima acao e visoes salvas — a MESMA superficie dos demais
  *                            dominios.
- *   4. CARTEIRA            — todas as OS liberadas, com o estado real e o caminho para a object page.
+ *   3. CARTEIRA            — as primeiras OS liberadas, com o estado real e o caminho para a object page.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────────────
  * O QUE ESTA TELA NAO FAZ
@@ -55,8 +55,8 @@ import { OperationsObjectContext } from '../components/OperationsObjectContext';
  */
 
 /**
- * Estados em que existe execucao fisica em curso e estados em que a OS ja passou do ponto de
- * execucao — os recortes que a tela executa no servidor.
+ * Estados de execução e carteira consultados na API de OS. Pendências de medição
+ * são responsabilidade do read model autoritativo de Measurements na Work Inbox.
  *
  * Eles NAO sao listas decorativas: cada valor e usado como `status` em `listServiceOrders`, ou seja,
  * cada um gera UMA leitura recortada pelo servidor. Estao declarados aqui para que a tela diga o
@@ -84,7 +84,6 @@ function failureCopy(reason: unknown, subject: string): { error: string; denied:
 type OperationsData = {
   inExecution: Slice<ServiceOrderSummary[]>;
   paused: Slice<ServiceOrderSummary[]>;
-  withoutMeasurement: Slice<ServiceOrderSummary[]>;
   portfolio: Slice<ServiceOrderSummary[]>;
 };
 
@@ -128,11 +127,10 @@ export function OperationsWorkspacePage() {
   const [reloadToken, setReloadToken] = useState(0);
 
   const load = useCallback(async (signal: AbortSignal): Promise<OperationsData> => {
-    const [inExecution, paused, released, completed] = await Promise.allSettled([
+    const [inExecution, paused, released] = await Promise.allSettled([
       listServiceOrders({ limit: CARD_LIMIT, status: SERVICE_ORDER_STATUSES.InExecution }, signal),
       listServiceOrders({ limit: CARD_LIMIT, status: SERVICE_ORDER_STATUSES.Paused }, signal),
       listServiceOrders({ limit: CARD_LIMIT, status: SERVICE_ORDER_STATUSES.Released }, signal),
-      listServiceOrders({ limit: CARD_LIMIT, status: SERVICE_ORDER_STATUSES.Completed }, signal),
     ]);
 
     const slice = (
@@ -143,28 +141,11 @@ export function OperationsWorkspacePage() {
         ? { data: result.value.items, error: null, denied: false }
         : { data: null, ...failureCopy(result.reason, subject) };
 
-    /*
-     * AGUARDANDO MEDICAO — as OS encerradas e as liberadas compõem a mesma pergunta: quais ja
-     * passaram do ponto de execucao e ainda nao tem medicao. A tela NAO afirma que todas estao sem
-     * medicao: `listServiceOrders` nao publica esse campo. O que ela faz e entregar o recorte exato
-     * ("liberadas e encerradas") com a acao de registrar medicao — a leitura de medicao continua
-     * sendo a da propria OS, no dominio que a possui.
-     */
-    const completedItems = completed.status === 'fulfilled' ? completed.value.items : [];
-    const releasedItems = released.status === 'fulfilled' ? released.value.items : [];
-    const measurementFailure =
-      completed.status === 'rejected'
-        ? failureCopy(completed.reason, 'as ordens encerradas')
-        : released.status === 'rejected'
-          ? failureCopy(released.reason, 'as ordens liberadas')
-          : null;
-
+    // A ausência de medição é publicada pelo owner Measurements via Work Inbox,
+    // após verificar fechamento real e PDP. Não inferir pendência de status da OS.
     return {
       inExecution: slice(inExecution, 'as ordens em execução'),
       paused: slice(paused, 'as ordens pausadas'),
-      withoutMeasurement: measurementFailure
-        ? { data: null, ...measurementFailure }
-        : { data: [...releasedItems, ...completedItems], error: null, denied: false },
       portfolio: slice(released, 'a carteira de ordens liberadas'),
     };
   }, []);
@@ -198,20 +179,19 @@ export function OperationsWorkspacePage() {
 
         Esta e a superficie onde o operador PASSA O DIA, e era uma das duas workspaces sem
         nenhuma `data-region`. A governanca de divisor em `theme.css` casa `#main-content > *
-        + *` e `[data-region] + [data-region]`: sem as regioes, o cabecalho e as quatro zonas
+        + *` e `[data-region] + [data-region]`: sem as regioes, o cabecalho e as zonas
         de trabalho ficavam colados, sem a regua que separa "onde estou" de "o que esta em
         execucao".
 
-        A ORDEM AQUI E A DO TRABALHO, nao a de leitura: excecao primeiro (execucao em curso e
-        pausadas), depois o que falta medir, depois a fila liberada. E a sequencia em que um
-        coordenador de operacoes olha a mesa.
+        A ORDEM AQUI E A DO TRABALHO: execução em curso, fila de exceções
+        autoritativas (inclusive medição ausente) e carteira liberada.
       */}
       <div data-region="work-surface">
       <div data-region="operating-header">
         <WorklistHeader
           title="Operações"
-          count={data ? (data.inExecution.data?.length ?? 0) + (data.paused.data?.length ?? 0) : null}
-          context="Execução em curso, ordens sem medição, fila de trabalho do domínio e a carteira liberada. Exceção primeiro; cada item abre a ordem que o forma."
+          count={null}
+          context="Execução em curso, pendências autoritativas na fila do domínio e carteira liberada. Exceção primeiro; cada item abre a ordem que o forma."
           action={
             <Button type="button" variant="secondary" onClick={reload}>
               Atualizar
@@ -224,7 +204,7 @@ export function OperationsWorkspacePage() {
       {state.phase === 'loading' ? (
         <WorklistStatePanel
           title="Lendo a operação"
-          description="Execução, medição e carteira estão sendo lidas do servidor."
+          description="Execução e carteira estão sendo lidas do servidor."
         />
       ) : null}
 
@@ -269,49 +249,18 @@ export function OperationsWorkspacePage() {
             ) : null}
           </WorkbenchQueue>
 
-          {/* 2. AGUARDANDO MEDICAO — o que trava faturamento e nao aparecia em lugar nenhum. */}
-          <WorkbenchQueue
-            title="Aguardando medição"
-            regionLabel="Ordens aguardando medição"
-            count={data.withoutMeasurement.data?.length ?? null}
-            description="Ordens liberadas e encerradas — o recorte que antecede a medição e o faturamento."
-            emptyTitle="Nenhuma ordem aguardando medição"
-            emptyDescription="Nenhuma ordem liberada ou encerrada foi devolvida pelo servidor neste escopo."
-            action={
-              <Link className={workbenchSecondaryActionClass} to="/app/service-orders?status=COMPLETED">
-                Abrir ordens encerradas
-              </Link>
-            }
-          >
-            {(data.withoutMeasurement.data ?? []).map((order) => (
-              <ServiceOrderQueueRow
-                key={order.id}
-                order={order}
-                onSelect={setSelected}
-                actionLabel="Registrar medição"
-                actionRoute={`/app/service-orders/${order.id}/execution`}
-              />
-            ))}
-
-            {data.withoutMeasurement.error ? (
-              <p role="alert" className="m-0 px-2.5 py-2 text-xs text-red-700">
-                {data.withoutMeasurement.error}
-              </p>
-            ) : null}
-          </WorkbenchQueue>
-
-          {/* 3. FILA DE OPERACOES — o read model unificado, com contexto e visoes salvas. */}
+          {/* 2. FILA DE OPERACOES — o read model unificado, com contexto e visoes salvas. */}
           <WorkspaceQueueSurface
             title="Fila de operações"
             ariaLabel="Fila de trabalho de operações"
-            description="Exceções e decisões reais da operação"
+            description="Medições não criadas após fechamento da execução e outras exceções e decisões autorizadas"
             lockDomain="OPERACOES"
             savedViewsScope="workspace.OPERACOES"
             scopeSource="local"
             initialScope={ALL_WORKSPACE_QUEUE_SCOPE}
           />
 
-          {/* 4. CARTEIRA — todas as OS liberadas, com o caminho para a object page. */}
+          {/* 3. CARTEIRA — amostra de OS liberadas, sem afirmar total do conjunto. */}
           <WorkbenchQueue
             title="Carteira liberada"
             regionLabel="Carteira de ordens liberadas"
@@ -336,7 +285,7 @@ export function OperationsWorkspacePage() {
             ) : null}
           </WorkbenchQueue>
 
-          {/* 5. AGORA / ATENCAO / CONTINUAR — as zonas de dominio, com o contexto do ciclo. */}
+          {/* 4. AGORA / ATENCAO / CONTINUAR — as zonas de dominio, com o contexto do ciclo. */}
           <DomainWorkZones domain="OPERACOES" />
         </>
       ) : null}

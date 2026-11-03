@@ -12,6 +12,7 @@ import {
   MEASUREMENT_AUTHZ_BATCH_SIZE,
   MeasurementsWorkSource,
   toMeasurementWorkItem,
+  toUnmeasuredWorkItem,
 } from './measurements.source';
 
 const ACTOR = { identityId: 'actor-1', sessionId: 's1' };
@@ -49,6 +50,29 @@ function workbench(overrides: Partial<MeasurementWorkbenchReadModel> = {}): Meas
     acceptance: { required: false, blocksBilling: false, state: 'NOT_REQUIRED', latest: null },
     ...overrides,
   } as MeasurementWorkbenchReadModel;
+}
+
+function unmeasuredWorkbench(overrides: Partial<MeasurementWorkbenchReadModel> = {}): MeasurementWorkbenchReadModel {
+  return workbench({
+    identity: { ...workbench().identity, measurementId: null, number: null, rowVersion: null },
+    statuses: { ...workbench().statuses, execution: 'CLOSED', measurement: 'NOT_CREATED' },
+    processContext: {
+      milestones: [{ stage: 'ACTUALS', label: 'Realizado', state: 'COMPLETED', reachedAt: AT }],
+    } as never,
+    ...overrides,
+  });
+}
+
+function unmeasuredQueue(overrides: Partial<WorkQueueItem> = {}): WorkQueueItem {
+  return queue({
+    measurementId: null,
+    statuses: { measurement: 'NOT_CREATED', acceptance: 'NOT_REQUIRED', billingEligibility: 'NOT_EVALUATED' },
+    stage: LEAKAGE_STAGES.ExecutedNotMeasured,
+    reasonCode: 'MEASUREMENT_MISSING',
+    reasonLabel: 'Gerar a medição da execução fechada',
+    nextAction: { code: 'CREATE_MEASUREMENT', label: 'Gerar a medição da execução fechada' },
+    ...overrides,
+  });
 }
 
 function measurement(overrides: Partial<MeasurementDetailResponse> = {}): MeasurementDetailResponse {
@@ -90,6 +114,73 @@ function withMocks(input: {
 }
 
 describe('MASTER 001 / Incremento 02 — fonte de medição da Inbox única', () => {
+  it('projeta somente execução FECHADA sem medição, com timestamp real e rota 360', () => {
+    const item = toUnmeasuredWorkItem(unmeasuredQueue(), UNIT, unmeasuredWorkbench());
+    expect(item).toMatchObject({
+      id: `OPERACOES:MEASUREMENT:CREATE:${ORDER_ID}`,
+      domain: 'OPERACOES',
+      kind: 'CONTINUITY',
+      status: 'NOT_CREATED',
+      occurredAt: AT,
+      dueAt: null,
+      businessReference: 'OS-2026-100',
+      targetRoute: `/app/service-orders/${ORDER_ID}/measurement-workbench`,
+    });
+    expect(item?.reason).toContain('medição da execução fechada');
+  });
+
+  it('não infere medição pendente de status de OS nem vaza objeto divergente ou sem fechamento', () => {
+    const row = unmeasuredQueue();
+    const wb = unmeasuredWorkbench();
+    expect(toUnmeasuredWorkItem(row, UNIT, unmeasuredWorkbench({
+      identity: { ...wb.identity, measurementId: MEASUREMENT_ID },
+    }))).toBeNull();
+    expect(toUnmeasuredWorkItem(row, UNIT, unmeasuredWorkbench({
+      businessContext: { ...wb.businessContext, unit: 'UN-B' },
+    }))).toBeNull();
+    expect(toUnmeasuredWorkItem(row, UNIT, unmeasuredWorkbench({
+      statuses: { ...wb.statuses, execution: 'COMPLETED' },
+    }))).toBeNull();
+    expect(toUnmeasuredWorkItem(row, UNIT, unmeasuredWorkbench({
+      processContext: { milestones: [] } as never,
+    }))).toBeNull();
+    expect(toUnmeasuredWorkItem(unmeasuredQueue({
+      statuses: { ...row.statuses, measurement: 'APPROVED' },
+    }), UNIT, wb)).toBeNull();
+  });
+
+  it('inclui ausência autoritativa de medição no KPI/drill, sem consultar detalhe inexistente', async () => {
+    const getWorkQueue = vi.fn()
+      .mockResolvedValueOnce({ items: [unmeasuredQueue()] })
+      .mockResolvedValueOnce({ items: [unmeasuredQueue()] })
+      .mockResolvedValueOnce({ items: [] });
+    const { source, getWorkbench, getById } = withMocks({
+      getWorkQueue,
+      getWorkbench: vi.fn().mockResolvedValue(unmeasuredWorkbench()),
+    });
+    const inbox = new WorkInboxService([source]);
+    const kpi = await inbox.list(ACTOR, { limit: '0' });
+    const drill = await inbox.list(ACTOR, { domain: 'OPERACOES' });
+    const after = await inbox.list(ACTOR, { domain: 'OPERACOES' });
+    expect(kpi.byDomain.OPERACOES).toBe(1);
+    expect(drill.total).toBe(1);
+    expect(drill.items[0]?.status).toBe('NOT_CREATED');
+    expect(after.total).toBe(0);
+    expect(getWorkbench).toHaveBeenCalledTimes(2);
+    expect(getById).not.toHaveBeenCalled();
+  });
+
+  it('oculta medição inexistente sem permissão e não publica KPI por amostra', async () => {
+    const { source, getById } = withMocks({
+      rows: [unmeasuredQueue()],
+      getWorkbench: vi.fn().mockRejectedValue(new HttpException('Denied', 403)),
+    });
+    const page = await new WorkInboxService([source]).list(ACTOR, { domain: 'OPERACOES' });
+    expect(page.total).toBe(0);
+    expect(page.byDomain.OPERACOES).toBe(0);
+    expect(getById).not.toHaveBeenCalled();
+  });
+
   it('projeta medição SUBMITTED autorizada, sem prazo, e navega para a página 360 real', () => {
     const item = toMeasurementWorkItem(queue(), UNIT, workbench(), measurement());
     expect(item).toMatchObject({
