@@ -89,7 +89,9 @@ describe('E05/E06 document asset links, authorization before serialization', () 
     const response = await f.service.attachAuthorized(actor, assetId, 'unit-a', documentId);
     expect(response.attached).toBe(true);
     expect(f.authz.assertRecordAction).toHaveBeenCalledTimes(2);
-    expect(f.links.attach).toHaveBeenCalledWith(assetId, documentId, actor.identityId);
+    expect(f.links.attach).toHaveBeenCalledWith(
+      assetId, documentId, actor.identityId, expect.any(Function),
+    );
     expect(f.audit.recordCritical).toHaveBeenCalledTimes(1);
   });
 
