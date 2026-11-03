@@ -7,6 +7,7 @@ import {
   type PersonErrorCode,
   type PersonHistoryEvent,
   type PersonListResponse,
+  type PersonServiceOrderAllocationsResponse,
   type PersonStatus,
   type UpdatePersonPayload,
 } from '../types/person.types';
@@ -136,6 +137,17 @@ export async function getPerson(personId: string, signal?: AbortSignal): Promise
     headers: authHeaders(),
     signal,
   });
+}
+
+/** Operations-owned relation. The backend authorizes the Person and every OS. */
+export async function listPersonServiceOrderAllocations(
+  personId: string,
+  signal?: AbortSignal,
+): Promise<PersonServiceOrderAllocationsResponse> {
+  return requestJson<PersonServiceOrderAllocationsResponse>(
+    `/api/v1/people/${personId}/service-order-allocations`,
+    { headers: authHeaders(), signal },
+  );
 }
 
 export async function createPerson(payload: CreatePersonPayload): Promise<Person> {
