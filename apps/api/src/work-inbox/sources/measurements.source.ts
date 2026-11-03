@@ -72,6 +72,15 @@ export class MeasurementsWorkSource implements WorkItemSource {
     const results: WorkItem[] = [];
     for (let offset = 0; offset < rows.length; offset += MEASUREMENT_AUTHZ_BATCH_SIZE) {
       const batch = await Promise.all(rows.slice(offset, offset + MEASUREMENT_AUTHZ_BATCH_SIZE).map(async (row) => {
+        if (row.stage === LEAKAGE_STAGES.ExecutedNotMeasured && row.measurementId === null) {
+          try {
+            const workbench = await this.capability.getWorkbench(actor, row.serviceOrderId);
+            return toUnmeasuredWorkItem(row, unitId, workbench);
+          } catch (error) {
+            if (isNotReadable(error)) return null;
+            throw error;
+          }
+        }
         if (!row.measurementId || !isMeasurementWorkStage(row.stage)) return null;
         try {
           const [workbench, measurement] = await Promise.all([
@@ -88,6 +97,52 @@ export class MeasurementsWorkSource implements WorkItemSource {
     }
     return results;
   }
+}
+
+/**
+ * A missing measurement is a persisted execution-closure fact, not a guess
+ * from RELEASED/COMPLETED status or a sample of Service Order list pages.
+ * Revalidate the owner workbench per object before publishing the work item.
+ */
+export function toUnmeasuredWorkItem(
+  row: WorkQueueItem,
+  unitId: string,
+  workbench: MeasurementWorkbenchReadModel,
+): WorkItem | null {
+  if (
+    row.stage !== LEAKAGE_STAGES.ExecutedNotMeasured ||
+    row.measurementId !== null ||
+    row.statuses.measurement !== 'NOT_CREATED' ||
+    workbench.identity.measurementId !== null ||
+    workbench.identity.serviceOrderId !== row.serviceOrderId ||
+    workbench.identity.orderNumber !== row.orderNumber ||
+    workbench.businessContext.unit !== unitId ||
+    workbench.statuses.measurement !== 'NOT_CREATED' ||
+    workbench.statuses.execution !== 'CLOSED'
+  ) {
+    return null;
+  }
+
+  const closedAt = workbench.processContext.milestones.find(
+    (milestone) => milestone.stage === 'ACTUALS',
+  )?.reachedAt;
+  if (!closedAt || !Number.isFinite(Date.parse(closedAt))) return null;
+
+  return {
+    id: `OPERACOES:MEASUREMENT:CREATE:${row.serviceOrderId}`,
+    domain: 'OPERACOES',
+    kind: 'CONTINUITY',
+    businessReference: row.orderNumber,
+    title: 'Execução fechada aguardando medição',
+    contextLabel: `OS ${row.orderNumber} · Unidade ${unitId}`,
+    status: 'NOT_CREATED',
+    reason: row.reasonLabel,
+    occurredAt: closedAt,
+    dueAt: null,
+    actionLabel: 'Abrir Medição 360',
+    targetRoute: `/app/service-orders/${row.serviceOrderId}/measurement-workbench`,
+    unitId,
+  };
 }
 
 /** Cross-domain read model is only a projection; commands remain in Medição 360. */
