@@ -84,3 +84,11 @@ export type PersonAllocationListResponse = {
   /** Owner-domain candidate scan limit reached; absence of next page is not proven. */
   partial: boolean;
 };
+
+/** Cursor mode does not expose raw candidate positions or denied record counts. */
+export type PersonAllocationCursorPage = {
+  items: PersonAllocation[];
+  hasMore: boolean;
+  partial: boolean;
+  nextCursor: string | null;
+};
