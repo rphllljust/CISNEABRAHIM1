@@ -70,4 +70,74 @@ describe('ServiceDefinitionsListPage integration', () => {
       expect(screen.getByRole('link', { name: 'Locação de automóveis sem condutor' })).toBeInTheDocument();
     });
   });
+
+  it('keeps pagination and the true page scope visible when a server-side filter returns zero rows', async () => {
+    vi.stubGlobal('fetch', createCatalogFetchMock());
+    renderWithProviders(<ServiceDefinitionsListPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Locação de automóveis sem condutor' })).toBeInTheDocument();
+    });
+    await user.type(screen.getByLabelText(/^buscar$/i), 'zzz-nao-existe');
+
+    await waitFor(() => {
+      expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    });
+    expect(screen.getByRole('navigation', { name: 'Paginação' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled();
+    expect(screen.queryByLabelText(/registros no recorte/i)).not.toBeInTheDocument();
+  });
+
+  it('lets the operator return from an empty second page without claiming the catalog is empty', async () => {
+    const fallback = createCatalogFetchMock();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const url = new URL(raw, 'http://localhost');
+      if (url.pathname !== '/api/v1/catalog/service-definitions' || (init?.method ?? 'GET') !== 'GET') {
+        return fallback(input, init);
+      }
+      const response = await fallback(input, init);
+      const data = (await response.json()) as { items: Array<{ id: string; name: string | null; code: string }> };
+      const offset = Number(url.searchParams.get('offset') ?? '0');
+      const items = offset === 0
+        ? Array.from({ length: 20 }, (_, index) => ({
+            ...data.items[0],
+            id: `dddddddd-dddd-4ddd-8ddd-${String(index).padStart(12, '0')}`,
+            name: `Serviço empresarial ${index + 1}`,
+            code: `SERV-${index + 1}`,
+          }))
+        : [];
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ items, limit: 20, offset }),
+      } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderWithProviders(<ServiceDefinitionsListPage />);
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByText('1–20 nesta página')).toBeInTheDocument());
+    await user.click(screen.getByRole('button', { name: 'Próxima' }));
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma definição nesta página.')).toBeInTheDocument();
+    });
+    expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Anterior' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Anterior' }));
+    await waitFor(() => expect(screen.getByText('1–20 nesta página')).toBeInTheDocument());
+    expect(screen.getByRole('table', { name: /lista de definições de serviço/i })).toBeInTheDocument();
+  });
+
+  it('does not confuse authorization denial with an empty catalog', async () => {
+    vi.stubGlobal('fetch', createCatalogFetchMock({ catalogListAllowed: false }));
+    renderWithProviders(<ServiceDefinitionsListPage />);
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/permissão|acesso/i));
+    expect(screen.queryByText('0 nesta página')).not.toBeInTheDocument();
+  });
+
 });

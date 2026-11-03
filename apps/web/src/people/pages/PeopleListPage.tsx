@@ -529,12 +529,16 @@ export function PeopleListPage() {
           title={
             hasFilters
               ? 'Nenhuma Pessoa corresponde aos filtros aplicados.'
-              : 'Nenhuma Pessoa cadastrada ainda.'
+              : offset > 0
+                ? 'Nenhuma Pessoa nesta página.'
+                : 'Nenhuma Pessoa cadastrada ainda.'
           }
           description={
             hasFilters
               ? 'Ajuste o termo de busca ou limpe os filtros para ver o cadastro.'
-              : 'As Pessoas são a mão de obra alocada nas ordens de serviço. Cadastre a primeira para começar a planejar.'
+              : offset > 0
+                ? 'Esta página não contém registros no seu escopo. Volte à página anterior; sem total publicado, não é possível concluir que o cadastro inteiro está vazio.'
+                : 'As Pessoas são a mão de obra alocada nas ordens de serviço. Cadastre a primeira para começar a planejar.'
           }
           action={
             hasFilters ? (
@@ -545,7 +549,7 @@ export function PeopleListPage() {
                   setSearchParams(new URLSearchParams(), { replace: true });
                 }}
               />
-            ) : capabilities.canCreate ? (
+            ) : offset > 0 ? null : capabilities.canCreate ? (
               <ModulePrimaryLink to="/app/people/new">Cadastrar Pessoa</ModulePrimaryLink>
             ) : null
           }
@@ -650,7 +654,7 @@ export function PeopleListPage() {
       )}
 
       <WorklistFooter
-        rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
+        rangeLabel={items.length > 0 ? `${offset + 1}–${offset + items.length} nesta página` : '0 nesta página'}
         extra={
           items.length > 0 ? (
             <>

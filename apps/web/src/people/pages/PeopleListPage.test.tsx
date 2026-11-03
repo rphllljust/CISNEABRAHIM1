@@ -23,6 +23,53 @@ describe('PeopleListPage', () => {
     expect(screen.getByRole('table', { name: /lista de pessoas/i })).toBeInTheDocument();
   });
 
+  it('does not display a false 1–0 range or a global total when the authorized list is empty', async () => {
+    vi.stubGlobal('fetch', createPeopleFetchMock({ seed: [] }));
+    renderWithProviders(<PeopleListPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma Pessoa cadastrada ainda.')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    expect(screen.queryByText(/1[–-]0 nesta página/)).not.toBeInTheDocument();
+  });
+
+  it('keeps filtered emptiness separate from an empty master data set', async () => {
+    const mock = createPeopleFetchMock();
+    vi.stubGlobal('fetch', mock);
+    renderWithProviders(<PeopleListPage />, {
+      router: { initialEntries: ['/app/people?q=nao-existe-no-servidor'] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma Pessoa corresponde aos filtros aplicados.')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    expect(mock).toHaveBeenCalledWith(
+      expect.stringContaining('q=nao-existe-no-servidor'),
+      expect.anything(),
+    );
+    expect(screen.queryByText('Nenhuma Pessoa cadastrada ainda.')).not.toBeInTheDocument();
+  });
+
+  it('shows an out-of-range page as empty without claiming the entire people registry is empty', async () => {
+    vi.stubGlobal('fetch', createPeopleFetchMock({
+      seed: [{ legalName: 'Ana Ribeiro', memberCode: 'M-001' }],
+    }));
+    renderWithProviders(<PeopleListPage />, {
+      router: { initialEntries: ['/app/people?offset=20'] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Nenhuma Pessoa nesta página.')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma Pessoa cadastrada ainda.')).not.toBeInTheDocument();
+  });
+
   it('shows access denied when list is forbidden', async () => {
     vi.stubGlobal('fetch', createPeopleFetchMock({ personListAllowed: false }));
     renderWithProviders(<PeopleListPage />);
