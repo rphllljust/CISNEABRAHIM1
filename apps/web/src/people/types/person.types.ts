@@ -34,6 +34,21 @@ export type Person = {
   serviceOrderAllocationSupported: boolean;
 };
 
+/** Authorized, recent OS allocations. No raw/denied count is included. */
+export type PersonServiceOrderAllocationLink = {
+  allocationId: string;
+  serviceOrderId: string;
+  orderNumber: string;
+  orderStatus: string;
+  allocationStatus: string;
+  operationalStart: string;
+  operationalEnd: string;
+};
+
+export type PersonServiceOrderAllocationsResponse = {
+  items: PersonServiceOrderAllocationLink[];
+};
+
 export type PersonHistoryEvent = {
   id: string;
   eventType: string;
