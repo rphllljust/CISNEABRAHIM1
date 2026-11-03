@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import type { DocumentRow } from './documents.repository';
 
@@ -34,14 +34,36 @@ export class DocumentAssetLinksRepository {
     return result.rows;
   }
 
-  async attach(physicalAssetId: string, documentId: string, identityId: string): Promise<boolean> {
-    const result = await this.pool().query(
-      `INSERT INTO doc.physical_asset_document_links
-         (physical_asset_id, document_id, created_by_identity_id)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (physical_asset_id, document_id) DO NOTHING`,
-      [physicalAssetId, documentId, identityId],
-    );
-    return (result.rowCount ?? 0) > 0;
+  /**
+   * The link and the mandatory audit entry are ONE business transaction.
+   * A failed audit must roll back the link; existing idempotent links do not
+   * generate duplicate audit events.
+   */
+  async attach(
+    physicalAssetId: string,
+    documentId: string,
+    identityId: string,
+    auditOnCreate: (client: PoolClient) => Promise<void>,
+  ): Promise<boolean> {
+    const client = await this.pool().connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(
+        `INSERT INTO doc.physical_asset_document_links
+           (physical_asset_id, document_id, created_by_identity_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (physical_asset_id, document_id) DO NOTHING`,
+        [physicalAssetId, documentId, identityId],
+      );
+      const inserted = (result.rowCount ?? 0) > 0;
+      if (inserted) await auditOnCreate(client);
+      await client.query('COMMIT');
+      return inserted;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
