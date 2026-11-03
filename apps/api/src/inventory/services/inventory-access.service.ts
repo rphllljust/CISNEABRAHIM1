@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
 import {
   SECURITY_AUDIT_ACTIONS,
   SECURITY_AUDIT_CLASSIFICATIONS,
@@ -462,6 +462,9 @@ export class InventoryAccessService implements InventoryStockPort {
       }
       return result;
     } catch (error) {
+      // Denials from the Procurement owner must retain their HTTP status.
+      // Turning a valid cross-domain PDP 403 into Inventory 500 is incorrect.
+      if (error instanceof HttpException) throw error;
       throw mapInventoryDomainError(error);
     }
   }
