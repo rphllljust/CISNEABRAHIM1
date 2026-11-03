@@ -37,11 +37,12 @@ export class DocumentAssetLinksService {
   ): Promise<{ items: DocumentResponse[]; scope: 'RECENT_WINDOW' }> {
     await this.authz.assertListAction(actor);
     // Bound PDP work; never reveal raw counts or IDs of denied documents.
-    const ids = await this.links.listDocumentIds(assetId, 200);
+    const candidates = await this.links.listLinkedDocuments(assetId, assetUnitId, 200);
     const items: DocumentResponse[] = [];
-    for (const documentId of ids) {
-      const document = await this.documents.findDocumentById(documentId);
-      if (!document || document.unit_id !== assetUnitId) continue;
+    for (const document of candidates) {
+      // Defense in depth: no candidate from another unit can become visible,
+      // even if a future repository change weakens its unit predicate.
+      if (document.unit_id !== assetUnitId) continue;
       try {
         await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentRead, document);
       } catch (error) {
