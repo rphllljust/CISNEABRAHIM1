@@ -162,6 +162,9 @@ describe('E02 — contrato de navegação e contexto da fila empresarial', () =>
     });
 
     await screen.findByText('Nenhum trabalho pendente neste recorte.');
+    // WorkspaceBody monta a coluna de contexto sob demanda, inclusive em layout compacto.
+    // Sem abrir o contexto, a unidade nao faz parte do DOM e o teste nao exercita o recurso.
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Contexto do processo' }));
     await waitFor(() => {
       expect(screen.getAllByText('Unidade autorizada').length).toBeGreaterThan(0);
     });
