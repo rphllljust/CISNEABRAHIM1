@@ -19,11 +19,10 @@ function fixture(allowedIds: string[]) {
     order_number: `OS-${row.id}`,
     status: 'RELEASED',
   }));
-  const planningRepository = {
+  const planningRepository = {};
+  const serviceOrdersRepository = {
     listWorkforceAllocationCandidates: vi.fn(async (_personId: string, limit: number, offset: number) =>
       allocations.slice(offset, offset + limit)),
-  };
-  const serviceOrdersRepository = {
     findByIds: vi.fn(async (ids: string[]) => orders.filter((order) => ids.includes(order.id))),
   };
   const authz = {
@@ -38,7 +37,7 @@ function fixture(allowedIds: string[]) {
     authz as never,
     {} as never,
   );
-  return { service, authz, planningRepository };
+  return { service, authz, serviceOrdersRepository };
 }
 
 describe('E04-02 authorized Person -> OS allocation links', () => {
@@ -55,11 +54,11 @@ describe('E04-02 authorized Person -> OS allocation links', () => {
   });
 
   it('distinguishes denied collection from an authorized empty page', async () => {
-    const { service, authz, planningRepository } = fixture([]);
+    const { service, authz, serviceOrdersRepository } = fixture([]);
     authz.assertWorkforceAllocationDiscovery.mockRejectedValueOnce(new Error('ACCESS_DENIED'));
     await expect(service.listAuthorizedWorkforceAllocations(actor, personId, { limit: 10, offset: 0 }))
       .rejects.toThrow('ACCESS_DENIED');
-    expect(planningRepository.listWorkforceAllocationCandidates).not.toHaveBeenCalled();
+    expect(serviceOrdersRepository.listWorkforceAllocationCandidates).not.toHaveBeenCalled();
 
     const empty = await service.listAuthorizedWorkforceAllocations(actor, personId, { limit: 10, offset: 0 });
     expect(empty.items).toEqual([]);

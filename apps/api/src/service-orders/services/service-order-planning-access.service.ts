@@ -150,7 +150,7 @@ export class ServiceOrderPlanningAccessService {
 
     while (scanned < scanLimit && visible.length < required) {
       const batchSize = Math.min(candidateBatchSize, scanLimit - scanned);
-      const candidates = await this.planningRepository.listWorkforceAllocationCandidates(
+      const candidates = await this.serviceOrdersRepository.listWorkforceAllocationCandidates(
         workforceMemberId,
         batchSize,
         scanned,
