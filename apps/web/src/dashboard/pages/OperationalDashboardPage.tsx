@@ -702,32 +702,32 @@ export function OperationalDashboardPage() {
                             label={overdueLabel(selected.dueAt) ?? selected.status}
                             tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
                           />
-                      ),
-                      facts: [
-                        { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
-                        { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
-                        { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
-                        { label: 'Situação', value: selected.status },
-                        { label: 'Motivo', value: selected.reason },
-                        { label: 'Ocorrido em', value: formatMoment(selected.occurredAt) },
-                        { label: 'Vencimento', value: formatMoment(selected.dueAt) },
-                        {
-                          label: 'Prazo',
-                          value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
-                          emphasis: daysOverdue(selected.dueAt) !== null,
+                        ),
+                        facts: [
+                          { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
+                          { label: 'Domínio', value: WORK_DOMAIN_LABELS[selected.domain] },
+                          { label: 'Natureza', value: WORK_KIND_LABELS[selected.kind] },
+                          { label: 'Situação', value: selected.status },
+                          { label: 'Motivo', value: selected.reason },
+                          { label: 'Ocorrido em', value: formatMoment(selected.occurredAt) },
+                          { label: 'Vencimento', value: formatMoment(selected.dueAt) },
+                          {
+                            label: 'Prazo',
+                            value: overdueLabel(selected.dueAt) ?? 'Sem atraso',
+                            emphasis: daysOverdue(selected.dueAt) !== null,
+                          },
+                        ],
+                        nextAction: {
+                          label: selected.actionLabel,
+                          onClick: () => {
+                            void navigate(selected.targetRoute);
+                          },
+                          kind: 'primary',
                         },
-                      ],
-                      nextAction: {
-                        label: selected.actionLabel,
-                        onClick: () => {
-                          void navigate(selected.targetRoute);
-                        },
-                        kind: 'primary',
-                      },
-                      detailHref: selected.targetRoute,
-                      detailLabel: 'Abrir na tela de origem',
-                    }}
-                  />
+                        detailHref: selected.targetRoute,
+                        detailLabel: 'Abrir na tela de origem',
+                      }}
+                    />
                   ) : (
                     <OperationalContextRail
                       firstItem={visibleItems[0] ?? null}
