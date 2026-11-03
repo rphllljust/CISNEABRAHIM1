@@ -48,6 +48,7 @@ import {
 } from '../serializers/resource-planning-response.serializer';
 import type { ServiceOrderServiceSnapshot } from '../domain/service-order-snapshot';
 import { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
+import { listAuthorizedWorkforceCursorPage } from './workforce-allocation-cursor-page';
 import {
   mapResourceCompatibilityError,
   serviceOrdersAccessNotFound,
@@ -98,6 +99,120 @@ export class ServiceOrderPlanningAccessService {
     await this.requireServiceOrder(actor, serviceOrderId, AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead);
     const rows = await this.planningRepository.listAllocations(serviceOrderId);
     return rows.map(toResourceAllocationResponse);
+  }
+
+  /**
+   * Authoritative Person -> Service Order allocation projection.
+   *
+   * No unfiltered count or raw candidate cursor reaches the consumer. The
+   * offset is applied AFTER both resource-level authorization checks. Bounded
+   * candidate scanning prevents unrestricted request work for hostile inputs.
+   */
+  async listAuthorizedWorkforceAllocations(
+    actor: IdentityAuthzContext,
+    workforceMemberId: string,
+    query: { limit: number; offset: number },
+  ): Promise<{
+    items: Array<{
+      id: string;
+      serviceOrderId: string;
+      orderNumber: string;
+      orderStatus: string;
+      status: string;
+      operationalStart: string;
+      operationalEnd: string;
+      allocatedAt: string;
+      rowVersion: number;
+    }>;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+    partial: boolean;
+  }> {
+    await this.authz.assertWorkforceAllocationDiscovery(actor);
+    const limit = Math.max(1, Math.min(100, Math.floor(query.limit)));
+    const offset = Math.max(0, Math.min(1000, Math.floor(query.offset)));
+    const required = offset + limit + 1;
+    const candidateBatchSize = 100;
+    const scanLimit = 5000;
+    const visible: Array<{
+      id: string;
+      serviceOrderId: string;
+      orderNumber: string;
+      orderStatus: string;
+      status: string;
+      operationalStart: string;
+      operationalEnd: string;
+      allocatedAt: string;
+      rowVersion: number;
+    }> = [];
+    let scanned = 0;
+    let exhausted = false;
+
+    while (scanned < scanLimit && visible.length < required) {
+      const batchSize = Math.min(candidateBatchSize, scanLimit - scanned);
+      const candidates = await this.serviceOrdersRepository.listWorkforceAllocationCandidates(
+        workforceMemberId,
+        batchSize,
+        scanned,
+      );
+      if (candidates.length === 0) {
+        exhausted = true;
+        break;
+      }
+      scanned += candidates.length;
+      const orderIds = [...new Set(candidates.map((row) => row.service_order_id))];
+      const orders = await this.serviceOrdersRepository.findByIds(orderIds);
+      const readable = await this.authz.filterReadableRows(actor, orders);
+      const permitted = await this.authz.filterAllocationReadableRows(actor, readable);
+      const byId = new Map(permitted.map((order) => [order.id, order]));
+
+      for (const allocation of candidates) {
+        const order = byId.get(allocation.service_order_id);
+        if (!order) continue;
+        visible.push({
+          id: allocation.id,
+          serviceOrderId: order.id,
+          orderNumber: order.order_number,
+          orderStatus: order.status,
+          status: allocation.status,
+          operationalStart: allocation.operational_start,
+          operationalEnd: allocation.operational_end,
+          allocatedAt: allocation.allocated_at,
+          rowVersion: allocation.row_version,
+        });
+        if (visible.length >= required) break;
+      }
+
+      if (candidates.length < batchSize) {
+        exhausted = true;
+        break;
+      }
+    }
+
+    return {
+      items: visible.slice(offset, offset + limit),
+      limit,
+      offset,
+      hasMore: visible.length > offset + limit,
+      partial: !exhausted && visible.length < required,
+    };
+  }
+
+  /** Authorized cursor mode for long runs of denied candidate allocations. */
+  async listAuthorizedWorkforceAllocationsCursor(
+    actor: IdentityAuthzContext,
+    workforceMemberId: string,
+    query: { limit: number; cursor: string | null },
+  ) {
+    return listAuthorizedWorkforceCursorPage(
+      this.serviceOrdersRepository,
+      this.authz,
+      actor,
+      workforceMemberId,
+      query.limit,
+      query.cursor,
+    );
   }
 
   async planResource(

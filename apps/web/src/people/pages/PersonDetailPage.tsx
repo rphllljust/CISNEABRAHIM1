@@ -31,6 +31,7 @@ import {
   deactivatePerson,
   getPerson,
   listPersonHistory,
+  listPersonAllocationsCursor,
   PeopleApiError,
 } from '../api/people-api';
 import {
@@ -43,6 +44,7 @@ import {
   PERSON_STATUSES,
   type Person,
   type PersonHistoryEvent,
+  type PersonAllocationCursorPage,
   type PersonStatus,
 } from '../types/person.types';
 
@@ -52,6 +54,14 @@ type DetailState =
   | { phase: 'not_found' }
   | { phase: 'error'; message: string }
   | { phase: 'ready'; person: Person; history: PersonHistoryEvent[] };
+
+type AllocationState =
+  | { phase: 'loading'; personId: string; offset: number }
+  | { phase: 'ready'; personId: string; offset: number; page: PersonAllocationCursorPage }
+  | { phase: 'denied'; personId: string; offset: number }
+  | { phase: 'error'; personId: string; offset: number };
+
+const ALLOCATION_PAGE_SIZE = 10;
 
 const STATUS_LABELS: Record<PersonStatus, string> = {
   [PERSON_STATUSES.Active]: 'Ativa',
@@ -135,6 +145,9 @@ export function PersonDetailPage() {
   const [deactivateReason, setDeactivateReason] = useState('');
   const [openDeactivate, setOpenDeactivate] = useState(false);
   const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [allocationPageIndex, setAllocationPageIndex] = useState(0);
+  const [allocationCursors, setAllocationCursors] = useState<Array<string | null>>([null]);
+  const [allocationState, setAllocationState] = useState<AllocationState>({ phase: 'loading', personId: '', offset: 0 });
 
   const [reloadToken, setReloadToken] = useState(0);
   const reload = () => setReloadToken((value) => value + 1);
@@ -180,6 +193,40 @@ export function PersonDetailPage() {
     void load();
     return () => controller.abort();
   }, [personId, reloadToken]);
+
+  const loadedPersonId = state.phase === 'ready' ? state.person.id : null;
+
+  useEffect(() => {
+    setAllocationPageIndex(0);
+    setAllocationCursors([null]);
+  }, [personId]);
+
+  useEffect(() => {
+    if (loadedPersonId !== personId) return;
+    const controller = new AbortController();
+    const currentCursor = allocationCursors[allocationPageIndex];
+    if (currentCursor === undefined) return;
+    setAllocationState({ phase: 'loading', personId, offset: allocationPageIndex });
+    void listPersonAllocationsCursor(
+      personId,
+      { limit: ALLOCATION_PAGE_SIZE, cursor: currentCursor },
+      controller.signal,
+    )
+      .then((page) => {
+        if (!controller.signal.aborted) {
+          setAllocationState({ phase: 'ready', personId, offset: allocationPageIndex, page });
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setAllocationState({
+          phase: error instanceof PeopleApiError && error.kind === 'denied' ? 'denied' : 'error',
+          personId,
+          offset: allocationPageIndex,
+        });
+      });
+    return () => controller.abort();
+  }, [personId, loadedPersonId, allocationPageIndex, allocationCursors, reloadToken]);
 
   async function handleDeactivate() {
     if (state.phase !== 'ready') {
@@ -403,10 +450,67 @@ export function PersonDetailPage() {
         ) : null}
 
         <ObjectPanel title="Alocação em ordens de serviço">
-          <p className="text-sm text-gray-600">
-            A atribuição deste empregado a uma ordem de serviço é feita no planejamento da OS,
-            depois da liberação. Somente o empregado atribuído executa a ordem.
-          </p>
+          {allocationState.personId !== personId || allocationState.offset !== allocationPageIndex ||
+          allocationState.phase === 'loading' ? (
+            <p className="text-sm text-gray-600">Consultando vínculos autorizados…</p>
+          ) : allocationState.phase === 'denied' ? (
+            <p className="text-sm text-gray-600">
+              Sem permissão para consultar as alocações das ordens de serviço.
+            </p>
+          ) : allocationState.phase === 'error' ? (
+            <div>
+              <p className="text-sm text-gray-600">Não foi possível consultar as alocações.</p>
+              <Button type="button" onClick={() => void reload()}>Tentar novamente</Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {allocationState.page.items.length === 0 ? (
+                <p className="text-sm text-gray-600">
+                  {allocationState.page.partial
+                    ? 'Consulta incompleta: a busca atingiu o limite seguro antes de comprovar a ausência de vínculos.'
+                    : 'Nenhuma alocação visível neste recorte autorizado.'}
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {allocationState.page.items.map((allocation) => (
+                    <li key={allocation.id} className="rounded-lg border border-gray-200 p-3">
+                      <Link to={`/app/service-orders/${allocation.serviceOrderId}`}>
+                        {allocation.orderNumber}
+                      </Link>
+                      <p className="m-0 text-sm text-gray-600">
+                        OS: {allocation.orderStatus} · Alocação: {allocation.status}
+                      </p>
+                      <p className="m-0 text-xs text-gray-500">
+                        Período: {formatDateTime(allocation.operationalStart)} até{' '}
+                        {formatDateTime(allocation.operationalEnd)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {allocationState.page.partial ? (
+                <p className="text-xs text-gray-600">
+                  A busca atingiu seu limite seguro. Continue a consulta para verificar vínculos autorizados adicionais.
+                </p>
+              ) : null}
+              <div className="flex items-center gap-3">
+                <Button type="button" disabled={allocationPageIndex === 0}
+                  onClick={() => setAllocationPageIndex((value) => Math.max(0, value - 1))}>
+                  Anterior
+                </Button>
+                <span className="text-sm text-gray-600">Página {allocationPageIndex + 1}</span>
+                <Button type="button" disabled={!allocationState.page.nextCursor}
+                  onClick={() => {
+                    const next = allocationState.page.nextCursor;
+                    if (!next) return;
+                    setAllocationCursors((current) => [...current.slice(0, allocationPageIndex + 1), next]);
+                    setAllocationPageIndex((value) => value + 1);
+                  }}>
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </ObjectPanel>
 
         {capabilities.canDeactivate && isActive ? (

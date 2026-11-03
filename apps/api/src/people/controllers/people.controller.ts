@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   HttpCode,
@@ -21,11 +22,15 @@ import {
   parseUpdatePersonInput,
 } from '../dto/person.dto';
 import { PersonAccessService } from '../services/person-access.service';
+import { ServiceOrderPlanningAccessService } from '../../service-orders/services/service-order-planning-access.service';
 
 @Controller('people')
 @UseGuards(JwtAuthGuard)
 export class PeopleController {
-  constructor(private readonly personAccess: PersonAccessService) {}
+  constructor(
+    private readonly personAccess: PersonAccessService,
+    private readonly planningAccess: ServiceOrderPlanningAccessService,
+  ) {}
 
   @Post()
   @HttpCode(201)
@@ -43,6 +48,43 @@ export class PeopleController {
   @Get(':personId')
   getById(@CurrentAuth() auth: AccessTokenClaims, @Param('personId') personId: string) {
     return this.personAccess.getById({ identityId: auth.sub, sessionId: auth.sid }, personId);
+  }
+
+  /**
+   * Interdomain read: verify the Person first, then delegate the allocation
+   * projection and record-level OS authorization to its owning domain.
+   * Never expose foreign OS numbers or counts before authorization.
+   */
+  @Get(':personId/allocations')
+  async listWorkforceAllocations(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('personId') personId: string,
+    @Query() query: Record<string, unknown>,
+  ) {
+    const actor = { identityId: auth.sub, sessionId: auth.sid };
+    await this.personAccess.getById(actor, personId);
+    const { limit, offset } = parseListPeopleQuery(query);
+    if (query['paging'] === 'cursor') {
+      const cursor = query['cursor'];
+      if (cursor !== undefined && typeof cursor !== 'string') {
+        throw new BadRequestException('Invalid allocation cursor.');
+      }
+      try {
+        return await this.planningAccess.listAuthorizedWorkforceAllocationsCursor(actor, personId, {
+          limit,
+          cursor: cursor || null,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === 'INVALID_WORKFORCE_CURSOR') {
+          throw new BadRequestException('Invalid or expired allocation cursor.');
+        }
+        throw error;
+      }
+    }
+    return this.planningAccess.listAuthorizedWorkforceAllocations(actor, personId, {
+      limit,
+      offset,
+    });
   }
 
   @Get(':personId/history')

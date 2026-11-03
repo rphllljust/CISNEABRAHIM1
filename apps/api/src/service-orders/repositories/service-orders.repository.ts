@@ -36,6 +36,7 @@ import type {
   ServiceSnapshotSource,
 } from '../domain/service-order-snapshot';
 import { releaseActiveAllocationsForServiceOrder } from './resource-planning-allocation-rows';
+import { queryWorkforceAllocationCandidates } from './resource-planning-workforce-rows';
 import {
   buildServiceOrderTransitionFields,
   historyEventForServiceOrderTransition,
@@ -92,6 +93,21 @@ export class ServiceOrdersRepository {
       serviceOrderId,
     ]);
     return result.rows[0] ?? null;
+  }
+
+  /** Batch record lookup for authorized cross-domain projections; no raw rows leave the owner. */
+  async findByIds(serviceOrderIds: string[]): Promise<ServiceOrderRow[]> {
+    if (serviceOrderIds.length === 0) return [];
+    const result = await this.pool().query<ServiceOrderRow>(
+      `${SERVICE_ORDER_SELECT} WHERE id = ANY($1::uuid[])`,
+      [serviceOrderIds],
+    );
+    return result.rows;
+  }
+
+  /** Workforce candidate SQL remains in the allocation read helper, not the large write repository. */
+  async listWorkforceAllocationCandidates(workforceMemberId: string, limit: number, offset: number) {
+    return queryWorkforceAllocationCandidates(this.pool(), workforceMemberId, limit, offset);
   }
 
   async findByServiceRequestId(serviceRequestId: string): Promise<ServiceOrderRow | null> {
