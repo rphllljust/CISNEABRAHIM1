@@ -1,5 +1,5 @@
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CatalogApiError,
   getServiceDefinitionVersion,
@@ -14,11 +14,12 @@ import {
 } from '../../ui/module-layout';
 import { VersionComparePanel } from '../components/VersionComparePanel';
 import { compareServiceDefinitionVersions } from '../utils/version-compare';
+import { parseCatalogVersionNumber } from '../utils/catalog-version-number';
 import type { ServiceDefinitionVersion } from '../types/service-catalog.types';
 
 type CompareState =
   | { phase: 'loading' }
-  | { phase: 'error'; message: string }
+  | { phase: 'error'; message: string; retryable?: boolean }
   | {
       phase: 'ready';
       versions: ServiceDefinitionVersion[];
@@ -33,44 +34,73 @@ export function ServiceDefinitionComparePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [state, setState] = useState<CompareState>({ phase: 'loading' });
 
-  const load = useCallback(async () => {
-    setState({ phase: 'loading' });
-    try {
-      const versions = await listServiceDefinitionVersions(definitionId);
-      if (versions.length < 2) {
+  const [reloadToken, setReloadToken] = useState(0);
+  const leftParam = searchParams.get('left');
+  const rightParam = searchParams.get('right');
+
+  // Um unico recorte da URL tem um unico AbortController. Respostas antigas
+  // nao podem ocupar a ficha depois de navegar entre comparacoes.
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = async () => {
+      setState({ phase: 'loading' });
+      try {
+        const versions = await listServiceDefinitionVersions(definitionId, controller.signal);
+        if (controller.signal.aborted) return;
+        if (versions.length < 2) {
+          setState({
+            phase: 'error',
+            message: 'São necessárias ao menos duas versões para comparar.',
+            retryable: false,
+          });
+          return;
+        }
+
+        const sorted = [...versions].sort((a, b) => a.version - b.version);
+        const defaultLeft = sorted.at(-2)!.version;
+        const defaultRight = sorted.at(-1)!.version;
+        const leftVersion = leftParam === null
+          ? defaultLeft
+          : parseCatalogVersionNumber(leftParam);
+        const rightVersion = rightParam === null
+          ? defaultRight
+          : parseCatalogVersionNumber(rightParam);
+
+        // Somente versoes efetivamente publicadas pelo catalogo para esta
+        // definicao sao consultadas. Nunca requisitar /versions/NaN ou /versions/-1.
+        const available = new Set(versions.map((version) => version.version));
+        if (
+          leftVersion === null || rightVersion === null ||
+          !available.has(leftVersion) || !available.has(rightVersion)
+        ) {
+          setState({
+            phase: 'error',
+            message: 'Selecione versões válidas desta definição.',
+            retryable: false,
+          });
+          return;
+        }
+
+        const [left, right] = await Promise.all([
+          getServiceDefinitionVersion(definitionId, leftVersion, controller.signal),
+          getServiceDefinitionVersion(definitionId, rightVersion, controller.signal),
+        ]);
+        if (controller.signal.aborted) return;
+        setState({ phase: 'ready', versions, leftVersion, rightVersion, left, right });
+      } catch (error) {
+        if (controller.signal.aborted) return;
         setState({
           phase: 'error',
-          message: 'São necessárias ao menos duas versões para comparar.',
+          message:
+            error instanceof CatalogApiError
+              ? mapCatalogErrorToMessage(error.code, error.status)
+              : 'Não foi possível comparar as versões.',
         });
-        return;
       }
-
-      const sorted = [...versions].sort((a, b) => a.version - b.version);
-      const defaultLeft = sorted.at(-2)?.version ?? sorted[0]!.version;
-      const defaultRight = sorted.at(-1)?.version ?? sorted[1]!.version;
-      const leftVersion = Number(searchParams.get('left') ?? defaultLeft);
-      const rightVersion = Number(searchParams.get('right') ?? defaultRight);
-
-      const [left, right] = await Promise.all([
-        getServiceDefinitionVersion(definitionId, leftVersion),
-        getServiceDefinitionVersion(definitionId, rightVersion),
-      ]);
-
-      setState({ phase: 'ready', versions, leftVersion, rightVersion, left, right });
-    } catch (error) {
-      setState({
-        phase: 'error',
-        message:
-          error instanceof CatalogApiError
-            ? mapCatalogErrorToMessage(error.code, error.status)
-            : 'Não foi possível comparar as versões.',
-      });
-    }
-  }, [definitionId, searchParams]);
-
-  useEffect(() => {
+    };
     void load();
-  }, [load]);
+    return () => controller.abort();
+  }, [definitionId, leftParam, rightParam, reloadToken]);
 
   if (state.phase === 'loading') {
     return (
@@ -88,8 +118,8 @@ export function ServiceDefinitionComparePage() {
         <ModuleErrorState
           title="Comparar versões"
           message={state.message}
-          retryable
-          onRetry={() => void load()}
+          retryable={state.retryable !== false}
+          onRetry={() => setReloadToken((value) => value + 1)}
         />
         <p className="mt-3 mb-0">
           <Link to={`/app/catalog/${definitionId}`}>Voltar</Link>
