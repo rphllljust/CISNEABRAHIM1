@@ -6,6 +6,7 @@ import {
   type Person,
   type PersonErrorCode,
   type PersonHistoryEvent,
+  type PersonAllocationListResponse,
   type PersonListResponse,
   type PersonStatus,
   type UpdatePersonPayload,
@@ -136,6 +137,21 @@ export async function getPerson(personId: string, signal?: AbortSignal): Promise
     headers: authHeaders(),
     signal,
   });
+}
+
+export async function listPersonAllocations(
+  personId: string,
+  params: { limit: number; offset: number },
+  signal?: AbortSignal,
+): Promise<PersonAllocationListResponse> {
+  const search = new URLSearchParams({
+    limit: String(params.limit),
+    offset: String(params.offset),
+  });
+  return requestJson<PersonAllocationListResponse>(
+    `/api/v1/people/${personId}/allocations?${search.toString()}`,
+    { headers: authHeaders(), signal },
+  );
 }
 
 export async function createPerson(payload: CreatePersonPayload): Promise<Person> {

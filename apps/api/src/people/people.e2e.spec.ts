@@ -67,7 +67,7 @@ describe('People E2E', () => {
     await app.close();
   });
 
-  async function loginWithPeopleGrants(): Promise<{ accessToken: string }> {
+  async function loginWithPeopleGrants(): Promise<{ accessToken: string; identityId: string }> {
     const loginId = normalizeLoginIdentifier(`people-e2e-${crypto.randomUUID()}@cisne.invalid`);
     const passwordHash = await hashPassword(AUTH_TEST_PASSWORD);
     const { identityId } = await insertIdentity(pool, loginId, passwordHash);
@@ -96,7 +96,7 @@ describe('People E2E', () => {
       headers: { 'user-agent': 'vitest-people-e2e' },
     });
     const body = parseAuthTokenResponse(response.body);
-    return { accessToken: body.accessToken };
+    return { accessToken: body.accessToken, identityId };
   }
 
   it('denies anonymous access and supports full person lifecycle via HTTP', async () => {
@@ -138,6 +138,53 @@ describe('People E2E', () => {
       url: '/api/v1/people',
     });
     expect(denied.statusCode).toBe(401);
+  });
+
+  it('denies the Person -> OS allocation view without OS read grants, then permits an authorized empty view', async () => {
+    const { accessToken, identityId } = await loginWithPeopleGrants();
+    const createdResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/people',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { legalName: 'Vinculo Seguro', defaultLaborTypeCode: 'OPERATOR' },
+    });
+    expect(createdResponse.statusCode).toBe(201);
+    const created = JSON.parse(createdResponse.body) as { id: string };
+    const url = `/api/v1/people/${created.id}/allocations?limit=10&offset=0`;
+
+    const denied = await app.inject({
+      method: 'GET',
+      url,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(denied.statusCode).toBe(403);
+
+    for (const action of [
+      AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+      AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead,
+    ]) {
+      await insertGrant(pool, {
+        identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: identityId,
+      });
+    }
+
+    const allowed = await app.inject({
+      method: 'GET',
+      url,
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    expect(allowed.statusCode).toBe(200);
+    expect(JSON.parse(allowed.body)).toEqual({
+      items: [],
+      limit: 10,
+      offset: 0,
+      hasMore: false,
+      partial: false,
+    });
   });
 
   it('returns validation error for empty legal name', async () => {

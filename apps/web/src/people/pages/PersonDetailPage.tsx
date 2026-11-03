@@ -31,6 +31,7 @@ import {
   deactivatePerson,
   getPerson,
   listPersonHistory,
+  listPersonAllocations,
   PeopleApiError,
 } from '../api/people-api';
 import {
@@ -43,6 +44,7 @@ import {
   PERSON_STATUSES,
   type Person,
   type PersonHistoryEvent,
+  type PersonAllocationListResponse,
   type PersonStatus,
 } from '../types/person.types';
 
@@ -52,6 +54,14 @@ type DetailState =
   | { phase: 'not_found' }
   | { phase: 'error'; message: string }
   | { phase: 'ready'; person: Person; history: PersonHistoryEvent[] };
+
+type AllocationState =
+  | { phase: 'loading'; personId: string; offset: number }
+  | { phase: 'ready'; personId: string; offset: number; page: PersonAllocationListResponse }
+  | { phase: 'denied'; personId: string; offset: number }
+  | { phase: 'error'; personId: string; offset: number };
+
+const ALLOCATION_PAGE_SIZE = 10;
 
 const STATUS_LABELS: Record<PersonStatus, string> = {
   [PERSON_STATUSES.Active]: 'Ativa',
@@ -135,6 +145,8 @@ export function PersonDetailPage() {
   const [deactivateReason, setDeactivateReason] = useState('');
   const [openDeactivate, setOpenDeactivate] = useState(false);
   const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [allocationOffset, setAllocationOffset] = useState(0);
+  const [allocationState, setAllocationState] = useState<AllocationState>({ phase: 'loading', personId: '', offset: 0 });
 
   const [reloadToken, setReloadToken] = useState(0);
   const reload = () => setReloadToken((value) => value + 1);
@@ -180,6 +192,37 @@ export function PersonDetailPage() {
     void load();
     return () => controller.abort();
   }, [personId, reloadToken]);
+
+  const loadedPersonId = state.phase === 'ready' ? state.person.id : null;
+
+  useEffect(() => {
+    setAllocationOffset(0);
+  }, [personId]);
+
+  useEffect(() => {
+    if (loadedPersonId !== personId) return;
+    const controller = new AbortController();
+    setAllocationState({ phase: 'loading', personId, offset: allocationOffset });
+    void listPersonAllocations(
+      personId,
+      { limit: ALLOCATION_PAGE_SIZE, offset: allocationOffset },
+      controller.signal,
+    )
+      .then((page) => {
+        if (!controller.signal.aborted) {
+          setAllocationState({ phase: 'ready', personId, offset: allocationOffset, page });
+        }
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setAllocationState({
+          phase: error instanceof PeopleApiError && error.kind === 'denied' ? 'denied' : 'error',
+          personId,
+          offset: allocationOffset,
+        });
+      });
+    return () => controller.abort();
+  }, [personId, loadedPersonId, allocationOffset, reloadToken]);
 
   async function handleDeactivate() {
     if (state.phase !== 'ready') {
@@ -403,10 +446,60 @@ export function PersonDetailPage() {
         ) : null}
 
         <ObjectPanel title="Alocação em ordens de serviço">
-          <p className="text-sm text-gray-600">
-            A atribuição deste empregado a uma ordem de serviço é feita no planejamento da OS,
-            depois da liberação. Somente o empregado atribuído executa a ordem.
-          </p>
+          {allocationState.personId !== personId || allocationState.offset !== allocationOffset ||
+          allocationState.phase === 'loading' ? (
+            <p className="text-sm text-gray-600">Consultando vínculos autorizados…</p>
+          ) : allocationState.phase === 'denied' ? (
+            <p className="text-sm text-gray-600">
+              Sem permissão para consultar as alocações das ordens de serviço.
+            </p>
+          ) : allocationState.phase === 'error' ? (
+            <div>
+              <p className="text-sm text-gray-600">Não foi possível consultar as alocações.</p>
+              <Button type="button" onClick={() => void reload()}>Tentar novamente</Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {allocationState.page.items.length === 0 ? (
+                <p className="text-sm text-gray-600">
+                  Nenhuma alocação visível neste recorte autorizado.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {allocationState.page.items.map((allocation) => (
+                    <li key={allocation.id} className="rounded-lg border border-gray-200 p-3">
+                      <Link to={`/app/service-orders/${allocation.serviceOrderId}`}>
+                        {allocation.orderNumber}
+                      </Link>
+                      <p className="m-0 text-sm text-gray-600">
+                        OS: {allocation.orderStatus} · Alocação: {allocation.status}
+                      </p>
+                      <p className="m-0 text-xs text-gray-500">
+                        Período: {formatDateTime(allocation.operationalStart)} até{' '}
+                        {formatDateTime(allocation.operationalEnd)}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {allocationState.page.partial ? (
+                <p className="text-xs text-gray-600">
+                  A consulta atingiu o limite de varredura. Outros vínculos autorizados podem existir.
+                </p>
+              ) : null}
+              <div className="flex items-center gap-3">
+                <Button type="button" disabled={allocationOffset === 0}
+                  onClick={() => setAllocationOffset((value) => Math.max(0, value - ALLOCATION_PAGE_SIZE))}>
+                  Anterior
+                </Button>
+                <span className="text-sm text-gray-600">Página {Math.floor(allocationOffset / ALLOCATION_PAGE_SIZE) + 1}</span>
+                <Button type="button" disabled={!allocationState.page.hasMore}
+                  onClick={() => setAllocationOffset((value) => value + ALLOCATION_PAGE_SIZE)}>
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
         </ObjectPanel>
 
         {capabilities.canDeactivate && isActive ? (

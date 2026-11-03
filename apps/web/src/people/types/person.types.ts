@@ -62,3 +62,25 @@ export type UpdatePersonPayload = {
   defaultLaborTypeCode?: string | null;
   externalErpId?: string | null;
 };
+
+/** Only records authorized for BOTH the Person and Service Order/Allocation are returned. */
+export type PersonAllocation = {
+  id: string;
+  serviceOrderId: string;
+  orderNumber: string;
+  orderStatus: string;
+  status: string;
+  operationalStart: string;
+  operationalEnd: string;
+  allocatedAt: string;
+  rowVersion: number;
+};
+
+export type PersonAllocationListResponse = {
+  items: PersonAllocation[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  /** Owner-domain candidate scan limit reached; absence of next page is not proven. */
+  partial: boolean;
+};
