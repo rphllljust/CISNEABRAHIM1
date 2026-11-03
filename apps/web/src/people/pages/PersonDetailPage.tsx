@@ -237,12 +237,12 @@ export function PersonDetailPage() {
     }
   }
 
-  if (state.phase !== 'ready' || state.person.id !== personId) {
+  if (state.phase !== 'ready') {
     let phase: ObjectPagePhase = 'error';
     let phaseTitle = 'Pessoa';
     let phaseMessage = 'Não foi possível carregar a Pessoa.';
     let onRetry: (() => void) | undefined;
-    if (state.phase === 'loading' || (state.phase === 'ready' && state.person.id !== personId)) {
+    if (state.phase === 'loading') {
       phase = 'loading';
       phaseMessage = 'Carregando…';
     } else if (state.phase === 'denied') {
@@ -265,6 +265,22 @@ export function PersonDetailPage() {
           phaseTitle={phaseTitle}
           phaseMessage={phaseMessage}
           onRetry={phase === 'error' ? onRetry : undefined}
+          header={null}
+        />
+      </ModulePage>
+    );
+  }
+
+  // O ID da URL pode mudar antes do proximo effect: jamais exibir Pessoa A na rota de B.
+  if (state.person.id !== personId) {
+    return (
+      <ModulePage>
+        <ModulePageHeader title="Pessoa" />
+        <EnterpriseObjectPage
+          breadcrumb={[{ label: 'Pessoas', href: '/app/people' }, { label: 'Pessoa' }]}
+          phase="loading"
+          phaseTitle="Pessoa"
+          phaseMessage="Carregando…"
           header={null}
         />
       </ModulePage>
