@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, Inject, Injectable, Optional } from '@nestjs/common';
 import {
   SECURITY_AUDIT_ACTIONS,
   SECURITY_AUDIT_CLASSIFICATIONS,
@@ -10,12 +10,9 @@ import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
-import type {
-  InventoryStockPort,
-  BoundMaterialActualStockInput,
-  BoundMaterialStockResult,
-} from '../../platform/bounded-contexts/enterprise-core-ports';
+import { ENTERPRISE_CORE_PORT, type InventoryStockPort, type BoundMaterialActualStockInput, type BoundMaterialStockResult, type ProcurementReceiptEvidencePort } from '../../platform/bounded-contexts/enterprise-core-ports';
 import { assertUuid } from '../../platform/kernel/uuid';
+import { isPositiveMoneyAmount } from '../../platform/kernel/money-math';
 import {
   applyExplicitCosting,
   originForMovement,
@@ -93,6 +90,8 @@ export class InventoryAccessService implements InventoryStockPort {
     private readonly authorizationRepository: AuthorizationRepository,
     private readonly securityAudit: SecurityAuditService,
     private readonly accountingIntegration: InventoryAccountingIntegrationService,
+    @Optional() @Inject(ENTERPRISE_CORE_PORT.ProcurementReceiptEvidence)
+    private readonly receiptEvidence?: ProcurementReceiptEvidencePort,
   ) {}
 
   /**
@@ -397,6 +396,79 @@ export class InventoryAccessService implements InventoryStockPort {
    * the complete persisted origin, SKU, warehouse, unit and quantity.
    * InventoryRepository owns the stock position lock and economic outbox atomically.
    */
+  /**
+   * #193 / 2F-a: explicit, dual-authorized receipt-line -> SKU/warehouse fact.
+   * Does NOT post stock, valuation or GL. Procurement owns the receipt evidence.
+   */
+  async bindReceiptProvenance(
+    actor: IdentityAuthzContext,
+    input: {
+      receiptLineId: string;
+      inventoryItemId: string;
+      warehouseId: string;
+      unitId: string;
+      allocatedQuantity: string;
+      idempotencyKey: string;
+    },
+  ) {
+    try {
+      if (!this.receiptEvidence) throw new InventoryError('INVENTORY_NOT_FOUND');
+      assertUuid(input.receiptLineId, 'receiptLineId');
+      assertUuid(input.inventoryItemId, 'inventoryItemId');
+      assertUuid(input.warehouseId, 'warehouseId');
+      if (typeof input.unitId !== 'string' || !input.unitId.trim() ||
+          typeof input.idempotencyKey !== 'string' ||
+          input.idempotencyKey.length < 1 || input.idempotencyKey.length > 128 ||
+          input.idempotencyKey.trim() !== input.idempotencyKey ||
+          !isPositiveMoneyAmount(String(input.allocatedQuantity))) {
+        throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+      }
+      await this.authz.assertInventoryAction(actor, AUTHZ_ACTIONS.InventoryMove, {
+        id: input.inventoryItemId,
+        unitId: input.unitId,
+      });
+      const source = await this.receiptEvidence.readPostedLine({
+        actorIdentityId: actor.identityId,
+        actorSessionId: actor.sessionId,
+        receiptLineId: input.receiptLineId,
+      });
+      if (!source || source.unitId !== input.unitId) {
+        throw new InventoryError('INVENTORY_NOT_FOUND');
+      }
+      // Maker-checker: the receipt actor cannot certify their own SKU mapping.
+      if (source.receivedByIdentityId === actor.identityId) {
+        throw inventoryAccessDenied();
+      }
+      const result = await this.repository.recordReceiptProvenance({
+        receiptLineId: source.receiptLineId,
+        inventoryItemId: input.inventoryItemId,
+        warehouseId: input.warehouseId,
+        unitId: source.unitId,
+        allocatedQuantity: normalizeQuantity(String(input.allocatedQuantity)),
+        receivedQuantity: normalizeQuantity(source.receivedQuantity),
+        actorIdentityId: actor.identityId,
+        idempotencyKey: input.idempotencyKey,
+      });
+      if (!result.idempotent) {
+        await this.audit(actor, SECURITY_AUDIT_ACTIONS.InventoryMove, input.inventoryItemId, {
+          command: 'RECEIPT_PROVENANCE_ONLY',
+          provenanceId: result.id,
+          receiptLineId: result.receiptLineId,
+          warehouseId: result.warehouseId,
+          allocatedQuantity: result.allocatedQuantity,
+          stockMovementCreated: false,
+          valuationCreated: false,
+        });
+      }
+      return result;
+    } catch (error) {
+      // Denials from the Procurement owner must retain their HTTP status.
+      // Turning a valid cross-domain PDP 403 into Inventory 500 is incorrect.
+      if (error instanceof HttpException) throw error;
+      throw mapInventoryDomainError(error);
+    }
+  }
+
   async postBoundMaterialActual(input: BoundMaterialActualStockInput): Promise<BoundMaterialStockResult> {
     this.assertBoundActualInput(input);
     const key = materialCommandKey(input.actualId);

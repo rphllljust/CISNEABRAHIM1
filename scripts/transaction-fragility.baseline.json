@@ -2,7 +2,7 @@
   "$comment": "Baseline do gate E em scripts/check-scripts.mjs. Ver o cabecalho de scripts/lib/transaction-discipline.mjs para o defeito medido e para o caminho de saida. Este numero so pode DIMINUIR: o gate falha se a contagem subir, e falha se um arquivo novo introduzir o padrao. Para reduzir, endureca o bloco (preserve a causa primaria e descarte a conexao cujo encerramento nao pode ser confirmado) e rode `node scripts/check-scripts.mjs --update-transaction-baseline`.",
   "pattern": "catch { await client.query('ROLLBACK'); throw } combinado com client.release() sem argumento",
   "measuredAt": "2026-10-24",
-  "maskedErrorSites": 87,
+  "maskedErrorSites": 86,
   "filesWithMaskedErrorSites": 36,
   "bareReleaseCalls": 129,
   "evictingReleaseCalls": 24,

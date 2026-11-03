@@ -4,6 +4,7 @@ import {
   insertIdentity,
   truncateFinanceTables,
   truncateIdentityAndAuthorizationTables,
+  truncateInventoryTables,
   truncateProcurementTables,
   truncateSupplierTables,
 } from '@cisne/database';
@@ -23,6 +24,9 @@ import { AUTHZ_SCOPES } from '../authorization/types/authz-scopes';
 import { CONTACT_PURPOSES } from '../clients/domain/client-status';
 import { PAYABLE_ORIGIN_KINDS } from '../finance/domain/payable';
 import { FinanceModule } from '../finance/finance.module';
+import { InventoryModule } from '../inventory/inventory.module';
+import { InventoryAccessService } from '../inventory/services/inventory-access.service';
+import { INVENTORY_ERROR_CODES } from '../inventory/errors/inventory-error-codes';
 import { PayablesAccessService } from '../finance/services/payables-access.service';
 import { SupplierAccessService } from '../suppliers/services/supplier-access.service';
 import { SuppliersModule } from '../suppliers/suppliers.module';
@@ -74,6 +78,7 @@ describe('Procurement core PostgreSQL integration', () => {
   let procurement: ProcurementAccessService;
   let suppliers: SupplierAccessService;
   let payables: PayablesAccessService;
+  let inventory: InventoryAccessService;
   let failures: ProcurementFailureInjection;
   let matrices: ApprovalMatrixAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
@@ -84,11 +89,12 @@ describe('Procurement core PostgreSQL integration', () => {
     }
     applyAuthTestEnv(testDatabaseUrl);
     const module: TestingModule = await Test.createTestingModule({
-      imports: [AuthModule, AuditModule, AuthorizationModule, SuppliersModule, FinanceModule, ProcurementModule],
+      imports: [AuthModule, AuditModule, AuthorizationModule, SuppliersModule, FinanceModule, ProcurementModule, InventoryModule],
     }).compile();
     procurement = module.get(ProcurementAccessService);
     suppliers = module.get(SupplierAccessService);
     payables = module.get(PayablesAccessService);
+    inventory = module.get(InventoryAccessService);
     failures = module.get(ProcurementFailureInjection);
     matrices = module.get(ApprovalMatrixAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
@@ -96,6 +102,7 @@ describe('Procurement core PostgreSQL integration', () => {
 
   beforeEach(async () => {
     failures.reset();
+    await truncateInventoryTables(pool);
     await truncateFinanceTables(pool);
     await truncateProcurementTables(pool);
     await truncateSupplierTables(pool);
@@ -300,6 +307,129 @@ describe('Procurement core PostgreSQL integration', () => {
     expect(payments.rows[0]?.count).toBe('0');
     const stock = await pool.query<{ count: string }>(`SELECT count(*)::text AS count FROM inv.stock_movements`);
     expect(stock.rows[0]?.count).toBe('0');
+  });
+
+  it('confirms receipt-to-SKU provenance with dual PDP, SoD, 4dp cap, replay and concurrent allocation (PG)', async () => {
+    const receiver = await seedActor();
+    const checker = await seedActor();
+    const outsider = await seedActor(false);
+    for (const action of [
+      AUTHZ_ACTIONS.InventoryWarehouseManage,
+      AUTHZ_ACTIONS.InventoryItemManage,
+      AUTHZ_ACTIONS.InventoryMove,
+    ]) {
+      await insertGrant(pool, {
+        identityId: checker.identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: checker.identityId,
+      });
+    }
+    await insertGrant(pool, {
+      identityId: receiver.identityId,
+      action: AUTHZ_ACTIONS.InventoryMove,
+      resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: receiver.identityId,
+    });
+    const supplier = await seedSupplier(receiver);
+    const request = await approvedRequest(receiver, '10');
+    const order = await procurement.issueOrder(receiver, request.id, {
+      version: request.version, supplierId: supplier.id,
+    });
+    const category = await payables.createExpenseCategory(receiver, {
+      code: `CAT-${crypto.randomUUID().slice(0, 8)}`, name: 'Receipt provenance',
+    });
+    await procurement.receiveOrder(receiver, order.id, {
+      version: order.version,
+      expenseCategoryId: category.id,
+      costCenterId: crypto.randomUUID(),
+      costCenterCode: 'CC-PROV',
+      dueDate: '2099-12-31',
+      lines: [{ spoLineId: order.lines[0]!.id, quantity: '10' }],
+      idempotencyKey: `rcv-${crypto.randomUUID()}`,
+    });
+    const receipt = await pool.query<{ id: string }>(
+      `SELECT l.id FROM prc.goods_receipt_lines l
+       JOIN prc.goods_receipts r ON r.id = l.receipt_id
+       WHERE r.supplier_purchase_order_id = $1`, [order.id],
+    );
+    const receiptLineId = receipt.rows[0]!.id;
+    const wh = await inventory.createWarehouse(checker, {
+      unitId: UNIT, code: `WH-${crypto.randomUUID().slice(0, 8)}`, name: 'Received warehouse',
+    });
+    const products = await Promise.all([1, 2, 3].map((n) =>
+      inventory.createItem(checker, {
+        unitId: UNIT, sku: `RCP-${n}-${crypto.randomUUID().slice(0, 8)}`,
+        name: `Explicit item ${n}`,
+      }),
+    ));
+    const initialMovements = await pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM inv.stock_movements',
+    );
+    const initialEvents = await pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM plt.economic_events',
+    );
+    const input = {
+      receiptLineId, inventoryItemId: products[0]!.id,
+      warehouseId: wh.id, unitId: UNIT,
+      allocatedQuantity: '6', idempotencyKey: `alloc-${crypto.randomUUID()}`,
+    };
+    await expect(inventory.bindReceiptProvenance(outsider, input))
+      .rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.DENIED });
+    // Inventory MOVE alone does not authorize access to Procurement receipts.
+    const stockOnly = await seedActor(false);
+    await insertGrant(pool, {
+      identityId: stockOnly.identityId,
+      action: AUTHZ_ACTIONS.InventoryMove,
+      resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: stockOnly.identityId,
+    });
+    await expect(inventory.bindReceiptProvenance(stockOnly, input))
+      .rejects.toMatchObject({ code: PROCUREMENT_ERROR_CODES.DENIED });
+    // The person who registered the goods receipt cannot self-certify its SKU.
+    await expect(inventory.bindReceiptProvenance(receiver, input))
+      .rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.DENIED });
+    await expect(inventory.bindReceiptProvenance(checker, { ...input, unitId: 'unit-other' }))
+      .rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.NOT_FOUND });
+
+    const recorded = await inventory.bindReceiptProvenance(checker, input);
+    expect(recorded).toMatchObject({
+      receiptLineId, inventoryItemId: products[0]!.id, warehouseId: wh.id,
+      unitId: UNIT, allocatedQuantity: '6.0000', idempotent: false,
+    });
+    const replay = await inventory.bindReceiptProvenance(checker, input);
+    expect(replay).toMatchObject({ id: recorded.id, idempotent: true });
+    await expect(inventory.bindReceiptProvenance(checker, {
+      ...input, allocatedQuantity: '7',
+    })).rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.VALIDATION_FAILED });
+    await expect(inventory.bindReceiptProvenance(checker, {
+      ...input, idempotencyKey: `duplicate-${crypto.randomUUID()}`,
+    })).rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.VALIDATION_FAILED });
+
+    // Each contender requests the remaining 4 units. Exactly one may commit;
+    // the other must fail after the per-receipt transaction lock.
+    const competing = await Promise.allSettled([products[1]!, products[2]!].map((product) =>
+      inventory.bindReceiptProvenance(checker, {
+        ...input, inventoryItemId: product.id, allocatedQuantity: '4',
+        idempotencyKey: `concurrent-${crypto.randomUUID()}`,
+      }),
+    ));
+    expect(competing.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
+    expect(competing.filter((item) => item.status === 'rejected')).toHaveLength(1);
+    const allocations = await pool.query<{ count: string; total: string }>(
+      `SELECT count(*)::text AS count, sum(allocated_quantity)::text AS total
+       FROM inv.receipt_inventory_provenance WHERE receipt_line_id = $1`, [receiptLineId],
+    );
+    expect(allocations.rows[0]).toEqual({ count: '2', total: '10.0000' });
+    expect((await pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM inv.stock_movements',
+    )).rows[0]?.count).toBe(initialMovements.rows[0]?.count);
+    expect((await pool.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM plt.economic_events',
+    )).rows[0]?.count).toBe(initialEvents.rows[0]?.count);
   });
 
   it('replays the same receipt idempotency key without a second payable', async () => {

@@ -81,6 +81,7 @@ const EXPECTED_TABLES = [
   'so.execution_entries',
   // 0113: the material actual -> Inventory binding must exist in fresh and N-1+delta schemas.
   'so.material_inventory_bindings',
+  'inv.receipt_inventory_provenance',
   'so.operational_cost_entries',
   'msr.measurements',
   // ── MEASUREMENT → ACCEPTANCE → BILLING READINESS (0108) ─────────────────────
@@ -1571,6 +1572,23 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       );
       if (!prior.rows[0]?.has_jobs || prior.rows[0]?.already_has_handoff) {
         throw new Error('0112 N-1 must have background_jobs but not the handoff job kind');
+      }
+      return;
+    }
+
+    if (deltaFile === '0115_inventory_receipt_provenance.sql') {
+      const baseline = await client.query(
+        `SELECT
+          to_regclass('prc.goods_receipt_lines') IS NOT NULL AS has_receipt_lines,
+          to_regclass('inv.inventory_items') IS NOT NULL AS has_items,
+          to_regclass('inv.warehouses') IS NOT NULL AS has_warehouses,
+          to_regclass('inv.receipt_inventory_provenance') AS already_provenance,
+          to_regclass('rpt.read_receipt_inventory_provenance') AS already_read`,
+      );
+      const row = baseline.rows[0];
+      if (!row?.has_receipt_lines || !row.has_items || !row.has_warehouses ||
+          row.already_provenance !== null || row.already_read !== null) {
+        throw new Error('0115 N-1 must have receipt and inventory owners, but no provenance contract');
       }
       return;
     }

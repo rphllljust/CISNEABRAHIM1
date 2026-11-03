@@ -1193,6 +1193,14 @@ $$;`);
       await applySqlFile(pool, '0114_material_stock_exactly_once.sql');
     }
 
+    /* 0115 — receipt-to-inventory provenance is a separate immutable evidence
+     * table, not a cost valuation or a stock movement. Check its own existence
+     * before journal reconciliation; never record an absent table as applied.
+     */
+    if (!(await tableExists(pool, 'inv.receipt_inventory_provenance'))) {
+      await applySqlFile(pool, '0115_inventory_receipt_provenance.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

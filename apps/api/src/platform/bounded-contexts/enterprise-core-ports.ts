@@ -10,6 +10,7 @@ export const ENTERPRISE_CORE_PORT = {
   FiscalDocument: Symbol('ENTERPRISE_CORE_PORT.FiscalDocument'),
   AccountingLedger: Symbol('ENTERPRISE_CORE_PORT.AccountingLedger'),
   InventoryStock: Symbol('ENTERPRISE_CORE_PORT.InventoryStock'),
+  ProcurementReceiptEvidence: Symbol('ENTERPRISE_CORE_PORT.ProcurementReceiptEvidence'),
   PayrollContract: Symbol('ENTERPRISE_CORE_PORT.PayrollContract'),
   CommercialSupplier: Symbol('ENTERPRISE_CORE_PORT.CommercialSupplier'),
   CommercialClient: Symbol('ENTERPRISE_CORE_PORT.CommercialClient'),
@@ -283,6 +284,28 @@ export type AccountingLedgerPort = {
   }>;
 };
 
+/**
+ * Published Procurement owner evidence: READ ONLY. A posted receipt line proves
+ * an amount was physically received, never the SKU / warehouse / valuation.
+ * Inventory links the SKU explicitly, through a separate authorized command.
+ */
+export type ProcurementReceiptLineEvidence = {
+  receiptLineId: string;
+  receiptId: string;
+  supplierOrderId: string;
+  unitId: string;
+  receivedQuantity: string;
+  receivedByIdentityId: string;
+};
+
+export type ProcurementReceiptEvidencePort = {
+  readPostedLine(input: {
+    receiptLineId: string;
+    actorIdentityId: string;
+    actorSessionId: string;
+  }): Promise<ProcurementReceiptLineEvidence | null>;
+};
+
 export type BoundMaterialActualStockInput = {
   // Only an already-persisted, PDP-authorized so.material_inventory_bindings
   // snapshot may supply these fields. No defaults or inferred SKUs.
@@ -344,6 +367,7 @@ export const ENTERPRISE_CORE_PORT_READINESS = {
   [ENTERPRISE_CORE_PORT.FiscalDocument]: BOUNDED_CONTEXT_READINESS[BOUNDED_CONTEXT.Fiscal],
   [ENTERPRISE_CORE_PORT.AccountingLedger]: BOUNDED_CONTEXT_READINESS[BOUNDED_CONTEXT.Accounting],
   [ENTERPRISE_CORE_PORT.InventoryStock]: BOUNDED_CONTEXT_READINESS[BOUNDED_CONTEXT.Inventory],
+  [ENTERPRISE_CORE_PORT.ProcurementReceiptEvidence]: BOUNDED_CONTEXT_READINESS[BOUNDED_CONTEXT.Procurement],
   [ENTERPRISE_CORE_PORT.PayrollContract]: BOUNDED_CONTEXT_READINESS[BOUNDED_CONTEXT.Payroll],
   [ENTERPRISE_CORE_PORT.CommercialSupplier]: BOUNDED_CONTEXT_READINESS[BOUNDED_CONTEXT.Commercial],
   [ENTERPRISE_CORE_PORT.CommercialClient]: BOUNDED_CONTEXT_READINESS[BOUNDED_CONTEXT.Commercial],

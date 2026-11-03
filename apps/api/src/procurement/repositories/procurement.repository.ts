@@ -490,6 +490,44 @@ export class ProcurementRepository {
     return result.rows[0]?.payable_id ?? null;
   }
 
+  /**
+   * Procurement-owned receipt evidence, not inventory valuation.
+   * Returns the exact posted receipt line and its accountable receiving actor;
+   * no SKU or stock warehouse can be inferred from this source.
+   */
+  async findPostedReceiptLineEvidence(receiptLineId: string): Promise<{
+    receiptLineId: string;
+    receiptId: string;
+    supplierOrderId: string;
+    unitId: string;
+    receivedQuantity: string;
+    receivedByIdentityId: string;
+  } | null> {
+    const result = await this.pool().query<{
+      receiptLineId: string;
+      receiptId: string;
+      supplierOrderId: string;
+      unitId: string;
+      receivedQuantity: string;
+      receivedByIdentityId: string;
+    }>(
+      `SELECT l.id AS "receiptLineId",
+              r.id AS "receiptId",
+              p.id AS "supplierOrderId",
+              p.unit_id AS "unitId",
+              l.quantity::text AS "receivedQuantity",
+              r.actor_identity_id AS "receivedByIdentityId"
+       FROM prc.goods_receipt_lines l
+       INNER JOIN prc.goods_receipts r ON r.id = l.receipt_id
+       INNER JOIN prc.supplier_purchase_orders p ON p.id = r.supplier_purchase_order_id
+       INNER JOIN prc.supplier_purchase_order_lines pl
+         ON pl.id = l.spo_line_id AND pl.supplier_purchase_order_id = p.id
+       WHERE l.id = $1 AND r.status = 'POSTED'::prc.receipt_status`,
+      [receiptLineId],
+    );
+    return result.rows[0] ?? null;
+  }
+
   async findReceiptById(receiptId: string): Promise<GoodsReceiptRow | null> {
     const result = await this.pool().query<GoodsReceiptRow>(
       `SELECT id, supplier_purchase_order_id, status::text AS status, currency_code, received_at,
