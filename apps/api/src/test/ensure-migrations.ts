@@ -1201,6 +1201,15 @@ $$;`);
       await applySqlFile(pool, '0115_inventory_receipt_provenance.sql');
     }
 
+    /*
+     * 0116 — GED ↔ physical asset/vehicle authoritative relation. The probe
+     * must run before journal reconciliation; neither master table alone
+     * proves the document association exists.
+     */
+    if (!(await tableExists(pool, 'doc.physical_asset_document_links'))) {
+      await applySqlFile(pool, '0116_physical_asset_document_links.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();
