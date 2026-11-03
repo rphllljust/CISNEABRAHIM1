@@ -29,14 +29,22 @@ function row(unit = 'unit-a', id = documentId) {
 function fixture() {
   const links = {
     listLinkedDocuments: vi.fn().mockResolvedValue([row()]),
-    attach: vi.fn().mockResolvedValue(true),
+    attach: vi.fn().mockImplementation(async (
+      _assetId: unknown,
+      _documentId: unknown,
+      _identityId: unknown,
+      auditOnCreate: (transaction: unknown) => Promise<void>,
+    ) => {
+      await auditOnCreate({});
+      return true;
+    }),
   };
   const documents = { findDocumentById: vi.fn().mockResolvedValue(row()) };
   const authz = {
     assertListAction: vi.fn().mockResolvedValue(undefined),
     assertRecordAction: vi.fn().mockResolvedValue(undefined),
   };
-  const audit = { record: vi.fn().mockResolvedValue(undefined) };
+  const audit = { recordCritical: vi.fn().mockResolvedValue('audit-id') };
   const service = new DocumentAssetLinksService(
     links as never, documents as never, authz as never, audit as never,
   );
@@ -82,7 +90,15 @@ describe('E05/E06 document asset links, authorization before serialization', () 
     expect(response.attached).toBe(true);
     expect(f.authz.assertRecordAction).toHaveBeenCalledTimes(2);
     expect(f.links.attach).toHaveBeenCalledWith(assetId, documentId, actor.identityId);
-    expect(f.audit.record).toHaveBeenCalledTimes(1);
+    expect(f.audit.recordCritical).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires a critical audit for a successful link and propagates audit failures', async () => {
+    const f = fixture();
+    f.audit.recordCritical.mockRejectedValue(new Error('audit unavailable'));
+    await expect(f.service.attachAuthorized(actor, assetId, 'unit-a', documentId))
+      .rejects.toThrow('audit unavailable');
+    expect(f.audit.recordCritical).toHaveBeenCalledTimes(1);
   });
 
   it('rejects cross-unit links without persisting them', async () => {
