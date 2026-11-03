@@ -94,16 +94,6 @@ export class ServiceOrdersRepository {
     return result.rows[0] ?? null;
   }
 
-  /** Batch fetch avoids N+1 during authorized workforce relation projection. */
-  async findByIds(serviceOrderIds: string[]): Promise<ServiceOrderRow[]> {
-    if (serviceOrderIds.length === 0) return [];
-    const result = await this.pool().query<ServiceOrderRow>(
-      `${SERVICE_ORDER_SELECT} WHERE id = ANY($1::uuid[])`,
-      [serviceOrderIds],
-    );
-    return result.rows;
-  }
-
   async findByServiceRequestId(serviceRequestId: string): Promise<ServiceOrderRow | null> {
     const result = await this.pool().query<ServiceOrderRow>(
       `${SERVICE_ORDER_SELECT} WHERE service_request_id = $1`,
