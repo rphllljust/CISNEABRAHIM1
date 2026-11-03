@@ -1,0 +1,94 @@
+import { HttpStatus, Injectable } from '@nestjs/common';
+import {
+  SECURITY_AUDIT_ACTIONS,
+  SECURITY_AUDIT_CLASSIFICATIONS,
+  SECURITY_AUDIT_OUTCOMES,
+  SECURITY_AUDIT_RESOURCE_TYPES,
+} from '../../audit/types/security-audit.types';
+import { SecurityAuditService } from '../../audit/services/security-audit.service';
+import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
+import { DOCUMENT_ERROR_CODES } from '../errors/document-error-codes';
+import { DocumentHttpException } from '../errors/document-http.exception';
+import { DocumentAssetLinksRepository } from '../repositories/document-asset-links.repository';
+import { DocumentsRepository } from '../repositories/documents.repository';
+import {
+  assertNoStorageKeyLeak,
+  toDocumentResponse,
+  type DocumentResponse,
+} from '../serializers/documents-response.serializer';
+import { DocumentsAccessAuthz } from './documents-access.authz';
+import { documentsAccessDenied, documentsAccessNotFound } from './documents-access.errors';
+import { assertValidDocumentId } from './documents-input-resolution';
+
+/** Public GED contract for E05/E06. No direct doc-table access by Resources. */
+@Injectable()
+export class DocumentAssetLinksService {
+  constructor(
+    private readonly links: DocumentAssetLinksRepository,
+    private readonly documents: DocumentsRepository,
+    private readonly authz: DocumentsAccessAuthz,
+    private readonly audit: SecurityAuditService,
+  ) {}
+
+  async listAuthorized(
+    actor: IdentityAuthzContext,
+    assetId: string,
+    assetUnitId: string,
+  ): Promise<{ items: DocumentResponse[]; incomplete: boolean }> {
+    await this.authz.assertListAction(actor);
+    // Bound PDP work; never reveal raw counts or IDs of denied documents.
+    const ids = await this.links.listDocumentIds(assetId, 201);
+    const items: DocumentResponse[] = [];
+    let inspected = 0;
+    for (const documentId of ids.slice(0, 200)) {
+      inspected += 1;
+      const document = await this.documents.findDocumentById(documentId);
+      if (!document || document.unit_id !== assetUnitId) continue;
+      try {
+        await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentRead, document);
+      } catch (error) {
+        if (error instanceof DocumentHttpException && error.getStatus() === HttpStatus.FORBIDDEN) {
+          continue;
+        }
+        throw error;
+      }
+      items.push(toDocumentResponse(document));
+      if (items.length === 20) break;
+    }
+    const response = { items, incomplete: inspected < ids.length };
+    assertNoStorageKeyLeak(response);
+    return response;
+  }
+
+  async attachAuthorized(
+    actor: IdentityAuthzContext,
+    assetId: string,
+    assetUnitId: string,
+    documentId: string,
+  ): Promise<{ document: DocumentResponse; attached: boolean }> {
+    assertValidDocumentId(documentId);
+    const document = await this.documents.findDocumentById(documentId);
+    if (!document) throw documentsAccessNotFound();
+    // Both resource ownership scopes MUST match, even for GLOBAL grants.
+    if (document.unit_id !== assetUnitId) throw documentsAccessDenied();
+    await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentRead, document);
+    await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentUploadVersion, document);
+    const attached = await this.links.attach(assetId, documentId, actor.identityId);
+    if (attached) {
+      await this.audit.record({
+        actorIdentityId: actor.identityId,
+        actorSessionId: actor.sessionId,
+        action: SECURITY_AUDIT_ACTIONS.DocumentsDocumentLinkAsset,
+        resourceType: SECURITY_AUDIT_RESOURCE_TYPES.DocumentsDocument,
+        resourceId: documentId,
+        outcome: SECURITY_AUDIT_OUTCOMES.Success,
+        classification: SECURITY_AUDIT_CLASSIFICATIONS.Standard,
+        metadata: { physicalAssetId: assetId, unitId: assetUnitId },
+      });
+    }
+    const response = { document: toDocumentResponse(document), attached };
+    assertNoStorageKeyLeak(response);
+    return response;
+  }
+}
