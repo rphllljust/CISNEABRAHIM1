@@ -34,14 +34,12 @@ export class DocumentAssetLinksService {
     actor: IdentityAuthzContext,
     assetId: string,
     assetUnitId: string,
-  ): Promise<{ items: DocumentResponse[]; incomplete: boolean }> {
+  ): Promise<{ items: DocumentResponse[]; scope: 'RECENT_WINDOW' }> {
     await this.authz.assertListAction(actor);
     // Bound PDP work; never reveal raw counts or IDs of denied documents.
-    const ids = await this.links.listDocumentIds(assetId, 201);
+    const ids = await this.links.listDocumentIds(assetId, 200);
     const items: DocumentResponse[] = [];
-    let inspected = 0;
-    for (const documentId of ids.slice(0, 200)) {
-      inspected += 1;
+    for (const documentId of ids) {
       const document = await this.documents.findDocumentById(documentId);
       if (!document || document.unit_id !== assetUnitId) continue;
       try {
@@ -55,7 +53,8 @@ export class DocumentAssetLinksService {
       items.push(toDocumentResponse(document));
       if (items.length === 20) break;
     }
-    const response = { items, incomplete: inspected < ids.length };
+    // Constant scope disclosure: never reveal whether extra DENIED links exist.
+    const response = { items, scope: 'RECENT_WINDOW' as const };
     assertNoStorageKeyLeak(response);
     return response;
   }
