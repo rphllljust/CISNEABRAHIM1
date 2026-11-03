@@ -3,6 +3,7 @@ import {
   bigint,
   check,
   index,
+  primaryKey,
   integer,
   pgSchema,
   text,
@@ -11,6 +12,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { identities } from './identity';
+import { physicalAssets } from './physical-assets';
 
 export const docSchema = pgSchema('doc');
 
@@ -103,5 +105,29 @@ export const documentVersions = docSchema.table(
     index('document_versions_document_id_idx').on(table.documentId),
     index('document_versions_stored_object_id_idx').on(table.storedObjectId),
     check('document_versions_version_positive_chk', sql`${table.versionNumber} >= 1`),
+  ],
+);
+
+/**
+ * GED-owned association to the existing asset master. Vehicle profiles are 1:1
+ * with the same asset ID; document versioning/storage remain in doc.*.
+ */
+export const physicalAssetDocumentLinks = docSchema.table(
+  'physical_asset_document_links',
+  {
+    physicalAssetId: uuid('physical_asset_id')
+      .notNull()
+      .references(() => physicalAssets.id, { onDelete: 'restrict' }),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'restrict' }),
+    createdByIdentityId: uuid('created_by_identity_id')
+      .notNull()
+      .references(() => identities.id, { onDelete: 'restrict' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.physicalAssetId, table.documentId] }),
+    index('physical_asset_document_links_document_idx').on(table.documentId, table.physicalAssetId),
   ],
 );
