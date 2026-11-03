@@ -9,6 +9,8 @@ import { DatabaseModule } from '../infrastructure/database/database.module';
 import { SecurityModule } from '../security/security.module';
 import { DocumentsController } from './controllers/documents.controller';
 import { DocumentsRepository } from './repositories/documents.repository';
+import { DocumentAssetLinksRepository } from './repositories/document-asset-links.repository';
+import { DocumentAssetLinksService } from './services/document-asset-links.service';
 import { DocumentUploadCoordinator } from './services/document-upload-coordinator';
 import { DocumentsAccessAuthz } from './services/documents-access.authz';
 import { DocumentsAccessService } from './services/documents-access.service';
@@ -21,13 +23,15 @@ import { DOCUMENT_UPLOAD_LIMITS } from './dto/documents.dto';
   controllers: [DocumentsController],
   providers: [
     DocumentsRepository,
+    DocumentAssetLinksRepository,
+    DocumentAssetLinksService,
     DocumentsAccessAuthz,
     DocumentsAccessService,
     DocumentUploadCoordinator,
     ObjectStorageService,
     DownloadTokenService,
   ],
-  exports: [DocumentsRepository, DocumentsAccessService, ObjectStorageService, DownloadTokenService],
+  exports: [DocumentsRepository, DocumentsAccessService, DocumentAssetLinksService, ObjectStorageService, DownloadTokenService],
 })
 export class DocumentsModule implements OnModuleInit {
   constructor(private readonly adapterHost: HttpAdapterHost) {}
