@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { PersonAccessService } from '../../people/services/person-access.service';
 import { PersonWorkforceAllocationsRepository } from '../repositories/person-workforce-allocations.repository';
-import { ServiceOrdersRepository } from '../repositories/service-orders.repository';
 import { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
 
 export type PersonWorkforceAllocationLink = {
@@ -32,7 +31,6 @@ export class PersonWorkforceAllocationsService {
   constructor(
     private readonly people: PersonAccessService,
     private readonly planning: PersonWorkforceAllocationsRepository,
-    private readonly orders: ServiceOrdersRepository,
     private readonly authz: ServiceOrdersAccessAuthz,
   ) {}
 
@@ -53,7 +51,7 @@ export class PersonWorkforceAllocationsService {
       if (allocations.length === 0) break;
 
       const orderIds = [...new Set(allocations.map((allocation) => allocation.service_order_id))];
-      const rows = await this.orders.findByIds(orderIds);
+      const rows = await this.planning.findOrdersByIds(orderIds);
       const visible = await this.authz.filterAllocationReadableRows(actor, rows);
       const visibleById = new Map(visible.map((row) => [row.id, row]));
 
