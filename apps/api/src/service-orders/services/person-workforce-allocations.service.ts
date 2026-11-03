@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { PersonAccessService } from '../../people/services/person-access.service';
-import { ResourcePlanningRepository } from '../repositories/resource-planning.repository';
+import { PersonWorkforceAllocationsRepository } from '../repositories/person-workforce-allocations.repository';
 import { ServiceOrdersRepository } from '../repositories/service-orders.repository';
 import { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
 
@@ -31,7 +31,7 @@ export type PersonWorkforceAllocationLink = {
 export class PersonWorkforceAllocationsService {
   constructor(
     private readonly people: PersonAccessService,
-    private readonly planning: ResourcePlanningRepository,
+    private readonly planning: PersonWorkforceAllocationsRepository,
     private readonly orders: ServiceOrdersRepository,
     private readonly authz: ServiceOrdersAccessAuthz,
   ) {}
