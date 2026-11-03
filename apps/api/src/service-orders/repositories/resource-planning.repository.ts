@@ -88,6 +88,26 @@ export class ResourcePlanningRepository {
     return result.rows;
   }
 
+  /**
+   * Read-only, bounded source of workforce assignments for the People 360 read model.
+   * Authorization belongs to ServiceOrdersAccessAuthz, NEVER to this persistence query.
+   * Offset is internal scan progress, not exposed to the HTTP caller.
+   */
+  async listWorkforceAllocations(
+    workforceMemberId: string,
+    limit: number,
+    offset: number,
+  ): Promise<ResourceAllocationRow[]> {
+    const result = await this.pool().query<ResourceAllocationRow>(
+      `${ALLOCATION_SELECT}
+       WHERE workforce_member_id = $1
+       ORDER BY allocated_at DESC, id DESC
+       LIMIT $2 OFFSET $3`,
+      [workforceMemberId, limit, offset],
+    );
+    return result.rows;
+  }
+
   async findPlannedResourceById(
     plannedResourceId: string,
     serviceOrderId: string,
