@@ -74,7 +74,7 @@ function ChangeComparison() {
   return (
     <button
       type="button"
-      onClick={() => navigate(`${ROOT}/compare?left=2&right=1`)}
+      onClick={() => { void navigate(`${ROOT}/compare?left=2&right=1`); }}
     >
       Inverter versões
     </button>
