@@ -462,7 +462,9 @@ export function PersonDetailPage() {
             <div className="space-y-3">
               {allocationState.page.items.length === 0 ? (
                 <p className="text-sm text-gray-600">
-                  Nenhuma alocação visível neste recorte autorizado.
+                  {allocationState.page.partial
+                    ? 'Consulta incompleta: a busca atingiu o limite seguro antes de comprovar a ausência de vínculos.'
+                    : 'Nenhuma alocação visível neste recorte autorizado.'}
                 </p>
               ) : (
                 <ul className="space-y-2">
@@ -484,7 +486,7 @@ export function PersonDetailPage() {
               )}
               {allocationState.page.partial ? (
                 <p className="text-xs text-gray-600">
-                  A consulta atingiu o limite de varredura. Outros vínculos autorizados podem existir.
+                  A busca não conseguiu determinar se existem mais vínculos autorizados. A última página não está confirmada; solicite nova consulta ao suporte para investigar o limite seguro.
                 </p>
               ) : null}
               <div className="flex items-center gap-3">
