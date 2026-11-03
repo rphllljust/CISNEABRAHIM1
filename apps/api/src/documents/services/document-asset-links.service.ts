@@ -45,7 +45,7 @@ export class DocumentAssetLinksService {
       try {
         await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentRead, document);
       } catch (error) {
-        if (error instanceof DocumentHttpException && error.getStatus() === HttpStatus.FORBIDDEN) {
+        if (error instanceof DocumentHttpException && error.getStatus() === Number(HttpStatus.FORBIDDEN)) {
           continue;
         }
         throw error;
