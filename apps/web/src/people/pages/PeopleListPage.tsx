@@ -13,6 +13,7 @@ import { usePersonCapabilities } from '../hooks/usePersonCapabilities';
 import { useAuth } from '../../auth/context/AuthProvider';
 import { listLaborTypes } from '../../catalog/api/catalog-reference-api';
 import { PERSON_STATUSES, type Person, type PersonStatus } from '../types/person.types';
+import { parsePeopleOffsetParam, parsePeopleStatusParam } from '../utils/people-list-params';
 import {
   DynamicContextDrawer,
   DynamicSavedViewsBar,
@@ -84,10 +85,10 @@ export function PeopleListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Recorte vive na URL: recarregar, voltar e compartilhar preservam a fila.
-  const statusFilter = (searchParams.get('status') ?? '') as '' | PersonStatus;
+  const statusFilter = parsePeopleStatusParam(searchParams.get('status'));
   const laborType = searchParams.get('laborType') ?? '';
   const query = searchParams.get('q') ?? '';
-  const offset = Math.max(0, Number(searchParams.get('offset') ?? '0') || 0);
+  const offset = parsePeopleOffsetParam(searchParams.get('offset'));
 
   const [searchInput, setSearchInput] = useState(query);
   const [laborTypes, setLaborTypes] = useState<{ code: string; name: string }[]>([]);
