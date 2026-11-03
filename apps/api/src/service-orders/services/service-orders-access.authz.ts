@@ -280,6 +280,41 @@ export class ServiceOrdersAccessAuthz {
     );
   }
 
+  /**
+   * Person↔OS allocation links require BOTH OS read and allocation read, per record.
+   * Grant-scope checks are identical to the command/detail contract, but batched
+   * to avoid N+1 PDP decisions and to prevent leaking cross-unit OS metadata.
+   */
+  async filterAllocationReadableRows(
+    actor: IdentityAuthzContext,
+    rows: ServiceOrderRow[],
+  ): Promise<ServiceOrderRow[]> {
+    const readable = await this.filterReadableRows(actor, rows);
+    if (readable.length === 0) return [];
+
+    const grants = await this.authorizationRepository.findActiveGrants(
+      actor.identityId,
+      AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead,
+      AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+    );
+    if (grants.length === 0) return [];
+
+    const decisions = await this.policyDecisionPoint.decideBatch(
+      actor,
+      {
+        action: AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead,
+        resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      },
+      readable.map(toResourceContextFromServiceOrder),
+      { audit: false },
+    );
+    return readable.filter(
+      (row, index) =>
+        decisions[index]?.result === 'ALLOW' &&
+        grants.some((grant) => grantCoversServiceOrderRecord(grant, actor.identityId, row)),
+    );
+  }
+
   async assertProposalOrigin(
     actor: IdentityAuthzContext,
     proposalId: string,
