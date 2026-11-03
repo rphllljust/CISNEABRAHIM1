@@ -66,6 +66,7 @@ export {
   docSchema,
   documentStatusEnum,
   documentVersions,
+  physicalAssetDocumentLinks,
   documents,
   storedObjects,
 } from './documents';
