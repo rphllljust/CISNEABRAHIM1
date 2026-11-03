@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import {
   EnterpriseObjectHeader,
   EnterpriseObjectPage,
@@ -136,39 +136,50 @@ export function PersonDetailPage() {
   const [openDeactivate, setOpenDeactivate] = useState(false);
   const [actionSubmitting, setActionSubmitting] = useState(false);
 
-  const reload = useCallback(async () => {
-    setState({ phase: 'loading' });
-    setActionError(null);
-    try {
-      const [person, historyResponse] = await Promise.all([
-        getPerson(personId),
-        listPersonHistory(personId),
-      ]);
-      setState({ phase: 'ready', person, history: historyResponse.items });
-    } catch (error) {
-      if (error instanceof PeopleApiError) {
-        if (error.kind === 'denied') {
-          setState({ phase: 'denied' });
-          return;
-        }
-        if (error.kind === 'not_found') {
-          setState({ phase: 'not_found' });
-          return;
-        }
-      }
-      setState({
-        phase: 'error',
-        message:
-          error instanceof PeopleApiError
-            ? mapPersonErrorToMessage(error.code, error.status)
-            : 'Não foi possível carregar a Pessoa.',
-      });
-    }
-  }, [personId]);
+  const [reloadToken, setReloadToken] = useState(0);
+  const reload = () => setReloadToken((value) => value + 1);
 
+  /**
+   * Ficha 360 e trilha historica devem representar A MESMA Pessoa.
+   * Trocar de URL ou atualizar apos comando aborta as leituras do recorte antigo.
+   * Respostas tardias nao podem expor contexto ou autorizar acao com rowVersion antigo.
+   */
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    const controller = new AbortController();
+    const load = async () => {
+      setState({ phase: 'loading' });
+      setActionError(null);
+      try {
+        const [person, historyResponse] = await Promise.all([
+          getPerson(personId, controller.signal),
+          listPersonHistory(personId, controller.signal),
+        ]);
+        if (controller.signal.aborted) return;
+        setState({ phase: 'ready', person, history: historyResponse.items });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (error instanceof PeopleApiError) {
+          if (error.kind === 'denied') {
+            setState({ phase: 'denied' });
+            return;
+          }
+          if (error.kind === 'not_found') {
+            setState({ phase: 'not_found' });
+            return;
+          }
+        }
+        setState({
+          phase: 'error',
+          message:
+            error instanceof PeopleApiError
+              ? mapPersonErrorToMessage(error.code, error.status)
+              : 'Não foi possível carregar a Pessoa.',
+        });
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [personId, reloadToken]);
 
   async function handleDeactivate() {
     if (state.phase !== 'ready') {
@@ -226,12 +237,12 @@ export function PersonDetailPage() {
     }
   }
 
-  if (state.phase !== 'ready') {
+  if (state.phase !== 'ready' || state.person.id !== personId) {
     let phase: ObjectPagePhase = 'error';
     let phaseTitle = 'Pessoa';
     let phaseMessage = 'Não foi possível carregar a Pessoa.';
     let onRetry: (() => void) | undefined;
-    if (state.phase === 'loading') {
+    if (state.phase === 'loading' || (state.phase === 'ready' && state.person.id !== personId)) {
       phase = 'loading';
       phaseMessage = 'Carregando…';
     } else if (state.phase === 'denied') {
