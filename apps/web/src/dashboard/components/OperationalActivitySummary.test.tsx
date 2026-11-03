@@ -69,7 +69,7 @@ describe('operational workspace summary', () => {
   it('does not claim completeness when a source is unavailable', () => {
     render(
       <MemoryRouter>
-        <OperationalActivitySummary page={page(true)} onExceptions={() => {}} onOverdue={() => {}} />
+        <OperationalActivitySummary page={page(true)} onExceptions={() => undefined} onOverdue={() => undefined} />
       </MemoryRouter>,
     );
     expect(screen.getByText('Leitura parcial dos domínios')).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe('operational workspace summary', () => {
   it('does not substitute an unpublished total with zero', () => {
     const { container } = render(
       <MemoryRouter>
-        <OperationalActivitySummary page={null} onExceptions={() => {}} onOverdue={() => {}} />
+        <OperationalActivitySummary page={null} onExceptions={() => undefined} onOverdue={() => undefined} />
       </MemoryRouter>,
     );
     expect(container).toBeEmptyDOMElement();
