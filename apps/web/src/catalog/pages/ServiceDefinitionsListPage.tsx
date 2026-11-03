@@ -175,6 +175,8 @@ export function ServiceDefinitionsListPage() {
           },
           signal,
         );
+        // Filtro/recorte substituido: uma resposta atrasada nao pode substituir a fila atual.
+        if (signal?.aborted) return;
         setListState({
           phase: 'ready',
           items: response.items,
@@ -182,6 +184,7 @@ export function ServiceDefinitionsListPage() {
           hasMore: response.items.length === response.limit,
         });
       } catch (error) {
+        if (signal?.aborted) return;
         if (error instanceof CatalogApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
@@ -421,8 +424,8 @@ export function ServiceDefinitionsListPage() {
          * DESTA PÁGINA, e o escopo precisa estar escrito: número solto ao lado do título de uma
          * worklist lê como total do portfólio.
          */
-        count={listState.items.length}
-        context={`Página ${pageNumber} — portfólio contratável com a versão vigente e o rascunho de cada definição. Esta lista não publica total; a contagem acima e os indicadores abaixo são desta página.`}
+        // O backend não informa o total global. Uma página de 20 itens não é uma carteira de 20.
+        context={`Página ${pageNumber} — definições de serviço no escopo autorizado. Os indicadores abaixo são apenas desta página; total do portfólio não informado pelo servidor.`}
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/catalog/new">Nova definição</ModulePrimaryLink>
@@ -549,12 +552,16 @@ export function ServiceDefinitionsListPage() {
           title={
             versionFilter
               ? 'Nenhuma definição nesta página corresponde ao recorte de versão.'
-              : 'Nenhuma definição encontrada para os filtros selecionados.'
+              : offset > 0 && !statusFilter && !debouncedSearch
+                ? 'Nenhuma definição nesta página.'
+                : 'Nenhuma definição encontrada para os filtros selecionados.'
           }
           description={
             versionFilter
               ? 'O recorte de versão ainda não é resolvido pelo servidor — avance a página ou limpe o filtro.'
-              : 'Ajuste a busca ou o status, ou limpe os filtros para ver o portfólio completo.'
+              : offset > 0 && !statusFilter && !debouncedSearch
+                ? 'Volte à página anterior. O contrato não publica total; esta página vazia não significa catálogo vazio.'
+                : 'Ajuste a busca ou o status, ou limpe os filtros para ver o portfólio completo.'
           }
           action={
             <WorklistClearFilters
@@ -664,9 +671,8 @@ export function ServiceDefinitionsListPage() {
         </div>
       )}
 
-      {listState.items.length > 0 ? (
-        <WorklistFooter
-          rangeLabel={`${offset + 1}–${offset + listState.items.length} nesta página`}
+      <WorklistFooter
+          rangeLabel={listState.items.length > 0 ? `${offset + 1}–${offset + listState.items.length} nesta página` : '0 nesta página'}
           extra={
             filteredItems.length !== listState.items.length
               ? `${filteredItems.length} após o recorte de versão`
@@ -681,7 +687,6 @@ export function ServiceDefinitionsListPage() {
             onNext={() => void loadPage(offset + PAGE_SIZE)}
           />
         </WorklistFooter>
-      ) : null}
       </div>
 
       {/*
