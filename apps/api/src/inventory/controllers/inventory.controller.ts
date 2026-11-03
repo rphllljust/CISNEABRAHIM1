@@ -71,6 +71,29 @@ export class InventoryController {
     );
   }
 
+  /**
+   * Explicit inventory provenance confirmation after a posted Procurement receipt.
+   * No stock IN, cost valuation or journal is created by this command.
+   */
+  @Post('receipt-provenance')
+  @HttpCode(200)
+  bindReceiptProvenance(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Body() body: {
+      receiptLineId: string;
+      inventoryItemId: string;
+      warehouseId: string;
+      unitId: string;
+      allocatedQuantity: string;
+      idempotencyKey: string;
+    },
+  ) {
+    return this.inventory.bindReceiptProvenance(
+      { identityId: auth.sub, sessionId: auth.sid },
+      body,
+    );
+  }
+
   @Post('movements')
   @HttpCode(200)
   postStock(@CurrentAuth() auth: AccessTokenClaims, @Body() body: never) {
