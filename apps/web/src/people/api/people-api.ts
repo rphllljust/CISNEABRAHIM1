@@ -7,6 +7,7 @@ import {
   type PersonErrorCode,
   type PersonHistoryEvent,
   type PersonAllocationListResponse,
+  type PersonAllocationCursorPage,
   type PersonListResponse,
   type PersonStatus,
   type UpdatePersonPayload,
@@ -149,6 +150,23 @@ export async function listPersonAllocations(
     offset: String(params.offset),
   });
   return requestJson<PersonAllocationListResponse>(
+    `/api/v1/people/${personId}/allocations?${search.toString()}`,
+    { headers: authHeaders(), signal },
+  );
+}
+
+/** Cursor is an opaque, actor-bound continuation token, not a raw DB offset. */
+export async function listPersonAllocationsCursor(
+  personId: string,
+  params: { limit: number; cursor: string | null },
+  signal?: AbortSignal,
+): Promise<PersonAllocationCursorPage> {
+  const search = new URLSearchParams({
+    paging: 'cursor',
+    limit: String(params.limit),
+  });
+  if (params.cursor) search.set('cursor', params.cursor);
+  return requestJson<PersonAllocationCursorPage>(
     `/api/v1/people/${personId}/allocations?${search.toString()}`,
     { headers: authHeaders(), signal },
   );
