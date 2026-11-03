@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { BusinessChainFlow } from '../components/BusinessChainFlow';
+import { OperationalActivitySummary } from '../components/OperationalActivitySummary';
 import { DashboardWorkbenchHeader } from '../components/DashboardWorkbenchHeader';
 import { MetricStrip } from '../components/MetricStrip';
 import { OperationalDashboardSkeleton } from '../components/OperationalDashboardSkeleton';
@@ -45,6 +46,7 @@ import {
 import { daysOverdue } from '../../workspaces/components/WorkspaceQueueSurface';
 import type { ExecutiveDashboardSnapshot } from '../types/dashboard.types';
 import '../dashboard.css';
+import '../dynamics-workspace.css';
 
 /**
  * PAINEL OPERACIONAL (/app) — CENTRAL OPERACIONAL ERP.
@@ -524,20 +526,12 @@ export function OperationalDashboardPage() {
             que ponto o processo parou; a fila e a bancada acionavel que vem em seguida. Todos os
             numeros e links abaixo derivam do snapshot executivo e do work inbox publicados.
           */}
-            <section
-              className="dashboard-situation-strip"
-              aria-label="Situação operacional"
-              data-layout="situation-strip"
-              data-region="situation-strip"
-            >
-              <WorkbenchKpiStrip kpis={workbenchKpis} />
-            </section>
-
-            <div data-layout="compact-process-flow">
-              <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
-            </div>
-
             <div className="dashboard-cc__work" data-layout="work-area">
+              <OperationalActivitySummary
+                page={inboxPhase === 'ready' ? inbox : null}
+                onExceptions={() => updateQueueParam('view', 'EXCEPTION')}
+                onOverdue={() => updateQueueParam('view', 'overdue')}
+              />
               <div className="dashboard-cc__workspace" data-layout="main-workspace">
                 <section
                   className="dashboard-cc__priority"
@@ -686,9 +680,17 @@ export function OperationalDashboardPage() {
                 RAIL OPERACIONAL CONTÍNUO: acompanha somente a superfície da fila e preserva o
                 recorte enquanto o operador troca a seleção.
               */}
-                {selected ? (
+                <aside
+                  className={cn(
+                    'dashboard-cc__context',
+                    selected && 'dashboard-cc__context--selected',
+                  )}
+                  aria-label={selected ? 'Contexto do item selecionado' : 'Apoio à decisão operacional'}
+                >
+                  {selected ? (
                   <ContextDrawer
                     open
+                    variant="inline"
                     className="dashboard-context-drawer"
                     title="Contexto do trabalho"
                     onClose={() => setSelected(null)}
@@ -726,8 +728,46 @@ export function OperationalDashboardPage() {
                       detailLabel: 'Abrir na tela de origem',
                     }}
                   />
-                ) : null}
+                  ) : (
+                <OperationalContextRail
+                  firstItem={visibleItems[0] ?? null}
+                  onSelectFirst={() => {
+                    if (visibleItems[0]) setSelected(visibleItems[0]);
+                  }}
+                  unitLabel={unitLabel}
+                  domainLabel={domainLabel}
+                  periodLabel={periodLabel}
+                  generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
+                  queueStateLabel={
+                    inboxPhase === 'ready'
+                      ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
+                      : inboxPhase === 'loading'
+                        ? 'Leitura em andamento'
+                        : 'Fila não publicada nesta leitura'
+                  }
+                  pageCount={inbox?.items.length ?? 0}
+                  situationLabel={
+                    situation
+                      ? situationBadgeLabel(situation)
+                      : 'Situação não avaliada neste recorte'
+                  }
+                />
+                  )}
+                </aside>
               </div>
+            </div>
+
+            <section
+              className="dashboard-situation-strip"
+              aria-label="Situação operacional"
+              data-layout="situation-strip"
+              data-region="situation-strip"
+            >
+              <WorkbenchKpiStrip kpis={workbenchKpis} />
+            </section>
+
+            <div data-layout="compact-process-flow">
+              <BusinessChainFlow stages={flowStages} domainLabel={domainLabel} />
             </div>
 
             <details
@@ -737,7 +777,7 @@ export function OperationalDashboardPage() {
               <summary className="cursor-pointer text-xs font-semibold text-[var(--erp-text-secondary)]">
                 Contexto do recorte e análise operacional
               </summary>
-              <div className="mt-3 grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="mt-3">
                 <div className="min-w-0 space-y-3">
                   {showOperationDistribution || showAging || attentionItems.length > 0 ? (
                     <section
@@ -775,25 +815,7 @@ export function OperationalDashboardPage() {
                     </section>
                   ) : null}
                 </div>
-                <OperationalContextRail
-                  unitLabel={unitLabel}
-                  domainLabel={domainLabel}
-                  periodLabel={periodLabel}
-                  generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
-                  queueStateLabel={
-                    inboxPhase === 'ready'
-                      ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
-                      : inboxPhase === 'loading'
-                        ? 'Leitura em andamento'
-                        : 'Fila não publicada nesta leitura'
-                  }
-                  pageCount={inbox?.items.length ?? 0}
-                  situationLabel={
-                    situation
-                      ? situationBadgeLabel(situation)
-                      : 'Situação não avaliada neste recorte'
-                  }
-                />
+
               </div>
             </details>
 
@@ -834,6 +856,8 @@ export function OperationalDashboardPage() {
  *   PARA ONDE IR (atalhos reais)
  */
 function OperationalContextRail({
+  firstItem,
+  onSelectFirst,
   unitLabel,
   domainLabel,
   periodLabel,
@@ -842,6 +866,8 @@ function OperationalContextRail({
   pageCount,
   situationLabel,
 }: {
+  firstItem: WorkItem | null;
+  onSelectFirst: () => void;
   unitLabel: string | null;
   domainLabel: string;
   periodLabel: string | null;
@@ -852,6 +878,18 @@ function OperationalContextRail({
 }) {
   return (
     <div className="dashboard-rail">
+      {firstItem ? (
+        <section className="ops-workspace-focus" aria-label="Item em foco na página">
+          <p className="ops-workspace-focus__eyebrow">Em foco nesta página</p>
+          <p className="ops-workspace-focus__reference">{firstItem.businessReference}</p>
+          <p className="ops-workspace-focus__reason">{firstItem.title}</p>
+          <p className="ops-workspace-focus__reason">{firstItem.reason}</p>
+          <div className="ops-workspace-focus__actions">
+            <Link to={firstItem.targetRoute}>Abrir ação: {firstItem.actionLabel}</Link>
+            <button type="button" onClick={onSelectFirst}>Ver contexto</button>
+          </div>
+        </section>
+      ) : null}
       <section className="dashboard-rail__section" aria-labelledby="rail-context">
         <div className="dashboard-rail__head">
           <span className="dashboard-rail__mark dashboard-rail__mark--info" aria-hidden />
