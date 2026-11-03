@@ -37,3 +37,14 @@ FOR EACH ROW EXECUTE FUNCTION inv.forbid_receipt_inventory_provenance_mutation()
 --> statement-breakpoint
 COMMENT ON TABLE inv.receipt_inventory_provenance IS
 'Explicit immutable purchase receipt line to stock item/warehouse evidence. NOT a stock IN, cost valuation, currency conversion, or accounting journal. Service must verify receipt quantities, ownership, unit, authorization, and allocation totals transactionally before insert. No automatic allocation.';
+
+--> statement-breakpoint
+-- Defensive invariants for the cross-owner reference. This table is NOT an
+-- inventory receipt and must never create stock or economic events by itself.
+CREATE INDEX receipt_inventory_provenance_receipt_line_idx
+  ON inv.receipt_inventory_provenance (receipt_line_id);
+--> statement-breakpoint
+CREATE OR REPLACE VIEW rpt.read_receipt_inventory_provenance AS
+SELECT id, receipt_line_id, inventory_item_id, warehouse_id, unit_id,
+       allocated_quantity, actor_identity_id, idempotency_key, recorded_at
+FROM inv.receipt_inventory_provenance OFFSET 0;
