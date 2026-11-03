@@ -378,6 +378,17 @@ describe('Procurement core PostgreSQL integration', () => {
     };
     await expect(inventory.bindReceiptProvenance(outsider, input))
       .rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.DENIED });
+    // Inventory MOVE alone does not authorize access to Procurement receipts.
+    const stockOnly = await seedActor(false);
+    await insertGrant(pool, {
+      identityId: stockOnly.identityId,
+      action: AUTHZ_ACTIONS.InventoryMove,
+      resourceType: AUTHZ_RESOURCE_TYPES.InventoryStock,
+      scopeType: AUTHZ_SCOPES.Global,
+      grantedByIdentityId: stockOnly.identityId,
+    });
+    await expect(inventory.bindReceiptProvenance(stockOnly, input))
+      .rejects.toMatchObject({ code: PROCUREMENT_ERROR_CODES.DENIED });
     // The person who registered the goods receipt cannot self-certify its SKU.
     await expect(inventory.bindReceiptProvenance(receiver, input))
       .rejects.toMatchObject({ code: INVENTORY_ERROR_CODES.DENIED });
