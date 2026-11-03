@@ -28,7 +28,7 @@ function row(unit = 'unit-a', id = documentId) {
 
 function fixture() {
   const links = {
-    listDocumentIds: vi.fn().mockResolvedValue([documentId]),
+    listLinkedDocuments: vi.fn().mockResolvedValue([row()]),
     attach: vi.fn().mockResolvedValue(true),
   };
   const documents = { findDocumentById: vi.fn().mockResolvedValue(row()) };
@@ -44,7 +44,7 @@ function fixture() {
 }
 
 describe('E05/E06 document asset links, authorization before serialization', () => {
-  it('denies a list before querying link IDs when GED list is unavailable', async () => {
+  it('denies a list before querying linked records when GED list is unavailable', async () => {
     const f = fixture();
     f.authz.assertListAction.mockRejectedValue(new DocumentHttpException(
       HttpStatus.FORBIDDEN, 'DOCUMENT_ACCESS_DENIED', 'Denied.',
@@ -52,7 +52,7 @@ describe('E05/E06 document asset links, authorization before serialization', () 
     await expect(f.service.listAuthorized(actor, assetId, 'unit-a')).rejects.toMatchObject({
       status: HttpStatus.FORBIDDEN,
     });
-    expect(f.links.listDocumentIds).not.toHaveBeenCalled();
+    expect(f.links.listLinkedDocuments).not.toHaveBeenCalled();
   });
 
   it('does not expose metadata for a document with denied READ', async () => {
@@ -61,6 +61,8 @@ describe('E05/E06 document asset links, authorization before serialization', () 
       HttpStatus.FORBIDDEN, 'DOCUMENT_ACCESS_DENIED', 'Denied.',
     ));
     const response = await f.service.listAuthorized(actor, assetId, 'unit-a');
+    expect(f.links.listLinkedDocuments).toHaveBeenCalledTimes(1);
+    expect(f.links.listLinkedDocuments).toHaveBeenCalledWith(assetId, 'unit-a', 200);
     expect(response.items).toEqual([]);
     expect(JSON.stringify(response)).not.toContain('Documento autorizado');
     expect(JSON.stringify(response)).not.toContain(documentId);
@@ -68,7 +70,7 @@ describe('E05/E06 document asset links, authorization before serialization', () 
 
   it('never exposes a linked document belonging to another unit', async () => {
     const f = fixture();
-    f.documents.findDocumentById.mockResolvedValue(row('unit-b'));
+    f.links.listLinkedDocuments.mockResolvedValue([row('unit-b')]);
     const response = await f.service.listAuthorized(actor, assetId, 'unit-a');
     expect(response.items).toEqual([]);
     expect(f.authz.assertRecordAction).not.toHaveBeenCalled();
