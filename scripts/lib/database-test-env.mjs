@@ -270,6 +270,8 @@ const MIGRATION_EFFECT_CHECKS = {
   '0114_material_stock_exactly_once': { index: 'stock_movement_os_actual_out_once_uidx' },
   // 0115 must create immutable, explicitly sourced receipt-to-stock provenance.
   '0115_inventory_receipt_provenance': { table: ['inv', 'receipt_inventory_provenance'] },
+  // GED-owned physical asset link must exist before reconciliation marks 0116 as applied.
+  '0116_physical_asset_document_links': { table: ['doc', 'physical_asset_document_links'] },
 };
 
 /**
