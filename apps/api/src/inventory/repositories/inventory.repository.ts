@@ -119,9 +119,7 @@ export class InventoryRepository {
     const columns = `id, receipt_line_id, inventory_item_id, warehouse_id,
                        unit_id, allocated_quantity::text AS allocated_quantity,
                        actor_identity_id, idempotency_key`;
-    const client = await this.pool().connect();
-    try {
-      await client.query('BEGIN');
+    return this.withLockedPositions([], async (client) => {
       await client.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 193115))',
         [input.receiptLineId],
@@ -142,7 +140,6 @@ export class InventoryRepository {
             row.actor_identity_id !== input.actorIdentityId) {
           throw new InventoryError('INVENTORY_VALIDATION_FAILED');
         }
-        await client.query('COMMIT');
         return {
           id: row.id, receiptLineId: row.receipt_line_id,
           inventoryItemId: row.inventory_item_id, warehouseId: row.warehouse_id,
@@ -198,19 +195,13 @@ export class InventoryRepository {
       );
       const inserted = created.rows[0];
       if (!inserted) throw new InventoryError('INVENTORY_NOT_FOUND');
-      await client.query('COMMIT');
       return {
         id: inserted.id, receiptLineId: inserted.receipt_line_id,
         inventoryItemId: inserted.inventory_item_id, warehouseId: inserted.warehouse_id,
         unitId: inserted.unit_id, allocatedQuantity: inserted.allocated_quantity,
         idempotent: false,
       };
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async findWarehouseById(id: string): Promise<WarehouseRow | null> {
