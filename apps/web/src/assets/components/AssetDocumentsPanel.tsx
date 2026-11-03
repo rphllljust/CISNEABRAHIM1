@@ -12,7 +12,7 @@ type LinkState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error' }
-  | { phase: 'ready'; items: DocumentDetail[]; incomplete: boolean };
+  | { phase: 'ready'; items: DocumentDetail[]; scope: 'RECENT_WINDOW' };
 type SearchState =
   | { phase: 'idle' | 'loading' | 'error' | 'denied' }
   | { phase: 'ready'; items: DocumentDetail[] };
@@ -89,7 +89,7 @@ export function AssetDocumentsPanel({ assetId, unitId }: { assetId: string; unit
       {state.phase === 'ready' ? (
         <>
           {state.items.length === 0 ? (
-            <p>Não há documentos vinculados visíveis com suas permissões atuais.</p>
+            <p>Nenhum documento autorizado encontrado nos vínculos recentes.</p>
           ) : (
             <ul className="space-y-2">
               {state.items.map((doc) => (
@@ -102,11 +102,9 @@ export function AssetDocumentsPanel({ assetId, unitId }: { assetId: string; unit
               ))}
             </ul>
           )}
-          {state.incomplete ? (
-            <p className="text-xs text-gray-600">
-              Consulta limitada aos vínculos mais recentes. Consulte o GED para pesquisa ampliada.
-            </p>
-          ) : null}
+          <p className="text-xs text-gray-600">
+            A consulta cobre os vínculos recentes autorizados, não o histórico completo do GED.
+          </p>
         </>
       ) : null}
 
