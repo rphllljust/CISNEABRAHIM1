@@ -120,6 +120,12 @@ export class InventoryRepository {
                        unit_id, allocated_quantity::text AS allocated_quantity,
                        actor_identity_id, idempotency_key`;
     return this.withLockedPositions([], async (client) => {
+      // Global idempotency key is unique across receipt lines. Lock it BEFORE
+      // the receipt lock to prevent a cross-line race from surfacing as 23505.
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 193114))',
+        [input.idempotencyKey],
+      );
       await client.query(
         'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 193115))',
         [input.receiptLineId],
