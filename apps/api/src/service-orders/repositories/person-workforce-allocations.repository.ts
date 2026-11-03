@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
 import { ALLOCATION_SELECT } from './resource-planning-allocation-rows';
+import { SERVICE_ORDER_SELECT } from './service-orders-history-rows';
+import type { ServiceOrderRow } from './service-orders.repository.types';
 import type { ResourceAllocationRow } from './resource-planning.repository.types';
 
 /**
@@ -17,6 +19,16 @@ export class PersonWorkforceAllocationsRepository {
     const connection = this.database.getConnection();
     if (!connection) throw new Error('DATABASE_URL is not configured.');
     return connection.pool;
+  }
+
+  /** Full OS rows used only for authorization. Denied rows are never serialized. */
+  async findOrdersByIds(serviceOrderIds: string[]): Promise<ServiceOrderRow[]> {
+    if (serviceOrderIds.length === 0) return [];
+    const result = await this.pool().query<ServiceOrderRow>(
+      `${SERVICE_ORDER_SELECT} WHERE id = ANY($1::uuid[])`,
+      [serviceOrderIds],
+    );
+    return result.rows;
   }
 
   async listWorkforceAllocations(
