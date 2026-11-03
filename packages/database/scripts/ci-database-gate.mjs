@@ -72,6 +72,7 @@ const EXPECTED_TABLES = [
   'cat.service_definition_versions',
   'ast.physical_assets',
   'doc.documents',
+  'doc.physical_asset_document_links',
   'com.proposals',
   'com.purchase_orders',
   'sr.service_requests',
@@ -1572,6 +1573,24 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       );
       if (!prior.rows[0]?.has_jobs || prior.rows[0]?.already_has_handoff) {
         throw new Error('0112 N-1 must have background_jobs but not the handoff job kind');
+      }
+      return;
+    }
+
+    if (deltaFile === '0116_physical_asset_document_links.sql') {
+      // Upgrade from N-1 must have both authoritative masters, not the GED-owned link yet.
+      const baseline = await client.query(
+        `SELECT
+          to_regclass('ast.physical_assets') IS NOT NULL AS has_assets,
+          to_regclass('ast.vehicle_profiles') IS NOT NULL AS has_vehicles,
+          to_regclass('doc.documents') IS NOT NULL AS has_documents,
+          to_regclass('doc.document_versions') IS NOT NULL AS has_versions,
+          to_regclass('doc.physical_asset_document_links') AS already_linked`,
+      );
+      const row = baseline.rows[0];
+      if (!row?.has_assets || !row.has_vehicles || !row.has_documents ||
+          !row.has_versions || row.already_linked !== null) {
+        throw new Error('0116 N-1 requires asset/vehicle + GED masters, without an existing link table');
       }
       return;
     }
