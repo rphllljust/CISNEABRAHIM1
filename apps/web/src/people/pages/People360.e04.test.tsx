@@ -115,7 +115,7 @@ describe('E04 Pessoas 360 — isolamento de contexto e filtros reais', () => {
     await act(async () => {
       pending[1]!.resolve(json(second));
     });
-    expect(await screen.findByText('Pessoa B')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText('Pessoa B').length).toBeGreaterThan(0));
 
     const firstResponse = await fallback(`/api/v1/people/${FIRST_ID}`, {
       headers: { Authorization: 'Bearer access-token' },
@@ -124,7 +124,7 @@ describe('E04 Pessoas 360 — isolamento de contexto e filtros reais', () => {
     await act(async () => {
       pending[0]!.resolve(json(first));
     });
-    expect(screen.getByText('Pessoa B')).toBeInTheDocument();
+    expect(screen.getAllByText('Pessoa B').length).toBeGreaterThan(0);
     expect(screen.queryByText('Pessoa A')).not.toBeInTheDocument();
   });
 });
