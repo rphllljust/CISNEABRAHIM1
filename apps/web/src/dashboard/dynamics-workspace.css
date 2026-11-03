@@ -159,6 +159,7 @@
 
   .dashboard-cc[data-layout='operations-control-center'] .dashboard-cc__context--selected {
     display: block;
+    grid-column: 1;
     grid-row: auto;
     border: 1px solid var(--dashboard-line-strong);
     border-radius: var(--radius-panel);
