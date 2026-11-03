@@ -31,6 +31,7 @@ import { OperationalCostRepository } from './repositories/operational-cost.repos
 import { ApprovedMeasurementRevenueReader } from '../measurements/application/approved-measurement-revenue.reader';
 import { ServiceOrdersRepository } from './repositories/service-orders.repository';
 import { ResourcePlanningRepository } from './repositories/resource-planning.repository';
+import { PersonWorkforceAllocationsRepository } from './repositories/person-workforce-allocations.repository';
 import { ServiceOrdersAccessAuthz } from './services/service-orders-access.authz';
 import { ServiceOrderExecutionAccessService } from './services/service-order-execution-access.service';
 import { OperationalCostAccessService } from './services/operational-cost-access.service';
@@ -59,6 +60,7 @@ import { ServiceRequestConversionService } from './services/service-request-conv
   providers: [
     ServiceOrdersRepository,
     ResourcePlanningRepository,
+    PersonWorkforceAllocationsRepository,
     ServiceOrderExecutionRepository,
     MaterialInventoryBindingRepository,
     MaterialInventoryBindingService,
