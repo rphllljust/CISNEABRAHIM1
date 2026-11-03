@@ -31,7 +31,7 @@ import {
   deactivatePerson,
   getPerson,
   listPersonHistory,
-  listPersonAllocations,
+  listPersonAllocationsCursor,
   PeopleApiError,
 } from '../api/people-api';
 import {
@@ -44,7 +44,7 @@ import {
   PERSON_STATUSES,
   type Person,
   type PersonHistoryEvent,
-  type PersonAllocationListResponse,
+  type PersonAllocationCursorPage,
   type PersonStatus,
 } from '../types/person.types';
 
@@ -57,7 +57,7 @@ type DetailState =
 
 type AllocationState =
   | { phase: 'loading'; personId: string; offset: number }
-  | { phase: 'ready'; personId: string; offset: number; page: PersonAllocationListResponse }
+  | { phase: 'ready'; personId: string; offset: number; page: PersonAllocationCursorPage }
   | { phase: 'denied'; personId: string; offset: number }
   | { phase: 'error'; personId: string; offset: number };
 
@@ -145,7 +145,8 @@ export function PersonDetailPage() {
   const [deactivateReason, setDeactivateReason] = useState('');
   const [openDeactivate, setOpenDeactivate] = useState(false);
   const [actionSubmitting, setActionSubmitting] = useState(false);
-  const [allocationOffset, setAllocationOffset] = useState(0);
+  const [allocationPageIndex, setAllocationPageIndex] = useState(0);
+  const [allocationCursors, setAllocationCursors] = useState<Array<string | null>>([null]);
   const [allocationState, setAllocationState] = useState<AllocationState>({ phase: 'loading', personId: '', offset: 0 });
 
   const [reloadToken, setReloadToken] = useState(0);
@@ -196,21 +197,24 @@ export function PersonDetailPage() {
   const loadedPersonId = state.phase === 'ready' ? state.person.id : null;
 
   useEffect(() => {
-    setAllocationOffset(0);
+    setAllocationPageIndex(0);
+    setAllocationCursors([null]);
   }, [personId]);
 
   useEffect(() => {
     if (loadedPersonId !== personId) return;
     const controller = new AbortController();
-    setAllocationState({ phase: 'loading', personId, offset: allocationOffset });
-    void listPersonAllocations(
+    const currentCursor = allocationCursors[allocationPageIndex];
+    if (currentCursor === undefined) return;
+    setAllocationState({ phase: 'loading', personId, offset: allocationPageIndex });
+    void listPersonAllocationsCursor(
       personId,
-      { limit: ALLOCATION_PAGE_SIZE, offset: allocationOffset },
+      { limit: ALLOCATION_PAGE_SIZE, cursor: currentCursor },
       controller.signal,
     )
       .then((page) => {
         if (!controller.signal.aborted) {
-          setAllocationState({ phase: 'ready', personId, offset: allocationOffset, page });
+          setAllocationState({ phase: 'ready', personId, offset: allocationPageIndex, page });
         }
       })
       .catch((error: unknown) => {
@@ -218,11 +222,11 @@ export function PersonDetailPage() {
         setAllocationState({
           phase: error instanceof PeopleApiError && error.kind === 'denied' ? 'denied' : 'error',
           personId,
-          offset: allocationOffset,
+          offset: allocationPageIndex,
         });
       });
     return () => controller.abort();
-  }, [personId, loadedPersonId, allocationOffset, reloadToken]);
+  }, [personId, loadedPersonId, allocationPageIndex, allocationCursors, reloadToken]);
 
   async function handleDeactivate() {
     if (state.phase !== 'ready') {
@@ -446,7 +450,7 @@ export function PersonDetailPage() {
         ) : null}
 
         <ObjectPanel title="Alocação em ordens de serviço">
-          {allocationState.personId !== personId || allocationState.offset !== allocationOffset ||
+          {allocationState.personId !== personId || allocationState.offset !== allocationPageIndex ||
           allocationState.phase === 'loading' ? (
             <p className="text-sm text-gray-600">Consultando vínculos autorizados…</p>
           ) : allocationState.phase === 'denied' ? (
@@ -486,17 +490,22 @@ export function PersonDetailPage() {
               )}
               {allocationState.page.partial ? (
                 <p className="text-xs text-gray-600">
-                  A busca não conseguiu determinar se existem mais vínculos autorizados. A última página não está confirmada; solicite nova consulta ao suporte para investigar o limite seguro.
+                  A busca atingiu seu limite seguro. Continue a consulta para verificar vínculos autorizados adicionais.
                 </p>
               ) : null}
               <div className="flex items-center gap-3">
-                <Button type="button" disabled={allocationOffset === 0}
-                  onClick={() => setAllocationOffset((value) => Math.max(0, value - ALLOCATION_PAGE_SIZE))}>
+                <Button type="button" disabled={allocationPageIndex === 0}
+                  onClick={() => setAllocationPageIndex((value) => Math.max(0, value - 1))}>
                   Anterior
                 </Button>
-                <span className="text-sm text-gray-600">Página {Math.floor(allocationOffset / ALLOCATION_PAGE_SIZE) + 1}</span>
-                <Button type="button" disabled={!allocationState.page.hasMore}
-                  onClick={() => setAllocationOffset((value) => value + ALLOCATION_PAGE_SIZE)}>
+                <span className="text-sm text-gray-600">Página {allocationPageIndex + 1}</span>
+                <Button type="button" disabled={!allocationState.page.nextCursor}
+                  onClick={() => {
+                    const next = allocationState.page.nextCursor;
+                    if (!next) return;
+                    setAllocationCursors((current) => [...current.slice(0, allocationPageIndex + 1), next]);
+                    setAllocationPageIndex((value) => value + 1);
+                  }}>
                   Próxima
                 </Button>
               </div>
