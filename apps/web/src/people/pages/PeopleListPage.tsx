@@ -12,7 +12,7 @@ import { PersonStatusBadge } from '../components/PersonStatusBadge';
 import { usePersonCapabilities } from '../hooks/usePersonCapabilities';
 import { useAuth } from '../../auth/context/AuthProvider';
 import { listLaborTypes } from '../../catalog/api/catalog-reference-api';
-import { PERSON_STATUSES, type Person, type PersonStatus } from '../types/person.types';
+import { PERSON_STATUSES, type Person } from '../types/person.types';
 import { parsePeopleOffsetParam, parsePeopleStatusParam } from '../utils/people-list-params';
 import {
   DynamicContextDrawer,
