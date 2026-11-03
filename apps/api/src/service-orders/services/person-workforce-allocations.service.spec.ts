@@ -30,8 +30,10 @@ function order(id: string, number: string): ServiceOrderRow {
 
 function fixture() {
   const people = { getById: vi.fn().mockResolvedValue({ id: PERSON_ID }) };
-  const planning = { listWorkforceAllocations: vi.fn().mockResolvedValue([]) };
-  const orders = { findByIds: vi.fn().mockResolvedValue([]) };
+  const planning = {
+    listWorkforceAllocations: vi.fn().mockResolvedValue([]),
+    findOrdersByIds: vi.fn().mockResolvedValue([]),
+  };
   const authz = {
     assertAllocationRelationReadAccess: vi.fn().mockResolvedValue(undefined),
     filterAllocationReadableRows: vi.fn().mockResolvedValue([]),
@@ -39,10 +41,9 @@ function fixture() {
   const service = new PersonWorkforceAllocationsService(
     people as never,
     planning as never,
-    orders as never,
     authz as never,
   );
-  return { service, people, planning, orders, authz };
+  return { service, people, planning, authz };
 }
 
 describe('E04 Pessoas 360 — OS allocation relationship authorization', () => {
@@ -71,7 +72,7 @@ describe('E04 Pessoas 360 — OS allocation relationship authorization', () => {
       allocation('a1', deniedId),
       allocation('a2', allowedId),
     ]);
-    f.orders.findByIds.mockResolvedValue([visible, denied]);
+    f.planning.findOrdersByIds.mockResolvedValue([visible, denied]);
     f.authz.filterAllocationReadableRows.mockResolvedValue([visible]);
 
     const result = await f.service.listRecent(actor, PERSON_ID);
@@ -103,7 +104,7 @@ describe('E04 Pessoas 360 — OS allocation relationship authorization', () => {
       async (_personId: string, _limit: number, offset: number) =>
         offset === 0 ? invisible : [allocation('visible', allowedId)],
     );
-    f.orders.findByIds.mockImplementation(async (ids: string[]) =>
+    f.planning.findOrdersByIds.mockImplementation(async (ids: string[]) =>
       ids.includes(allowedId) ? [order(allowedId, 'OS-004')] : [order(deniedId, 'OS-HIDDEN')],
     );
     f.authz.filterAllocationReadableRows.mockImplementation(
