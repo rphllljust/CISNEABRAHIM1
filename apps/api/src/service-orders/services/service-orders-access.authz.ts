@@ -281,6 +281,28 @@ export class ServiceOrdersAccessAuthz {
   }
 
   /**
+   * No OS/grant capability is a real DENY, not an empty People 360 relation list.
+   * Record-level visibility is still evaluated for every returned OS separately.
+   */
+  async assertAllocationRelationReadAccess(actor: IdentityAuthzContext): Promise<void> {
+    const [orderReadGrants, allocationReadGrants] = await Promise.all([
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      ),
+      this.authorizationRepository.findActiveGrants(
+        actor.identityId,
+        AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead,
+        AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+      ),
+    ]);
+    if (orderReadGrants.length === 0 || allocationReadGrants.length === 0) {
+      throw serviceOrdersAccessDenied();
+    }
+  }
+
+  /**
    * Person↔OS allocation links require BOTH OS read and allocation read, per record.
    * Grant-scope checks are identical to the command/detail contract, but batched
    * to avoid N+1 PDP decisions and to prevent leaking cross-unit OS metadata.
