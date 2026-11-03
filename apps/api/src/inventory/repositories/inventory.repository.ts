@@ -82,6 +82,137 @@ export class InventoryRepository {
     return connection.pool;
   }
 
+  /**
+   * Authoritative Inventory-owned allocation, without any private prc.* reads.
+   * Procurement verifies the posted receipt before this call. The receipt
+   * quantities are immutable business facts; serialize all allocations sharing
+   * a receipt line via a transaction-scoped advisory lock on its source ID.
+   */
+  async recordReceiptProvenance(input: {
+    receiptLineId: string;
+    inventoryItemId: string;
+    warehouseId: string;
+    unitId: string;
+    allocatedQuantity: string;
+    receivedQuantity: string;
+    actorIdentityId: string;
+    idempotencyKey: string;
+  }): Promise<{
+    id: string;
+    receiptLineId: string;
+    inventoryItemId: string;
+    warehouseId: string;
+    unitId: string;
+    allocatedQuantity: string;
+    idempotent: boolean;
+  }> {
+    type Row = {
+      id: string;
+      receipt_line_id: string;
+      inventory_item_id: string;
+      warehouse_id: string;
+      unit_id: string;
+      allocated_quantity: string;
+      actor_identity_id: string;
+      idempotency_key: string;
+    };
+    const columns = `id, receipt_line_id, inventory_item_id, warehouse_id,
+                       unit_id, allocated_quantity::text AS allocated_quantity,
+                       actor_identity_id, idempotency_key`;
+    const client = await this.pool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 193115))',
+        [input.receiptLineId],
+      );
+      // Never allow the same key to silently return a different source mapping.
+      const prior = await client.query<Row>(
+        `SELECT ${columns} FROM inv.receipt_inventory_provenance
+         WHERE idempotency_key = $1 FOR SHARE`,
+        [input.idempotencyKey],
+      );
+      const row = prior.rows[0];
+      if (row) {
+        if (row.receipt_line_id !== input.receiptLineId ||
+            row.inventory_item_id !== input.inventoryItemId ||
+            row.warehouse_id !== input.warehouseId ||
+            row.unit_id !== input.unitId ||
+            row.allocated_quantity !== input.allocatedQuantity ||
+            row.actor_identity_id !== input.actorIdentityId) {
+          throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+        }
+        await client.query('COMMIT');
+        return {
+          id: row.id, receiptLineId: row.receipt_line_id,
+          inventoryItemId: row.inventory_item_id, warehouseId: row.warehouse_id,
+          unitId: row.unit_id, allocatedQuantity: row.allocated_quantity, idempotent: true,
+        };
+      }
+      const resource = await client.query<{
+        item_unit_id: string;
+        warehouse_unit_id: string;
+        item_status: string;
+        warehouse_status: string;
+      }>(
+        `SELECT i.unit_id AS item_unit_id, w.unit_id AS warehouse_unit_id,
+                i.status::text AS item_status, w.status::text AS warehouse_status
+         FROM inv.inventory_items i
+         CROSS JOIN inv.warehouses w
+         WHERE i.id = $1 AND w.id = $2
+         FOR KEY SHARE OF i, w`,
+        [input.inventoryItemId, input.warehouseId],
+      );
+      if (resource.rows[0]?.item_unit_id !== input.unitId ||
+          resource.rows[0]?.warehouse_unit_id !== input.unitId ||
+          resource.rows[0]?.item_status !== 'ACTIVE' ||
+          resource.rows[0]?.warehouse_status !== 'ACTIVE') {
+        throw new InventoryError('INVENTORY_NOT_FOUND');
+      }
+      const duplicated = await client.query<{ id: string }>(
+        `SELECT id FROM inv.receipt_inventory_provenance
+         WHERE receipt_line_id = $1 AND inventory_item_id = $2 AND warehouse_id = $3`,
+        [input.receiptLineId, input.inventoryItemId, input.warehouseId],
+      );
+      if (duplicated.rows.length) {
+        throw new InventoryError('INVENTORY_VALIDATION_FAILED');
+      }
+      const capacity = await client.query<{ available: boolean }>(
+        `SELECT (COALESCE(SUM(allocated_quantity), 0) + $2::numeric <= $3::numeric) AS available
+         FROM inv.receipt_inventory_provenance WHERE receipt_line_id = $1`,
+        [input.receiptLineId, input.allocatedQuantity, input.receivedQuantity],
+      );
+      if (!capacity.rows[0]?.available) {
+        throw new InventoryError('INVENTORY_INVALID_QUANTITY');
+      }
+      const created = await client.query<Row>(
+        `INSERT INTO inv.receipt_inventory_provenance (
+           receipt_line_id, inventory_item_id, warehouse_id, unit_id,
+           allocated_quantity, actor_identity_id, idempotency_key
+         ) VALUES ($1, $2, $3, $4, $5::numeric, $6, $7)
+         RETURNING ${columns}`,
+        [
+          input.receiptLineId, input.inventoryItemId, input.warehouseId,
+          input.unitId, input.allocatedQuantity, input.actorIdentityId, input.idempotencyKey,
+        ],
+      );
+      const inserted = created.rows[0];
+      if (!inserted) throw new InventoryError('INVENTORY_NOT_FOUND');
+      await client.query('COMMIT');
+      return {
+        id: inserted.id, receiptLineId: inserted.receipt_line_id,
+        inventoryItemId: inserted.inventory_item_id, warehouseId: inserted.warehouse_id,
+        unitId: inserted.unit_id, allocatedQuantity: inserted.allocated_quantity,
+        idempotent: false,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async findWarehouseById(id: string): Promise<WarehouseRow | null> {
     const result = await this.pool().query<WarehouseRow>(
       `SELECT ${WAREHOUSE_RETURNING} FROM inv.warehouses WHERE id = $1`,
