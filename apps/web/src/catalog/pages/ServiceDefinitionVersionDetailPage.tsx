@@ -1,11 +1,12 @@
 import { Link, useParams } from 'react-router-dom';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   CatalogApiError,
   getServiceDefinition,
   getServiceDefinitionVersion,
 } from '../api/service-catalog-api';
 import { mapCatalogErrorToMessage } from '../api/catalog-error-messages';
+import { parseCatalogVersionNumber } from '../utils/catalog-version-number';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -46,46 +47,57 @@ function formatDateTime(value: string | null): string {
 
 export function ServiceDefinitionVersionDetailPage() {
   const { definitionId = '', versionNumber = '' } = useParams();
-  const parsedVersion = Number(versionNumber);
+  const parsedVersion = parseCatalogVersionNumber(versionNumber);
   const [state, setState] = useState<VersionDetailState>({ phase: 'loading' });
 
-  const reload = useCallback(async () => {
-    setState({ phase: 'loading' });
-    try {
-      const [definition, version] = await Promise.all([
-        getServiceDefinition(definitionId),
-        getServiceDefinitionVersion(definitionId, parsedVersion),
-      ]);
-      setState({
-        phase: 'ready',
-        version,
-        lineageVersion: definition.version,
-        currentDraftVersion: definition.currentDraftVersion,
-      });
-    } catch (error) {
-      if (error instanceof CatalogApiError) {
-        if (error.kind === 'denied') {
-          setState({ phase: 'denied' });
-          return;
-        }
-        if (error.kind === 'not_found') {
-          setState({ phase: 'not_found' });
-          return;
-        }
-      }
-      setState({
-        phase: 'error',
-        message:
-          error instanceof CatalogApiError
-            ? mapCatalogErrorToMessage(error.code, error.status)
-            : 'Não foi possível carregar a versão.',
-      });
-    }
-  }, [definitionId, parsedVersion]);
+  const [reloadToken, setReloadToken] = useState(0);
 
+  // Trocar de ID/versao aborta a leitura anterior. A ficha jamais pode mostrar
+  // os dados da versao anterior depois de uma navegacao mais recente.
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    const controller = new AbortController();
+    const load = async () => {
+      if (parsedVersion === null) {
+        setState({ phase: 'not_found' });
+        return;
+      }
+      setState({ phase: 'loading' });
+      try {
+        const [definition, version] = await Promise.all([
+          getServiceDefinition(definitionId, controller.signal),
+          getServiceDefinitionVersion(definitionId, parsedVersion, controller.signal),
+        ]);
+        if (controller.signal.aborted) return;
+        setState({
+          phase: 'ready',
+          version,
+          lineageVersion: definition.version,
+          currentDraftVersion: definition.currentDraftVersion,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (error instanceof CatalogApiError) {
+          if (error.kind === 'denied') {
+            setState({ phase: 'denied' });
+            return;
+          }
+          if (error.kind === 'not_found') {
+            setState({ phase: 'not_found' });
+            return;
+          }
+        }
+        setState({
+          phase: 'error',
+          message:
+            error instanceof CatalogApiError
+              ? mapCatalogErrorToMessage(error.code, error.status)
+              : 'Não foi possível carregar a versão.',
+        });
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, [definitionId, parsedVersion, reloadToken]);
 
   if (state.phase === 'loading') {
     return (
@@ -132,7 +144,7 @@ export function ServiceDefinitionVersionDetailPage() {
           title="Versão de serviço"
           message={state.message}
           retryable
-          onRetry={() => void reload()}
+          onRetry={() => setReloadToken((value) => value + 1)}
         />
         <p className="mt-3 mb-0">
           <Link to={`/app/catalog/${definitionId}`}>Voltar à definição</Link>
