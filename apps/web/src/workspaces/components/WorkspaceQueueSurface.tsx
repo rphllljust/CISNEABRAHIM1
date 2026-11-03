@@ -37,6 +37,7 @@ import {
   WORKSPACE_QUEUE_KINDS,
   coverageLabel,
   isAllScope,
+  parseWorkspaceOffset,
   scopeEquals,
   scopeFromSavedFilters,
   scopeFromSearchParams,
@@ -224,7 +225,7 @@ export function WorkspaceQueueSurface({
     domain: lockDomain ?? declaredScope.domain,
   };
 
-  const offset = paginate ? Number.parseInt(searchParams.get('offset') ?? '0', 10) || 0 : 0;
+  const offset = paginate ? parseWorkspaceOffset(searchParams.get('offset')) : 0;
 
   const applyScope = useCallback(
     (next: WorkspaceQueueScope) => {
@@ -264,6 +265,7 @@ export function WorkspaceQueueSurface({
   const total = page?.total ?? null;
   const fullQueueHref = workInboxHref(effectiveScope);
   const incompleteNotice = page ? unavailableWorkNotice(page.unavailableDomains) : null;
+  const emptyLaterPage = page !== null && page.offset > 0 && items.length === 0;
 
   const unitLabel = (unitId: string) => operationalUnitLabel(unitOptions, unitId, 'Unidade autorizada');
 
@@ -384,7 +386,9 @@ export function WorkspaceQueueSurface({
                       },
                       {
                         label: 'Unidade',
-                        value: effectiveScope.unitId ? selectedUnitLabel : 'Todas as unidades',
+                        value: effectiveScope.unitId
+                          ? unitLabel(effectiveScope.unitId)
+                          : 'Todas as unidades',
                       },
                       {
                         label: 'Domínios com trabalho',
@@ -466,7 +470,7 @@ export function WorkspaceQueueSurface({
             >
               <li>
                 <ScopeButton
-                  active={isAllScope(effectiveScope)}
+                  active={effectiveScope.kind === null && !effectiveScope.overdue}
                   label="Tudo"
                   onClick={() => applyScope({ ...effectiveScope, kind: null, overdue: false })}
                 />
@@ -569,15 +573,19 @@ export function WorkspaceQueueSurface({
                       ? 'Fila indisponível'
                       : state.phase === 'error'
                         ? 'Não foi possível ler a fila'
-                        : (emptyTitle ?? 'Nenhum trabalho pendente neste recorte.')
+                        : emptyLaterPage
+                          ? 'Nenhum trabalho nesta página.'
+                          : (emptyTitle ?? 'Nenhum trabalho pendente neste recorte.')
                   }
                   description={
                     state.phase === 'denied'
                       ? 'Você não tem permissão para ler esta fila de trabalho.'
                       : state.phase === 'error'
                         ? state.message
-                        : (emptyDescription ??
-                          'A fila não inventa pendência para parecer cheia. Ajuste o recorte ou abra a fila completa.')
+                        : emptyLaterPage
+                          ? 'Esta página não contém itens. Volte à página anterior; o total continua sendo o informado pelo servidor.'
+                          : (emptyDescription ??
+                            'A fila não inventa pendência para parecer cheia. Ajuste o recorte ou abra a fila completa.')
                   }
                   action={
                     state.phase === 'ready' ? (
@@ -650,10 +658,12 @@ export function WorkspaceQueueSurface({
             </div>
           </section>
 
-          {paginate && page && page.totalPages > 1 ? (
+          {paginate && page && (page.totalPages > 1 || page.offset > 0) ? (
             <div className="flex shrink-0 items-center justify-between border-t border-[color:var(--color-divider)] px-3 py-1.5 text-[11px] text-[color:var(--color-text-secondary)]">
               <span className="tabular-nums">
-                {page.offset + 1}–{Math.min(page.offset + page.limit, page.total)} de {page.total}
+                {items.length > 0
+                  ? `${page.offset + 1}–${page.offset + items.length} de ${page.total}`
+                  : `0 nesta página · ${page.total} no recorte`}
               </span>
               <span className="flex gap-2">
                 <button
@@ -667,7 +677,7 @@ export function WorkspaceQueueSurface({
                 <button
                   type="button"
                   className={workbenchSecondaryActionClass}
-                  disabled={page.offset + page.limit >= page.total}
+                  disabled={items.length === 0 || page.offset + page.limit >= page.total}
                   onClick={() => setOffsetParam(searchParams, setSearchParams, page.offset + page.limit)}
                 >
                   Próxima
