@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   HttpCode,
@@ -63,6 +64,23 @@ export class PeopleController {
     const actor = { identityId: auth.sub, sessionId: auth.sid };
     await this.personAccess.getById(actor, personId);
     const { limit, offset } = parseListPeopleQuery(query);
+    if (query['paging'] === 'cursor') {
+      const cursor = query['cursor'];
+      if (cursor !== undefined && typeof cursor !== 'string') {
+        throw new BadRequestException('Invalid allocation cursor.');
+      }
+      try {
+        return await this.planningAccess.listAuthorizedWorkforceAllocationsCursor(actor, personId, {
+          limit,
+          cursor: cursor || null,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message === 'INVALID_WORKFORCE_CURSOR') {
+          throw new BadRequestException('Invalid or expired allocation cursor.');
+        }
+        throw error;
+      }
+    }
     return this.planningAccess.listAuthorizedWorkforceAllocations(actor, personId, {
       limit,
       offset,
