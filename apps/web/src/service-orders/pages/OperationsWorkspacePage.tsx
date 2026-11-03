@@ -31,7 +31,7 @@ import { OperationsObjectContext } from '../components/OperationsObjectContext';
  *
  * A operacao tinha uma lista e uma object page. O operador via OS em tabela, abria uma, voltava,
  * abria outra — o modo "menu -> tabela -> formulario -> voltar" que nao e trabalho. Aqui a operacao
- * e uma AREA DE TRABALHO com quatro camadas, na ordem em que a decisao acontece:
+ * e uma AREA DE TRABALHO com tres camadas, na ordem em que a decisao acontece:
  *
  *   1. EXECUCAO AGORA      — o que esta em execucao e o que esta pausado. Sao os unicos estados em
  *                            que existe trabalho fisico em curso e o operador pode agir.
@@ -55,8 +55,8 @@ import { OperationsObjectContext } from '../components/OperationsObjectContext';
  */
 
 /**
- * Estados em que existe execucao fisica em curso e estados em que a OS ja passou do ponto de
- * execucao — os recortes que a tela executa no servidor.
+ * Estados de execução e carteira consultados na API de OS. Pendências de medição
+ * são responsabilidade do read model autoritativo de Measurements na Work Inbox.
  *
  * Eles NAO sao listas decorativas: cada valor e usado como `status` em `listServiceOrders`, ou seja,
  * cada um gera UMA leitura recortada pelo servidor. Estao declarados aqui para que a tela diga o
@@ -179,19 +179,18 @@ export function OperationsWorkspacePage() {
 
         Esta e a superficie onde o operador PASSA O DIA, e era uma das duas workspaces sem
         nenhuma `data-region`. A governanca de divisor em `theme.css` casa `#main-content > *
-        + *` e `[data-region] + [data-region]`: sem as regioes, o cabecalho e as quatro zonas
+        + *` e `[data-region] + [data-region]`: sem as regioes, o cabecalho e as zonas
         de trabalho ficavam colados, sem a regua que separa "onde estou" de "o que esta em
         execucao".
 
-        A ORDEM AQUI E A DO TRABALHO, nao a de leitura: excecao primeiro (execucao em curso e
-        pausadas), depois o que falta medir, depois a fila liberada. E a sequencia em que um
-        coordenador de operacoes olha a mesa.
+        A ORDEM AQUI E A DO TRABALHO: execução em curso, fila de exceções
+        autoritativas (inclusive medição ausente) e carteira liberada.
       */}
       <div data-region="work-surface">
       <div data-region="operating-header">
         <WorklistHeader
           title="Operações"
-          count={data ? (data.inExecution.data?.length ?? 0) + (data.paused.data?.length ?? 0) : null}
+          count={null}
           context="Execução em curso, pendências autoritativas na fila do domínio e carteira liberada. Exceção primeiro; cada item abre a ordem que o forma."
           action={
             <Button type="button" variant="secondary" onClick={reload}>
@@ -261,7 +260,7 @@ export function OperationsWorkspacePage() {
             initialScope={ALL_WORKSPACE_QUEUE_SCOPE}
           />
 
-          {/* 3. CARTEIRA — todas as OS liberadas, com o caminho para a object page. */}
+          {/* 3. CARTEIRA — amostra de OS liberadas, sem afirmar total do conjunto. */}
           <WorkbenchQueue
             title="Carteira liberada"
             regionLabel="Carteira de ordens liberadas"
