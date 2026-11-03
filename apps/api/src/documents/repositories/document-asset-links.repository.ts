@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { DatabaseService } from '../../infrastructure/database/database.service';
+import type { DocumentRow } from './documents.repository';
 
 /** GED owns this association. Other modules must use DocumentAssetLinksService. */
 @Injectable()
@@ -13,15 +14,24 @@ export class DocumentAssetLinksRepository {
     return connection.pool;
   }
 
-  async listDocumentIds(physicalAssetId: string, limit: number): Promise<string[]> {
-    const result = await this.pool().query<{ document_id: string }>(
-      `SELECT document_id FROM doc.physical_asset_document_links
-       WHERE physical_asset_id = $1
-       ORDER BY created_at DESC, document_id DESC
-       LIMIT $2`,
-      [physicalAssetId, limit],
+  /**
+   * Only GED reads its private tables. Fetch the bounded candidate window in a
+   * SINGLE PostgreSQL query; authorization is still performed for EVERY row
+   * by DocumentsAccessAuthz before anything is serialized.
+   */
+  async listLinkedDocuments(physicalAssetId: string, unitId: string, limit: number): Promise<DocumentRow[]> {
+    const result = await this.pool().query<DocumentRow>(
+      `SELECT d.id, d.title, d.category_code, d.classification_code,
+              d.status::text AS status, d.unit_id, d.current_version_number,
+              d.created_at, d.updated_at, d.created_by_identity_id, d.updated_by_identity_id
+         FROM doc.physical_asset_document_links l
+         INNER JOIN doc.documents d ON d.id = l.document_id
+        WHERE l.physical_asset_id = $1 AND d.unit_id = $2
+        ORDER BY l.created_at DESC, l.document_id DESC
+        LIMIT $3`,
+      [physicalAssetId, unitId, limit],
     );
-    return result.rows.map((row) => row.document_id);
+    return result.rows;
   }
 
   async attach(physicalAssetId: string, documentId: string, identityId: string): Promise<boolean> {
