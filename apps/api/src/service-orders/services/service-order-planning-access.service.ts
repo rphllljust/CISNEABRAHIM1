@@ -48,6 +48,7 @@ import {
 } from '../serializers/resource-planning-response.serializer';
 import type { ServiceOrderServiceSnapshot } from '../domain/service-order-snapshot';
 import { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
+import { listAuthorizedWorkforceCursorPage } from './workforce-allocation-cursor-page';
 import {
   mapResourceCompatibilityError,
   serviceOrdersAccessNotFound,
@@ -196,6 +197,22 @@ export class ServiceOrderPlanningAccessService {
       hasMore: visible.length > offset + limit,
       partial: !exhausted && visible.length < required,
     };
+  }
+
+  /** Authorized cursor mode for long runs of denied candidate allocations. */
+  async listAuthorizedWorkforceAllocationsCursor(
+    actor: IdentityAuthzContext,
+    workforceMemberId: string,
+    query: { limit: number; cursor: string | null },
+  ) {
+    return listAuthorizedWorkforceCursorPage(
+      this.serviceOrdersRepository,
+      this.authz,
+      actor,
+      workforceMemberId,
+      query.limit,
+      query.cursor,
+    );
   }
 
   async planResource(
