@@ -73,19 +73,21 @@ export class DocumentAssetLinksService {
     if (document.unit_id !== assetUnitId) throw documentsAccessDenied();
     await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentRead, document);
     await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentUploadVersion, document);
-    const attached = await this.links.attach(assetId, documentId, actor.identityId);
-    if (attached) {
-      await this.audit.record({
-        actorIdentityId: actor.identityId,
-        actorSessionId: actor.sessionId,
-        action: SECURITY_AUDIT_ACTIONS.DocumentsDocumentLinkAsset,
-        resourceType: SECURITY_AUDIT_RESOURCE_TYPES.DocumentsDocument,
-        resourceId: documentId,
-        outcome: SECURITY_AUDIT_OUTCOMES.Success,
-        classification: SECURITY_AUDIT_CLASSIFICATIONS.Standard,
-        metadata: { physicalAssetId: assetId, unitId: assetUnitId },
-      });
-    }
+    const attached = await this.links.attach(
+      assetId, documentId, actor.identityId,
+      async (transaction) => {
+        await this.audit.recordCritical({
+          actorIdentityId: actor.identityId,
+          actorSessionId: actor.sessionId,
+          action: SECURITY_AUDIT_ACTIONS.DocumentsDocumentLinkAsset,
+          resourceType: SECURITY_AUDIT_RESOURCE_TYPES.DocumentsDocument,
+          resourceId: documentId,
+          outcome: SECURITY_AUDIT_OUTCOMES.Success,
+          classification: SECURITY_AUDIT_CLASSIFICATIONS.Critical,
+          metadata: { physicalAssetId: assetId, unitId: assetUnitId },
+        }, transaction);
+      },
+    );
     const response = { document: toDocumentResponse(document), attached };
     assertNoStorageKeyLeak(response);
     return response;
