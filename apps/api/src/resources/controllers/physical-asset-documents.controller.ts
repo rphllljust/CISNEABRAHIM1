@@ -23,7 +23,7 @@ export class PhysicalAssetDocumentsController {
     @Body() body: unknown,
   ) {
     const id = body && typeof body === 'object' && 'documentId' in body
-      ? (body as { documentId: unknown }).documentId : null;
+      ? body.documentId : null;
     if (typeof id !== 'string' || !id.trim()) throw documentsInvalidInput('documentId is required');
     return this.links.attach({ identityId: auth.sub, sessionId: auth.sid }, assetId, id);
   }
