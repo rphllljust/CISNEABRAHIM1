@@ -72,6 +72,7 @@ export const SECURITY_AUDIT_ACTIONS = {
   ResourcesAssetActivate: 'security:resources:asset:activate',
   DocumentsDocumentCreate: 'security:documents:document:create',
   DocumentsDocumentUploadVersion: 'security:documents:document:upload-version',
+  DocumentsDocumentLinkAsset: 'security:documents:document:link-asset',
   DocumentsDocumentDownload: 'security:documents:document:download',
   CommercialProposalCreate: 'security:commercial:proposal:create',
   CommercialProposalCreateVersion: 'security:commercial:proposal:create-version',
