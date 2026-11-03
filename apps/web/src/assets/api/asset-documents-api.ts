@@ -2,7 +2,7 @@ import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import type { DocumentDetail } from '../../documents/types/document.types';
 
-export type AssetDocumentsResponse = { items: DocumentDetail[]; incomplete: boolean };
+export type AssetDocumentsResponse = { items: DocumentDetail[]; scope: 'RECENT_WINDOW' };
 export type AssetDocumentsAttachResponse = { document: DocumentDetail; attached: boolean };
 
 export class AssetDocumentsApiError extends Error {
