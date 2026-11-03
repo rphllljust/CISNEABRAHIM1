@@ -31,6 +31,7 @@ import {
   deactivatePerson,
   getPerson,
   listPersonHistory,
+  listPersonServiceOrderAllocations,
   PeopleApiError,
 } from '../api/people-api';
 import {
@@ -43,15 +44,21 @@ import {
   PERSON_STATUSES,
   type Person,
   type PersonHistoryEvent,
+  type PersonServiceOrderAllocationLink,
   type PersonStatus,
 } from '../types/person.types';
+
+type AllocationRelationsState =
+  | { phase: 'ready'; items: PersonServiceOrderAllocationLink[] }
+  | { phase: 'denied' }
+  | { phase: 'error' };
 
 type DetailState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'not_found' }
   | { phase: 'error'; message: string }
-  | { phase: 'ready'; person: Person; history: PersonHistoryEvent[] };
+  | { phase: 'ready'; person: Person; history: PersonHistoryEvent[]; relations: AllocationRelationsState };
 
 const STATUS_LABELS: Record<PersonStatus, string> = {
   [PERSON_STATUSES.Active]: 'Ativa',
@@ -150,12 +157,19 @@ export function PersonDetailPage() {
       setState({ phase: 'loading' });
       setActionError(null);
       try {
-        const [person, historyResponse] = await Promise.all([
+        const [person, historyResponse, relations] = await Promise.all([
           getPerson(personId, controller.signal),
           listPersonHistory(personId, controller.signal),
+          listPersonServiceOrderAllocations(personId, controller.signal)
+            .then((response): AllocationRelationsState => ({ phase: 'ready', items: response.items }))
+            .catch((error): AllocationRelationsState =>
+              error instanceof PeopleApiError && error.kind === 'denied'
+                ? { phase: 'denied' }
+                : { phase: 'error' },
+            ),
         ]);
         if (controller.signal.aborted) return;
-        setState({ phase: 'ready', person, history: historyResponse.items });
+        setState({ phase: 'ready', person, history: historyResponse.items, relations });
       } catch (error) {
         if (controller.signal.aborted) return;
         if (error instanceof PeopleApiError) {
@@ -201,6 +215,7 @@ export function PersonDetailPage() {
         phase: 'ready',
         person: updated,
         history: state.history,
+        relations: state.relations,
       });
       void reload();
     } catch (error) {
@@ -287,7 +302,7 @@ export function PersonDetailPage() {
     );
   }
 
-  const { person, history } = state;
+  const { person, history, relations } = state;
   const isActive = person.status === PERSON_STATUSES.Active;
 
   // Acao primaria: a mais provavel AGORA para este estado e esta capability.
@@ -317,7 +332,12 @@ export function PersonDetailPage() {
       description: 'O cadastro volta ao estado ativo e pode ser alocado novamente.',
       onSelect: () => void handleActivate(),
     };
-  } else if (isActive && person.serviceOrderAllocationSupported) {
+  } else if (
+    isActive &&
+    person.serviceOrderAllocationSupported &&
+    relations.phase === 'ready' &&
+    !relations.items.some((item) => item.allocationStatus === 'ACTIVE')
+  ) {
     nextAction = {
       kind: 'waiting',
       label: 'Aguardar alocação em ordem de serviço',
@@ -333,8 +353,8 @@ export function PersonDetailPage() {
     },
     { label: 'Referência externa', value: person.externalErpId },
     {
-      label: 'Alocação em OS',
-      value: person.serviceOrderAllocationSupported ? 'Permitida' : 'Não permitida',
+      label: 'Suporte a alocação em OS',
+      value: person.serviceOrderAllocationSupported ? 'Sim' : 'Não',
     },
     { label: 'Atualizado em', value: formatDateTime(person.updatedAt) },
   ];
@@ -402,11 +422,40 @@ export function PersonDetailPage() {
           </Alert>
         ) : null}
 
-        <ObjectPanel title="Alocação em ordens de serviço">
+        <ObjectPanel title="Alocações recentes em ordens de serviço">
           <p className="text-sm text-gray-600">
-            A atribuição deste empregado a uma ordem de serviço é feita no planejamento da OS,
-            depois da liberação. Somente o empregado atribuído executa a ordem.
+            As atribuições são registradas no planejamento da OS. Somente vínculos autorizados
+            pela leitura da Pessoa e de cada ordem são exibidos aqui.
           </p>
+          {relations.phase === 'denied' ? (
+            <p className="mt-3 text-sm text-gray-600" role="status">
+              Você não tem permissão para consultar alocações de ordens de serviço.
+            </p>
+          ) : relations.phase === 'error' ? (
+            <p className="mt-3 text-sm text-gray-600" role="status">
+              Não foi possível consultar as alocações. Atualize a ficha para tentar novamente.
+            </p>
+          ) : relations.items.length === 0 ? (
+            <p className="mt-3 text-sm text-gray-600">
+              Nenhuma alocação recente autorizada encontrada.
+            </p>
+          ) : (
+            <ul className="mt-3 space-y-2" aria-label="Alocações autorizadas">
+              {relations.items.map((item) => (
+                <li key={item.allocationId} className="rounded-md border border-gray-200 p-3 text-sm">
+                  <Link className="font-semibold underline" to={`/app/service-orders/${item.serviceOrderId}`}>
+                    {item.orderNumber}
+                  </Link>
+                  <span className="ml-2 text-gray-600">
+                    {toHumanText(item.orderStatus)} · {toHumanText(item.allocationStatus)}
+                  </span>
+                  <p className="mt-1 text-gray-600">
+                    Período: {formatDateTime(item.operationalStart)} até {formatDateTime(item.operationalEnd)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </ObjectPanel>
 
         {capabilities.canDeactivate && isActive ? (
