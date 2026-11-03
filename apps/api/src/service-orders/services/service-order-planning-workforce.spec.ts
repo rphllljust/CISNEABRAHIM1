@@ -65,4 +65,27 @@ describe('E04-02 authorized Person -> OS allocation links', () => {
     expect(empty.partial).toBe(false);
     expect(empty.hasMore).toBe(false);
   });
+  it('reports incomplete discovery when 5000 denied candidates exhaust the scan budget', async () => {
+    const { service, serviceOrdersRepository } = fixture([]);
+    const denied = Array.from({ length: 5000 }, (_, index) => ({
+      id: `denied-${index}`,
+      service_order_id: `order-denied-${index}`,
+      status: 'ACTIVE',
+      operational_start: '2026-11-03T10:00:00.000Z',
+      operational_end: '2026-11-03T12:00:00.000Z',
+      allocated_at: '2026-11-03T09:00:00.000Z',
+      row_version: 1,
+    }));
+    serviceOrdersRepository.listWorkforceAllocationCandidates.mockImplementation(
+      async (_personId: string, limit: number, offset: number) => denied.slice(offset, offset + limit),
+    );
+    serviceOrdersRepository.findByIds.mockImplementation(async () => []);
+    const page = await service.listAuthorizedWorkforceAllocations(actor, personId, { limit: 10, offset: 0 });
+    expect(page.items).toEqual([]);
+    expect(page.partial).toBe(true);
+    expect(page.hasMore).toBe(false);
+    expect(page).not.toHaveProperty('total');
+    expect(serviceOrdersRepository.listWorkforceAllocationCandidates).toHaveBeenCalledTimes(50);
+  });
+
 });
