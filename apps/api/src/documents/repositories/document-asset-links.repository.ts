@@ -46,6 +46,7 @@ export class DocumentAssetLinksRepository {
     auditOnCreate: (client: PoolClient) => Promise<void>,
   ): Promise<boolean> {
     const client = await this.pool().connect();
+    let discardConnection = false;
     try {
       await client.query('BEGIN');
       const result = await client.query(
@@ -60,10 +61,16 @@ export class DocumentAssetLinksRepository {
       await client.query('COMMIT');
       return inserted;
     } catch (error) {
-      await client.query('ROLLBACK');
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        // Preserve the original failure; a connection with uncertain
+        // transaction state must never be returned to the pool.
+        discardConnection = true;
+      }
       throw error;
     } finally {
-      client.release();
+      client.release(discardConnection);
     }
   }
 }
