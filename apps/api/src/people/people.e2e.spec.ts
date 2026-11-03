@@ -2,6 +2,7 @@ import {
   hashPassword,
   insertGrant,
   insertIdentity,
+  insertScopeRef,
   ensureOperationalLaborTypesBaseline,
   truncateIdentityAndAuthorizationTables,
   truncateWorkforceTables,
@@ -185,6 +186,92 @@ describe('People E2E', () => {
       hasMore: false,
       partial: false,
     });
+  });
+
+  it('filters persisted allocations by OS record scope before emitting numbers or pagination', async () => {
+    const { accessToken, identityId } = await loginWithPeopleGrants();
+    const personResponse = await app.inject({
+      method: 'POST',
+      url: '/api/v1/people',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { legalName: 'Pessoa OS controlada', defaultLaborTypeCode: 'OPERATOR' },
+    });
+    expect(personResponse.statusCode).toBe(201);
+    const person = JSON.parse(personResponse.body) as { id: string };
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const allowedUnit = `e04-allowed-${suffix}`;
+    const deniedUnit = `e04-denied-${suffix}`;
+    const createdOrderIds: string[] = [];
+
+    try {
+      await insertScopeRef(pool, { scopeType: 'UNIT', refId: allowedUnit });
+      for (const action of [
+        AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+        AUTHZ_ACTIONS.ServiceOrdersResourceAllocationRead,
+      ]) {
+        await insertGrant(pool, {
+          identityId,
+          action,
+          resourceType: AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
+          scopeType: AUTHZ_SCOPES.Unit,
+          resourceId: allowedUnit,
+          grantedByIdentityId: identityId,
+        });
+      }
+
+      for (const [index, unitId] of [allowedUnit, deniedUnit].entries()) {
+        const os = await pool.query<{ id: string }>(
+          `INSERT INTO so.service_orders (
+             internal_code, order_number, unit_id, origin,
+             created_by_identity_id, updated_by_identity_id
+           )
+           VALUES ($1, $2, $3, 'AUTHORIZED_DIRECT', $4, $4)
+           RETURNING id`,
+          [`e04-internal-${suffix}-${index}`, `OS-E04-${suffix}-${index}`, unitId, identityId],
+        );
+        const orderId = os.rows[0]!.id;
+        createdOrderIds.push(orderId);
+        await pool.query(
+          `INSERT INTO res.resource_allocations (
+             service_order_id, workforce_member_id, resource_type_code,
+             operational_start, operational_end, allocated_by_identity_id
+           )
+           VALUES ($1, $2, 'OPERATOR', $3::timestamptz, $4::timestamptz, $5)`,
+          [
+            orderId,
+            person.id,
+            `2026-11-03T${String(10 + index * 2).padStart(2, '0')}:00:00.000Z`,
+            `2026-11-03T${String(11 + index * 2).padStart(2, '0')}:00:00.000Z`,
+            identityId,
+          ],
+        );
+      }
+
+      const result = await app.inject({
+        method: 'GET',
+        url: `/api/v1/people/${person.id}/allocations?limit=10&offset=0`,
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      expect(result.statusCode).toBe(200);
+      const body = JSON.parse(result.body) as {
+        items: Array<{ serviceOrderId: string; orderNumber: string }>;
+        hasMore: boolean;
+        partial: boolean;
+      };
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0]!.serviceOrderId).toBe(createdOrderIds[0]);
+      expect(body.items[0]!.orderNumber).toBe(`OS-E04-${suffix}-0`);
+      expect(body.hasMore).toBe(false);
+      expect(body.partial).toBe(false);
+      expect(result.body).not.toContain(`OS-E04-${suffix}-1`);
+      expect(result.body).not.toContain(createdOrderIds[1]!);
+      expect(body).not.toHaveProperty('total');
+    } finally {
+      if (createdOrderIds.length > 0) {
+        await pool.query('DELETE FROM res.resource_allocations WHERE service_order_id = ANY($1::uuid[])', [createdOrderIds]);
+        await pool.query('DELETE FROM so.service_orders WHERE id = ANY($1::uuid[])', [createdOrderIds]);
+      }
+    }
   });
 
   it('returns validation error for empty legal name', async () => {
