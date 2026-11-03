@@ -688,20 +688,20 @@ export function OperationalDashboardPage() {
                   aria-label={selected ? 'Contexto do item selecionado' : 'Apoio à decisão operacional'}
                 >
                   {selected ? (
-                  <ContextDrawer
-                    open
-                    variant="inline"
-                    className="dashboard-context-drawer"
-                    title="Contexto do trabalho"
-                    onClose={() => setSelected(null)}
-                    preview={{
-                      identifier: selected.businessReference,
-                      subtitle: selected.title,
-                      status: (
-                        <StatusBadge
-                          label={overdueLabel(selected.dueAt) ?? selected.status}
-                          tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
-                        />
+                    <ContextDrawer
+                      open
+                      variant="inline"
+                      className="dashboard-context-drawer"
+                      title="Contexto do trabalho"
+                      onClose={() => setSelected(null)}
+                      preview={{
+                        identifier: selected.businessReference,
+                        subtitle: selected.title,
+                        status: (
+                          <StatusBadge
+                            label={overdueLabel(selected.dueAt) ?? selected.status}
+                            tone={daysOverdue(selected.dueAt) !== null ? 'error' : 'info'}
+                          />
                       ),
                       facts: [
                         { label: 'Cliente / contexto', value: selected.contextLabel || '—' },
@@ -729,29 +729,29 @@ export function OperationalDashboardPage() {
                     }}
                   />
                   ) : (
-                <OperationalContextRail
-                  firstItem={visibleItems[0] ?? null}
-                  onSelectFirst={() => {
-                    if (visibleItems[0]) setSelected(visibleItems[0]);
-                  }}
-                  unitLabel={unitLabel}
-                  domainLabel={domainLabel}
-                  periodLabel={periodLabel}
-                  generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
-                  queueStateLabel={
-                    inboxPhase === 'ready'
-                      ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
-                      : inboxPhase === 'loading'
-                        ? 'Leitura em andamento'
-                        : 'Fila não publicada nesta leitura'
-                  }
-                  pageCount={inbox?.items.length ?? 0}
-                  situationLabel={
-                    situation
-                      ? situationBadgeLabel(situation)
-                      : 'Situação não avaliada neste recorte'
-                  }
-                />
+                    <OperationalContextRail
+                      firstItem={visibleItems[0] ?? null}
+                      onSelectFirst={() => {
+                        if (visibleItems[0]) setSelected(visibleItems[0]);
+                      }}
+                      unitLabel={unitLabel}
+                      domainLabel={domainLabel}
+                      periodLabel={periodLabel}
+                      generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
+                      queueStateLabel={
+                        inboxPhase === 'ready'
+                          ? `${queueTotal ?? 0} ${plural(queueTotal ?? 0, 'item', 'itens')} na fila`
+                          : inboxPhase === 'loading'
+                            ? 'Leitura em andamento'
+                            : 'Fila não publicada nesta leitura'
+                      }
+                      pageCount={inbox?.items.length ?? 0}
+                      situationLabel={
+                        situation
+                          ? situationBadgeLabel(situation)
+                          : 'Situação não avaliada neste recorte'
+                      }
+                    />
                   )}
                 </aside>
               </div>
@@ -815,7 +815,6 @@ export function OperationalDashboardPage() {
                     </section>
                   ) : null}
                 </div>
-
               </div>
             </details>
 
