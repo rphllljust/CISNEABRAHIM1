@@ -35,6 +35,24 @@ function snapshot(version = 2): ServiceOrderEnterpriseWorkbench {
         nextAction: { step: version === 2 ? 'PREPARE' : 'RELEASE', transition: null, blockers: [], availableTransitions: version === 2 ? ['prepare'] : ['release'] },
       },
     },
+    plannedResources: {
+      state: 'ready',
+      data: [{
+        id: 'plan-1', serviceOrderId: ID, requirementKind: 'PHYSICAL_RESOURCE',
+        resourceTypeCode: 'VEHICLE', laborTypeCode: null,
+        plannedQuantity: '1', operationalStart: null, operationalEnd: null,
+        notes: null, status: 'PLANNED', rowVersion: 1,
+      }],
+    },
+    allocations: {
+      state: 'ready',
+      data: [{
+        id: 'allocation-1', serviceOrderId: ID, plannedResourceId: 'plan-1',
+        physicalAssetId: null, workforceMemberId: null, resourceTypeCode: 'VEHICLE',
+        operationalStart: '2026-11-04T09:00:00.000Z', operationalEnd: '2026-11-04T11:00:00.000Z',
+        status: 'ACTIVE', rowVersion: 1, allocatedAt: '2026-11-04T08:00:00.000Z', removedAt: null,
+      }],
+    },
     costs: {
       state: 'ready',
       data: {
@@ -90,7 +108,9 @@ describe('Integrated Service Order Workbench — UI + NestJS contract', () => {
     expect(screen.getByText('Empresa Real', { exact: false })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Preparar OS' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Recursos e requisitos' }));
-    expect(screen.getByText('VEHICLE')).toBeInTheDocument();
+    expect(screen.getAllByText('VEHICLE').length).toBeGreaterThan(0);
+    expect(screen.getByText('Alocações e disponibilidade confirmadas')).toBeInTheDocument();
+    expect(screen.getByText('PLANNED')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Custos e faturamento' }));
     expect(screen.getAllByText(/R\$\s?300,00/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('tab', { name: 'Documentos e auditoria' }));
