@@ -10,6 +10,7 @@ import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-mess
 import type { ServiceOrderEnterpriseWorkbench } from '../types/service-order-enterprise-workbench.types';
 import type { ServiceOrderDetail } from '../types/service-order.types';
 import { ModulePage } from '../../ui/module-layout';
+import { WorkbenchResourcePlanForm, WorkbenchCostRecordForm } from '../components/ServiceOrderWorkbenchCommands';
 
 type WorkbenchTab = 'process' | 'resources' | 'financial' | 'evidence';
 type LoadPhase = 'loading' | 'ready' | 'denied' | 'missing' | 'error';
@@ -150,7 +151,12 @@ function ProcessView({ order, base }: { order: ServiceOrderDetail; base: string 
   );
 }
 
-function ResourcesView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWorkbench; base: string }) {
+function ResourcesView({ snapshot, base, onMutated, onConflict }: {
+  snapshot: ServiceOrderEnterpriseWorkbench;
+  base: string;
+  onMutated: (message: string) => Promise<void>;
+  onConflict: () => Promise<void>;
+}) {
   const order = snapshot.serviceOrder;
   const requirements = order.serviceSnapshot?.requirements;
   const center = order.controlCenter;
@@ -244,6 +250,7 @@ function ResourcesView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWor
           </section>
         ))}
       </div>
+      <WorkbenchResourcePlanForm snapshot={snapshot} onMutated={onMutated} onConflict={onConflict} />
       <div className="flex flex-wrap gap-2">
         <LinkedAction to={base + '/planning'} label="Abrir alocação e reservas" />
         <LinkedAction to="/app/people" label="Pessoas" />
@@ -255,7 +262,12 @@ function ResourcesView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWor
   );
 }
 
-function FinancialView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWorkbench; base: string }) {
+function FinancialView({ snapshot, base, onMutated, onConflict }: {
+  snapshot: ServiceOrderEnterpriseWorkbench;
+  base: string;
+  onMutated: (message: string) => Promise<void>;
+  onConflict: () => Promise<void>;
+}) {
   const { costs, serviceOrder } = snapshot;
   const control = serviceOrder.controlCenter;
   const costsReady = costs.state === 'ready' || costs.state === 'stale';
@@ -314,6 +326,7 @@ function FinancialView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWor
           </section>
         </>
       ) : null}
+      <WorkbenchCostRecordForm snapshot={snapshot} onMutated={onMutated} onConflict={onConflict} />
       <section className="border-t border-gray-200 pt-4">
         <SectionTitle title="Medição e faturamento" />
         {control ? (
@@ -444,6 +457,15 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
     } finally { setBusy(false); }
   };
 
+  const onMutated = async (message: string) => {
+    await reload();
+    setSuccess(message);
+  };
+  const onConflict = async () => {
+    await reload();
+    setError('Os dados empresariais mudaram. Estado, versão e autorização foram reconsultados; revise antes de reenviar.');
+  };
+
   if (phase !== 'ready' || !snapshot) {
     return (
       <ModulePage layout="workspace" className="space-y-4 py-5">
@@ -515,8 +537,8 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
           </div>
           <div role="tabpanel">
             {tab === 'process' ? <ProcessView order={order} base={base} /> : null}
-            {tab === 'resources' ? <ResourcesView snapshot={snapshot} base={base} /> : null}
-            {tab === 'financial' ? <FinancialView snapshot={snapshot} base={base} /> : null}
+            {tab === 'resources' ? <ResourcesView snapshot={snapshot} base={base} onMutated={onMutated} onConflict={onConflict} /> : null}
+            {tab === 'financial' ? <FinancialView snapshot={snapshot} base={base} onMutated={onMutated} onConflict={onConflict} /> : null}
             {tab === 'evidence' ? <EvidenceView snapshot={snapshot} base={base} /> : null}
           </div>
         </div>
