@@ -877,6 +877,8 @@ jobs:
       - api-e2e
       - build-release
       - visual-critical
+      - detect-change-scope
+      - visual-full
     if: always()
     steps:
       - name: Require every required gate to pass
@@ -888,6 +890,10 @@ jobs:
           E2E: ${{ needs.api-e2e.result }}
           BUILD: ${{ needs.build-release.result }}
           VISUAL_CRITICAL: ${{ needs.visual-critical.result }}
+          CHANGE_SCOPE: ${{ needs.detect-change-scope.result }}
+          VISUAL_RISK: ${{ needs.detect-change-scope.outputs.visual_risk }}
+          VISUAL_FULL: ${{ needs.visual-full.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           echo "static-quality            : $STATIC"
           echo "unit-tests                : $UNIT"
@@ -915,6 +921,22 @@ jobs:
               failed=1
             fi
           done
+          # In PRs affecting UI, full visual regression is part of the merge authority.
+          # On main, visual-full is intentionally skipped; only visual-critical blocks CD.
+          # A missing/failed risk classifier must not silently classify UI risk as false.
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ "$CHANGE_SCOPE" != "success" ]; then
+              echo "::error::change-scope detector did not succeed ($CHANGE_SCOPE)"
+              failed=1
+            fi
+            if [ "$VISUAL_RISK" != "true" ] && [ "$VISUAL_RISK" != "false" ]; then
+              echo "::error::visual risk classifier did not publish true/false ($VISUAL_RISK)"
+              failed=1
+            elif [ "$VISUAL_RISK" = "true" ] && [ "$VISUAL_FULL" != "success" ]; then
+              echo "::error::UI-risk PR requires full visual regression success ($VISUAL_FULL)"
+              failed=1
+            fi
+          fi
           if [ "$failed" -ne 0 ]; then
             exit 1
           fi
