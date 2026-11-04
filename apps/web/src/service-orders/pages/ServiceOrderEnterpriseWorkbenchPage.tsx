@@ -51,7 +51,7 @@ export function workbenchMoney(value: string | null | undefined, currency: strin
   // Number('') and Number('   ') are zero. A missing economic read must NEVER
   // become a legitimate monetary zero on an enterprise financial screen.
   const decimal = value?.trim();
-  if (!decimal || !/^-?\\d+(?:\\.\\d+)?$/.test(decimal) || !currency) return 'Não publicado';
+  if (!decimal || !/^-?\d+(?:\.\d+)?$/.test(decimal) || !currency) return 'Não publicado';
   const parsed = Number(decimal);
   if (!Number.isFinite(parsed)) return 'Não publicado';
   try {
