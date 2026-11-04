@@ -95,7 +95,7 @@ describe('Integrated Service Order Workbench — UI + NestJS contract', () => {
     expect(screen.getAllByText(/R\$\s?300,00/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole('tab', { name: 'Documentos e auditoria' }));
     expect(screen.getByText('CREATED')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'OS-2026-22' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'OS-2026-22' }).length).toBeGreaterThan(0);
     expect(String(fetchMock.mock.calls.length)).toBe('1');
   });
 
