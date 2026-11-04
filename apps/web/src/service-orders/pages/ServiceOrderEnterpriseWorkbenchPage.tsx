@@ -195,8 +195,8 @@ function ResourcesView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWor
           ) : <p role="status" className="text-sm text-gray-600">{stateCopy(snapshot.plannedResources.state)}</p>}
         </section>
         <section className="min-w-0 rounded-md border border-gray-200 bg-white p-3" aria-label="Alocações operacionais persistidas">
-          <h3 className="m-0 mb-1 text-sm font-semibold">Alocações e disponibilidade confirmadas</h3>
-          <p className="mb-3 text-xs text-gray-500">Recursos efetivamente alocados, sem confundir planejamento com execução.</p>
+          <h3 className="m-0 mb-1 text-sm font-semibold">Alocações operacionais persistidas</h3>
+          <p className="mb-3 text-xs text-gray-500">Recursos registrados pelo módulo de alocações; situação conforme estado publicado.</p>
           {snapshot.allocations.state === 'ready' || snapshot.allocations.state === 'stale' ? (
             snapshot.allocations.data.length > 0 ? (
               <div className="overflow-x-auto">
@@ -259,7 +259,7 @@ function FinancialView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWor
   const summary = costsReady ? costs.data.summary : null;
   return (
     <div className="space-y-5">
-      <SectionTitle title="Custo da OS e consequência econômica"
+      <SectionTitle title="Evidências de custo e consequência econômica"
         subtitle="Receita somente com base em evidência aprovada; custos estimados e reais são grandezas monetárias, não quantidades físicas." />
       {costs.state !== 'ready' ? (
         <p role="status" className="border-l-4 border-amber-500 bg-amber-50 p-3 text-sm">
@@ -325,7 +325,7 @@ function FinancialView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWor
         ) : <p className="text-sm">Não há dados downstream publicados para esta leitura.</p>}
         <div className="mt-3 flex flex-wrap gap-2">
           <LinkedAction to={base + '/measurement'} label="Medição e aceite" />
-          <LinkedAction to={base + '/billing'} label="Faturar itens autorizados" />
+          <LinkedAction to={base + '/billing'} label="Abrir faturamento" />
           <LinkedAction to="/app/finance" label="Contas a receber e conciliação" />
         </div>
       </section>
