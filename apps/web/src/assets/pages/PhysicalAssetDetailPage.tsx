@@ -12,6 +12,7 @@ import {
   VERSION_CONFLICT_MESSAGE,
 } from '../api/asset-error-messages';
 import { AssetOperationalLifecyclePanel } from '../components/AssetOperationalLifecycle';
+import { AssetDocumentsPanel } from '../components/AssetDocumentsPanel';
 import { AssetVersionConflictNotice } from '../components/AssetVersionConflictNotice';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
 import { useAssetCapabilities, useAssetResourceTypes } from '../hooks/useAssetCapabilities';
@@ -533,6 +534,10 @@ export function PhysicalAssetDetailPage() {
           operacional derivada. Declarar é a única leitura honesta — esconder faria o operador
           concluir que o ativo não tem documento vinculado.
         */}
+        <ObjectPanel title="Documentos do ativo e da frota">
+          <AssetDocumentsPanel assetId={asset.id} unitId={asset.unitId} />
+        </ObjectPanel>
+
         <ObjectPanel title="Profundidade não publicada nesta leitura">
           <div className="flex flex-col gap-2">
             <UnavailableCapability
@@ -551,14 +556,6 @@ export function PhysicalAssetDetailPage() {
                   Abrir planejamento da {allocation.orderNumber}
                 </Link>
               ) : null}
-            </UnavailableCapability>
-            <UnavailableCapability
-              title="Documentos do ativo"
-              reason="Não existe vínculo de documento publicado para ativos físicos. O módulo de documentos expõe vínculos para contrato e outras entidades, não para recurso físico."
-            >
-              <Link to="/app/documents" className="text-brand-700 no-underline hover:underline">
-                Abrir documentos
-              </Link>
             </UnavailableCapability>
           </div>
         </ObjectPanel>

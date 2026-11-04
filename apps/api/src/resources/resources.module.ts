@@ -3,6 +3,9 @@ import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { DatabaseModule } from '../infrastructure/database/database.module';
+import { DocumentsModule } from '../documents/documents.module';
+import { PhysicalAssetDocumentsController } from './controllers/physical-asset-documents.controller';
+import { PhysicalAssetDocumentsService } from './services/physical-asset-documents.service';
 import { OperationalLaborTypesController } from './controllers/operational-labor-types.controller';
 import { PhysicalAssetsController } from './controllers/physical-assets.controller';
 import { PhysicalResourceTypesController } from './controllers/physical-resource-types.controller';
@@ -15,11 +18,12 @@ import { AssetOperationalAuthz } from './services/asset-operational.authz';
 import { PhysicalResourceTypesAccessService } from './services/physical-resource-types-access.service';
 
 @Module({
-  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule],
+  imports: [DatabaseModule, AuthModule, AuthorizationModule, AuditModule, DocumentsModule],
   controllers: [
     PhysicalResourceTypesController,
     OperationalLaborTypesController,
     PhysicalAssetsController,
+    PhysicalAssetDocumentsController,
   ],
   providers: [
     PhysicalResourceTypesRepository,
@@ -28,6 +32,7 @@ import { PhysicalResourceTypesAccessService } from './services/physical-resource
     OperationalLaborTypesAccessService,
     PhysicalAssetsRepository,
     PhysicalAssetsAccessService,
+    PhysicalAssetDocumentsService,
     AssetOperationalAuthz,
   ],
   exports: [

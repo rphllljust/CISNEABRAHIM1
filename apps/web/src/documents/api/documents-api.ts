@@ -142,6 +142,7 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
 export const DOCUMENT_LIST_PAGE_SIZE = 20;
 
 export type ListDocumentsParams = {
+  unitId?: string;
   q?: string;
   categoryCode?: string;
   limit?: number;
@@ -159,6 +160,9 @@ export async function listDocuments(
   const search = new URLSearchParams();
   search.set('limit', String(params.limit ?? DOCUMENT_LIST_PAGE_SIZE));
   search.set('offset', String(params.offset ?? 0));
+  if (params.unitId) {
+    search.set('unitId', params.unitId);
+  }
   if (params.q?.trim()) {
     search.set('q', params.q.trim());
   }

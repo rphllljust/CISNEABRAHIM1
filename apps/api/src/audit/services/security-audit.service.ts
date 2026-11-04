@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { PoolClient } from 'pg';
 import { SECURITY_AUDIT_CLASSIFICATIONS } from '../types/security-audit.types';
 import type { RecordSecurityAuditInput } from '../types/security-audit.types';
 import {
@@ -12,17 +13,17 @@ export class SecurityAuditService {
 
   constructor(private readonly repository: SecurityAuditRepository) {}
 
-  async record(input: RecordSecurityAuditInput): Promise<string | null> {
+  async record(input: RecordSecurityAuditInput, transaction?: PoolClient): Promise<string | null> {
     try {
-      return await this.repository.insert(input);
+      return await this.repository.insert(input, transaction);
     } catch (error) {
       this.handlePersistenceFailure(input, error);
       return null;
     }
   }
 
-  async recordCritical(input: RecordSecurityAuditInput): Promise<string> {
-    const id = await this.record(input);
+  async recordCritical(input: RecordSecurityAuditInput, transaction?: PoolClient): Promise<string> {
+    const id = await this.record(input, transaction);
     if (!id) {
       throw new SecurityAuditPersistenceError();
     }
