@@ -549,13 +549,15 @@ describe('workspaces de domínio', () => {
       router: { initialEntries: ['/app/workspaces?domain=COMERCIAL'] },
     });
 
+    // A cartilha inicialmente diz "Leitura indisponível" enquanto a visão geral
+    // ainda carrega; aguardar só essa frase aprova um estado de loading sem evidência.
+    // A leitura parcial é o sinal autoritativo de que o backend publicou o domínio
+    // indisponível. O teste aguarda esse fato e depois valida a zona do domínio.
+    expect(await screen.findByText(/Leitura parcial:.*COMERCIAL/i)).toBeInTheDocument();
     const card = document.querySelector('[data-domain="COMERCIAL"]');
     expect(card).not.toBeNull();
-    await waitFor(() => {
-      expect(card).toHaveTextContent('Leitura indisponível');
-    });
-    expect(screen.getByText(/Leitura parcial:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Não foi possível comprovar a ausência de pendências/i)).toBeInTheDocument();
+    expect(card).toHaveTextContent('Leitura indisponível');
+    expect(await screen.findByText(/Não foi possível comprovar a ausência de pendências/i)).toBeInTheDocument();
   });
 });
 
