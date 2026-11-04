@@ -521,3 +521,30 @@ export function getEnterpriseServiceOrderWorkbench(
     { method: 'GET', headers: authHeaders(), signal },
   );
 }
+
+/**
+ * Versioned Cost-to-Serve write. Only SOURCE=SERVICE_ORDER is supported by this
+ * workbench: execution-linked actuals must be recorded from execution with its
+ * originating execution entry, not falsely attributed to a generic source.
+ */
+export type RecordOperationalCostPayload = {
+  origin: 'SERVICE_ORDER';
+  category: 'FUEL' | 'THIRD_PARTY' | 'RESOURCE' | 'TRAVEL' | 'MATERIAL' | 'LABOR' | 'OTHER';
+  costKind: 'ESTIMATED' | 'ACTUAL';
+  description: string;
+  amount: string;
+  currencyCode: string;
+  rowVersion: number;
+  idempotencyKey: string;
+};
+
+export function recordOperationalCost(
+  serviceOrderId: string,
+  payload: RecordOperationalCostPayload,
+  signal?: AbortSignal,
+): Promise<{ rowVersion: number }> {
+  return requestJson<{ rowVersion: number }>(
+    `/api/v1/service-orders/${encodeURIComponent(serviceOrderId)}/operational-costs`,
+    { method: 'POST', headers: jsonHeaders(), body: JSON.stringify(payload), signal },
+  );
+}
