@@ -472,7 +472,7 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
           <div>
             <p className="m-0 text-xs font-semibold tracking-wide text-brand-700 uppercase">Service-to-Cash · Objeto operacional 360</p>
             <h1 className="m-0 mt-1 text-2xl font-semibold text-gray-900">Bancada empresarial · {order.orderNumber}</h1>
-            <p className="m-0 mt-1 text-sm text-gray-600">{snapshotName(order.clientSnapshot)} · {order.contractReference || 'Sem contrato referenciado'} · Unidade {order.unitId}</p>
+            <p className="m-0 mt-1 text-sm text-gray-600">{snapshotName(order.clientSnapshot)} · {order.contractReference || 'Sem contrato referenciado'} · Unidade operacional vinculada</p>
             <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-600">
               <span className="rounded bg-gray-100 px-2 py-1 font-semibold text-gray-800">{order.status}</span>
               <span>Versão {order.rowVersion}</span><span>Leitura {safeDateTime(now)}</span>
