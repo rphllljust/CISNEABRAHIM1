@@ -1,5 +1,10 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
+import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
+import { SERVICE_ORDER_PLANNING_ALLOWED_STATUSES } from '../domain/resource-planning';
+import { assertOperationalCostRecordableState } from '../domain/operational-cost';
+import { ServiceOrdersRepository } from '../repositories/service-orders.repository';
+import { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
 import { BusinessChainService } from '../../business-chain/services/business-chain.service';
 import { OperationalCostAccessService } from './operational-cost-access.service';
 import { ServiceOrderPlanningAccessService } from './service-order-planning-access.service';
@@ -44,6 +49,8 @@ export class ServiceOrderEnterpriseWorkbenchService {
     private readonly businessChain: BusinessChainService,
     private readonly operationalCosts: OperationalCostAccessService,
     private readonly planning: ServiceOrderPlanningAccessService,
+    private readonly ordersRepository: ServiceOrdersRepository,
+    private readonly authz: ServiceOrdersAccessAuthz,
   ) {}
 
   async getById(actor: IdentityAuthzContext, serviceOrderId: string) {
@@ -51,11 +58,12 @@ export class ServiceOrderEnterpriseWorkbenchService {
 
     // Both readers enforce domain-specific authorization. One domain's failure is not
     // misreported as an empty list or a false monetary zero in the remaining sections.
-    const [chain, costs, plannedResources, allocations] = await Promise.allSettled([
+    const [chain, costs, plannedResources, allocations, actions] = await Promise.allSettled([
       this.businessChain.getChain(actor, 'SERVICE_ORDER', order.id),
       this.operationalCosts.listByServiceOrder(actor, order.id),
       this.planning.listPlannedResources(actor, order.id),
       this.planning.listAllocations(actor, order.id),
+      this.getAvailableActions(actor, order.id, order.rowVersion),
     ]);
 
     return {
@@ -64,10 +72,54 @@ export class ServiceOrderEnterpriseWorkbenchService {
       chain: classifyWorkbenchRead(chain),
       plannedResources: classifyWorkbenchRead(plannedResources),
       allocations: classifyWorkbenchRead(allocations),
+      actions: actions.status === 'fulfilled' ? actions.value : {
+        canPlanResource: false,
+        canRecordEstimatedCost: false,
+        canRecordActualCost: false,
+      },
       costs: classifyWorkbenchRead(costs, {
         expected: order.rowVersion,
         actual: (data) => data.rowVersion,
       }),
     };
   }
+  /**
+   * UI write affordances are authorized for THIS OS, not inferred from a session-wide role.
+   * A fresh rowVersion prevents offering mutations against an outdated object snapshot.
+   * POST endpoints still enforce PDP, rowVersion and the domain state authoritatively.
+   */
+  private async getAvailableActions(actor: IdentityAuthzContext, id: string, expectedVersion: number) {
+    const none = {
+      canPlanResource: false,
+      canRecordEstimatedCost: false,
+      canRecordActualCost: false,
+    };
+    const row = await this.ordersRepository.findById(id);
+    if (!row || row.row_version !== expectedVersion) return none;
+    const [plan, recordCost] = await Promise.allSettled([
+      this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.ServiceOrdersPlannedResourcePlan, row),
+      this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.ServiceOrdersOperationalCostRecord, row),
+    ]);
+    const canRecord = recordCost.status === 'fulfilled';
+    let estimatedAllowed = false;
+    let actualAllowed = false;
+    try {
+      assertOperationalCostRecordableState(row.status, 'ESTIMATED');
+      estimatedAllowed = true;
+    } catch {
+      estimatedAllowed = false;
+    }
+    try {
+      assertOperationalCostRecordableState(row.status, 'ACTUAL');
+      actualAllowed = true;
+    } catch {
+      actualAllowed = false;
+    }
+    return {
+      canPlanResource: plan.status === 'fulfilled' && SERVICE_ORDER_PLANNING_ALLOWED_STATUSES.has(row.status),
+      canRecordEstimatedCost: canRecord && estimatedAllowed,
+      canRecordActualCost: canRecord && actualAllowed,
+    };
+  }
+
 }
