@@ -2,7 +2,8 @@ name: Coolify Release Images
 
 on:
   workflow_run:
-    workflows: [CI, HML isolated end-to-end]
+    # Single completion event: avoid red pre-CI releases from HML finish.
+    workflows: [CI]
     types: [completed]
     branches: [main]
   # Dispatch manual republica o SHA do ref selecionado. Nao existe override de
@@ -22,7 +23,13 @@ permissions:
 jobs:
   release-authority:
     name: Require Release Ready
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_sha == github.sha))
     runs-on: ubuntu-latest
+    timeout-minutes: 55
     outputs:
       ci_run_id: ${{ steps.authority.outputs.ci_run_id }}
       source_sha: ${{ steps.authority.outputs.source_sha }}
@@ -42,17 +49,39 @@ jobs:
           set -euo pipefail
           test -n "$EXPECTED_SHA"
 
-          # Fail closed: every production SHA must first pass this exact HML workflow.
-          hml_runs_json=$(gh api "repos/${{ github.repository }}/actions/workflows/hml-isolated-e2e.yml/runs?branch=main&head_sha=$EXPECTED_SHA&status=success&per_page=100")
-          HML_RUN_ID=$(printf '%s' "$hml_runs_json" | EXPECTED_SHA="$EXPECTED_SHA" node --input-type=module -e '
-            let s=""; for await (const c of process.stdin) s+=c;
-            const sha=process.env.EXPECTED_SHA;
-            const runs=JSON.parse(s).workflow_runs ?? [];
-            const run=runs.filter((entry)=>entry.head_sha===sha && entry.status==="completed" && entry.conclusion==="success").sort((a,b)=>b.run_number-a.run_number)[0];
-            process.stdout.write(run ? String(run.id) : "");
-          ')
+          # CI is the single trigger. HML is a parallel prerequisite and may
+          # finish just after CI; wait for its SUCCESS on the EXACT SHA, never
+          # invent approval, retry a failed HML, or publish while it is pending.
+          # Bounded by 90 * 30s = 45min, below this job's 55min limit.
+          HML_RUN_ID=""
+          for attempt in $(seq 1 90); do
+            hml_runs_json=$(gh api "repos/${{ github.repository }}/actions/workflows/hml-isolated-e2e.yml/runs?branch=main&head_sha=$EXPECTED_SHA&per_page=100")
+            hml_state=$(printf '%s' "$hml_runs_json" | EXPECTED_SHA="$EXPECTED_SHA" node --input-type=module -e '
+              let s=""; for await (const c of process.stdin) s+=c;
+              const sha=process.env.EXPECTED_SHA;
+              const runs=JSON.parse(s).workflow_runs ?? [];
+              const latest=runs.filter((entry)=>entry.head_sha===sha && entry.head_branch==="main")
+                .sort((a,b)=>b.id-a.id)[0];
+              if (!latest || latest.status!=="completed") process.stdout.write("PENDING");
+              else if (latest.conclusion==="success") process.stdout.write("SUCCESS:"+latest.id);
+              else process.stdout.write("FAILED:"+(latest.conclusion ?? "UNKNOWN"));
+            ')
+            case "$hml_state" in
+              SUCCESS:*) HML_RUN_ID="${hml_state#SUCCESS:}"; break ;;
+              FAILED:*) echo "::error::publication refused: HML=$hml_state for sha=$EXPECTED_SHA"; exit 1 ;;
+              PENDING) echo "HML pending for sha=$EXPECTED_SHA (check $attempt/90)" ;;
+              *) echo "::error::invalid HML attestation: $hml_state"; exit 1 ;;
+            esac
+            sleep 30
+          done
           if [ -z "$HML_RUN_ID" ]; then
-            echo "::error::publication refused: no successful HML validation for sha=$EXPECTED_SHA"
+            echo "::error::publication refused: HML did not succeed within 45min for sha=$EXPECTED_SHA"
+            exit 1
+          fi
+          # Prevent an old approved run from rolling back a newer main commit.
+          CURRENT_MAIN_SHA=$(gh api "repos/${{ github.repository }}/commits/main" --jq '.sha')
+          if [ "$CURRENT_MAIN_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::publication refused: main advanced from $EXPECTED_SHA to $CURRENT_MAIN_SHA"
             exit 1
           fi
           hml_jobs_json=$(gh api "repos/${{ github.repository }}/actions/runs/$HML_RUN_ID/jobs?per_page=100")
