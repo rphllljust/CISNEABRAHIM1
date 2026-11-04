@@ -210,6 +210,42 @@ describe('Service catalog PostgreSQL integration', () => {
     expect(reactivated.status).toBe('ACTIVE');
   });
 
+  it('counts the full filtered catalog before pagination, including version state', async () => {
+    const { identityId, categoryId } = await seedActor();
+    const actor = { identityId, sessionId: 'sid' };
+    const first = await catalogAccess.create(actor, createPayload(categoryId, 'SRV_COUNT_A'));
+    await catalogAccess.create(actor, createPayload(categoryId, 'SRV_COUNT_B'));
+    await catalogAccess.create(actor, createPayload(categoryId, 'SRV_COUNT_C'));
+
+    const before = await catalogAccess.listDefinitions(actor, { limit: 2, offset: 0 });
+    expect(before.items).toHaveLength(2);
+    expect(before.total).toBe(3);
+    expect(before.asOf).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const afterLast = await catalogAccess.listDefinitions(actor, { limit: 2, offset: 90 });
+    expect(afterLast.items).toEqual([]);
+    expect(afterLast.total).toBe(3);
+
+    const definition = await catalogAccess.getDefinition(actor, first.serviceDefinitionId);
+    await catalogAccess.publishVersion(actor, first.serviceDefinitionId, 1, definition.version);
+    const published = await catalogAccess.listDefinitions(actor, {
+      limit: 20, offset: 0, versionFilter: 'HAS_PUBLISHED',
+    });
+    expect(published.total).toBe(1);
+    expect(published.items).toHaveLength(1);
+    const drafts = await catalogAccess.listDefinitions(actor, {
+      limit: 20, offset: 0, versionFilter: 'HAS_DRAFT',
+    });
+    expect(drafts.total).toBe(2);
+    const withoutPublished = await catalogAccess.listDefinitions(actor, {
+      limit: 20, offset: 0, versionFilter: 'NO_PUBLISHED',
+    });
+    expect(withoutPublished.total).toBe(2);
+    const byCode = await catalogAccess.listDefinitions(actor, {
+      limit: 20, offset: 0, search: 'SRV_COUNT_B',
+    });
+    expect(byCode.total).toBe(1);
+  });
+
   it('rejects duplicate service codes', async () => {
     const { identityId, categoryId } = await seedActor();
     const actor = { identityId, sessionId: 'sid' };
