@@ -556,7 +556,7 @@ describe('workspaces de domínio', () => {
     });
     expect(screen.getByText(/Leitura parcial:/i)).toBeInTheDocument();
     expect(screen.getByText(/Não foi possível comprovar a ausência de pendências/i)).toBeInTheDocument();
-  });;
+  });
 });
 
 /**
