@@ -32,7 +32,7 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         // dominio. Sem `featureFlag` de proposito — a fila e o proprio read model agregado, e
         // esconder esta entrada atras de uma flag de modulo deixaria a area sem porta nenhuma.
         id: 'work-workspaces',
-        label: 'Trabalho por domínio',
+        label: 'Central empresarial',
         path: '/app/workspaces',
         capabilityId: 'service-orders:service-order:list',
         accessCheck: 'request-list',
@@ -538,7 +538,7 @@ const STATIC_ROUTE_LABELS: Record<string, string> = {
   '/app/contracts/new': 'Novo contrato',
   '/app/documents': 'Documentos',
   '/app/billing': 'Faturamento interno',
-  '/app/workspaces': 'Trabalho por domínio',
+  '/app/workspaces': 'Central empresarial',
   '/app/workspaces/comercial': 'Comercial',
   '/app/workspaces/operacoes': 'Operações',
   '/app/workspaces/financeiro': 'Financeiro',
