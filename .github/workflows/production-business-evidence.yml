@@ -5,7 +5,8 @@ name: Production Business Evidence
 
 on:
   workflow_run:
-    workflows: [Coolify Release Images]
+    # TLS is the final technical gate. Start the read-only attestation only after it succeeds.
+    workflows: [Production TLS hardening]
     types: [completed]
     branches: [main]
   workflow_dispatch:
