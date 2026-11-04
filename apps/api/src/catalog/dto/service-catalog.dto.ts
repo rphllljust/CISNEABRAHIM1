@@ -619,7 +619,7 @@ export function parseListServiceDefinitionsQuery(query: Record<string, unknown>)
     offset,
     status,
     search: parseCatalogSearchQuery(searchRaw),
-    versionFilter: versionRaw as 'HAS_DRAFT' | 'HAS_PUBLISHED' | 'NO_PUBLISHED' | undefined,
+    versionFilter: versionRaw,
   };
 }
 
