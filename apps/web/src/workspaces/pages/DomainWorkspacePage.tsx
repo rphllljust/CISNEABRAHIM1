@@ -4,6 +4,7 @@ import { WorklistHeader } from '../../ui/enterprise-list';
 import { workbenchSecondaryActionClass } from '../../ui/workbench';
 import type { WorkDomain } from '../../work-inbox/api/work-inbox-api';
 import { DomainWorkZones } from '../components/DomainWorkZones';
+import { EnterpriseJourneyBar } from '../components/EnterpriseJourneyBar';
 import { WorkspaceQueueSurface } from '../components/WorkspaceQueueSurface';
 import { DOMAIN_WORKSPACES } from '../domain-workspaces';
 
@@ -38,6 +39,7 @@ export function DomainWorkspacePage({ domain }: { domain: WorkDomain }) {
         }
       />
 
+      <EnterpriseJourneyBar active={domain} />
       <DomainWorkZones domain={domain} />
 
       <WorkspaceQueueSurface

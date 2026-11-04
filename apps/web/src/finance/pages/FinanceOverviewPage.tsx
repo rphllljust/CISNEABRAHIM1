@@ -28,6 +28,7 @@ import {
 } from '../../financial-ui/labels';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { DomainWorkZones } from '../../workspaces/components/DomainWorkZones';
+import { EnterpriseJourneyBar } from '../../workspaces/components/EnterpriseJourneyBar';
 import { WorkspaceQueueSurface } from '../../workspaces/components/WorkspaceQueueSurface';
 import { WorkspaceZone } from '../../workspaces/components/WorkspaceZone';
 import { FinanceTitleQueues } from '../components/FinanceTitleQueues';
@@ -326,6 +327,7 @@ export function FinanceOverviewPage() {
             context="Central de operações financeiras: o que exige decisão agora, o que está vencido e onde está o dinheiro. Cada número abre os registros que o formam."
           />
         </div>
+        <EnterpriseJourneyBar active="FINANCEIRO" />
 
         {/*
         FAIXA DE SITUACAO — a PRIMEIRA leitura, e nao uma parede de cards.

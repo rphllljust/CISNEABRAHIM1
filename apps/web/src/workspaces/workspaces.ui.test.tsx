@@ -497,29 +497,65 @@ describe('workspaces de domínio', () => {
     expect(await screen.findByText('Nenhum trabalho pendente neste domínio.')).toBeInTheDocument();
   });
 
-  it('o índice de workspaces aponta para as rotas canônicas, sem contagem própria', async () => {
-    const fetchMock = stubWorkFetch({ byDomain: { COMERCIAL: 7 } });
+  it('a Central Empresarial lê contagens e executa recortes do domínio no servidor', async () => {
+    const fetchMock = stubWorkFetch({
+      byDomain: { COMERCIAL: 7 },
+      blockers: [workItem({
+        domain: 'COMERCIAL',
+        kind: 'BLOCKER',
+        reference: 'PROP-2026-01',
+        title: 'Proposta bloqueada',
+      })],
+    });
     renderWithProviders(<WorkspacesIndexPage />, {
       router: { initialEntries: ['/app/workspaces'] },
     });
 
-    expect(screen.getByRole('link', { name: /^Comercial/ })).toHaveAttribute(
+    expect(screen.getByRole('heading', { name: 'Central empresarial' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Comercial — abrir workspace/ })).toHaveAttribute(
       'href',
       '/app/workspaces/comercial',
     );
-    expect(screen.getByRole('link', { name: /^Financeiro/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^Financeiro — abrir workspace/ })).toHaveAttribute(
       'href',
       '/app/finance',
     );
-    // O indice nao le a fila: contagem pertence ao workspace de cada dominio.
-    expect(requestedUrls(fetchMock).some((url) => url.includes('/work-inbox'))).toBe(false);
-    expect(screen.queryByText('7')).not.toBeInTheDocument();
+    expect(await screen.findByText('7 pendências')).toBeInTheDocument();
+    expect(requestedUrls(fetchMock).some((url) => url.includes('/work-inbox?limit=1'))).toBe(true);
 
-    // O bootstrap de sessao do AuthProvider conclui fora do fluxo deste teste: deixa-o assentar
-    // para nao registrar atualizacao de estado fora de `act`.
+    await userEvent.click(screen.getByRole('button', { name: 'Ver pendências de Comercial' }));
+    await waitFor(() => {
+      expect(requestedUrls(fetchMock).some((url) => url.includes('domain=COMERCIAL'))).toBe(true);
+    });
+    await userEvent.click(screen.getByRole('button', { name: 'Bloqueios' }));
+    await waitFor(() => {
+      expect(requestedUrls(fetchMock).some(
+        (url) => url.includes('domain=COMERCIAL') && url.includes('kind=BLOCKER'),
+      )).toBe(true);
+    });
+    expect(await screen.findByText('Proposta bloqueada')).toBeInTheDocument();
+
+    // A contagem continua atribuída ao read model; não calcula sobre a página dos itens.
+    expect(screen.getByText(/1 de 1 itens do recorte publicado/i)).toBeInTheDocument();
+
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
+  });
+
+  it('domínio indisponível não é apresentado como zero no centro empresarial', async () => {
+    stubWorkFetch({ byDomain: { COMERCIAL: 0 }, unavailableDomains: ['COMERCIAL'] });
+    renderWithProviders(<WorkspacesIndexPage />, {
+      router: { initialEntries: ['/app/workspaces?domain=COMERCIAL'] },
+    });
+
+    const card = document.querySelector('[data-domain="COMERCIAL"]');
+    expect(card).not.toBeNull();
+    await waitFor(() => {
+      expect(card).toHaveTextContent('Leitura indisponível');
+    });
+    expect(screen.getByText(/Leitura parcial:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Não foi possível comprovar a ausência de pendências/i)).toBeInTheDocument();
   });
 });
 
