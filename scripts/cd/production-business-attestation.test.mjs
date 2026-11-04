@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { attestProductionBusiness } from './production-business-attestation.mjs';
 
@@ -84,5 +85,35 @@ describe('production business attestation — fail closed, no synthetic producti
   it('does not confuse a log text mention with a verdict', () => {
     const log = 'debug: [coolify-browser-gate] businessVerified=true\n' + render(empty);
     assert.equal(attestProductionBusiness(log).status, 'CONDITIONAL');
+  });
+});
+
+/**
+ * The release smoke checks immutable source SHA and repository on API, Worker,
+ * and Web. This test prevents the business-only workflow from omitting the
+ * repository env and failing before Chromium ever inspects production.
+ */
+describe('production business evidence workflow configuration', () => {
+  it('inherits the exact three GHCR repository identities from the release', () => {
+    const businessWorkflow = readFileSync(
+      new URL('../../.github/workflows/production-business-evidence.yml', import.meta.url),
+      'utf8',
+    );
+    const releaseWorkflow = readFileSync(
+      new URL('../../.github/workflows/coolify-release.yml', import.meta.url),
+      'utf8',
+    );
+    const smokeJobHeader = businessWorkflow.split('\n    steps:\n')[0];
+    assert.match(smokeJobHeader, /^    env:$/m, 'repositories belong in the job environment');
+    for (const variable of ['API_REPOSITORY', 'WORKER_REPOSITORY', 'WEB_REPOSITORY']) {
+      const releaseLine = releaseWorkflow
+        .split('\n')
+        .find((line) => line.trimStart().startsWith(`${variable}: ghcr.io/`));
+      assert.ok(releaseLine, `official release must declare ${variable}`);
+      assert.ok(
+        smokeJobHeader.split('\n').includes(`      ${releaseLine.trim()}`),
+        `business smoke must define ${variable} identical to the official release`,
+      );
+    }
   });
 });

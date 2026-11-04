@@ -29,6 +29,12 @@ jobs:
         github.event.workflow_run.head_sha == github.sha))
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    # O smoke read-only verifica a identidade das 3 imagens imutaveis no Coolify.
+    # Usar EXATAMENTE o mesmo contrato do release oficial, sem defaults de producao.
+    env:
+      API_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-api
+      WORKER_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-worker
+      WEB_REPOSITORY: ghcr.io/${{ github.repository_owner }}/cisne-web
     steps:
       - name: Checkout exact main SHA
         uses: actions/checkout@v7
