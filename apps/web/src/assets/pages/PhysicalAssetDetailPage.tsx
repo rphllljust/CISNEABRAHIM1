@@ -13,6 +13,7 @@ import {
 } from '../api/asset-error-messages';
 import { AssetOperationalLifecyclePanel } from '../components/AssetOperationalLifecycle';
 import { AssetDocumentsPanel } from '../components/AssetDocumentsPanel';
+import { useDocumentCapabilities } from '../../documents/hooks/useDocumentCapabilities';
 import { AssetVersionConflictNotice } from '../components/AssetVersionConflictNotice';
 import { ConfirmDialog } from '../../clients/components/ConfirmDialog';
 import { useAssetCapabilities, useAssetResourceTypes } from '../hooks/useAssetCapabilities';
@@ -145,6 +146,7 @@ export function PhysicalAssetDetailPage() {
   const { assetId = '' } = useParams();
   const navigate = useNavigate();
   const { capabilities } = useAssetCapabilities();
+  const { capabilities: documentCapabilities } = useDocumentCapabilities();
   const { resourceTypes } = useAssetResourceTypes();
   const canReadServiceOrders = useServiceOrderReadAccess();
   const [state, setState] = useState<DetailState>({ phase: 'loading' });
@@ -535,7 +537,18 @@ export function PhysicalAssetDetailPage() {
           concluir que o ativo não tem documento vinculado.
         */}
         <ObjectPanel title="Documentos do ativo e da frota">
-          <AssetDocumentsPanel assetId={asset.id} unitId={asset.unitId} />
+          <AssetDocumentsPanel
+            key={asset.id}
+            assetId={asset.id}
+            unitId={asset.unitId}
+            canAttach={
+              capabilities.canUpdate &&
+              documentCapabilities.canRead &&
+              documentCapabilities.canList &&
+              documentCapabilities.canUploadVersion
+            }
+            canDownload={documentCapabilities.canDownload}
+          />
         </ObjectPanel>
 
         <ObjectPanel title="Profundidade não publicada nesta leitura">
