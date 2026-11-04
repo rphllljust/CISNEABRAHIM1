@@ -17,4 +17,9 @@ export type ServiceOrderEnterpriseWorkbench = {
   costs: ServiceOrderWorkbenchSection<ServiceOrderCostEvidence>;
   plannedResources: ServiceOrderWorkbenchSection<PlannedResource[]>;
   allocations: ServiceOrderWorkbenchSection<ResourceAllocation[]>;
+  actions: {
+    canPlanResource: boolean;
+    canRecordEstimatedCost: boolean;
+    canRecordActualCost: boolean;
+  };
 };
