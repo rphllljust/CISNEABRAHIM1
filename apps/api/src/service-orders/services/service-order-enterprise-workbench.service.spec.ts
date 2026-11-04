@@ -4,6 +4,9 @@ import type { BusinessChainService } from '../../business-chain/services/busines
 import type { OperationalCostAccessService } from './operational-cost-access.service';
 import type { ServiceOrderPlanningAccessService } from './service-order-planning-access.service';
 import type { ServiceOrdersAccessService } from './service-orders-access.service';
+import type { ServiceOrdersRepository } from '../repositories/service-orders.repository';
+import type { ServiceOrdersAccessAuthz } from './service-orders-access.authz';
+import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import {
   classifyWorkbenchRead,
   ServiceOrderEnterpriseWorkbenchService,
@@ -20,12 +23,20 @@ function setup(options: {
   costsError?: Error;
   plannedResourcesError?: Error;
   allocationsError?: Error;
+  planDenied?: boolean;
+  costDenied?: boolean;
+  status?: string;
 } = {}) {
   const getById = vi.fn();
   const getChain = vi.fn();
   const listByServiceOrder = vi.fn();
   const listPlannedResources = vi.fn();
   const listAllocations = vi.fn();
+  const findById = vi.fn(async () => ({ id: 'os-1', row_version: 4, status: options.status ?? 'RELEASED' }));
+  const assertRecordAction = vi.fn(async (_actor: unknown, action: string) => {
+    if (options.planDenied && action === AUTHZ_ACTIONS.ServiceOrdersPlannedResourcePlan) throw new ForbiddenException();
+    if (options.costDenied && action === AUTHZ_ACTIONS.ServiceOrdersOperationalCostRecord) throw new ForbiddenException();
+  });
   if (options.orderError) getById.mockRejectedValue(options.orderError);
   else getById.mockResolvedValue(options.order ?? { id: 'os-1', rowVersion: 4 });
   if (options.chainError) getChain.mockRejectedValue(options.chainError);
@@ -43,8 +54,10 @@ function setup(options: {
     { getChain } as unknown as BusinessChainService,
     { listByServiceOrder } as unknown as OperationalCostAccessService,
     { listPlannedResources, listAllocations } as unknown as ServiceOrderPlanningAccessService,
+    { findById } as unknown as ServiceOrdersRepository,
+    { assertRecordAction } as unknown as ServiceOrdersAccessAuthz,
   );
-  return { service, getById, getChain, listByServiceOrder, listPlannedResources, listAllocations };
+  return { service, getById, getChain, listByServiceOrder, listPlannedResources, listAllocations, findById, assertRecordAction };
 }
 
 describe('enterprise OS workbench — fullstack read boundary', () => {
@@ -67,6 +80,7 @@ describe('enterprise OS workbench — fullstack read boundary', () => {
     expect(result.costs).toMatchObject({ state: 'ready' });
     expect(result.plannedResources).toMatchObject({ state: 'ready', data: [] });
     expect(result.allocations).toMatchObject({ state: 'ready', data: [] });
+    expect(result.actions).toEqual({canPlanResource: true, canRecordEstimatedCost: true, canRecordActualCost: false});
     expect(getChain).toHaveBeenCalledWith(actor, 'SERVICE_ORDER', 'os-1');
     expect(listByServiceOrder).toHaveBeenCalledWith(actor, 'os-1');
     expect(Number.isNaN(Date.parse(result.asOf))).toBe(false);
@@ -101,6 +115,27 @@ describe('enterprise OS workbench — fullstack read boundary', () => {
   it('marks cross-read rowVersion drift as stale, not a reconciled financial view', async () => {
     const result = await setup({ costs: { rowVersion: 3, entries: [{ amount: '12.00' }] } }).service.getById(actor, 'os-1');
     expect(result.costs).toMatchObject({ state: 'stale', data: { rowVersion: 3 } });
+  });
+
+  it('enforces per-object write affordances from real domain state and PDP', async () => {
+    const read = await setup({ planDenied: true, status: 'IN_EXECUTION' }).service.getById(actor, 'os-1');
+    expect(read.actions).toEqual({
+      canPlanResource: false,
+      canRecordEstimatedCost: true,
+      canRecordActualCost: true,
+    });
+    const noCost = await setup({ costDenied: true, status: 'RELEASED' }).service.getById(actor, 'os-1');
+    expect(noCost.actions).toEqual({
+      canPlanResource: true,
+      canRecordEstimatedCost: false,
+      canRecordActualCost: false,
+    });
+    const draft = await setup({ status: 'DRAFT' }).service.getById(actor, 'os-1');
+    expect(draft.actions).toEqual({
+      canPlanResource: false,
+      canRecordEstimatedCost: false,
+      canRecordActualCost: false,
+    });
   });
 
   it('classifies only explicit authorization errors as denied', () => {
