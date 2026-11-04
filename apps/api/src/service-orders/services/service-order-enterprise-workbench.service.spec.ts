@@ -1,0 +1,84 @@
+import { ForbiddenException } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import type { BusinessChainService } from '../../business-chain/services/business-chain.service';
+import type { OperationalCostAccessService } from './operational-cost-access.service';
+import type { ServiceOrdersAccessService } from './service-orders-access.service';
+import {
+  classifyWorkbenchRead,
+  ServiceOrderEnterpriseWorkbenchService,
+} from './service-order-enterprise-workbench.service';
+
+const actor = { identityId: 'operator-1', sessionId: 'session-1' };
+
+function setup(options: {
+  order?: unknown;
+  orderError?: Error;
+  chain?: unknown;
+  chainError?: Error;
+  costs?: unknown;
+  costsError?: Error;
+} = {}) {
+  const getById = vi.fn();
+  const getChain = vi.fn();
+  const listByServiceOrder = vi.fn();
+  if (options.orderError) getById.mockRejectedValue(options.orderError);
+  else getById.mockResolvedValue(options.order ?? { id: 'os-1', rowVersion: 4 });
+  if (options.chainError) getChain.mockRejectedValue(options.chainError);
+  else getChain.mockResolvedValue(options.chain ?? { anchor: { kind: 'SERVICE_ORDER', id: 'os-1' }, nodes: [], milestones: [] });
+  if (options.costsError) listByServiceOrder.mockRejectedValue(options.costsError);
+  else listByServiceOrder.mockResolvedValue(options.costs ?? { serviceOrderId: 'os-1', rowVersion: 4, entries: [] });
+
+  const service = new ServiceOrderEnterpriseWorkbenchService(
+    { getById } as unknown as ServiceOrdersAccessService,
+    { getChain } as unknown as BusinessChainService,
+    { listByServiceOrder } as unknown as OperationalCostAccessService,
+  );
+  return { service, getById, getChain, listByServiceOrder };
+}
+
+describe('enterprise OS workbench — fullstack read boundary', () => {
+  it('never probes chain or costs when the OS itself is denied', async () => {
+    const { service, getChain, listByServiceOrder } = setup({
+      orderError: new ForbiddenException(),
+    });
+    await expect(service.getById(actor, 'os-1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(getChain).not.toHaveBeenCalled();
+    expect(listByServiceOrder).not.toHaveBeenCalled();
+  });
+
+  it('composes the real authorized order with independently authorized domains', async () => {
+    const { service, getChain, listByServiceOrder } = setup();
+    const result = await service.getById(actor, 'os-1');
+    expect(result.serviceOrder).toMatchObject({ id: 'os-1', rowVersion: 4 });
+    expect(result.chain).toMatchObject({ state: 'ready' });
+    expect(result.costs).toMatchObject({ state: 'ready' });
+    expect(getChain).toHaveBeenCalledWith(actor, 'SERVICE_ORDER', 'os-1');
+    expect(listByServiceOrder).toHaveBeenCalledWith(actor, 'os-1');
+    expect(Number.isNaN(Date.parse(result.asOf))).toBe(false);
+  });
+
+  it('never publishes denied cost evidence, while retaining authorized chain facts', async () => {
+    const result = await setup({ costsError: new ForbiddenException('secret economic data') }).service.getById(actor, 'os-1');
+    expect(result.chain.state).toBe('ready');
+    expect(result.costs).toEqual({ state: 'denied' });
+    expect(JSON.stringify(result)).not.toContain('secret economic data');
+  });
+
+  it('never conflates a broken domain with zero monetary amounts', async () => {
+    const result = await setup({ chainError: new Error('SQL internal'), costsError: new Error('secret stack') }).service.getById(actor, 'os-1');
+    expect(result.chain).toEqual({ state: 'unavailable' });
+    expect(result.costs).toEqual({ state: 'unavailable' });
+    expect(JSON.stringify(result)).not.toContain('secret stack');
+    expect(JSON.stringify(result)).not.toContain('SQL internal');
+  });
+
+  it('marks cross-read rowVersion drift as stale, not a reconciled financial view', async () => {
+    const result = await setup({ costs: { rowVersion: 3, entries: [{ amount: '12.00' }] } }).service.getById(actor, 'os-1');
+    expect(result.costs).toMatchObject({ state: 'stale', data: { rowVersion: 3 } });
+  });
+
+  it('classifies only explicit authorization errors as denied', () => {
+    expect(classifyWorkbenchRead({ status: 'rejected', reason: new Error('network') })).toEqual({ state: 'unavailable' });
+    expect(classifyWorkbenchRead({ status: 'rejected', reason: new ForbiddenException() })).toEqual({ state: 'denied' });
+  });
+});
