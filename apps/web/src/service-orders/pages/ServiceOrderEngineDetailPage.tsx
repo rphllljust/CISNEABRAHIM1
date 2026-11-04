@@ -289,6 +289,7 @@ export function ServiceOrderEngineDetailPage() {
             { label: 'Contrato', value: detail?.contractReference ?? null },
           ]}
           secondaryActions={[
+            { id: 'enterprise-workbench', label: 'Bancada integrada', to: `/app/service-orders/${row.id}/workbench` },
             { id: 'planning', label: 'Planejamento', to: `/app/service-orders/${row.id}/planning` },
             { id: 'execution', label: 'Execução', to: `/app/service-orders/${row.id}/execution` },
           ]}

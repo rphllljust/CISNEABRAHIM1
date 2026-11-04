@@ -14,12 +14,16 @@ import {
 import { SERVICE_ORDERS_ERROR_CODES } from '../errors/service-orders-error-codes';
 import { ServiceOrdersHttpException } from '../errors/service-orders-http.exception';
 import { ServiceOrdersAccessService } from '../services/service-orders-access.service';
+import { ServiceOrderEnterpriseWorkbenchService } from '../services/service-order-enterprise-workbench.service';
 import { resolveCorrelationId } from '../../infrastructure/http/correlation-id';
 
 @Controller('service-orders')
 @UseGuards(JwtAuthGuard)
 export class ServiceOrdersController {
-  constructor(private readonly serviceOrdersAccess: ServiceOrdersAccessService) {}
+  constructor(
+    private readonly serviceOrdersAccess: ServiceOrdersAccessService,
+    private readonly enterpriseWorkbench: ServiceOrderEnterpriseWorkbenchService,
+  ) {}
 
   @Post()
   @HttpCode(201)
@@ -73,6 +77,21 @@ export class ServiceOrdersController {
   @Get(':serviceOrderId')
   getById(@CurrentAuth() auth: AccessTokenClaims, @Param('serviceOrderId') serviceOrderId: string) {
     return this.serviceOrdersAccess.getById(
+      { identityId: auth.sub, sessionId: auth.sid },
+      serviceOrderId,
+    );
+  }
+
+  /**
+   * ERP Tier-1 workbench: OS + authorized business chain + operational cost evidence.
+   * No write is performed here and no result from a denied ancillary domain is leaked.
+   */
+  @Get(':serviceOrderId/enterprise-workbench')
+  enterpriseWorkbenchById(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('serviceOrderId') serviceOrderId: string,
+  ) {
+    return this.enterpriseWorkbench.getById(
       { identityId: auth.sub, sessionId: auth.sid },
       serviceOrderId,
     );
