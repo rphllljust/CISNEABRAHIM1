@@ -408,19 +408,21 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
   const [success, setSuccess] = useState<string | null>(null);
 
   const reload = useCallback(async (signal?: AbortSignal) => {
-    if (!serviceOrderId) { setPhase('error'); return; }
+    if (!serviceOrderId) { setPhase('error'); return false; }
     setPhase('loading');
     try {
       const data = await getEnterpriseServiceOrderWorkbench(serviceOrderId, signal);
-      if (signal?.aborted) return;
+      if (signal?.aborted) return false;
       setSnapshot(data);
       setPhase('ready');
+      return true;
     } catch (reason) {
-      if (signal?.aborted) return;
+      if (signal?.aborted) return false;
       setSnapshot(null);
       setPhase(reason instanceof ServiceOrdersApiError && reason.kind === 'denied'
         ? 'denied'
         : reason instanceof ServiceOrdersApiError && reason.kind === 'not_found' ? 'missing' : 'error');
+      return false;
     }
   }, [serviceOrderId]);
 
@@ -442,8 +444,9 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
     try {
       if (command === 'prepare') await prepareServiceOrder(order.id, order.rowVersion);
       else await releaseServiceOrder(order.id, order.rowVersion);
-      await reload();
-      setSuccess('Comando registrado. Os dados e a versão foram atualizados a partir do servidor.');
+      const refreshed = await reload();
+      if (refreshed) setSuccess('Comando registrado. Os dados e a versão foram atualizados a partir do servidor.');
+      else setError('Comando registrado, mas a nova leitura falhou. Reconsulte antes de executar outra ação.');
     } catch (reason) {
       // A 409 may change the next legal action: always refresh the real state before retry.
       if (reason instanceof ServiceOrdersApiError && (reason.status === 409 || reason.kind === 'version_conflict')) {
@@ -458,12 +461,15 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
   };
 
   const onMutated = async (message: string) => {
-    await reload();
-    setSuccess(message);
+    const refreshed = await reload();
+    if (refreshed) setSuccess(message);
+    else setError('Comando confirmado, mas não foi possível atualizar o painel. Reconsulte antes da próxima ação.');
   };
   const onConflict = async () => {
-    await reload();
-    setError('Os dados empresariais mudaram. Estado, versão e autorização foram reconsultados; revise antes de reenviar.');
+    const refreshed = await reload();
+    setError(refreshed
+      ? 'Os dados empresariais mudaram. Estado, versão e autorização foram reconsultados; revise antes de reenviar.'
+      : 'Conflito detectado. Não foi possível recuperar a versão atual; reconsulte antes de reenviar.');
   };
 
   if (phase !== 'ready' || !snapshot) {
