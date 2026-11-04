@@ -106,6 +106,7 @@ const QUEUE_VIEWS: ReadonlyArray<{ id: QueueViewId; label: string; kind: WorkKin
 ];
 
 const OPERATIONAL_SHORTCUTS = [
+  { id: 'enterprise', label: 'Central empresarial', href: '/app/workspaces' },
   { id: 'work-inbox', label: 'Central de trabalho', href: '/app/work-inbox' },
   { id: 'service-orders', label: 'Ordens de serviço', href: '/app/service-orders' },
   { id: 'billing', label: 'Faturamento', href: '/app/billing' },
@@ -503,6 +504,23 @@ export function OperationalDashboardPage() {
             generatedAtFormatted={snapshot ? formatGeneratedAt(snapshot.generatedAt) : null}
           />
         </div>
+        <nav
+          aria-label="Acesso à central empresarial"
+          className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#C6D7E9] bg-[#EDF4FC] px-4 py-3"
+        >
+          <div>
+            <p className="m-0 text-[10px] font-bold uppercase tracking-wider text-[#46719D]">
+              Operação integrada · 6 áreas
+            </p>
+            <p className="m-0 mt-0.5 text-sm font-semibold text-[#183C61]">
+              Central empresarial: filas reais e processos entre departamentos
+            </p>
+          </div>
+          <Link to="/app/workspaces"
+            className="inline-flex items-center rounded bg-[#225A94] px-3 py-2 text-xs font-semibold text-white no-underline hover:bg-[#1B4779]">
+            Acessar Central Empresarial →
+          </Link>
+        </nav>
 
         {state.phase === 'error' ? (
           <div className="dashboard-alert" role="alert">
