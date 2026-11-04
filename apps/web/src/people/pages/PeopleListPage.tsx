@@ -73,7 +73,7 @@ type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
-  | { phase: 'ready'; items: Person[]; offset: number; hasMore: boolean; total: number | null };
+  | { phase: 'ready'; items: Person[]; offset: number; hasMore: boolean; total: number };
 
 /** Atraso da busca digitada: sem ele cada tecla vira requisicao. */
 const SEARCH_DEBOUNCE_MS = 300;
@@ -241,9 +241,8 @@ export function PeopleListPage() {
           phase: 'ready',
           items: response.items,
           offset: response.offset,
-          hasMore: response.items.length === response.limit,
-          // O contrato nao publica `total`; o que nao existe nao e estimado.
-          total: null,
+          hasMore: response.offset + response.items.length < response.total,
+          total: response.total,
         });
       } catch (error) {
         if (signal?.aborted) {
@@ -344,7 +343,8 @@ export function PeopleListPage() {
     );
   }
 
-  const { items, hasMore } = listState;
+  const { items, hasMore, total } = listState;
+  const outOfRange = items.length === 0 && total > 0;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const activeCount = items.filter((person) => person.status === PERSON_STATUSES.Active).length;
   const allocatableCount = items.filter((person) => person.serviceOrderAllocationSupported).length;
@@ -359,21 +359,7 @@ export function PeopleListPage() {
       <div data-region="operating-header">
       <WorklistHeader
         title="Pessoas"
-        /*
-          CONTAGEM — o cabecalho NAO publica tamanho de carteira.
-
-          `listState.total` e sempre `null`: o contrato de listagem de Pessoas nao publica `total`,
-          e o codigo ja declarava isso no load. Apesar disso o cabecalho renderizava
-          `total ?? items.length`, ou seja imprimia o TAMANHO DA PAGINA como se fosse a populacao.
-          Medido no DOM real com universo de 137 pessoas: o cabecalho anunciava "20" — exatamente
-          o `limit` da pagina — enquanto o rodape dizia "1–20 nesta pagina". As duas frases se
-          contradiziam na mesma tela.
-
-          AUSENCIA != ZERO e PAGINA PAGINADA != DATASET. O chip de contagem some quando nao ha
-          contagem autoritativa; o tamanho real da pagina continua declarado UMA vez, no rodape,
-          junto do recorte que o produziu.
-        */
-        count={listState.total ?? undefined}
+        count={total}
         context={
           items.length > 0
             ? `Mão de obra no seu escopo autorizado${hasFilters ? ' para os filtros aplicados' : ''}.`
@@ -528,21 +514,27 @@ export function PeopleListPage() {
       {items.length === 0 ? (
         <WorklistStatePanel
           title={
-            hasFilters
-              ? 'Nenhuma Pessoa corresponde aos filtros aplicados.'
-              : offset > 0
-                ? 'Nenhuma Pessoa nesta página.'
+            outOfRange
+              ? 'Esta página não existe mais para o recorte atual.'
+              : hasFilters
+                ? 'Nenhuma Pessoa corresponde aos filtros aplicados.'
                 : 'Nenhuma Pessoa cadastrada ainda.'
           }
           description={
-            hasFilters
-              ? 'Ajuste o termo de busca ou limpe os filtros para ver o cadastro.'
-              : offset > 0
-                ? 'Esta página não contém registros no seu escopo. Volte à página anterior; sem total publicado, não é possível concluir que o cadastro inteiro está vazio.'
+            outOfRange
+              ? `Existem ${total} Pessoas neste recorte, mas nenhuma nesta página. Volte à primeira página sem perder seus filtros.`
+              : hasFilters
+                ? 'Ajuste o termo de busca ou limpe os filtros para ver o cadastro.'
                 : 'As Pessoas são a mão de obra alocada nas ordens de serviço. Cadastre a primeira para começar a planejar.'
           }
           action={
-            hasFilters ? (
+            outOfRange ? (
+              <WorklistClearFilters
+                visible
+                label="Voltar à primeira página"
+                onClick={() => updateParam('offset', null)}
+              />
+            ) : hasFilters ? (
               <WorklistClearFilters
                 visible
                 onClick={() => {
@@ -550,7 +542,7 @@ export function PeopleListPage() {
                   setSearchParams(new URLSearchParams(), { replace: true });
                 }}
               />
-            ) : offset > 0 ? null : capabilities.canCreate ? (
+            ) : capabilities.canCreate ? (
               <ModulePrimaryLink to="/app/people/new">Cadastrar Pessoa</ModulePrimaryLink>
             ) : null
           }
@@ -655,7 +647,7 @@ export function PeopleListPage() {
       )}
 
       <WorklistFooter
-        rangeLabel={items.length > 0 ? `${offset + 1}–${offset + items.length} nesta página` : '0 nesta página'}
+        rangeLabel={items.length > 0 ? `${offset + 1}–${offset + items.length} de ${total}` : total === 0 ? '0–0 de 0' : `0 nesta página de ${total}`}
         extra={
           items.length > 0 ? (
             <>
