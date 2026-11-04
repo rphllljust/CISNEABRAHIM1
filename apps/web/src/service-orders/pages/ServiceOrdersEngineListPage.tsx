@@ -1267,6 +1267,12 @@ export function ServiceOrdersEngineListPage() {
                 >
                   Abrir ficha completa
                 </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void navigate('/app/service-orders/' + detailState.detail.id + '/workbench')}
+                >
+                  Bancada integrada
+                </Button>
               </div>
             </>
           ) : null}
