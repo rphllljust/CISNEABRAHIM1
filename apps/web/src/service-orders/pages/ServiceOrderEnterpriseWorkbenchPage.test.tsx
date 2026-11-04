@@ -243,7 +243,12 @@ describe('Integrated Service Order Workbench — UI + NestJS contract', () => {
 
   it('does not mislabel invalid money/currency values as a legitimate zero', () => {
     expect(workbenchMoney(null, 'BRL')).toBe('Não publicado');
+    expect(workbenchMoney('', 'BRL')).toBe('Não publicado');
+    expect(workbenchMoney('   ', 'BRL')).toBe('Não publicado');
+    expect(workbenchMoney('1e3', 'BRL')).toBe('Não publicado');
+    expect(workbenchMoney('0x10', 'BRL')).toBe('Não publicado');
     expect(workbenchMoney('100.50', 'BRL')).toMatch(/100,50/);
+    expect(workbenchMoney('0.0000', 'BRL')).toMatch(/0,00/);
     expect(workbenchMoney('invalid', 'BRL')).toBe('Não publicado');
   });
 });

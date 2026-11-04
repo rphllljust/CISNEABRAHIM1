@@ -48,11 +48,16 @@ function safeDateTime(value: string | null | undefined): string {
 }
 
 export function workbenchMoney(value: string | null | undefined, currency: string | null | undefined): string {
-  if (value == null || !currency || !Number.isFinite(Number(value))) return 'Não publicado';
+  // Number('') and Number('   ') are zero. A missing economic read must NEVER
+  // become a legitimate monetary zero on an enterprise financial screen.
+  const decimal = value?.trim();
+  if (!decimal || !/^-?\\d+(?:\\.\\d+)?$/.test(decimal) || !currency) return 'Não publicado';
+  const parsed = Number(decimal);
+  if (!Number.isFinite(parsed)) return 'Não publicado';
   try {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(Number(value));
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(parsed);
   } catch {
-    return value + ' ' + currency;
+    return decimal + ' ' + currency;
   }
 }
 
