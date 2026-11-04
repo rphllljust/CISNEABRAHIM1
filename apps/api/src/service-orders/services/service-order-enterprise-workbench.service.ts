@@ -2,6 +2,7 @@ import { HttpException, Injectable } from '@nestjs/common';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { BusinessChainService } from '../../business-chain/services/business-chain.service';
 import { OperationalCostAccessService } from './operational-cost-access.service';
+import { ServiceOrderPlanningAccessService } from './service-order-planning-access.service';
 import { ServiceOrdersAccessService } from './service-orders-access.service';
 
 /**
@@ -42,6 +43,7 @@ export class ServiceOrderEnterpriseWorkbenchService {
     private readonly serviceOrders: ServiceOrdersAccessService,
     private readonly businessChain: BusinessChainService,
     private readonly operationalCosts: OperationalCostAccessService,
+    private readonly planning: ServiceOrderPlanningAccessService,
   ) {}
 
   async getById(actor: IdentityAuthzContext, serviceOrderId: string) {
@@ -49,15 +51,19 @@ export class ServiceOrderEnterpriseWorkbenchService {
 
     // Both readers enforce domain-specific authorization. One domain's failure is not
     // misreported as an empty list or a false monetary zero in the remaining sections.
-    const [chain, costs] = await Promise.allSettled([
+    const [chain, costs, plannedResources, allocations] = await Promise.allSettled([
       this.businessChain.getChain(actor, 'SERVICE_ORDER', order.id),
       this.operationalCosts.listByServiceOrder(actor, order.id),
+      this.planning.listPlannedResources(actor, order.id),
+      this.planning.listAllocations(actor, order.id),
     ]);
 
     return {
       asOf: new Date().toISOString(),
       serviceOrder: order,
       chain: classifyWorkbenchRead(chain),
+      plannedResources: classifyWorkbenchRead(plannedResources),
+      allocations: classifyWorkbenchRead(allocations),
       costs: classifyWorkbenchRead(costs, {
         expected: order.rowVersion,
         actual: (data) => data.rowVersion,
