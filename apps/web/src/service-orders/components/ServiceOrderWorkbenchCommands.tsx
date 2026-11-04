@@ -70,7 +70,7 @@ export function WorkbenchResourcePlanForm({ snapshot, onMutated, onConflict }: O
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const requirement = options[Number(selected)];
+    const requirement = selected === '' ? undefined : options[Number(selected)];
     const validQuantity = /^\d+(?:[.,]\d{1,4})?$/.test(quantity.trim()) && Number(quantity.replace(',', '.')) > 0;
     if (!requirement || !validQuantity) {
       setError('Selecione um requisito do serviço e informe a quantidade planejada positiva.');
