@@ -281,6 +281,10 @@ function FinancialView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWor
               </div>
             ))}
           </dl>
+          <p className="text-xs text-gray-500">
+            Fonte: resumo de custo operacional autorizado · apurado em {safeDateTime(summary.capturedAt)}.
+            {summary.disclaimer ? ' ' + summary.disclaimer : ''}
+          </p>
           {summary.blockingReasons.length ? (
             <div className="border-l-4 border-amber-500 bg-amber-50 p-3 text-sm">
               <h3 className="font-semibold">Pendências de reconciliação</h3>
@@ -311,8 +315,12 @@ function FinancialView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWor
         <SectionTitle title="Medição e faturamento" />
         {control ? (
           <div className="grid gap-3 md:grid-cols-2">
-            <p className="text-sm">Medição — {control.downstream.measurement.status || 'status não publicado'}; documentos retornados: {control.downstream.measurement.count}</p>
-            <p className="text-sm">Faturamento — {control.downstream.billing.status || 'status não publicado'}; documentos retornados: {control.downstream.billing.count}</p>
+            <p className="text-sm">Medição — {control.downstream.measurement.status || control.downstream.measurement.count > 0
+              ? (control.downstream.measurement.status || 'Situação não publicada') + '; documentos retornados: ' + control.downstream.measurement.count
+              : 'Posição não publicada ou leitura não autorizada.'}</p>
+            <p className="text-sm">Faturamento — {control.downstream.billing.status || control.downstream.billing.count > 0
+              ? (control.downstream.billing.status || 'Situação não publicada') + '; documentos retornados: ' + control.downstream.billing.count
+              : 'Posição não publicada ou leitura não autorizada.'}</p>
           </div>
         ) : <p className="text-sm">Não há dados downstream publicados para esta leitura.</p>}
         <div className="mt-3 flex flex-wrap gap-2">
