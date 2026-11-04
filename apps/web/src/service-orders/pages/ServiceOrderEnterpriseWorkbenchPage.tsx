@@ -147,7 +147,8 @@ function ProcessView({ order, base }: { order: ServiceOrderDetail; base: string 
   );
 }
 
-function ResourcesView({ order, base }: { order: ServiceOrderDetail; base: string }) {
+function ResourcesView({ snapshot, base }: { snapshot: ServiceOrderEnterpriseWorkbench; base: string }) {
+  const order = snapshot.serviceOrder;
   const requirements = order.serviceSnapshot?.requirements;
   const center = order.controlCenter;
   const groups = [
@@ -171,6 +172,49 @@ function ResourcesView({ order, base }: { order: ServiceOrderDetail; base: strin
           {center.plannedVsActual.divergences.map((item) => <p key={item} className="text-sm">{item}</p>)}
         </section>
       ) : null}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="min-w-0 rounded-md border border-gray-200 bg-white p-3" aria-label="Plano operacional persistido">
+          <h3 className="m-0 mb-1 text-sm font-semibold">Recursos planejados persistidos</h3>
+          <p className="mb-3 text-xs text-gray-500">Leitura do módulo de planejamento com autorização própria.</p>
+          {snapshot.plannedResources.state === 'ready' || snapshot.plannedResources.state === 'stale' ? (
+            snapshot.plannedResources.data.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead><tr className="border-b text-xs text-gray-500"><th className="p-2">Tipo</th><th className="p-2">Quantidade</th><th className="p-2">Janela</th><th className="p-2">Estado</th></tr></thead>
+                  <tbody>{snapshot.plannedResources.data.map((resource) => (
+                    <tr key={resource.id} className="border-b border-gray-100">
+                      <td className="p-2">{resource.resourceTypeCode || resource.laborTypeCode || resource.requirementKind}</td>
+                      <td className="p-2 tabular-nums">{resource.plannedQuantity}</td>
+                      <td className="p-2">{safeDateTime(resource.operationalStart)} — {safeDateTime(resource.operationalEnd)}</td>
+                      <td className="p-2">{resource.status}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            ) : <p className="text-sm text-gray-500">Nenhum recurso foi planejado para esta ordem.</p>
+          ) : <p role="status" className="text-sm text-gray-600">{stateCopy(snapshot.plannedResources.state)}</p>}
+        </section>
+        <section className="min-w-0 rounded-md border border-gray-200 bg-white p-3" aria-label="Alocações operacionais persistidas">
+          <h3 className="m-0 mb-1 text-sm font-semibold">Alocações e disponibilidade confirmadas</h3>
+          <p className="mb-3 text-xs text-gray-500">Recursos efetivamente alocados, sem confundir planejamento com execução.</p>
+          {snapshot.allocations.state === 'ready' || snapshot.allocations.state === 'stale' ? (
+            snapshot.allocations.data.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead><tr className="border-b text-xs text-gray-500"><th className="p-2">Tipo de recurso</th><th className="p-2">Janela</th><th className="p-2">Estado</th></tr></thead>
+                  <tbody>{snapshot.allocations.data.map((allocation) => (
+                    <tr key={allocation.id} className="border-b border-gray-100">
+                      <td className="p-2">{allocation.resourceTypeCode}</td>
+                      <td className="p-2">{safeDateTime(allocation.operationalStart)} — {safeDateTime(allocation.operationalEnd)}</td>
+                      <td className="p-2">{allocation.status}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            ) : <p className="text-sm text-gray-500">Nenhuma alocação foi registrada para esta ordem.</p>
+          ) : <p role="status" className="text-sm text-gray-600">{stateCopy(snapshot.allocations.state)}</p>}
+        </section>
+      </div>
       <div className="grid gap-3 lg:grid-cols-3">
         {groups.map(({ label, rows, kind }) => (
           <section key={label} className="min-w-0 border border-gray-200 bg-white p-3">
@@ -457,7 +501,7 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
           </div>
           <div role="tabpanel">
             {tab === 'process' ? <ProcessView order={order} base={base} /> : null}
-            {tab === 'resources' ? <ResourcesView order={order} base={base} /> : null}
+            {tab === 'resources' ? <ResourcesView snapshot={snapshot} base={base} /> : null}
             {tab === 'financial' ? <FinancialView snapshot={snapshot} base={base} /> : null}
             {tab === 'evidence' ? <EvidenceView snapshot={snapshot} base={base} /> : null}
           </div>
