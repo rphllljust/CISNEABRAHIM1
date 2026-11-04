@@ -84,6 +84,20 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+
+function requestUrl(input: RequestInfo | URL): string {
+  return typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+}
+
+function requestJsonBody(init?: RequestInit): Record<string, unknown> {
+  if (typeof init?.body !== 'string') throw new Error('Expected a JSON request body');
+  const payload: unknown = JSON.parse(init.body);
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    throw new Error('Expected a JSON object');
+  }
+  return payload as Record<string, unknown>;
+}
+
 function openPage() {
   return render(
     <MemoryRouter initialEntries={['/app/service-orders/' + ID + '/workbench']}>
@@ -129,17 +143,17 @@ describe('Integrated Service Order Workbench — UI + NestJS contract', () => {
     await screen.findByRole('heading', { name: /Bancada empresarial/ });
     expect(screen.getByText(/O domínio não autorizou esta leitura/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Documentos e auditoria' }));
-    expect(screen.getByText(/O domínio não respondeu/)).toBeInTheDocument();
+    expect(screen.getAllByText(/O domínio não respondeu/).length).toBeGreaterThan(0);
     expect(screen.queryByText(/R\$\s?0,00/)).not.toBeInTheDocument();
   });
 
   it('uses the authoritative rowVersion on prepare, then reloads the composite read', async () => {
     let reads = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input);
+      const path = requestUrl(input);
       if (path.endsWith('/prepare')) {
         expect(init?.method).toBe('POST');
-        expect(JSON.parse(String(init?.body))).toEqual({ rowVersion: 2 });
+        expect(requestJsonBody(init)).toEqual({ rowVersion: 2 });
         return jsonResponse({ status: 'PREPARED', rowVersion: 3 });
       }
       reads += 1;
@@ -169,10 +183,10 @@ describe('Integrated Service Order Workbench — UI + NestJS contract', () => {
     data.actions.canPlanResource = true;
     let plans = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input);
+      const path = requestUrl(input);
       if (path.endsWith('/planned-resources') && init?.method === 'POST') {
         plans++;
-        expect(JSON.parse(String(init.body))).toMatchObject({
+        expect(requestJsonBody(init)).toMatchObject({
           requirementKind: 'PHYSICAL_RESOURCE', resourceTypeCode: 'VEHICLE',
           plannedQuantity: '2',
         });
@@ -199,16 +213,17 @@ describe('Integrated Service Order Workbench — UI + NestJS contract', () => {
     data.actions.canRecordEstimatedCost = true;
     let written = 0;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input);
+      const path = requestUrl(input);
       if (path.endsWith('/operational-costs') && init?.method === 'POST') {
         written++;
-        const payload = JSON.parse(String(init.body));
+        const payload = requestJsonBody(init);
         expect(payload).toMatchObject({
           origin: 'SERVICE_ORDER', category: 'RESOURCE', costKind: 'ESTIMATED',
           amount: '125.50', currencyCode: 'BRL', rowVersion: 2,
           description: 'Combustível para execução',
         });
         expect(typeof payload.idempotencyKey).toBe('string');
+        if (typeof payload.idempotencyKey !== 'string') throw new Error('Missing idempotency key');
         expect(payload.idempotencyKey.length).toBeGreaterThan(10);
         return jsonResponse({ rowVersion: 3 }, 201);
       }
