@@ -2,6 +2,7 @@ import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import type { AdvancedFilterPayload } from '../../engine';
 import type { ServiceOrderListFilter, ServiceOrderListOrder } from '../types/service-order-list.types';
+import type { ServiceOrderEnterpriseWorkbench } from '../types/service-order-enterprise-workbench.types';
 import {
   SERVICE_ORDERS_ERROR_CODES,
   type ServiceOrderDetail,
@@ -503,6 +504,20 @@ export function getServiceOrderCostEvidence(
 ): Promise<ServiceOrderCostEvidence> {
   return requestJson<ServiceOrderCostEvidence>(
     `/api/v1/service-orders/${encodeURIComponent(serviceOrderId)}/operational-costs`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+/**
+ * Server-side workbench composition; the UI never joins authorized domains on its own.
+ * All data comes from the existing OS, business-chain and cost domain readers.
+ */
+export function getEnterpriseServiceOrderWorkbench(
+  serviceOrderId: string,
+  signal?: AbortSignal,
+): Promise<ServiceOrderEnterpriseWorkbench> {
+  return requestJson<ServiceOrderEnterpriseWorkbench>(
+    '/api/v1/service-orders/' + encodeURIComponent(serviceOrderId) + '/enterprise-workbench',
     { method: 'GET', headers: authHeaders(), signal },
   );
 }
