@@ -115,7 +115,7 @@ export function WorkbenchResourcePlanForm({ snapshot, onMutated, onConflict }: O
   return (
     <section aria-label="Criar plano de recurso" className="border-t border-gray-200 pt-4">
       <h3 className="m-0 text-sm font-semibold">Registrar recurso planejado</h3>
-      <p className="mb-3 text-xs text-gray-600">O backend valida requisitos, capacidade, janela, estado e permissão. Planejar não equivale a alocar.</p>
+      <p className="mb-3 text-xs text-gray-600">O backend valida requisito, janela, estado e permissão. Disponibilidade e conflito de capacidade são confirmados ao alocar; planejar não equivale a reservar.</p>
       <form onSubmit={(event) => void submit(event)} className="grid gap-3 sm:grid-cols-2">
         <label className="block text-xs font-semibold text-gray-700">
           Requisito do serviço
