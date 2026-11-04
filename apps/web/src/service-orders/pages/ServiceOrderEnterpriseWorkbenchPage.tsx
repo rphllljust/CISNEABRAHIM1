@@ -283,16 +283,20 @@ function FinancialView({ snapshot, base, onMutated, onConflict }: {
       ) : null}
       {summary ? (
         <>
-          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {[
-              ['Receita evidenciada', summary.revenue],
-              ['Custo previsto', summary.totalEstimatedCost],
-              ['Custo real', summary.totalActualCost],
-              ['Margem real', summary.actualMargin],
-            ].map(([label, amount]) => (
+              { label: 'Receita de medição aprovada (indicativa)', amount: summary.revenue, format: 'money' },
+              { label: 'Custo estimado', amount: summary.totalEstimatedCost, format: 'money' },
+              { label: 'Custo realizado', amount: summary.totalActualCost, format: 'money' },
+              { label: 'Margem operacional indicativa', amount: summary.actualMargin, format: 'money' },
+              { label: 'Desvio de custo realizado − estimado', amount: summary.estimatedToActualVariance, format: 'money' },
+              { label: 'Desvio percentual', amount: summary.estimatedToActualVariancePercent, format: 'percent' },
+            ].map(({ label, amount, format }) => (
               <div key={label} className="rounded-md border border-gray-200 bg-white px-3 py-3">
                 <dt className="text-xs text-gray-500">{label}</dt>
-                <dd className="mt-1 text-base font-semibold tabular-nums">{workbenchMoney(amount, summary.currencyCode)}</dd>
+                <dd className="mt-1 text-base font-semibold tabular-nums">
+                  {format === 'percent' ? (amount === null ? 'Não publicado' : amount + '%') : workbenchMoney(amount, summary.currencyCode)}
+                </dd>
               </div>
             ))}
           </dl>
@@ -315,7 +319,14 @@ function FinancialView({ snapshot, base, onMutated, onConflict }: {
                   <tbody>{costs.data.entries.map((entry) => (
                     <tr key={entry.id} className="border-b border-gray-100">
                       <td className="p-2">{entry.category}</td><td className="p-2">{entry.costKind}</td>
-                      <td className="p-2">{entry.description || entry.origin}</td>
+                      <td className="p-2">
+                        <span>{entry.description || entry.origin}</span>
+                        {entry.sourceExecutionEntryId ? (
+                          <Link to={base + '/execution'} className="mt-1 block text-xs font-semibold text-brand-700 underline">
+                            Abrir origem na execução
+                          </Link>
+                        ) : null}
+                      </td>
                       <td className="p-2">{safeDateTime(entry.recordedAt)}</td>
                       <td className="p-2 text-right tabular-nums">{workbenchMoney(entry.amount, entry.currencyCode)}</td>
                     </tr>
