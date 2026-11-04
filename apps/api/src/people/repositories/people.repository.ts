@@ -72,6 +72,17 @@ export class PeopleRepository {
     return result.rows;
   }
 
+  /** Exact server count, using the same authorized WHERE as the page query. */
+  async count(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM wrk.workforce_members m
+       WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   async create(
     input: CreatePersonPersistenceInput,
     actorIdentityId: string,
