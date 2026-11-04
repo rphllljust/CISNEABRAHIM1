@@ -124,8 +124,14 @@ export class ServiceCatalogAccessService {
 
   async listDefinitions(
     actor: IdentityAuthzContext,
-    query: { limit: number; offset: number; status?: 'ACTIVE' | 'INACTIVE'; search?: string },
-  ): Promise<{ items: ServiceDefinitionResponse[]; limit: number; offset: number }> {
+    query: {
+      limit: number;
+      offset: number;
+      status?: 'ACTIVE' | 'INACTIVE';
+      search?: string;
+      versionFilter?: 'HAS_DRAFT' | 'HAS_PUBLISHED' | 'NO_PUBLISHED';
+    },
+  ): Promise<{ items: ServiceDefinitionResponse[]; limit: number; offset: number; total: number; asOf: string }> {
     await this.authz.assertListAction(actor);
 
     const clauses = ['TRUE'];
@@ -151,11 +157,35 @@ export class ServiceCatalogAccessService {
       )`);
     }
 
-    const rows = await this.repository.listDefinitions(clauses.join(' AND '), params, query.limit, query.offset);
+    // Version status is a database-wide predicate, not client-side page filtering.
+    // Published versions are stored as ACTIVE in this domain.
+    if (query.versionFilter === 'HAS_DRAFT') {
+      clauses.push(`EXISTS (
+        SELECT 1 FROM cat.service_definition_versions v
+        WHERE v.service_definition_id = d.id AND v.status = 'DRAFT'
+      )`);
+    } else if (query.versionFilter === 'HAS_PUBLISHED') {
+      clauses.push(`EXISTS (
+        SELECT 1 FROM cat.service_definition_versions v
+        WHERE v.service_definition_id = d.id AND v.status = 'ACTIVE'
+      )`);
+    } else if (query.versionFilter === 'NO_PUBLISHED') {
+      clauses.push(`NOT EXISTS (
+        SELECT 1 FROM cat.service_definition_versions v
+        WHERE v.service_definition_id = d.id AND v.status = 'ACTIVE'
+      )`);
+    }
+    const whereClause = clauses.join(' AND ');
+    const [rows, total] = await Promise.all([
+      this.repository.listDefinitions(whereClause, params, query.limit, query.offset),
+      this.repository.countDefinitions(whereClause, params),
+    ]);
     return {
       items: rows.map(toServiceDefinitionResponse),
       limit: query.limit,
       offset: query.offset,
+      total,
+      asOf: new Date().toISOString(),
     };
   }
 
