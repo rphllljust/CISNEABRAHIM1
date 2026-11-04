@@ -154,7 +154,7 @@ export function createPeopleFetchMock(options: PeopleFetchMockOptions = {}) {
             person.memberCode.toLowerCase().includes(needle),
         );
       }
-      return jsonResponse({ items: items.slice(offset, offset + limit), limit, offset });
+      return jsonResponse({ items: items.slice(offset, offset + limit), limit, offset, total: items.length, asOf: '2026-11-04T12:00:00.000Z' });
     }
 
     if (pathname === '/api/v1/people' && method === 'POST') {
