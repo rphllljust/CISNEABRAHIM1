@@ -12,7 +12,7 @@ import type { ServiceOrderDetail } from '../types/service-order.types';
 import { ModulePage } from '../../ui/module-layout';
 
 type WorkbenchTab = 'process' | 'resources' | 'financial' | 'evidence';
-type LoadPhase = 'loading' | 'ready' | 'denied' | 'error';
+type LoadPhase = 'loading' | 'ready' | 'denied' | 'missing' | 'error';
 
 const PHASES: Array<{ code: string; label: string; suffix: string; description: string }> = [
   { code: 'DEMAND', label: 'Demanda', suffix: '', description: 'Origem, cliente, contrato e serviço' },
@@ -402,7 +402,9 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
     } catch (reason) {
       if (signal?.aborted) return;
       setSnapshot(null);
-      setPhase(reason instanceof ServiceOrdersApiError && reason.kind === 'denied' ? 'denied' : 'error');
+      setPhase(reason instanceof ServiceOrdersApiError && reason.kind === 'denied'
+        ? 'denied'
+        : reason instanceof ServiceOrdersApiError && reason.kind === 'not_found' ? 'missing' : 'error');
     }
   }, [serviceOrderId]);
 
@@ -446,6 +448,7 @@ export function ServiceOrderEnterpriseWorkbenchPage() {
         <h1 className="text-xl font-semibold">Bancada empresarial da ordem de serviço</h1>
         {phase === 'loading' ? <p role="status">Consultando contratos e evidências no servidor…</p>
           : phase === 'denied' ? <p role="alert">Seu perfil não tem permissão para ler esta ordem.</p>
+          : phase === 'missing' ? <p role="status">Esta ordem não foi encontrada no seu escopo autorizado.</p>
           : <div role="alert"><p>Não foi possível consultar a ordem.</p><button type="button" onClick={() => void reload()} className="text-brand-700 underline">Tentar novamente</button></div>}
       </ModulePage>
     );
