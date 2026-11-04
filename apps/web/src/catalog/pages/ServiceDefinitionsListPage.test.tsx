@@ -87,7 +87,7 @@ describe('ServiceDefinitionsListPage integration', () => {
     expect(screen.getByRole('navigation', { name: 'Paginação' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled();
-    expect(screen.queryByLabelText(/registros no recorte/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('0 registros no recorte')).toBeInTheDocument();
   });
 
   it('lets the operator return from an empty second page without claiming the catalog is empty', async () => {
