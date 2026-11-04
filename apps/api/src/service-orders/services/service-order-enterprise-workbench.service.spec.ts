@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { BusinessChainService } from '../../business-chain/services/business-chain.service';
 import type { OperationalCostAccessService } from './operational-cost-access.service';
+import type { ServiceOrderPlanningAccessService } from './service-order-planning-access.service';
 import type { ServiceOrdersAccessService } from './service-orders-access.service';
 import {
   classifyWorkbenchRead,
@@ -17,10 +18,14 @@ function setup(options: {
   chainError?: Error;
   costs?: unknown;
   costsError?: Error;
+  plannedResourcesError?: Error;
+  allocationsError?: Error;
 } = {}) {
   const getById = vi.fn();
   const getChain = vi.fn();
   const listByServiceOrder = vi.fn();
+  const listPlannedResources = vi.fn();
+  const listAllocations = vi.fn();
   if (options.orderError) getById.mockRejectedValue(options.orderError);
   else getById.mockResolvedValue(options.order ?? { id: 'os-1', rowVersion: 4 });
   if (options.chainError) getChain.mockRejectedValue(options.chainError);
@@ -28,22 +33,30 @@ function setup(options: {
   if (options.costsError) listByServiceOrder.mockRejectedValue(options.costsError);
   else listByServiceOrder.mockResolvedValue(options.costs ?? { serviceOrderId: 'os-1', rowVersion: 4, entries: [] });
 
+  if (options.plannedResourcesError) listPlannedResources.mockRejectedValue(options.plannedResourcesError);
+  else listPlannedResources.mockResolvedValue([]);
+  if (options.allocationsError) listAllocations.mockRejectedValue(options.allocationsError);
+  else listAllocations.mockResolvedValue([]);
+
   const service = new ServiceOrderEnterpriseWorkbenchService(
     { getById } as unknown as ServiceOrdersAccessService,
     { getChain } as unknown as BusinessChainService,
     { listByServiceOrder } as unknown as OperationalCostAccessService,
+    { listPlannedResources, listAllocations } as unknown as ServiceOrderPlanningAccessService,
   );
-  return { service, getById, getChain, listByServiceOrder };
+  return { service, getById, getChain, listByServiceOrder, listPlannedResources, listAllocations };
 }
 
 describe('enterprise OS workbench — fullstack read boundary', () => {
   it('never probes chain or costs when the OS itself is denied', async () => {
-    const { service, getChain, listByServiceOrder } = setup({
+    const { service, getChain, listByServiceOrder, listPlannedResources, listAllocations } = setup({
       orderError: new ForbiddenException(),
     });
     await expect(service.getById(actor, 'os-1')).rejects.toBeInstanceOf(ForbiddenException);
     expect(getChain).not.toHaveBeenCalled();
     expect(listByServiceOrder).not.toHaveBeenCalled();
+    expect(listPlannedResources).not.toHaveBeenCalled();
+    expect(listAllocations).not.toHaveBeenCalled();
   });
 
   it('composes the real authorized order with independently authorized domains', async () => {
@@ -52,6 +65,8 @@ describe('enterprise OS workbench — fullstack read boundary', () => {
     expect(result.serviceOrder).toMatchObject({ id: 'os-1', rowVersion: 4 });
     expect(result.chain).toMatchObject({ state: 'ready' });
     expect(result.costs).toMatchObject({ state: 'ready' });
+    expect(result.plannedResources).toMatchObject({ state: 'ready', data: [] });
+    expect(result.allocations).toMatchObject({ state: 'ready', data: [] });
     expect(getChain).toHaveBeenCalledWith(actor, 'SERVICE_ORDER', 'os-1');
     expect(listByServiceOrder).toHaveBeenCalledWith(actor, 'os-1');
     expect(Number.isNaN(Date.parse(result.asOf))).toBe(false);
@@ -70,6 +85,17 @@ describe('enterprise OS workbench — fullstack read boundary', () => {
     expect(result.costs).toEqual({ state: 'unavailable' });
     expect(JSON.stringify(result)).not.toContain('secret stack');
     expect(JSON.stringify(result)).not.toContain('SQL internal');
+  });
+
+  it('preserves usable modules when planning is unauthorized and allocations are unavailable', async () => {
+    const result = await setup({
+      plannedResourcesError: new ForbiddenException('private planned asset'),
+      allocationsError: new Error('internal pg error'),
+    }).service.getById(actor, 'os-1');
+    expect(result.costs.state).toBe('ready');
+    expect(result.plannedResources).toEqual({ state: 'denied' });
+    expect(result.allocations).toEqual({ state: 'unavailable' });
+    expect(JSON.stringify(result)).not.toContain('private planned asset');
   });
 
   it('marks cross-read rowVersion drift as stale, not a reconciled financial view', async () => {
