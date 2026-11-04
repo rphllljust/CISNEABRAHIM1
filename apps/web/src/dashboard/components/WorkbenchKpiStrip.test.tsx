@@ -36,10 +36,13 @@ function renderStrip(kpis: WorkbenchKpi[]) {
 }
 
 describe('WorkbenchKpiStrip', () => {
-  it('nao renderiza nada quando nenhum indicador foi publicado', () => {
-    // Faixa sem dado nao reserva area: nao existe grade de "—" nem card vazio.
+  it('explicita governanca quando nenhum indicador foi publicado', () => {
     const { container } = renderStrip([]);
-    expect(container).toBeEmptyDOMElement();
+    expect(container).toHaveAttribute('data-layout', 'kpi-governance-state');
+    expect(container).toHaveTextContent(
+      'Indicadores ainda não publicados para este recorte',
+    );
+    expect(container).toHaveTextContent(/ausência de publicação não equivale a zero/i);
   });
 
   it('leva cada indicador ao recorte que o produziu', () => {
