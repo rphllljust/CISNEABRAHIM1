@@ -83,7 +83,7 @@ type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
-  | { phase: 'ready'; items: ServiceDefinition[]; offset: number; hasMore: boolean };
+  | { phase: 'ready'; items: ServiceDefinition[]; offset: number; hasMore: boolean; total: number; asOf: string };
 
 /**
  * COMANDOS DE LINHAGEM DO CATÁLOGO — os três que o contrato publica.
@@ -171,6 +171,7 @@ export function ServiceDefinitionsListPage() {
             limit: PAGE_SIZE,
             offset,
             status: statusFilter || undefined,
+            versionFilter: versionFilter || undefined,
             search: debouncedSearch || undefined,
           },
           signal,
@@ -181,7 +182,9 @@ export function ServiceDefinitionsListPage() {
           phase: 'ready',
           items: response.items,
           offset: response.offset,
-          hasMore: response.items.length === response.limit,
+          hasMore: response.offset + response.items.length < response.total,
+          total: response.total,
+          asOf: response.asOf,
         });
       } catch (error) {
         if (signal?.aborted) return;
@@ -204,7 +207,7 @@ export function ServiceDefinitionsListPage() {
         });
       }
     },
-    [statusFilter, debouncedSearch],
+    [statusFilter, debouncedSearch, versionFilter],
   );
 
   useEffect(() => {
@@ -340,23 +343,8 @@ export function ServiceDefinitionsListPage() {
     [commandReason, detailState],
   );
 
-  const filteredItems = useMemo(() => {
-    if (listState.phase !== 'ready') {
-      return [];
-    }
-    return listState.items.filter((item) => {
-      if (versionFilter === 'HAS_DRAFT' && item.currentDraftVersion === null) {
-        return false;
-      }
-      if (versionFilter === 'HAS_PUBLISHED' && item.latestPublishedVersion === null) {
-        return false;
-      }
-      if (versionFilter === 'NO_PUBLISHED' && item.latestPublishedVersion !== null) {
-        return false;
-      }
-      return true;
-    });
-  }, [listState, versionFilter]);
+  // Every filter is resolved in the PostgreSQL query, before the page is selected.
+  const filteredItems = listState.phase === 'ready' ? listState.items : [];
 
   if (listState.phase === 'loading') {
     return (
@@ -388,7 +376,8 @@ export function ServiceDefinitionsListPage() {
     );
   }
 
-  const { offset, hasMore } = listState;
+  const { offset, hasMore, total } = listState;
+  const outOfRange = listState.items.length === 0 && total > 0;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
 
   /**
@@ -416,16 +405,8 @@ export function ServiceDefinitionsListPage() {
       <div data-region="operating-header">
       <WorklistHeader
         title="Catálogo de serviços"
-        /*
-         * CONTAGEM = o que o contrato desta lista publica.
-         *
-         * VERIFICADO NO CONTRATO (não presumido): `ServiceDefinitionListResponse` é
-         * `{ items, limit, offset }` — NÃO existe `total`. O número ao lado do título é a contagem
-         * DESTA PÁGINA, e o escopo precisa estar escrito: número solto ao lado do título de uma
-         * worklist lê como total do portfólio.
-         */
-        // O backend não informa o total global. Uma página de 20 itens não é uma carteira de 20.
-        context={`Página ${pageNumber} — definições de serviço no escopo autorizado. Os indicadores abaixo são apenas desta página; total do portfólio não informado pelo servidor.`}
+        count={total}
+        context={`Página ${pageNumber} · ${total} definições no recorte do servidor · atualizado ${new Date(listState.asOf).toLocaleString('pt-BR')}. Indicadores por versão abaixo referem-se apenas à página.`}
         action={
           capabilities.canCreate ? (
             <ModulePrimaryLink to="/app/catalog/new">Nova definição</ModulePrimaryLink>
@@ -486,8 +467,7 @@ export function ServiceDefinitionsListPage() {
       <WorklistFilterBar
         meta={
           <>
-            {filteredItems.length} de {listState.items.length} nesta página
-            {versionFilter ? ' · recorte de versão vale só nesta página' : ''}
+            {listState.items.length} nesta página · {total} no recorte autorizado
           </>
         }
       >
@@ -538,38 +518,35 @@ export function ServiceDefinitionsListPage() {
       </div>
 
       <div data-region="worklist-master">
-      {/*
-        RECORTE DE VERSAO E LOCAL, NAO DO SERVIDOR.
-        O contrato de `/catalog/service-definitions` publica apenas `status` e `q`
-        (ver `ListServiceDefinitionsParams`). Nao existe filtro de versao publicado, e
-        recortar no navegador uma lista paginada no servidor mentiria: um servico com
-        rascunho na proxima pagina apareceria como inexistente.
-        A tela declara o escopo em vez de esconder a limitacao — PARK registrado:
-        filtro de versao no servidor.
-      */}
+      {/* Busca, status e versão são filtrados no servidor antes da paginação. */}
       {filteredItems.length === 0 ? (
         <WorklistStatePanel
           title={
-            versionFilter
-              ? 'Nenhuma definição nesta página corresponde ao recorte de versão.'
-              : offset > 0 && !statusFilter && !debouncedSearch
-                ? 'Nenhuma definição nesta página.'
-                : 'Nenhuma definição encontrada para os filtros selecionados.'
+            outOfRange
+              ? 'Esta página não existe mais para o recorte atual.'
+              : total === 0 && (statusFilter || versionFilter || debouncedSearch)
+                ? 'Nenhuma definição corresponde aos filtros aplicados.'
+                : 'Nenhuma definição cadastrada ainda.'
           }
           description={
-            versionFilter
-              ? 'O recorte de versão ainda não é resolvido pelo servidor — avance a página ou limpe o filtro.'
-              : offset > 0 && !statusFilter && !debouncedSearch
-                ? 'Volte à página anterior. O contrato não publica total; esta página vazia não significa catálogo vazio.'
-                : 'Ajuste a busca ou o status, ou limpe os filtros para ver o portfólio completo.'
+            outOfRange
+              ? `O servidor encontrou ${total} definições no recorte. Volte à primeira página.`
+              : total === 0 && (statusFilter || versionFilter || debouncedSearch)
+                ? 'Ajuste a busca, o status ou o filtro de versão.'
+                : 'Cadastre uma definição legítima para iniciar o catálogo.'
           }
           action={
             <WorklistClearFilters
               visible
+              label={outOfRange ? 'Voltar à primeira página' : 'Limpar filtros'}
               onClick={() => {
-                setSearch('');
-                setStatusFilter('');
-                setVersionFilter('');
+                if (outOfRange) {
+                  void loadPage(0);
+                } else {
+                  setSearch('');
+                  setStatusFilter('');
+                  setVersionFilter('');
+                }
               }}
             />
           }
@@ -672,12 +649,7 @@ export function ServiceDefinitionsListPage() {
       )}
 
       <WorklistFooter
-          rangeLabel={listState.items.length > 0 ? `${offset + 1}–${offset + listState.items.length} nesta página` : '0 nesta página'}
-          extra={
-            filteredItems.length !== listState.items.length
-              ? `${filteredItems.length} após o recorte de versão`
-              : undefined
-          }
+          rangeLabel={listState.items.length > 0 ? `${offset + 1}–${offset + listState.items.length} de ${total}` : total === 0 ? '0–0 de 0' : `0 nesta página de ${total}`}
         >
           <ModulePagination
             pageNumber={pageNumber}
