@@ -10,6 +10,7 @@ const ID = 'a1a1a1a1-1111-4111-8111-a1a1a1a1a1a1';
 function snapshot(version = 2): ServiceOrderEnterpriseWorkbench {
   return {
     asOf: '2026-11-04T13:00:00.000Z',
+    actions: { canPlanResource: false, canRecordEstimatedCost: false, canRecordActualCost: false },
     serviceOrder: {
       id: ID, internalCode: 'OS-INT-22', orderNumber: 'OS-2026-22',
       unitId: 'unit-operacional', status: version === 2 ? 'DRAFT' : 'PREPARED',
@@ -109,7 +110,7 @@ describe('Integrated Service Order Workbench — UI + NestJS contract', () => {
     expect(screen.getByRole('button', { name: 'Preparar OS' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Recursos e requisitos' }));
     expect(screen.getAllByText('VEHICLE').length).toBeGreaterThan(0);
-    expect(screen.getByText('Alocações e disponibilidade confirmadas')).toBeInTheDocument();
+    expect(screen.getByText('Alocações operacionais persistidas')).toBeInTheDocument();
     expect(screen.getByText('PLANNED')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Custos e faturamento' }));
     expect(screen.getAllByText(/R\$\s?300,00/).length).toBeGreaterThan(0);
@@ -160,6 +161,69 @@ describe('Integrated Service Order Workbench — UI + NestJS contract', () => {
     await screen.findByRole('heading', { name: /Bancada empresarial/ });
     expect(screen.queryByRole('button', { name: 'Preparar OS' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Liberar OS' })).not.toBeInTheDocument();
+  });
+
+  it('sends a real planned resource to NestJS and reconsults the integrated workbench', async () => {
+    const data = snapshot();
+    data.serviceOrder.status = 'RELEASED';
+    data.actions.canPlanResource = true;
+    let plans = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path.endsWith('/planned-resources') && init?.method === 'POST') {
+        plans++;
+        expect(JSON.parse(String(init.body))).toMatchObject({
+          requirementKind: 'PHYSICAL_RESOURCE', resourceTypeCode: 'VEHICLE',
+          plannedQuantity: '2',
+        });
+        return jsonResponse({ id: 'new-plan', status: 'PLANNED' }, 201);
+      }
+      return jsonResponse(data);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    openPage();
+    await screen.findByRole('heading', { name: /Bancada empresarial/ });
+    fireEvent.click(screen.getByRole('tab', { name: 'Recursos e requisitos' }));
+    expect(screen.getByRole('button', { name: 'Salvar recurso planejado' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Requisito do serviço'), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('Quantidade planejada'), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar recurso planejado' }));
+    await waitFor(() => expect(plans).toBe(1));
+    await screen.findByText(/Recurso planejado e registrado com auditoria/);
+    expect(fetchMock.mock.calls.length).toBe(3);
+  });
+
+  it('records cost as real money with version + idempotency, then reloads economic position', async () => {
+    const data = snapshot();
+    data.serviceOrder.status = 'RELEASED';
+    data.actions.canRecordEstimatedCost = true;
+    let written = 0;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path.endsWith('/operational-costs') && init?.method === 'POST') {
+        written++;
+        const payload = JSON.parse(String(init.body));
+        expect(payload).toMatchObject({
+          origin: 'SERVICE_ORDER', category: 'RESOURCE', costKind: 'ESTIMATED',
+          amount: '125.50', currencyCode: 'BRL', rowVersion: 2,
+          description: 'Combustível para execução',
+        });
+        expect(typeof payload.idempotencyKey).toBe('string');
+        expect(payload.idempotencyKey.length).toBeGreaterThan(10);
+        return jsonResponse({ rowVersion: 3 }, 201);
+      }
+      return jsonResponse(data);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    openPage();
+    await screen.findByRole('heading', { name: /Bancada empresarial/ });
+    fireEvent.click(screen.getByRole('tab', { name: 'Custos e faturamento' }));
+    fireEvent.change(screen.getByLabelText('Valor monetário'), { target: { value: '125,50' } });
+    fireEvent.change(screen.getByLabelText('Descrição e origem do lançamento'), { target: { value: 'Combustível para execução' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar custo no livro operacional' }));
+    await waitFor(() => expect(written).toBe(1));
+    await screen.findByText(/Custo operacional registrado e posição econômica reconsultada/);
+    expect(fetchMock.mock.calls.length).toBe(3);
   });
 
   it('does not mislabel invalid money/currency values as a legitimate zero', () => {
