@@ -180,14 +180,27 @@ export function createCatalogFetchMock(options: CatalogFetchMockOptions = {}) {
         // O mock resolve a busca no SERVIDOR (nome ou code), como o backend real: filtrar so a
         // pagina atual faria o teste passar mesmo se o termo nunca fosse enviado.
         const term = (searchParams.get('q') ?? '').trim().toLowerCase();
-        const matches =
+        const status = searchParams.get('status');
+        const versionFilter = searchParams.get('versionFilter');
+        const matchesSearch =
           term.length === 0 ||
           definition.code.toLowerCase().includes(term) ||
           (definition.name ?? '').toLowerCase().includes(term);
+        const matchesStatus = !status || definition.status === status;
+        const matchesVersion =
+          !versionFilter ||
+          (versionFilter === 'HAS_DRAFT' && definition.currentDraftVersion !== null) ||
+          (versionFilter === 'HAS_PUBLISHED' && definition.latestPublishedVersion !== null) ||
+          (versionFilter === 'NO_PUBLISHED' && definition.latestPublishedVersion === null);
+        const limit = Number(searchParams.get('limit') ?? '20');
+        const offset = Number(searchParams.get('offset') ?? '0');
+        const authorized = matchesSearch && matchesStatus && matchesVersion ? [definition] : [];
         return jsonResponse({
-          items: matches ? [definition] : [],
-          limit: Number(searchParams.get('limit') ?? '20'),
-          offset: Number(searchParams.get('offset') ?? '0'),
+          items: authorized.slice(offset, offset + limit),
+          limit,
+          offset,
+          total: authorized.length,
+          asOf: '2026-11-04T12:00:00.000Z',
         });
       }
 
