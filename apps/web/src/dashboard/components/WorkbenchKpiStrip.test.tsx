@@ -38,11 +38,12 @@ function renderStrip(kpis: WorkbenchKpi[]) {
 describe('WorkbenchKpiStrip', () => {
   it('explicita governanca quando nenhum indicador foi publicado', () => {
     const { container } = renderStrip([]);
-    expect(container).toHaveAttribute('data-layout', 'kpi-governance-state');
-    expect(container).toHaveTextContent(
+    const governance = container.firstElementChild;
+    expect(governance).toHaveAttribute('data-layout', 'kpi-governance-state');
+    expect(governance).toHaveTextContent(
       'Indicadores ainda não publicados para este recorte',
     );
-    expect(container).toHaveTextContent(/ausência de publicação não equivale a zero/i);
+    expect(governance).toHaveTextContent(/ausência de publicação não equivale a zero/i);
   });
 
   it('leva cada indicador ao recorte que o produziu', () => {
