@@ -118,6 +118,7 @@ export type ListServiceDefinitionsParams = {
   limit: number;
   offset: number;
   status?: CatalogLineageStatus;
+  versionFilter?: 'HAS_DRAFT' | 'HAS_PUBLISHED' | 'NO_PUBLISHED';
   /** Busca no SERVIDOR por nome do servico ou code operacional. */
   search?: string;
 };
@@ -128,6 +129,9 @@ export function buildListServiceDefinitionsQuery(params: ListServiceDefinitionsP
   search.set('offset', String(params.offset));
   if (params.status) {
     search.set('status', params.status);
+  }
+  if (params.versionFilter) {
+    search.set('versionFilter', params.versionFilter);
   }
   const term = params.search?.trim();
   if (term) {
