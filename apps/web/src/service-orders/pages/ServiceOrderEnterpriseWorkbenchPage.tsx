@@ -103,12 +103,15 @@ function ProcessView({ order, base }: { order: ServiceOrderDetail; base: string 
           <ol className="grid list-none grid-cols-1 gap-2 p-0 sm:grid-cols-2 xl:grid-cols-3">
             {PHASES.map((phase) => {
               const fact = control.progression.find((entry) => entry.code === phase.code);
+              const downstreamNotPublished =
+                (phase.code === 'MEASUREMENT' && control.downstream.measurement.status === null && control.downstream.measurement.count === 0) ||
+                (phase.code === 'BILLING' && control.downstream.billing.status === null && control.downstream.billing.count === 0);
               return (
                 <li key={phase.code} className="min-w-0 rounded-lg border border-gray-200 bg-white p-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <h3 className="m-0 text-sm font-semibold text-gray-900">{phase.label}</h3>
                     <span className="rounded-sm bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
-                      {fact ? STATE_LABELS[fact.state] ?? fact.state : 'Sem leitura'}
+                      {downstreamNotPublished ? 'Sem leitura publicada' : fact ? STATE_LABELS[fact.state] ?? fact.state : 'Sem leitura'}
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-gray-600">{phase.description}</p>
