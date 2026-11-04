@@ -118,7 +118,7 @@ describe('Enterprise OS workbench HTTP boundary', () => {
       'os-1',
       expect.objectContaining({
         origin: 'SERVICE_ORDER', category: 'RESOURCE', costKind: 'ESTIMATED',
-        amount: '125.50', rowVersion: 4, idempotencyKey: 'key-real-transaction-123',
+        amount: '125.5000', rowVersion: 4, idempotencyKey: 'key-real-transaction-123',
       }),
     );
   });
