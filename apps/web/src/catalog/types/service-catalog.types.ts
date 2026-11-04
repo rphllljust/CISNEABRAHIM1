@@ -89,6 +89,9 @@ export type ServiceDefinitionListResponse = {
   items: ServiceDefinition[];
   limit: number;
   offset: number;
+  /** Exact count after status, search and version filters. */
+  total: number;
+  asOf: string;
 };
 
 export type ServiceDefinitionVersion = {
