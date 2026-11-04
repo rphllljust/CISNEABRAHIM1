@@ -26,7 +26,7 @@ describe('Enterprise OS workbench HTTP boundary', () => {
       .overrideGuard(JwtAuthGuard)
       .useValue({
         canActivate: (context: ExecutionContext) => {
-          context.switchToHttp().getRequest().user = { sub: 'identity-a', sid: 'session-b' };
+          context.switchToHttp().getRequest().auth = { sub: 'identity-a', sid: 'session-b' };
           return true;
         },
       })
