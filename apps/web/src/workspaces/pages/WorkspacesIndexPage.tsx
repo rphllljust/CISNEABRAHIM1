@@ -137,7 +137,8 @@ export function WorkspacesIndexPage() {
 
   const page = overview.phase === 'ready' ? overview.page : null;
   const workPage = work.phase === 'ready' ? work.page : null;
-  const selectedIncomplete = workPage?.unavailableDomains.includes(domain) ?? false;
+  const selectedIncomplete = (workPage?.unavailableDomains.includes(domain) ?? false) ||
+    (page?.unavailableDomains.includes(domain) ?? false);
   const incomplete = page?.unavailableDomains.length ?? 0;
   const navigationReady = !navLoading;
   const allowedRoute = (path: string): boolean => {
