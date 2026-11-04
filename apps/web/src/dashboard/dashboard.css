@@ -5212,3 +5212,56 @@ a.dashboard-exceptions__row:focus-visible {
     background: var(--dashboard-surface);
   }
 }
+
+/*
+ * GOVERNANÇA DO READ MODEL — mantém a faixa visível quando nenhum KPI foi publicado,
+ * sem converter ausência em zero e sem criar um card decorativo.
+ */
+.dashboard-kpi-strip--governance {
+  border-top: 1px solid var(--erp-border);
+  border-bottom: 1px solid var(--erp-border);
+  background: var(--erp-surface-context);
+}
+
+.dashboard-kpi-governance {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+
+.dashboard-kpi-governance__label {
+  color: var(--erp-text-primary);
+  font-weight: 700;
+}
+
+.dashboard-kpi-governance__context {
+  color: var(--erp-text-secondary);
+}
+
+.dashboard-kpi-governance__action {
+  margin-left: auto;
+  color: var(--erp-brand);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dashboard-kpi-governance__action:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 720px) {
+  .dashboard-kpi-governance {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .dashboard-kpi-governance__action {
+    margin-left: 0;
+  }
+}
+

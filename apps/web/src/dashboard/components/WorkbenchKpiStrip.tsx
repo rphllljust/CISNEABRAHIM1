@@ -50,8 +50,36 @@ import type { WorkbenchKpi, WorkbenchKpiTone } from '../utils/build-workbench-kp
  * publicou. O que muda e o PRECO COBRADO para dizer a verdade.
  */
 export function WorkbenchKpiStrip({ kpis }: { kpis: WorkbenchKpi[] }) {
+  /*
+   * ESTADO GOVERNADO SEM DADO — o workspace continua com uma superfície de decisão mesmo
+   * quando o read model ainda não publicou nenhum KPI. Ocultar a faixa fazia a Central
+   * parecer uma tela vazia/CRUD; mostrar zero seria inventar fato. O estado explícito mantém
+   * a densidade da experiência Tier-1 e aponta para a governança de metadados.
+   */
   if (kpis.length === 0) {
-    return null;
+    return (
+      <section
+        role="region"
+        aria-labelledby="workspace-kpi-heading"
+        className="dashboard-kpi-strip dashboard-kpi-strip--governance"
+        data-layout="kpi-governance-state"
+      >
+        <h2 id="workspace-kpi-heading" className="cisne-sr-only">
+          Indicadores operacionais
+        </h2>
+        <div className="dashboard-kpi-governance">
+          <span className="dashboard-kpi-governance__label">
+            Indicadores ainda não publicados para este recorte
+          </span>
+          <span className="dashboard-kpi-governance__context">
+            A leitura permanece íntegra: ausência de publicação não equivale a zero.
+          </span>
+          <Link className="dashboard-kpi-governance__action" to="/app/admin/metadata">
+            Abrir governança de metadados <span aria-hidden>→</span>
+          </Link>
+        </div>
+      </section>
+    );
   }
 
   const measured = kpis.filter((kpi) => !kpi.unmeasured);
