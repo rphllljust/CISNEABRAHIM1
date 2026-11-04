@@ -135,6 +135,7 @@ const SuppliersEngineDetailPage = lazy(() => import('./suppliers/pages/Suppliers
 const SuppliersRoute = lazy(() => import('./suppliers/pages/SuppliersRoute').then((module) => ({ default: module.SuppliersRoute })));
 const AccessAdminPage = lazy(() => import('./access-admin/pages/AccessAdminPage').then((module) => ({ default: module.AccessAdminPage })));
 const ServiceOrderEngineDetailPage = lazy(() => import('./service-orders/pages/ServiceOrderEngineDetailPage').then((module) => ({ default: module.ServiceOrderEngineDetailPage })));
+const ServiceOrderEnterpriseWorkbenchPage = lazy(() => import('./service-orders/pages/ServiceOrderEnterpriseWorkbenchPage').then((module) => ({ default: module.ServiceOrderEnterpriseWorkbenchPage })));
 const ModulesRegistryPage = lazy(() => import('./modules-registry/ModulesRegistryPage').then((module) => ({ default: module.ModulesRegistryPage })));
 const MetadataExplorerPage = lazy(() => import('./admin/MetadataExplorerPage').then((module) => ({ default: module.MetadataExplorerPage })));
 const ViewLabPage = lazy(() => import('./admin/ViewLabPage').then((module) => ({ default: module.ViewLabPage })));
@@ -555,6 +556,15 @@ export function AppRoutes() {
                 element={
                   <ServiceOrdersRoute>
                     <ServiceOrderEngineDetailPage />
+                  </ServiceOrdersRoute>
+                }
+              />
+              {/* ERP Tier 1: uma bancada por objeto sobre contratos integrados e autorizados. */}
+              <Route
+                path="/app/service-orders/:serviceOrderId/workbench"
+                element={
+                  <ServiceOrdersRoute>
+                    <ServiceOrderEnterpriseWorkbenchPage />
                   </ServiceOrdersRoute>
                 }
               />
