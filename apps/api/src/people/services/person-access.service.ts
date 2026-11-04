@@ -119,7 +119,7 @@ export class PersonAccessService {
       q?: string;
       defaultLaborTypeCode?: string;
     },
-  ): Promise<{ items: PersonResponse[]; limit: number; offset: number }> {
+  ): Promise<{ items: PersonResponse[]; limit: number; offset: number; total: number; asOf: string }> {
     const grants = await this.authorizationRepository.findActiveGrants(
       actor.identityId,
       AUTHZ_ACTIONS.PeoplePersonList,
@@ -134,8 +134,9 @@ export class PersonAccessService {
       throw this.denied();
     }
 
-    const whereParts: string[] = [];
-    const params: unknown[] = [];
+    // Authorization predicate must accompany both page and count.
+    const whereParts: string[] = [scopeFilter.clause];
+    const params: unknown[] = [...scopeFilter.params];
 
     if (query.status) {
       whereParts.push(`m.status = $${params.length + 1}::wrk.workforce_member_status`);
@@ -154,12 +155,17 @@ export class PersonAccessService {
 
     const whereClause = whereParts.length > 0 ? whereParts.join(' AND ') : 'TRUE';
 
-    const rows = await this.peopleRepository.list(whereClause, params, query.limit, query.offset);
+    const [rows, total] = await Promise.all([
+      this.peopleRepository.list(whereClause, params, query.limit, query.offset),
+      this.peopleRepository.count(whereClause, params),
+    ]);
 
     return {
       items: rows.map(toPersonResponse),
       limit: query.limit,
       offset: query.offset,
+      total,
+      asOf: new Date().toISOString(),
     };
   }
 
