@@ -1,0 +1,97 @@
+# PROD-ACCEPT-001 — Atestado empresarial read-only, separado do deploy tecnico.
+# CONDITIONAL (unidade sem operacao real) jamais equivale a aceite de negocio.
+# Nao cria clientes, OS, medicao, receita, recebivel ou lancamento ficticio.
+name: Production Business Evidence
+
+on:
+  workflow_run:
+    workflows: [Coolify Release Images]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 10 * * *'
+
+concurrency:
+  group: cisne-production-business-evidence
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-business-attestation:
+    name: Authenticated read-only business evidence
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_sha == github.sha))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact main SHA
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install browser-gate dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter @cisne/web...
+
+      - name: Verify production runtime SHA and authenticated smoke (read only)
+        id: smoke
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+          COOLIFY_WORKER_UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
+          COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
+          COOLIFY_SOURCE_SHA: ${{ github.sha }}
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/browser-gate
+          node scripts/cd/coolify-postdeploy-smoke.mjs > artifacts/browser-gate/smoke.log
+          WEB_URL=$(sed -n 's/.*\[coolify-postdeploy\] web-url=//p' artifacts/browser-gate/smoke.log | tail -1)
+          test -n "$WEB_URL"
+          echo "web_url=$WEB_URL" >> "$GITHUB_OUTPUT"
+          echo "Runtime SHA and authenticated smoke passed"
+
+      - name: Inspect real enterprise operations without mutations
+        id: attestation
+        env:
+          CISNE_PROD_WEB_URL: ${{ steps.smoke.outputs.web_url }}
+          PROD_SMOKE_LOGIN: ${{ secrets.PROD_SMOKE_LOGIN }}
+          PROD_SMOKE_PASSWORD: ${{ secrets.PROD_SMOKE_PASSWORD }}
+          CISNE_RELEASE_PREREQUISITES_VERIFIED: 'true'
+          EXPECTED_SOURCE_SHA: ${{ github.sha }}
+          BROWSER_GATE_OUT: artifacts/browser-gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/cd/install-playwright-chromium.mjs
+          node scripts/cd/coolify-browser-gate.mjs > artifacts/browser-gate/verdict.log
+          node scripts/cd/production-business-attestation.mjs \
+            artifacts/browser-gate/verdict.log \
+            artifacts/business-attestation.json
+
+      # Do not publish screenshots, business payloads, IDs, session tokens or raw logs.
+      - name: Upload sanitized attestation only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: production-business-attestation-${{ github.sha }}
+          path: artifacts/business-attestation.json
+          if-no-files-found: ignore
+          retention-days: 14
