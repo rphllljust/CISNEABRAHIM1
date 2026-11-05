@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import {
@@ -91,7 +91,7 @@ type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
-  | { phase: 'ready'; items: Contract[]; offset: number; hasMore: boolean };
+  | { phase: 'ready'; items: Contract[]; offset: number; hasMore: boolean; total: number | null };
 
 /**
  * PESO DO CICLO DE VIDA — a regra de leitura da carteira de contratos.
@@ -171,6 +171,7 @@ export function ContractsListPage() {
   const [effectiveFrom, setEffectiveFrom] = useState('');
   const [effectiveTo, setEffectiveTo] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const requestGeneration = useRef(0);
 
   /**
    * FILTRO AVANÇADO — mesma engine de metadados do resto do produto.
@@ -188,6 +189,7 @@ export function ContractsListPage() {
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
+      const generation = ++requestGeneration.current;
       setListState({ phase: 'loading' });
       try {
         const response = await listContracts(
@@ -204,13 +206,19 @@ export function ContractsListPage() {
           },
           signal,
         );
+        if (signal?.aborted || generation !== requestGeneration.current) return;
+        const total = typeof response.total === 'number' ? response.total : null;
         setListState({
           phase: 'ready',
           items: response.items,
           offset: response.offset,
-          hasMore: response.items.length === response.limit,
+          total,
+          hasMore: response.hasMore ?? (total !== null
+            ? response.offset + response.items.length < total
+            : response.items.length === response.limit),
         });
       } catch (error) {
+        if (signal?.aborted || generation !== requestGeneration.current) return;
         if (error instanceof ContractsApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
@@ -275,7 +283,7 @@ export function ContractsListPage() {
     );
   }
 
-  const { items, offset, hasMore } = listState;
+  const { items, offset, hasMore, total } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const hasActiveFilters = Boolean(clientFilter.trim() || unitFilter.trim());
   const now = new Date();
@@ -726,7 +734,7 @@ export function ContractsListPage() {
               */}
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[color:var(--color-divider)] px-3 py-1.5">
                 <p className="cisne-type-helper m-0 tabular-nums">
-                  {`${offset + 1}–${offset + items.length} nesta página`}
+                  {`${offset + 1}–${offset + items.length}${total === null ? ' nesta página' : ` de ${total} contratos`}`}
                 </p>
                 <ModulePagination
                   pageNumber={pageNumber}
