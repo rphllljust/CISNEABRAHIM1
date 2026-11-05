@@ -35,11 +35,20 @@ describe('Report-to-Record export authorization after grant revocation', () => {
   it('does not return metadata or export bytes to the original requester after their report grant is revoked', async () => {
     const { service, exports, storage } = setup();
     await expect(service.getExport(actor, 'exp-1'))
-      .rejects.toMatchObject({ code: REPORT_ERROR_CODES.ACCESS_DENIED });
+      .rejects.toMatchObject({
+        status: 403,
+        response: { error: { code: REPORT_ERROR_CODES.ACCESS_DENIED } },
+      });
     await expect(service.downloadExport(actor, 'exp-1'))
-      .rejects.toMatchObject({ code: REPORT_ERROR_CODES.ACCESS_DENIED });
+      .rejects.toMatchObject({
+        status: 403,
+        response: { error: { code: REPORT_ERROR_CODES.ACCESS_DENIED } },
+      });
     await expect(service.cancelExport(actor, 'exp-1'))
-      .rejects.toMatchObject({ code: REPORT_ERROR_CODES.ACCESS_DENIED });
+      .rejects.toMatchObject({
+        status: 403,
+        response: { error: { code: REPORT_ERROR_CODES.ACCESS_DENIED } },
+      });
     expect(storage.getObject).not.toHaveBeenCalled();
     expect(exports.markCancelled).not.toHaveBeenCalled();
   });
@@ -47,7 +56,10 @@ describe('Report-to-Record export authorization after grant revocation', () => {
   it('does not publish a list of historical reports when the actor has no current report grant', async () => {
     const { service, exports } = setup();
     await expect(service.listExports(actor, {}))
-      .rejects.toMatchObject({ code: REPORT_ERROR_CODES.ACCESS_DENIED });
+      .rejects.toMatchObject({
+        status: 403,
+        response: { error: { code: REPORT_ERROR_CODES.ACCESS_DENIED } },
+      });
     expect(exports.listForActor).not.toHaveBeenCalled();
   });
 
@@ -60,7 +72,10 @@ describe('Report-to-Record export authorization after grant revocation', () => {
       ),
     );
     await expect(service.listExports(actor, { reportType: REPORT_TYPES.FinancialAging }))
-      .rejects.toMatchObject({ code: REPORT_ERROR_CODES.ACCESS_DENIED });
+      .rejects.toMatchObject({
+        status: 403,
+        response: { error: { code: REPORT_ERROR_CODES.ACCESS_DENIED } },
+      });
     expect(exports.listForActor).not.toHaveBeenCalled();
   });
 
