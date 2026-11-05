@@ -230,6 +230,10 @@ export async function resolveAuthorizedUnit(
       },
     );
     if (!response.ok) {
+      if (response.status === 401) throw new Error('session_expired');
+      if (response.status === 429 || response.status >= 500) {
+        throw new Error('unit_lookup_unavailable');
+      }
       return '';
     }
     const body = (await response.json()) as { items?: unknown };
@@ -246,8 +250,11 @@ export async function resolveAuthorizedUnit(
       // sem persistência, o cache em memória ainda evita refetch na mesma sessão
     }
     return units[0] ?? '';
-  } catch {
-    return '';
+  } catch (error) {
+    // A unit lookup timeout/5xx must not become a false "no authorized unit".
+    // PDP still makes the actual grant decision on the real domain request.
+    if (error instanceof Error && error.message === 'session_expired') throw error;
+    throw new Error('unit_lookup_unavailable');
   }
 }
 

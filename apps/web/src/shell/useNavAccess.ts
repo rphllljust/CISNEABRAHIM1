@@ -219,7 +219,14 @@ export function useNavAccess(): NavAccessState {
        * ESCOPO AUTORIZADO resolvido UMA vez para todas as sondas que exigem unidade.
        * Sem ele, fiscal e contabilidade não têm como montar a leitura de entrada.
        */
-      const unitId = await resolveAuthorizedUnit(ownerIdentityId, controller.signal);
+      let unitId = '';
+      try {
+        unitId = await resolveAuthorizedUnit(ownerIdentityId, controller.signal);
+      } catch {
+        // The session may be valid while the unit directory is unavailable.
+        // Continue fail closed without caching a false scope decision.
+        transientFailure = true;
+      }
       if (cancelled) {
         return;
       }
