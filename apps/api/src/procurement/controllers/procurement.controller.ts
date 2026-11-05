@@ -92,6 +92,23 @@ export class ProcurementController {
     return this.procurement.getOrder({ identityId: auth.sub, sessionId: auth.sid }, orderId);
   }
 
+  @Get('orders/:orderId/receipt-lines')
+  listPostedReceiptLines(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('orderId') orderId: string,
+    @Query() query: Record<string, unknown>,
+  ) {
+    // Let the domain service enforce positive bounded pagination, in addition
+    // to its per-object procurement read/receive authorization.
+    const limit = query['limit'] === undefined ? undefined : Number(query['limit']);
+    const offset = query['offset'] === undefined ? undefined : Number(query['offset']);
+    return this.procurement.listPostedReceiptLines(
+      { identityId: auth.sub, sessionId: auth.sid },
+      orderId,
+      { limit, offset },
+    );
+  }
+
   @Post('orders/:orderId/receive')
   receive(
     @CurrentAuth() auth: AccessTokenClaims,
