@@ -35,6 +35,7 @@ import { FinanceTitleQueues } from '../components/FinanceTitleQueues';
 import { FinanceSituationStrip } from '../components/FinanceSituation';
 import { ReceivableIntegrityStrip } from '../components/ReceivableIntegrityStrip';
 import { overduePortfolio } from '../utils/overdue-portfolio';
+import { isFinancialPositionEmpty } from '../utils/financial-position-completeness';
 import { StatusBadge } from '../../ui/StatusBadge';
 import { WorkbenchQueue, WorkbenchQueueItem } from '../../ui/workbench';
 import { ContextSection, WorkspaceBody, WorkspacePane } from '../../ui/workspace-frame';
@@ -135,11 +136,12 @@ function isPositionEmpty(data: OverviewData): boolean {
   if (!receivables.data || !payables.data || !accounts.data || !aging.data) {
     return false;
   }
-  const agingIsZero = Object.values(aging.data.buckets).every((bucket) => bucket.count === 0);
-  // `total` pode vir ausente numa leitura vazia; posicao sem titulo nenhum e vazia de fato.
-  const receivableTotal = receivables.data.total ?? 0;
-  const payableTotal = payables.data.total ?? 0;
-  return receivableTotal === 0 && payableTotal === 0 && accounts.data.length === 0 && agingIsZero;
+  return isFinancialPositionEmpty({
+    receivableTotal: receivables.data.total,
+    payableTotal: payables.data.total,
+    accountCount: accounts.data.length,
+    agingBucketCounts: Object.values(aging.data.buckets).map((bucket) => bucket.count),
+  });
 }
 
 /**
