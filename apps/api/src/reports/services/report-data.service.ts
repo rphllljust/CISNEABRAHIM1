@@ -306,7 +306,7 @@ export class ReportDataService {
         };
       case REPORT_TYPES.Receipts:
         return {
-          fromClause: 'rpt.read_billing_documents bd',
+          fromClause: 'rpt.read_billing_documents bd INNER JOIN rpt.read_service_orders so ON so.id = bd.service_order_id',
           selectClause: `SELECT bd.document_number AS "documentNumber",
                                 bd.client_legal_name_snapshot AS "clientName",
                                 bd.status::text AS status,
@@ -338,10 +338,8 @@ export class ReportDataService {
       case REPORT_TYPES.ServiceOrdersOverdue:
         return this.scopeFor(actor, AUTHZ_ACTIONS.ServiceOrdersServiceOrderList, AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder, 'so');
       case REPORT_TYPES.AssetUtilization:
-        return prefixAlias(
-          await this.scopeFor(actor, AUTHZ_ACTIONS.ResourcesAssetList, AUTHZ_RESOURCE_TYPES.ResourcesAsset),
-          'a',
-        );
+        // The asset scope builder already emits a.unit_id; do not prefix twice.
+        return this.scopeFor(actor, AUTHZ_ACTIONS.ResourcesAssetList, AUTHZ_RESOURCE_TYPES.ResourcesAsset);
       case REPORT_TYPES.Measurements:
         return this.scopeFor(
           actor,
