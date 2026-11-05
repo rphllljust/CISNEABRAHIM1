@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -26,7 +27,7 @@ vi.mock('../auth/context/AuthProvider', async (importOriginal) => ({
   useAuth: () => ({ expireSession: vi.fn() }),
 }));
 
-function route(element: React.ReactNode) {
+function route(element: ReactNode) {
   return render(
     <MemoryRouter initialEntries={['/app/module']}>
       <Routes>
