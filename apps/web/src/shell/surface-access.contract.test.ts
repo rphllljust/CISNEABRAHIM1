@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetTokenStoreForTests, tokenStore } from '../auth/storage/token-store';
 import {
   probeExplicitCapability,
   probeSurfaceAccess,
@@ -7,10 +8,6 @@ import {
 } from './surface-access';
 
 vi.mock('../auth/api/auth-api', () => ({ getApiBaseUrl: () => '' }));
-vi.mock('../auth/storage/token-store', () => ({
-  tokenStore: { getAccessToken: () => 'session-token' },
-}));
-
 function reply(status: number, body: unknown = {}) {
   return new Response(JSON.stringify(body), {
     status,
@@ -19,6 +16,10 @@ function reply(status: number, body: unknown = {}) {
 }
 
 describe('MASTER 002: cross-module authorization probes', () => {
+  beforeEach(() => {
+    resetTokenStoreForTests();
+    tokenStore.setTokens('session-token', 'refresh-token');
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
     resetSurfaceAccessCacheForTests();
