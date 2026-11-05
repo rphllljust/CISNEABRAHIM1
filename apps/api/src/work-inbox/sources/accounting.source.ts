@@ -196,17 +196,26 @@ export function describeBlockers(blockers: ClosingException[]): string {
  * persistida entre o mundo financeiro e o contábil. A severidade vem do read model, não
  * é recalculada aqui.
  */
+/** The source kind is authoritative; a payroll or fiscal posting is not a payment. */
+const ECONOMIC_FACT_LABELS: Record<EconomicWorkItem['factKind'], string> = {
+  SETTLEMENT: 'Liquidação',
+  PAYMENT: 'Pagamento',
+  RECEIVABLE: 'Recebível',
+  PAYABLE: 'Título a pagar',
+  FISCAL_DOCUMENT: 'Documento fiscal',
+  TAX_CALCULATION: 'Apuração tributária',
+  INVENTORY_MOVEMENT: 'Movimentação de estoque',
+  PAYROLL_PERIOD: 'Competência de folha',
+  FIXED_ASSET: 'Ativo imobilizado',
+};
+
 export function postingExceptionToWorkItem(item: EconomicWorkItem): WorkItem {
   return {
     id: `CONTABILIDADE:POSTING:${item.factKind}:${item.factId}`,
     domain: 'CONTABILIDADE',
     kind: 'EXCEPTION',
-    businessReference:
-      item.factKind === 'SETTLEMENT' ? `Liquidação ${item.amount}` : `Pagamento ${item.amount}`,
-    title:
-      item.factKind === 'SETTLEMENT'
-        ? 'Liquidação sem contabilização'
-        : 'Pagamento sem contabilização',
+    businessReference: `${ECONOMIC_FACT_LABELS[item.factKind]} · ${item.currencyCode} ${item.amount}`,
+    title: `${ECONOMIC_FACT_LABELS[item.factKind]} sem contabilização`,
     contextLabel: `Unidade ${item.unitId} · ${item.reference}`,
     status: item.accountingState,
     reason: item.reason,
