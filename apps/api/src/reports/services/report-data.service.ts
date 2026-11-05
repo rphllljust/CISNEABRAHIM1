@@ -117,6 +117,14 @@ export class ReportDataService {
         break;
       }
     }
+    // Rows may be appended after the initial COUNT. Fail rather than emit a
+    // misleading "complete" artifact that silently contains only the first N.
+    if (total >= REPORT_POLICY.maxRows) {
+      const overflow = await this.loadRows(actor, reportType, filters, 1, offset);
+      if (overflow.length > 0) {
+        throw new Error('REPORT_EXPORT_ROW_LIMIT_EXCEEDED');
+      }
+    }
     return total;
   }
 
