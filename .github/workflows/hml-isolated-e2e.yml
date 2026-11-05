@@ -2,6 +2,18 @@ name: HML isolated end-to-end
 
 on:
   workflow_dispatch:
+  # Validate modified business contracts on the PR head before any merge or production promotion.
+  # The job uses a disposable HML stack and sandbox-only synthetic data.
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'apps/api/src/people/**'
+      - 'apps/api/src/catalog/**'
+      - 'apps/web/src/people/**'
+      - 'apps/web/src/catalog/**'
+      - 'apps/web/e2e/hml/**'
+      - '.github/workflows/hml-isolated-e2e.yml'
   push:
     branches:
       - 'hml/isolated-e2e-runner'
