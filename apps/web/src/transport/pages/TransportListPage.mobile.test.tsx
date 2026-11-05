@@ -4,8 +4,10 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TransportListPage } from './TransportListPage';
 
-const listTransportServiceOrders = vi.fn();
-const useMediaQuery = vi.fn();
+const { listTransportServiceOrders, useMediaQuery } = vi.hoisted(() => ({
+  listTransportServiceOrders: vi.fn(),
+  useMediaQuery: vi.fn(),
+}));
 
 vi.mock('../api/transport-api', () => ({
   listTransportServiceOrders,
