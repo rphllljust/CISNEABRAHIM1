@@ -353,6 +353,6 @@ export async function probePurchaseOrderListAccess(signal?: AbortSignal): Promis
         return false;
       }
     }
-    return false;
+    throw error;
   }
 }

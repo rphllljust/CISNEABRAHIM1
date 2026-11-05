@@ -352,6 +352,6 @@ export async function probeAssetListAccess(signal?: AbortSignal): Promise<boolea
         return false;
       }
     }
-    return false;
+    throw error;
   }
 }

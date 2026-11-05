@@ -309,6 +309,6 @@ export async function probeCatalogListAccess(signal?: AbortSignal): Promise<bool
         return false;
       }
     }
-    return false;
+    throw error;
   }
 }

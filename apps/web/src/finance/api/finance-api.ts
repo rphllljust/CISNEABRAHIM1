@@ -848,14 +848,9 @@ async function probeList(path: string, signal?: AbortSignal): Promise<boolean> {
     await requestJson<unknown>(path, { method: 'GET', headers: authHeaders(), signal });
     return true;
   } catch (error) {
-    if (error instanceof BackofficeApiError) {
-      if (error.status === 401) {
-        throw error;
-      }
-      if (error.kind === 'denied') {
-        return false;
-      }
+    if (error instanceof BackofficeApiError && error.kind === 'denied') {
+      return false;
     }
-    return false;
+    throw error;
   }
 }

@@ -300,6 +300,6 @@ export async function probePersonListAccess(signal?: AbortSignal): Promise<boole
         return false;
       }
     }
-    return false;
+    throw error;
   }
 }
