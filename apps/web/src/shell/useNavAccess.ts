@@ -141,7 +141,6 @@ function readPersistedNavAccess(identityId: string): NavAccessState | null {
     }
     return { loading: false, access: parsed.access as NavAccessMap };
   } catch {
-            transientFailure = true;
     return null;
   }
 }
@@ -158,7 +157,6 @@ function persistNavAccess(identityId: string, state: NavAccessState): void {
       }),
     );
   } catch {
-            transientFailure = true;
     // Fail-open apenas para o cache: sem persistencia o menu ainda resolve pela rede.
   }
 }
@@ -169,7 +167,6 @@ export function resetNavAccessCacheForTests(): void {
   try {
     window.sessionStorage.removeItem(NAV_ACCESS_STORAGE_KEY);
   } catch {
-            transientFailure = true;
     // ignore
   }
 }
