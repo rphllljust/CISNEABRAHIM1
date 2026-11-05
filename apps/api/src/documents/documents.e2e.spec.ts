@@ -163,6 +163,52 @@ describe('Documents E2E', () => {
     expect(response.statusCode).toBe(401);
   });
 
+  it('issues ZIP batch only after JWT and per-version validation', async () => {
+    const anonymous = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents/download-batch',
+      payload: { documents: [] },
+    });
+    expect(anonymous.statusCode).toBe(401);
+
+    const { accessToken } = await loginWithDocumentGrants(`batch-${crypto.randomUUID()}`);
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents/download-batch',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { documents: [{ documentId: 'not-uuid', versionNumber: 1 }] },
+    });
+    expect(invalid.statusCode).toBe(400);
+    expect(parseDocumentError(invalid.body).error.code).toBe(DOCUMENT_ERROR_CODES.INVALID_INPUT);
+
+    const upload = buildMultipartBody({
+      title: 'Lote autorizado',
+      categoryCode: 'GENERAL',
+      classificationCode: 'INTERNAL',
+      unitId: UNIT_A,
+    }, { name: 'authorized.pdf', mime: 'application/pdf', buffer: minimalPdfBuffer() });
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents',
+      headers: { authorization: `Bearer ${accessToken}`, 'content-type': upload.contentType },
+      payload: upload.body,
+    });
+    expect(created.statusCode).toBe(201);
+    const { document } = JSON.parse(created.body) as { document: { id: string } };
+
+    const zip = await app.inject({
+      method: 'POST',
+      url: '/api/v1/documents/download-batch',
+      headers: { authorization: `Bearer ${accessToken}` },
+      payload: { documents: [{ documentId: document.id, versionNumber: 1 }] },
+    });
+    expect(zip.statusCode).toBe(200);
+    expect(zip.headers['content-type']).toContain('application/zip');
+    expect(zip.headers['cache-control']).toBe('no-store');
+    expect(zip.headers['x-document-count']).toBe('1');
+    expect(zip.rawPayload.readUInt32LE(0)).toBe(0x04034b50);
+  });
+
   it('answers 400 (validation) — never 500 — when upload is not multipart', async () => {
     const { accessToken } = await loginWithDocumentGrants();
 
