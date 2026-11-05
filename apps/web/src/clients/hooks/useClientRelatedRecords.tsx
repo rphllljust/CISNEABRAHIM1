@@ -218,7 +218,7 @@ async function loadModules(
           meta: item.issueDate ? `Emissão ${formatShortDateTime(item.issueDate)}` : item.internalCode,
           badge: <PurchaseOrderStatusBadge status={item.status} />,
         })),
-      completeCount,
+      (response) => response.summary?.recordCount ?? completeCount(response),
     ),
     contracts: toModule(
       contracts,
@@ -242,7 +242,7 @@ async function loadModules(
           meta: serviceOrderMeta(item),
           badge: <ServiceOrderStatusBadge status={item.status} />,
         })),
-      completeCount,
+      (response) => response.total ?? completeCount(response),
     ),
   };
 }
