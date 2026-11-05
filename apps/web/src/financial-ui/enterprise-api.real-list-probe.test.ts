@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetTokenStoreForTests, tokenStore } from '../auth/storage/token-store';
 import { probeInventoryReadAccess } from '../inventory/api/inventory-api';
 import { probeProcurementReadAccess } from '../procurement/api/procurement-api';
 import { probeSupplierListAccess } from '../suppliers/api/suppliers-api';
@@ -7,10 +8,6 @@ vi.mock('../auth/api/auth-api', () => ({
   getApiBaseUrl: () => '',
   isNetworkError: (error: unknown) => error instanceof TypeError,
 }));
-vi.mock('../auth/storage/token-store', () => ({
-  tokenStore: { getAccessToken: () => 'signed-in-test-actor' },
-}));
-
 function reply(status: number) {
   return new Response(JSON.stringify(status === 200 ? { items: [], total: 0 } : { error: {} }), {
     status, headers: { 'Content-Type': 'application/json' },
@@ -18,6 +15,10 @@ function reply(status: number) {
 }
 
 describe('Procure-to-Pay: real entry-list authorization', () => {
+  beforeEach(() => {
+    resetTokenStoreForTests();
+    tokenStore.setTokens('signed-in-test-actor', 'refresh-token');
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it('checks the actual procurement worklist, not a fabricated record ID', async () => {
