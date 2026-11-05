@@ -35,7 +35,7 @@ describe('Procure-to-Pay: financial consequence of supplier receipt', () => {
   });
 
   it('does not render a title or status after Finance returns 403', async () => {
-    vi.mocked(getPayable).mockRejectedValue(new BackofficeApiError(403, 'FINANCE_DENIED'));
+    vi.mocked(getPayable).mockRejectedValue(new BackofficeApiError(403, 'FINANCE_DENIED', 'denied'));
     subject();
     await waitFor(() =>
       expect(screen.queryByText('Consultando consequência financeira…')).not.toBeInTheDocument(),
