@@ -314,6 +314,13 @@ export class PersonAccessService {
         'Person is already inactive.',
       );
     }
+    if (updated === 'HAS_ACTIVE_ALLOCATIONS') {
+      throw new PersonHttpException(
+        HttpStatus.CONFLICT,
+        PERSON_ERROR_CODES.ACTIVE_ALLOCATIONS,
+        'Person has active Service Order allocations. Remove them before deactivation.',
+      );
+    }
 
     await this.securityAudit.record({
       actorIdentityId: actor.identityId,
