@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { ReceiptEvidencePanel } from './ReceiptEvidencePanel';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import {
   bindReceiptProvenance,
