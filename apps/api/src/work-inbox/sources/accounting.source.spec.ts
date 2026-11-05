@@ -269,6 +269,11 @@ describe('accounting source — leitura e autorizacao', () => {
     const items = await source.collect(ACTOR);
 
     expect(items).toHaveLength(1);
+    expect(economicTrace.worklist).toHaveBeenCalledWith(ACTOR, {
+      unitId: 'UN-A',
+      limit: 50,
+      offset: 0,
+    });
     expect(items[0]).toMatchObject({
       id: 'CONTABILIDADE:POSTING:SETTLEMENT:settlement-1',
       domain: 'CONTABILIDADE',
@@ -335,4 +340,17 @@ describe('accounting source — leitura e autorizacao', () => {
     expect(items).toHaveLength(1);
     expect(items[0]!.id).toContain('CLOSING');
   });
+  it('fails the source when the accounting owner cannot read postings because of infrastructure', async () => {
+    const { source, economicTrace } = build({
+      units: ['UN-A'],
+      periods: async () => ({ unitId: 'UN-A', items: [] }),
+      readiness: async () => ({ unitId: 'UN-A', period: period(), blockers: [] }),
+    });
+    economicTrace.worklist.mockRejectedValue(new HttpException('Database is not available', 503));
+    await expect(source.collect(ACTOR)).rejects.toThrow('Database is not available');
+    expect(economicTrace.worklist).toHaveBeenCalledWith(ACTOR, {
+      unitId: 'UN-A', limit: 50, offset: 0,
+    });
+  });
+
 });
