@@ -11,6 +11,13 @@ import { renderWithProviders } from './test/render-with-providers';
 
 const VIEWPORTS = [360, 768, 1024, 1440] as const;
 const EXPENSE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+/**
+ * Centro de custo REAL devolvido pelo cadastro (`GET finance/cost-centers`).
+ *
+ * Nao e um uuid aleatorio digitado: e o identificador que o servidor publica e que a tela
+ * precisa reenviar exatamente como recebeu.
+ */
+const COST_CENTER_ID = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1';
 const SUPPLIER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
 
 function applyViewport(width: number): void {
@@ -89,6 +96,34 @@ function createCatchUpFetchMock(options: CatchUpMockOptions = {}) {
       createCalls.count += 1;
       await new Promise((resolve) => setTimeout(resolve, 40));
       return jsonResponse({ id: EXPENSE_ID, status: 'DRAFT', version: 1, items: [] }, 201);
+    }
+
+    /**
+     * DIRETORIOS DE REFERENCIA DO FINANCEIRO.
+     *
+     * `GET finance/cost-centers` e `GET finance/expense-categories` fecham o
+     * `PARK: HUMAN_LOOKUP_API_GAP`: o campo de centro de custo deixou de ser um `Input` de UUID e
+     * passou a ser escolha humana com busca do servidor. O mock responde com um registro REAL do
+     * cadastro para que o teste prove a escolha ponta a ponta, e nao um identificador digitado.
+     */
+    if (pathname === '/api/v1/finance/cost-centers' && method === 'GET') {
+      return jsonResponse({
+        items: [{ id: COST_CENTER_ID, code: 'CC-1', name: 'Centro operacional', status: 'ACTIVE' }],
+        limit: 20,
+        offset: 0,
+        total: 1,
+        totalPages: 1,
+      });
+    }
+
+    if (pathname === '/api/v1/finance/expense-categories' && method === 'GET') {
+      return jsonResponse({
+        items: [{ id: 'cat-1', code: 'CAT-1', name: 'Categoria operacional', status: 'ACTIVE' }],
+        limit: 20,
+        offset: 0,
+        total: 1,
+        totalPages: 1,
+      });
     }
 
     if (pathname.includes('/suppliers/') && pathname.endsWith('/history') && method === 'GET') {
@@ -226,7 +261,26 @@ describe('Enterprise UI catch-up', () => {
     await user.click(screen.getByRole('button', { name: 'Registrar despesa' }));
     await user.type(screen.getByLabelText(/^unidade/i), 'unit-1');
     await user.type(screen.getByLabelText(/^categoria/i), 'cat-1');
-    await user.type(screen.getByLabelText(/centro de custo \(id\)/i), 'cc-1');
+    /**
+     * CENTRO DE CUSTO AGORA E ESCOLHA HUMANA.
+     *
+     * Antes desta mudanca o campo era `Centro de custo (id)` e o teste digitava `cc-1` — um
+     * identificador inventado que o backend aceitava porque `cost_center_id` nao tinha tabela
+     * nem FK. O cadastro existe agora (`GET finance/cost-centers`), entao a prova correta e a
+     * ESCOLHA a partir do que o servidor publicou, nao a digitacao de um uuid.
+     */
+    const costCenterSearch = screen.getByLabelText(/buscar centro de custo/i);
+    await user.type(costCenterSearch, 'Centro');
+    /**
+     * O controle de escolha e o `select` do lookup, identificado pelo `data-testid` declarado
+     * no proprio componente. Usar o testid (e nao o rotulo) e deliberado: o `label` do `Field`
+     * aponta para o campo de BUSCA, que e o controle que o operador digita primeiro.
+     */
+    const costCenterSelect = await screen.findByTestId('expense-cost-center-select');
+    const publishedOption = await within(costCenterSelect).findByRole('option', {
+      name: /centro operacional/i,
+    });
+    await user.selectOptions(costCenterSelect, publishedOption);
     await user.type(screen.getByLabelText(/centro de custo \(código\)/i), 'CC-1');
     await user.type(screen.getByLabelText(/^vencimento/i), '2026-09-10');
     await user.type(screen.getByLabelText(/condição de pagamento/i), '30d');

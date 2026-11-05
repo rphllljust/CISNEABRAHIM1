@@ -115,6 +115,31 @@ export function mapPayableDomainError(error: unknown): FinanceHttpException {
         FINANCE_ERROR_CODES.EXPENSE_CATEGORY_DUPLICATE,
         'Expense category code already exists.',
       );
+    case 'EXPENSE_CATEGORY_STATUS_INVALID':
+      return new FinanceHttpException(
+        HttpStatus.BAD_REQUEST,
+        FINANCE_ERROR_CODES.EXPENSE_CATEGORY_STATUS_INVALID,
+        'Expense category status is not part of the known set.',
+      );
+    case 'COST_CENTER_NOT_FOUND':
+    case 'FINANCE_COST_CENTER_NOT_FOUND':
+      return new FinanceHttpException(
+        HttpStatus.NOT_FOUND,
+        FINANCE_ERROR_CODES.COST_CENTER_NOT_FOUND,
+        'Cost center not found.',
+      );
+    case 'COST_CENTER_DUPLICATE':
+      return new FinanceHttpException(
+        HttpStatus.CONFLICT,
+        FINANCE_ERROR_CODES.COST_CENTER_DUPLICATE,
+        'Cost center code already exists.',
+      );
+    case 'COST_CENTER_STATUS_INVALID':
+      return new FinanceHttpException(
+        HttpStatus.BAD_REQUEST,
+        FINANCE_ERROR_CODES.COST_CENTER_STATUS_INVALID,
+        'Cost center status is not part of the known set.',
+      );
     case 'PAYMENT_NOT_FOUND':
       return new FinanceHttpException(
         HttpStatus.NOT_FOUND,

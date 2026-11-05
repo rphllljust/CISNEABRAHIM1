@@ -54,6 +54,11 @@ export async function truncateFinanceTables(client: DbClient): Promise<void> {
     await client.query('DELETE FROM fin.payable_installments');
     await client.query('DELETE FROM fin.payables');
     await client.query('DELETE FROM fin.expense_categories');
+  // `fin.cost_centers` e cadastro de REFERENCIA do modulo: nenhuma tabela a referencia por FK
+  // (ver 0118), entao nao ha ordem de dependencia a respeitar. Limpar aqui garante que a
+  // listagem de cada spec comece vazia — sem isso a primeira assercao de `total` mediria o
+  // estado acumulado de outra suite em vez do recorte que o proprio teste criou.
+  await client.query('DELETE FROM fin.cost_centers');
   await client.query('DELETE FROM fin.settlements');
   await client.query('DELETE FROM fin.receivable_installments');
   await client.query('DELETE FROM fin.receivables');

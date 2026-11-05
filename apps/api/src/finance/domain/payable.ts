@@ -26,6 +26,53 @@ export const PAYABLE_LIFECYCLES = {
 
 export type PayableLifecycle = (typeof PAYABLE_LIFECYCLES)[keyof typeof PAYABLE_LIFECYCLES];
 
+/**
+ * Status de categoria de despesa — espelha `fin.expense_category_status` do banco.
+ *
+ * Declarado no DOMINIO porque a regra de "quais status existem" e do dominio, nao da borda HTTP.
+ * Ha um teste de contrato que compara esta lista com o enum do schema; valor fora dela e
+ * recusado na listagem em vez de virar filtro silenciosamente ignorado.
+ */
+export const EXPENSE_CATEGORY_STATUSES = {
+  Active: 'ACTIVE',
+  Inactive: 'INACTIVE',
+} as const;
+
+export type ExpenseCategoryStatus =
+  (typeof EXPENSE_CATEGORY_STATUSES)[keyof typeof EXPENSE_CATEGORY_STATUSES];
+
+const EXPENSE_CATEGORY_STATUS_SET: ReadonlySet<string> = new Set(
+  Object.values(EXPENSE_CATEGORY_STATUSES),
+);
+
+/**
+ * Predicado do conjunto FECHADO de status de categoria de despesa.
+ *
+ * Usado na borda da listagem: valor desconhecido e recusado ali, em vez de descer ao SQL como
+ * comparação que nunca casa — o que devolveria lista vazia e seria lido como "não há categoria".
+ */
+export function isExpenseCategoryStatus(value: string): value is ExpenseCategoryStatus {
+  return EXPENSE_CATEGORY_STATUS_SET.has(value);
+}
+
+/**
+ * Status de centro de custo — espelha `fin.cost_center_status` do banco (migration 0118).
+ *
+ * Mesma disciplina da categoria de despesa: conjunto FECHADO no dominio, recusa na borda.
+ */
+export const COST_CENTER_STATUSES = {
+  Active: 'ACTIVE',
+  Inactive: 'INACTIVE',
+} as const;
+
+export type CostCenterStatus = (typeof COST_CENTER_STATUSES)[keyof typeof COST_CENTER_STATUSES];
+
+const COST_CENTER_STATUS_SET: ReadonlySet<string> = new Set(Object.values(COST_CENTER_STATUSES));
+
+export function isCostCenterStatus(value: string): value is CostCenterStatus {
+  return COST_CENTER_STATUS_SET.has(value);
+}
+
 export const PAYMENT_KINDS = {
   Payment: 'PAYMENT',
   Reversal: 'REVERSAL',

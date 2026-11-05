@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input, Money, worklistTableCardClass } from '../../ui';
 import { ModulePage, ModulePagination, ModulePrimaryLink, ModuleTableLink } from '../../ui/module-layout';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchCostCenterOptions } from '../../financial-ui/finance-directory-lookup';
 import {
   EnterpriseMetric,
   WorklistClearFilters,
@@ -22,7 +24,6 @@ import {
 import { DefinitionList } from '../../financial-ui/DefinitionList';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { PROCUREMENT_REQUEST_STATUS_LABELS, SUPPLIER_INVOICE_STATUS_LABELS, SUPPLIER_PO_STATUS_LABELS } from '../../financial-ui/labels';
-import { HumanLookupField } from '../../financial-ui/HumanLookupField';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { BackofficeCapabilityRoute } from '../../financial-ui/BackofficeCapabilityRoute';
@@ -980,9 +981,17 @@ export function PurchaseOrderPage() {
         <Field label="Categoria" htmlFor="recv-cat" required>
           <Input id="recv-cat" value={expenseCategoryId} onChange={(event) => setExpenseCategoryId(event.target.value)} required />
         </Field>
-        <Field label="Centro de custo (id)" htmlFor="recv-cc-id" required>
-          <Input id="recv-cc-id" value={costCenterId} onChange={(event) => setCostCenterId(event.target.value)} required />
-        </Field>
+        <HumanLookupField
+          label="Centro de custo"
+          htmlFor="recv-cc-id"
+          required
+          search={searchCostCenterOptions}
+          value={costCenterId}
+          onChange={(id) => setCostCenterId(id)}
+          placeholder="Busque por código ou nome do centro de custo"
+          emptyMessage="Nenhum centro de custo encontrado para a busca."
+          selectTestId="receive-cost-center-select"
+        />
         <Field label="Centro de custo (código)" htmlFor="recv-cc-code" required>
           <Input id="recv-cc-code" value={costCenterCode} onChange={(event) => setCostCenterCode(event.target.value)} required />
         </Field>
@@ -1229,14 +1238,17 @@ export function SupplierInvoicePage() {
                 required
               />
             </Field>
-            <Field label="Centro de custo (id)" htmlFor="si-cc-id" required>
-              <Input
-                id="si-cc-id"
-                value={costCenterId}
-                onChange={(event) => setCostCenterId(event.target.value)}
-                required
-              />
-            </Field>
+            <HumanLookupField
+              label="Centro de custo"
+              htmlFor="si-cc-id"
+              required
+              search={searchCostCenterOptions}
+              value={costCenterId}
+              onChange={(id) => setCostCenterId(id)}
+              placeholder="Busque por código ou nome do centro de custo"
+              emptyMessage="Nenhum centro de custo encontrado para a busca."
+              selectTestId="invoice-cost-center-select"
+            />
             <Field label="Centro de custo (código)" htmlFor="si-cc-code" required>
               <Input
                 id="si-cc-code"

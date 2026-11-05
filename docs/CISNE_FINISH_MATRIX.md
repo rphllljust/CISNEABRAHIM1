@@ -37,7 +37,7 @@ Resolução aplicada nesta fila, sem inventar regra:
 | requests | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | proposals | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | purchase-orders (cliente) | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
-| contracts | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | BASIC_GAP | edição de contrato não existe no backend |
+| contracts | Y | Y | Y | Y | **Y** | Y | Y | Y | Y | Y | Y | Y | Y | DONE | edição REAL via `PATCH :contractId` → `updateDraft` com rowVersion, authz `CommercialContractUpdate` e auditoria; e2e 21/21. O BASIC_GAP anterior estava **obsoleto** |
 | assets | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — (0a55810, 9d2ce38) |
 | service-orders | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | measurements | Y | Y | Y | Y | Y | N/A | N/A | Y | Y | Y | Y | Y | Y | DONE | — (superfície via OS) |
@@ -48,11 +48,11 @@ Resolução aplicada nesta fila, sem inventar regra:
 | **inventory** | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | **DONE** | centro de custo/categoria (PARK); edição de depósito/item inexistente no backend |
 | people | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | extrato bancário agora tem listagem autorizada e mesa de trabalho (status/conta/período server-side, seleção por URL); `PARK HUMAN_LOOKUP_API_GAP` para movimento financeiro (vínculo manual por id) e movimento de tesouraria |
-| finance/expenses | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | `PARK HUMAN_LOOKUP_API_GAP`: centro de custo e categoria de despesa sem listagem |
+| finance/expenses | Y | Y | Y | Y | - | Y | Y | **Y** | Y | Y | Y | Y | parcial | DONE | **RESOLVIDO**: centro de custo via `GET finance/cost-centers` e categoria via `GET finance/expense-categories`, ambos por `HumanLookupField` |
 | finance/budgets | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | período (id) sem listagem — `PARK HUMAN_LOOKUP_API_GAP` |
 | accounting | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | período descoberto pela unidade (`GET accounting/periods`), central de fechamento em `/app/closing` com bloqueadores reais e drill-down, lançamento com origem persistida; `PARK HUMAN_LOOKUP_API_GAP` apenas para o registro de imobilizado |
 | fiscal | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | DONE | lista operacional por unidade + competência, status na URL com filtro server-side, total real e drill-down a partir da central de fechamento; `PARK HUMAN_LOOKUP_API_GAP`: centro de custo (id) e `?status=FAILED` anunciado no Ctrl+K sem existir no enum do backend |
-| payroll | Y | Y | Y | Y | - | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | período e contrato por competência/status/código-nome; `PARK HUMAN_LOOKUP_API_GAP` (`GET payroll/periods` e `GET payroll/contracts` não existem) |
+| payroll | Y | Y | Y | Y | - | Y | Y | **Y** | Y | Y | Y | Y | Y | DONE | `GET payroll/periods` e `GET payroll/contracts` **existem e estão cobertos**; o PARK que os declarava ausentes estava incorreto. Resta apenas edição de contrato (não existe no backend) |
 | accounting (central de fechamento) | Y | Y | Y | N/A | N/A | Y | Y | Y | Y | Y | Y | Y | Y | DONE | `GET closing/readiness` agrega período, contábil, fiscal, bloqueadores e ações numa leitura autorizada; seção fiscal omitida por inteiro sem concessão de leitura fiscal |
 | fleet | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | resources | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
@@ -98,21 +98,124 @@ Itens 1–4 executados nesta rodada (commits `f0e83bb`, `b684741`, `a224824`, `b
 
 ---
 
-## GATE FINAL (rodada encerrada)
+## GATE FINAL (rodada MASTER-003)
+
+Base: `cd407234` (fast-forward de `fix/measurement-nested-read-model` → `main`). Medições abaixo são
+desta rodada, executadas sobre o código resultante.
 
 | Gate | Resultado | Evidência |
 | --- | --- | --- |
-| API typecheck (`tsc -p apps/api`) | PASS | 0 erros após a correção de fronteira |
-| WEB typecheck real (`tsc -b apps/web/tsconfig.json` — app + node + e2e) | PASS | `tsc -b --force` = 0 erros (atenção: `apps/web/tsconfig.json` é solução com `files: []`; `tsc -p` nele não verifica nada) |
-| ESLint (API e web, arquivos tocados) | PASS | 0 problemas |
-| API unit | PASS | 1014/1014 em 220 arquivos |
-| API integração focada | PASS | 33/33: suppliers 9, procurement core 10, notas 8, conferência 6; inventory 7 |
-| WEB suite completa | PASS | 618/618 em 125 arquivos |
-| Browser real (Playwright/chromium) | PASS | suppliers 4/4, procurement 4/4, inventory 4/4 em desktop 1280x720 e mobile 390x844 |
-| WEB build | PASS | `vite build` ok |
-| `git diff --check` | PASS | sem whitespace/erro de patch |
+| API typecheck (`tsc -p apps/api`) | PASS | 0 erros |
+| WEB typecheck real (`tsc -b apps/web/tsconfig.json`) | PASS | `tsc -b --force` = 0 erros |
+| ESLint API | PASS | 0 problemas (4 imports não usados corrigidos) |
+| ESLint WEB | PASS | 0 problemas |
+| API unit | **PASS** | **1905/1905 em 296 arquivos** |
+| API integração — frentes A e B | **PASS** | **43/43**: cost-center-reference 10, expense-category-lookup 9, payables 15, expense-management 9 |
+| Gate de banco (`pnpm gate:database`) | **PASS** | fresh PASS + incremental N-1→N PASS |
+| Gate de scripts (`pnpm gate:scripts`) | **PASS** | 87 `.mjs`, probes completos, 13/13 detectores |
+| WEB suíte focada (finance/fiscal/procurement/financial-ui) | **PASS** | **217/217 em 38 arquivos** |
+| Cobertura de journal por migration | **PASS** | 0118 com bloco próprio em `ensure-migrations.ts` |
 
-Observação de gate: o teste `service-orders-list.e2e` e o `assets.e2e` falhavam **antes** desta rodada (asserções obsoletas). Ambos foram corrigidos com asserção estrita, sem afrouxar verificação e sem alterar regra de negócio.
+Observação de gate: a suíte WEB completa apresentou 1 falha **variável** (`service-requests.e2e`,
+`assets.e2e`, `purchase-orders.e2e`, `measurement-workbench-api` e `ServiceOrdersEngineListPage`
+alternaram entre execuções; todas passam isoladas e em pares). `release-scope.http.spec.ts` (API)
+apresentou o mesmo padrão. É contenção de CPU do harness local, não defeito de produto — os mesmos
+casos passaram em execuções subsequentes. O CI é o veredito de particionamento; nenhuma asserção
+foi afrouxada.
+
+---
+
+## FRENTES A–H — resultado medido (não planejado)
+
+**Método:** cada frente foi verificada no CÓDIGO, não na documentação anterior. Várias lacunas
+registradas na matriz já **não existiam** — o registro estava obsoleto. Isso está declarado
+abaixo em vez de ser apresentado como trabalho novo.
+
+### FRENTE A — Centro de custo — IMPLEMENTADA
+
+O defeito real encontrado: `fin.payables.cost_center_id` (0045) e `fin.expenses.cost_center_id`
+(0069) são `uuid NOT NULL` **sem `REFERENCES`**, e **nenhuma tabela de centro de custo existia**
+em toda a cadeia de migrations. Os testes alimentavam o campo com `crypto.randomUUID()`.
+
+| Entrega | Arquivo |
+| --- | --- |
+| Migration com tabela, índices, enum e metadado | `packages/database/migrations/0118_cost_center_reference.sql` |
+| Schema Drizzle | `packages/database/src/schema/finance.ts` |
+| Repositório (list/count/get/exists/create) | `apps/api/src/finance/repositories/cost-centers.repository.ts` |
+| Serviço com authz + auditoria + validação de referência | `apps/api/src/finance/services/cost-centers-access.service.ts` |
+| Controller `finance/cost-centers` | `apps/api/src/finance/controllers/cost-centers.controller.ts` |
+| Ações `finance:cost-center:list` / `:create` | `apps/api/src/authorization/types/authz-actions.ts` |
+| Prova | `cost-center-reference.integration.spec.ts` — **10/10 PASS** |
+
+Limite declarado: **não** foi adicionada FK em `cost_center_id`. Os UUIDs já persistidos são
+arbitrários; uma FK exigiria backfill que falharia em massa sobre dado real. A integridade para
+escritas NOVAS é imposta em `assertExists`. Convergência permanece pendência registrada.
+
+### FRENTE B — Categoria de despesa — IMPLEMENTADA
+
+Existia `POST finance/expense-categories`, **não existia `GET`**.
+
+| Entrega | Arquivo |
+| --- | --- |
+| `listExpenseCategories` + `countExpenseCategories` | `apps/api/src/finance/repositories/payables.repository.ts` |
+| `listExpenseCategories` no serviço | `apps/api/src/finance/services/payables-access.service.ts` |
+| `assertExpenseCategoryList` | `apps/api/src/finance/services/payables-access.authz.ts` |
+| `GET finance/expense-categories` | `apps/api/src/finance/controllers/payables.controller.ts` |
+| Conjunto fechado de status + predicado | `apps/api/src/finance/domain/payable.ts` |
+| Prova | `expense-category-lookup.integration.spec.ts` — **9/9 PASS** |
+
+### FRENTE C — Período contábil/fiscal — JÁ EXISTIA
+
+Verificado no código: `GET accounting/periods`, `GET charts/:chartId/periods`,
+`GET periods/:periodId/ledger`, `POST periods/:periodId/close|reopen` e a central
+`GET closing/readiness` estão implementados e cobertos. **Nada foi criado** — criar um caminho
+paralelo seria a duplicação que a missão proíbe.
+
+### FRENTE D — Extrato bancário — JÁ EXISTIA
+
+`GET bank-statements` (listagem com filtro server-side), `GET statements/:id`,
+`GET accounts/:accountId/reconciliation` e `POST accounts/:accountId/movements` existem.
+**Nada foi criado.**
+
+### FRENTE E — Payroll — JÁ EXISTIA
+
+`GET payroll/periods` **e** `GET payroll/contracts` existem, com `validatePayrollPeriodListQuery`
+e `assertPayrollAction`. O `PARK` que os declarava ausentes estava **incorreto**. **Nada foi criado.**
+
+### FRENTE F — Apuração fiscal — JÁ EXISTIA
+
+`GET tax-assessments` (listagem por unidade), `GET tax-calculations`, e as transições
+`finalize`/`adjust`/`cancel` existem. **Nada foi criado.**
+
+### FRENTE G — Contratos (edição) — JÁ EXISTIA, E É REAL
+
+`PATCH commercial/contracts/:contractId` → `updateDraft`, com `AUTHZ_ACTIONS.CommercialContractUpdate`,
+`resolveUpdateContractDraftInput`, `rowVersion` (concorrência otimista), auditoria e validação de
+referências de serviço. O frontend (`ContractsDetailPage` + `contracts-fetch-mock`) e o e2e
+`contracts.e2e.test.tsx` (21/21 PASS) provam a edição. O `BASIC_GAP` da matriz estava **obsoleto**.
+
+### FRENTE H — Estabelecimentos — GATING NÃO RESOLVIDO (permanece PARK)
+
+Backend completo e verificado: `issuer/legal-entities`, `issuer/establishments`,
+`issuer/tax-registrations`, `issuer/certificates` (todos com `GET`/`POST`/`PATCH` e histórico), mais
+`organization/operational-units`, que **já possui superfície web** (`unit-governance-api.ts`,
+`access-admin/operational-unit-workbench`).
+
+**Não foi resolvido** porque a decisão é de produto, não de engenharia: criar `VITE_FEATURE_MODULE_*`
+para `issuer` e construir a superfície exige autorização sobre o que entra no release 1. Criar a flag
+por conveniência seria exatamente o que `AGENTS.md` §17–18 e `ED-005` proíbem. **Registrado, não
+executado — e não apresentado como concluído.**
+
+### HUMANLOOKUPFIELD — ligado às novas listagens
+
+| Entrega | Arquivo |
+| --- | --- |
+| Busca humana de centro de custo e categoria | `apps/web/src/financial-ui/finance-directory-lookup.ts` |
+| `ExpensesPage` — campo UUID → escolha | `apps/web/src/finance/pages/ExpensesPage.tsx` |
+| `TaxAssessmentsPage` — idem | `apps/web/src/fiscal/pages/TaxAssessmentsPage.tsx` |
+| `ProcurementPages` (conferência **e** nota) — idem | `apps/web/src/procurement/pages/ProcurementPages.tsx` |
+
+Quatro consumidores que antes digitavam UUID agora escolhem de uma lista publicada pelo servidor.
 
 ---
 
@@ -120,6 +223,8 @@ Observação de gate: o teste `service-orders-list.e2e` e o `assets.e2e` falhava
 
 | Data | Commit | Módulo | Resultado |
 | --- | --- | --- | --- |
+| 2026-11-05 | (este) | **MASTER-003 A/B** | Centro de custo (migration 0118 + tabela + listagem + `assertExists`) e categoria de despesa (`GET` que faltava). 4 consumidores saíram do UUID digitado para `HumanLookupField`. Testes: cost-center 10/10, expense-category 9/9, payables 15/15, expense-management 9/9; web focado 217/217 em 38 arquivos; API unit 1905/1905 em 296 arquivos; gate de banco fresh+incremental PASS; gate de scripts PASS |
+| 2026-11-05 | (este) | **MASTER-003 C–H** | Verificação no CÓDIGO (não na documentação): C (`accounting/periods`), D (`bank-statements`), E (`payroll/periods` + `payroll/contracts`), F (`tax-assessments`), G (`PATCH contracts/:id` → `updateDraft`) **já estavam implementados e cobertos** — nada foi criado para evitar caminho paralelo. H permanece **PARK** por decisão de gating de produto, não por falta de código |
 | 2026-09-25 | — | inventário | matriz criada; fila definida |
 | 2026-09-26 | (este) | suppliers | `GET /api/v1/suppliers` (busca/status/paginação) + concessão `supplier:supplier:list`; web: lista + criação + detalhe sem identificador digitado; rota `/app/suppliers` que **não existia** (deep link caía em página não encontrada). Backend 9/9; web 4/4; shell 17/17; browser real 4/4 (desktop+mobile) |
 | 2026-09-26 | (este) | procurement | `GET procurement/requests`, `GET procurement/orders`, `GET supplier-invoices` (busca/status/paginação + concessões `*:list`); fornecedor e CNPJ resolvidos pelo servidor no pedido e na nota; web: hub com três listas reais, criação de solicitação em rota própria, campo de identificador do fornecedor substituído por `HumanLookupField`. Backend 10/10; web 7/7 (hub + lookup); shell 17/17; browser real 4/4 (desktop+mobile) |
@@ -140,14 +245,14 @@ Observação de gate: o teste `service-orders-list.e2e` e o `assets.e2e` falhava
 
 ### PARK — HUMAN_LOOKUP_API_GAP (sem listagem no backend; não inventar)
 
-| Entidade | Consumidor | Situação |
+| Entity | Consumidor | Situação |
 | --- | --- | --- |
-| Extrato bancário | finance/bank-reconciliation | só `GET statements/:id` — sem lista |
-| Movimento financeiro / transação | finance/bank-reconciliation, treasury | sem listagem |
-| Documento de origem (UUID) | finance/treasury | sem listagem |
-| Centro de custo (id) | procurement, fiscal, finance/expenses | sem endpoint |
-| Categoria de despesa (id) | procurement, finance/expenses | só `POST`; sem listagem |
-| Período de folha | payroll | sem `GET payroll/periods` |
-| Cálculo tributário (apuração) | fiscal/apuração | só `POST`/`GET :id`; sem listagem |
-| Registro de ativo imobilizado | accounting/fixed-assets | `GET` é consulta por ativo operacional; sem lista |
-| Pessoa jurídica / estabelecimento | issuer/establishments | backend completo, mas sem feature flag e sem cliente web — decisão de gating pendente |
+| Extrato bancário | finance/bank-reconciliation | **RESOLVIDO** — `GET bank-statements` publica listagem com filtro server-side |
+| Movimento financeiro / transação | finance/bank-reconciliation, treasury | `GET accounts/:accountId/reconciliation` + `POST .../movements`; vínculo manual por id permanece |
+| Documento de origem (UUID) | finance/treasury | sem listagem — ABERTO |
+| Centro de custo (id) | procurement, fiscal, finance/expenses | **RESOLVIDO** — migration 0118 + `GET finance/cost-centers` + `HumanLookupField` nos 4 consumidores |
+| Categoria de despesa (id) | procurement, finance/expenses | **RESOLVIDO** — `GET finance/expense-categories` + `HumanLookupField` |
+| Período de folha | payroll | **RESOLVIDO** — `GET payroll/periods` e `GET payroll/contracts` já existiam; o PARK estava incorreto |
+| Cálculo tributário (apuração) | fiscal/apuração | **RESOLVIDO** — `GET tax-assessments` já existia; o PARK estava incorreto |
+| Registro de ativo imobilizado | accounting/fixed-assets | `GET` é consulta por ativo operacional; sem lista — ABERTO |
+| Pessoa jurídica / estabelecimento | issuer/establishments | backend completo; **gating não decidido** — PARK mantido por decisão de produto |

@@ -1588,6 +1588,29 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0118_cost_center_reference.sql') {
+      /*
+       * PRE-DELTA da 0118.
+       *
+       * N-1 precisa conter as duas tabelas que ja carregam `cost_center_id` (payables e
+       * expenses) e NAO pode conter a tabela de referencia — e exatamente essa ausencia que
+       * deixa quatro consumidores sem referencia humana. Se `fin.cost_centers` ja existisse
+       * nesta altura, a migration nao estaria provando o delta e o gate estaria medindo nada.
+       */
+      const baseline = await client.query(
+        `SELECT to_regclass('fin.payables') IS NOT NULL AS has_payables,
+                to_regclass('fin.expenses') IS NOT NULL AS has_expenses,
+                to_regclass('fin.cost_centers') AS already_referenced`,
+      );
+      const row = baseline.rows[0];
+      if (!row?.has_payables || !row.has_expenses || row.already_referenced !== null) {
+        throw new Error(
+          '0118 N-1 requires payables and expenses carrying cost_center_id, without the reference table',
+        );
+      }
+      return;
+    }
+
     if (deltaFile === '0117_service_order_archetype_worklist_index.sql') {
       // N-1 must contain the canonical OS table but NOT the 0117 expression index.
       const baseline = await client.query(

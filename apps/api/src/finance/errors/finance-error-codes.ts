@@ -22,6 +22,19 @@ export const FINANCE_ERROR_CODES = {
   FORBIDDEN_ORIGIN: 'FINANCE_PAYABLE_FORBIDDEN_ORIGIN',
   EXPENSE_CATEGORY_NOT_FOUND: 'FINANCE_EXPENSE_CATEGORY_NOT_FOUND',
   EXPENSE_CATEGORY_DUPLICATE: 'FINANCE_EXPENSE_CATEGORY_DUPLICATE',
+  /**
+   * `status` pedido fora do enum real de `fin.expense_categories`.
+   *
+   * Recusar e o comportamento correto: converter um valor desconhecido em "sem filtro" faria o
+   * operador receber a lista inteira acreditando ter aplicado um recorte; devolver lista vazia
+   * faria ler "nao ha categorias cadastradas". Nenhum dos dois e verdade.
+   */
+  EXPENSE_CATEGORY_STATUS_INVALID: 'FINANCE_EXPENSE_CATEGORY_STATUS_INVALID',
+  /** Centro de custo inexistente ou nao encontrado pelo recorte. */
+  COST_CENTER_NOT_FOUND: 'FINANCE_COST_CENTER_NOT_FOUND',
+  COST_CENTER_DUPLICATE: 'FINANCE_COST_CENTER_DUPLICATE',
+  /** Status pedido fora do conjunto fechado do dominio — recusado, nunca ignorado. */
+  COST_CENTER_STATUS_INVALID: 'FINANCE_COST_CENTER_STATUS_INVALID',
   PAYMENT_NOT_FOUND: 'FINANCE_PAYMENT_NOT_FOUND',
   PAYMENT_IMMUTABLE: 'FINANCE_PAYMENT_IMMUTABLE',
   PAYMENT_ALREADY_REVERSED: 'FINANCE_PAYMENT_ALREADY_REVERSED',

@@ -259,6 +259,24 @@ export const AUTHZ_ACTIONS = {
   FinancePayableCancel: 'finance:payable:cancel',
   FinancePayableReverse: 'finance:payable:reverse',
   FinanceExpenseCategoryCreate: 'finance:expense-category:create',
+  /**
+   * Listagem de categorias de despesa.
+   *
+   * Acao SEPARADA de `create`: quem cadastra nem sempre e quem escolhe a categoria na operacao,
+   * e a matriz de segregacao de funcoes precisa poder distingui-las. Sem esta acao a referencia
+   * humana era impossivel e o consumidor era forcado a digitar UUID.
+   */
+  FinanceExpenseCategoryList: 'finance:expense-category:list',
+  /**
+   * Centro de custo.
+   *
+   * Fecha o `PARK: HUMAN_LOOKUP_API_GAP` de quatro consumidores (conferencia de compra, nota de
+   * fornecedor, apuracao fiscal, despesa). `list` e `create` sao separadas pelo mesmo motivo da
+   * categoria de despesa: cadastro e uso operacional tem riscos diferentes e a segregacao de
+   * funcoes precisa poder distingui-los.
+   */
+  FinanceCostCenterList: 'finance:cost-center:list',
+  FinanceCostCenterCreate: 'finance:cost-center:create',
   FinanceExpenseCreate: 'finance:expense:create',
   FinanceExpenseSubmit: 'finance:expense:submit',
   FinanceExpenseApprove: 'finance:expense:approve',
