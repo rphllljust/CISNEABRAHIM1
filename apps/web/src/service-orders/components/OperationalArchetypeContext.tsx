@@ -7,7 +7,24 @@ import {
   ServiceOrdersApiError,
 } from '../api/service-orders-api';
 import { mapServiceOrdersErrorToMessage } from '../api/service-orders-error-messages';
+import {
+  startExecution,
+  pauseExecution,
+  resumeExecution,
+  completeExecution,
+} from '../api/service-order-execution-api';
 import type { ServiceOrderDetail } from '../types/service-order.types';
+
+type OperationalTransition = 'prepare' | 'release' | 'start' | 'pause' | 'resume' | 'complete';
+
+const TRANSACTIONAL_ACTIONS: Array<{ transition: OperationalTransition; label: string }> = [
+  { transition: 'prepare', label: 'Preparar OS' },
+  { transition: 'release', label: 'Liberar OS' },
+  { transition: 'start', label: 'Iniciar execução' },
+  { transition: 'pause', label: 'Pausar execução' },
+  { transition: 'resume', label: 'Retomar execução' },
+  { transition: 'complete', label: 'Concluir execução' },
+];
 
 type ContextState =
   | { phase: 'loading' }
@@ -34,11 +51,13 @@ export function OperationalArchetypeContext({
   const [retryNonce, setRetryNonce] = useState(0);
   const [busy, setBusy] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
+  const [confirmComplete, setConfirmComplete] = useState(false);
 
   useEffect(() => {
     // Errors from a rejected command must survive a re-fetch after HTTP 409.
     // A new record is a different context and must not inherit an old error.
     setCommandError(null);
+    setConfirmComplete(false);
   }, [serviceOrderId]);
 
   useEffect(() => {
@@ -60,7 +79,7 @@ export function OperationalArchetypeContext({
     return () => controller.abort();
   }, [serviceOrderId, retryNonce]);
 
-  async function runCommand(transition: 'prepare' | 'release'): Promise<void> {
+  async function runCommand(transition: OperationalTransition): Promise<void> {
     if (busy || state.phase !== 'ready') return;
     const allowed = state.detail.controlCenter?.nextAction.availableTransitions ?? [];
     if (!allowed.includes(transition)) return;
@@ -69,9 +88,18 @@ export function OperationalArchetypeContext({
     try {
       if (transition === 'prepare') {
         await prepareServiceOrder(serviceOrderId, state.detail.rowVersion);
-      } else {
+      } else if (transition === 'release') {
         await releaseServiceOrder(serviceOrderId, state.detail.rowVersion);
+      } else if (transition === 'start') {
+        await startExecution(serviceOrderId, { rowVersion: state.detail.rowVersion });
+      } else if (transition === 'pause') {
+        await pauseExecution(serviceOrderId, { rowVersion: state.detail.rowVersion });
+      } else if (transition === 'resume') {
+        await resumeExecution(serviceOrderId, { rowVersion: state.detail.rowVersion });
+      } else {
+        await completeExecution(serviceOrderId, { rowVersion: state.detail.rowVersion });
       }
+      setConfirmComplete(false);
       setRetryNonce((previous) => previous + 1);
       onChanged?.();
     } catch (error) {
@@ -138,20 +166,32 @@ export function OperationalArchetypeContext({
               </ul>
             </div>
           ) : null}
-          {transitions.includes('prepare') || transitions.includes('release') ? (
+          {TRANSACTIONAL_ACTIONS.some((action) => transitions.includes(action.transition)) ? (
             <div className="flex flex-wrap gap-2">
-              {transitions.includes('prepare') ? (
-                <button type="button" disabled={busy} onClick={() => void runCommand('prepare')}
-                  className="rounded bg-brand-600 px-2 py-1 text-white disabled:opacity-50">
-                  Preparar OS
+              {TRANSACTIONAL_ACTIONS.filter((action) => transitions.includes(action.transition)).map((action) => (
+                <button
+                  key={action.transition}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => action.transition === 'complete'
+                    ? setConfirmComplete(true)
+                    : void runCommand(action.transition)}
+                  className="rounded bg-brand-600 px-2 py-1 text-white disabled:opacity-50"
+                >
+                  {action.label}
                 </button>
-              ) : null}
-              {transitions.includes('release') ? (
-                <button type="button" disabled={busy} onClick={() => void runCommand('release')}
-                  className="rounded bg-brand-600 px-2 py-1 text-white disabled:opacity-50">
-                  Liberar OS
-                </button>
-              ) : null}
+              ))}
+            </div>
+          ) : null}
+          {confirmComplete && transitions.includes('complete') ? (
+            <div role="group" aria-label="Confirmar conclusão da OS" className="rounded border border-amber-200 p-2">
+              <p className="m-0 mb-2">A conclusão encerra a execução. Confirme que todos os registros operacionais foram realizados.</p>
+              <div className="flex gap-2">
+                <button type="button" disabled={busy} onClick={() => void runCommand('complete')}
+                  className="rounded bg-brand-600 px-2 py-1 text-white disabled:opacity-50">Confirmar conclusão</button>
+                <button type="button" disabled={busy} onClick={() => setConfirmComplete(false)}
+                  className="rounded border px-2 py-1">Cancelar</button>
+              </div>
             </div>
           ) : null}
         </>
@@ -163,6 +203,9 @@ export function OperationalArchetypeContext({
         </Link>
         <Link className="font-semibold text-brand-700" to={`/app/service-orders/${serviceOrderId}/planning`}>
           Planejamento e alocação
+        </Link>
+        <Link className="font-semibold text-brand-700" to={`/app/service-orders/${serviceOrderId}/execution`}>
+          Apontamentos e evidências
         </Link>
       </div>
     </section>
