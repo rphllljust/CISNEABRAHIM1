@@ -131,10 +131,12 @@ export async function probeAccessAdminAccess(signal?: AbortSignal): Promise<bool
     await getCatalog(signal);
     return true;
   } catch (error) {
-    if (error instanceof AccessAdminApiError && error.status === 401) {
-      throw error;
+    // Only a real PDP denial is lack of access. A network/5xx outage must be
+    // surfaced as retryable; hiding it as a 403 makes legitimate admins disappear.
+    if (error instanceof AccessAdminApiError && error.status === 403) {
+      return false;
     }
-    return false;
+    throw error;
   }
 }
 
