@@ -219,6 +219,36 @@ export type ReceiptProvenanceBinding = {
   idempotent: boolean;
 };
 
+/** Persisted receipt-to-SKU evidence, not a stock movement. */
+export type ReceiptProvenanceEvidence = {
+  receiptLineId: string;
+  receivedQuantity: string;
+  allocatedQuantity: string;
+  items: Array<{
+    id: string;
+    receiptLineId: string;
+    inventoryItemId: string;
+    warehouseId: string;
+    unitId: string;
+    allocatedQuantity: string;
+    sku: string;
+    itemName: string;
+    warehouseCode: string;
+    warehouseName: string;
+    recordedAt: string;
+  }>;
+};
+
+export async function getReceiptProvenance(
+  receiptLineId: string,
+  signal?: AbortSignal,
+): Promise<ReceiptProvenanceEvidence> {
+  return requestJson<ReceiptProvenanceEvidence>(
+    `/api/v1/inventory/receipt-provenance/${encodeURIComponent(receiptLineId)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
 export async function bindReceiptProvenance(payload: {
   receiptLineId: string;
   inventoryItemId: string;
