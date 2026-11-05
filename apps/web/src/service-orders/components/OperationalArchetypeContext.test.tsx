@@ -5,10 +5,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServiceOrderDetail } from '../types/service-order.types';
 import { OperationalArchetypeContext } from './OperationalArchetypeContext';
 
-const { getServiceOrder, prepareServiceOrder, releaseServiceOrder } = vi.hoisted(() => ({
+const {
+  getServiceOrder, prepareServiceOrder, releaseServiceOrder,
+  startExecution, pauseExecution, resumeExecution, completeExecution,
+} = vi.hoisted(() => ({
   getServiceOrder: vi.fn(),
   prepareServiceOrder: vi.fn(),
   releaseServiceOrder: vi.fn(),
+  startExecution: vi.fn(),
+  pauseExecution: vi.fn(),
+  resumeExecution: vi.fn(),
+  completeExecution: vi.fn(),
 }));
 
 vi.mock('../api/service-orders-api', () => ({
@@ -23,6 +30,13 @@ vi.mock('../api/service-orders-api', () => ({
     ) { super(kind); }
   },
 }));
+vi.mock('../api/service-order-execution-api', () => ({
+  startExecution,
+  pauseExecution,
+  resumeExecution,
+  completeExecution,
+}));
+
 vi.mock('../api/service-orders-error-messages', () => ({
   mapServiceOrdersErrorToMessage: () => 'Comando não autorizado pelo domínio.',
 }));
@@ -59,9 +73,17 @@ describe('OperationalArchetypeContext', () => {
     getServiceOrder.mockReset();
     prepareServiceOrder.mockReset();
     releaseServiceOrder.mockReset();
+    startExecution.mockReset();
+    pauseExecution.mockReset();
+    resumeExecution.mockReset();
+    completeExecution.mockReset();
     getServiceOrder.mockResolvedValue(order);
     prepareServiceOrder.mockResolvedValue(order);
     releaseServiceOrder.mockResolvedValue(order);
+    startExecution.mockResolvedValue(order);
+    pauseExecution.mockResolvedValue(order);
+    resumeExecution.mockResolvedValue(order);
+    completeExecution.mockResolvedValue(order);
   });
 
   it('reads current backend business status and real downstream evidence', async () => {
@@ -81,6 +103,51 @@ describe('OperationalArchetypeContext', () => {
       expect(changed).toHaveBeenCalledTimes(1);
     });
     expect(releaseServiceOrder).not.toHaveBeenCalled();
+  });
+
+  it('starts execution using the owner API after permission and version checks', async () => {
+    getServiceOrder.mockResolvedValue({
+      ...order,
+      status: 'RELEASED',
+      controlCenter: {
+        ...order.controlCenter!,
+        nextAction: {
+          step: 'START_EXECUTION',
+          transition: 'start',
+          availableTransitions: ['start'],
+          blockers: [],
+        },
+      },
+    });
+    render(<MemoryRouter><OperationalArchetypeContext serviceOrderId="order-1" /></MemoryRouter>);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Iniciar execução' }));
+    await waitFor(() => {
+      expect(startExecution).toHaveBeenCalledWith('order-1', { rowVersion: 3 });
+    });
+    expect(prepareServiceOrder).not.toHaveBeenCalled();
+  });
+
+  it('requires an explicit confirmation before completing the real OS', async () => {
+    getServiceOrder.mockResolvedValue({
+      ...order,
+      status: 'IN_EXECUTION',
+      controlCenter: {
+        ...order.controlCenter!,
+        nextAction: {
+          step: 'COMPLETE',
+          transition: 'complete',
+          availableTransitions: ['complete'],
+          blockers: [],
+        },
+      },
+    });
+    const user = userEvent.setup();
+    render(<MemoryRouter><OperationalArchetypeContext serviceOrderId="order-1" /></MemoryRouter>);
+    await user.click(await screen.findByRole('button', { name: 'Concluir execução' }));
+    expect(completeExecution).not.toHaveBeenCalled();
+    expect(screen.getByRole('group', { name: 'Confirmar conclusão da OS' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Confirmar conclusão' }));
+    await waitFor(() => expect(completeExecution).toHaveBeenCalledWith('order-1', { rowVersion: 3 }));
   });
 
   it('keeps the backend error visible after re-reading the record on a version conflict', async () => {
