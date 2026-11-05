@@ -93,12 +93,18 @@ function failureCopy(reason: unknown, subject: 'count' | 'attention'): FailureCo
 async function loadAgora(
   domain: WorkDomain,
   signal: AbortSignal,
-): Promise<{ count: number; unavailable: boolean }> {
+): Promise<{ count: number | null; unavailable: boolean }> {
   const page = await getWorkInbox({ limit: 1 }, signal);
-  return {
-    count: page.byDomain[domain] ?? 0,
-    unavailable: page.unavailableDomains.includes(domain),
-  };
+  if (page.unavailableDomains.includes(domain)) {
+    // Contagens de fonte indisponível são desconhecidas, mesmo que o agregado
+    // parcial publique um zero. Não permitir que um KPI pareça reconciliado.
+    return { count: null, unavailable: true };
+  }
+  const count = page.byDomain?.[domain];
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new WorkInboxApiError(502, 'unknown');
+  }
+  return { count, unavailable: false };
 }
 
 async function loadAttention(

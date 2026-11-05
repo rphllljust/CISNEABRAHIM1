@@ -93,6 +93,9 @@ function installFetchMock() {
     if (pathname === '/api/v1/payroll/periods' && method === 'POST') {
       return jsonResponse(periodPayload());
     }
+    if (pathname === '/api/v1/payroll/periods' && method === 'GET') {
+      return jsonResponse({ items: [], total: 0, page: 0, pageSize: 20, totalPages: 0 });
+    }
     if (pathname === `/api/v1/payroll/periods/${PERIOD_ID}` && method === 'GET') {
       return jsonResponse(periodPayload());
     }
@@ -101,6 +104,9 @@ function installFetchMock() {
     }
     if (pathname === '/api/v1/payroll/contracts' && method === 'POST') {
       return jsonResponse(contractPayload());
+    }
+    if (pathname === '/api/v1/payroll/contracts' && method === 'GET') {
+      return jsonResponse({ items: [], total: 0, page: 0, pageSize: 20, totalPages: 0 });
     }
     if (pathname === '/api/v1/payroll/events' && method === 'POST') {
       return jsonResponse({
