@@ -63,7 +63,8 @@ export class ReportExportAccessService {
         return {
           reportType,
           label: REPORT_DEFINITIONS[reportType].label,
-          formats: [REPORT_FORMATS.Csv],
+          formats: [REPORT_FORMATS.Csv, REPORT_FORMATS.Xlsx],
+          allowedFilters: reportFilterPolicy(reportType).allowedFilters,
           sensitive: REPORT_DEFINITIONS[reportType].sensitive,
           columns: REPORT_DEFINITIONS[reportType].columns.map((column) => column.header),
         };
@@ -91,7 +92,7 @@ export class ReportExportAccessService {
     const filters = this.validateFilters(reportType, input.filters ?? {});
     await this.assertAccess(actor, reportType);
 
-    if (format !== REPORT_FORMATS.Csv) {
+    if (format !== REPORT_FORMATS.Csv && format !== REPORT_FORMATS.Xlsx) {
       throw new ReportHttpException(400, REPORT_ERROR_CODES.FORMAT_UNSUPPORTED, 'Format not supported yet.');
     }
 
@@ -209,7 +210,7 @@ export class ReportExportAccessService {
     return {
       buffer: object.buffer,
       mimeType: this.generation.resolveMimeType(exportRow.format),
-      fileName: `${exportRow.report_type.toLowerCase()}-${exportRow.id}.csv`,
+      fileName: `${exportRow.report_type.toLowerCase()}-${exportRow.id}.${exportRow.format === REPORT_FORMATS.Xlsx ? 'xlsx' : 'csv'}`,
     };
   }
 
