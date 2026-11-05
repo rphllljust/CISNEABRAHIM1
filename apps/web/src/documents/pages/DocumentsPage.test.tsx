@@ -9,6 +9,12 @@ import { createDocumentsFetchHandler } from '../../test/documents-fetch-mock';
 import { createShellFetchMock } from '../../test/shell-fetch-mock';
 import { parseRequestPath } from '../../test/request-url';
 import { DOCUMENT_CATEGORIES } from '../types/document.types';
+import { downloadDocumentBatch } from '../api/documents-api';
+
+vi.mock('../api/documents-api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/documents-api')>()),
+  downloadDocumentBatch: vi.fn(),
+}));
 
 const UAT_TITLE = 'Evidência UAT — Locação de equipamento';
 
@@ -79,6 +85,7 @@ describe('DocumentsPage', () => {
     resetTokenStoreForTests();
     tokenStore.setTokens('access-token', 'refresh-token');
     vi.unstubAllGlobals();
+    vi.mocked(downloadDocumentBatch).mockReset().mockResolvedValue(undefined);
   });
 
   it('shows the document as the primary column with the metadata the contract really returns', async () => {
@@ -467,4 +474,23 @@ describe('DocumentsPage', () => {
     expect(title).toHaveAttribute('title', longTitle);
     expect(title.className).toContain('truncate');
   });
+
+  it('selects current document versions and invokes one authorized batch-download operation', async () => {
+    const { mock, documents } = createPageFetchMock();
+    const selected = seed(documents, 89, 'Comprovante para lote', DOCUMENT_CATEGORIES.Evidence);
+    vi.stubGlobal('fetch', mock);
+    const user = userEvent.setup();
+
+    renderPage();
+    const checkbox = await screen.findByRole('checkbox', { name: /Selecionar Comprovante para lote versão 1/i });
+    await user.click(checkbox);
+    await user.click(screen.getByRole('button', { name: /Baixar selecionados \(1\)/i }));
+
+    await waitFor(() => {
+      expect(downloadDocumentBatch).toHaveBeenCalledWith([
+        { documentId: selected.id, versionNumber: 1 },
+      ]);
+    });
+  });
+
 });
