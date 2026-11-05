@@ -373,6 +373,54 @@ export class ProcurementAccessService {
     }
   }
 
+  /**
+   * P2P receipt evidence: Procurement owns the posted receipt and exposes only
+   * the identifiers and physical quantities required for explicit SKU mapping.
+   * No inventory item, cost or stock movement is invented here.
+   *
+   * READ + RECEIVE grants are both required, matching the receipt evidence
+   * port enforced again by Inventory when provenance is persisted.
+   */
+  async listPostedReceiptLines(
+    actor: IdentityAuthzContext,
+    orderId: string,
+    query: { limit?: number; offset?: number } = {},
+  ) {
+    assertUuid(orderId, 'orderId');
+    const limit = query.limit ?? 20;
+    const offset = query.offset ?? 0;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 ||
+        !Number.isSafeInteger(offset) || offset < 0) {
+      throw mapProcurementDomainError(new ProcurementError('PROCUREMENT_INVALID'));
+    }
+    try {
+      const order = await this.repository.findOrderById(orderId);
+      if (!order) throw new ProcurementError('PROCUREMENT_NOT_FOUND');
+      await this.authz.assertProcurementAction(actor, AUTHZ_ACTIONS.ProcurementOrderRead, {
+        id: order.id,
+      });
+      await this.authz.assertProcurementAction(actor, AUTHZ_ACTIONS.ProcurementOrderReceive, {
+        id: order.id,
+      });
+      const [rows, total] = await Promise.all([
+        this.repository.listPostedReceiptLinesPage(order.id, limit, offset),
+        this.repository.countPostedReceiptLines(order.id),
+      ]);
+      return {
+        items: rows.map(({ receivedByIdentityId, ...row }) => ({
+          ...row,
+          canCertify: receivedByIdentityId !== actor.identityId,
+        })),
+        total,
+        limit,
+        offset,
+        hasMore: offset + rows.length < total,
+      };
+    } catch (error) {
+      throw mapProcurementDomainError(error);
+    }
+  }
+
   async receiveOrder(
     actor: IdentityAuthzContext,
     orderId: string,
