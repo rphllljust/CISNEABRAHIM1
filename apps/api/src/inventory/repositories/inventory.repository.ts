@@ -210,6 +210,43 @@ export class InventoryRepository {
     });
   }
 
+
+  /** Inventory-owned immutable origin mappings. No direct Procurement table reads. */
+  async listReceiptProvenance(receiptLineId: string): Promise<Array<{
+    id: string;
+    receiptLineId: string;
+    inventoryItemId: string;
+    warehouseId: string;
+    unitId: string;
+    allocatedQuantity: string;
+    sku: string;
+    itemName: string;
+    warehouseCode: string;
+    warehouseName: string;
+    recordedAt: string;
+  }>> {
+    const result = await this.pool().query<{
+      id: string; receiptLineId: string; inventoryItemId: string;
+      warehouseId: string; unitId: string; allocatedQuantity: string;
+      sku: string; itemName: string; warehouseCode: string;
+      warehouseName: string; recordedAt: string;
+    }>(
+      `SELECT p.id, p.receipt_line_id AS "receiptLineId",
+              p.inventory_item_id AS "inventoryItemId",
+              p.warehouse_id AS "warehouseId", p.unit_id AS "unitId",
+              p.allocated_quantity::text AS "allocatedQuantity",
+              i.sku, i.name AS "itemName", w.code AS "warehouseCode",
+              w.name AS "warehouseName", p.recorded_at::text AS "recordedAt"
+       FROM inv.receipt_inventory_provenance p
+       JOIN inv.inventory_items i ON i.id = p.inventory_item_id
+       JOIN inv.warehouses w ON w.id = p.warehouse_id
+       WHERE p.receipt_line_id = $1::uuid
+       ORDER BY p.recorded_at ASC, p.id ASC`,
+      [receiptLineId],
+    );
+    return result.rows;
+  }
+
   async findWarehouseById(id: string): Promise<WarehouseRow | null> {
     const result = await this.pool().query<WarehouseRow>(
       `SELECT ${WAREHOUSE_RETURNING} FROM inv.warehouses WHERE id = $1`,
