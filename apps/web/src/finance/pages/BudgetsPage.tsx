@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { EmptyState, Field, Input, Money } from '../../ui';
 import { ModulePage } from '../../ui/module-layout';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchAccountingPeriodOptions } from '../../financial-ui/finance-directory-lookup';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -218,9 +220,21 @@ function BudgetView({
           );
         }}
       >
-        <Field label="Período (id)" htmlFor="budget-line-period" required>
-          <Input id="budget-line-period" value={periodId} onChange={(event) => setPeriodId(event.target.value)} required />
-        </Field>
+        <HumanLookupField
+          label="Período contábil"
+          htmlFor="budget-line-period"
+          required
+          search={(term, signal) => searchAccountingPeriodOptions(term, budget.unitId, signal)}
+          value={periodId}
+          onChange={(id) => setPeriodId(id)}
+          placeholder="Busque a competência (AAAA-MM) do período"
+          emptyMessage={
+            budget.unitId
+              ? 'Nenhum período contábil encontrado para esta unidade.'
+              : 'Informe a unidade do orçamento para listar os períodos.'
+          }
+          selectTestId="budget-period-select"
+        />
         <Field label="Valor" htmlFor="budget-line-amount" required>
           <Input id="budget-line-amount" inputMode="decimal" value={lineAmount} onChange={(event) => setLineAmount(event.target.value)} required />
         </Field>

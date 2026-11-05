@@ -49,7 +49,7 @@ Resolução aplicada nesta fila, sem inventar regra:
 | people | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | — |
 | finance (AR/AP/treasury/recon) | Y | Y | Y | Y | Y | Y | Y | parcial | Y | Y | Y | Y | Y | BASIC_GAP | extrato bancário agora tem listagem autorizada e mesa de trabalho (status/conta/período server-side, seleção por URL); `PARK HUMAN_LOOKUP_API_GAP` para movimento financeiro (vínculo manual por id) e movimento de tesouraria |
 | finance/expenses | Y | Y | Y | Y | - | Y | Y | **Y** | Y | Y | Y | Y | parcial | DONE | **RESOLVIDO**: centro de custo via `GET finance/cost-centers` e categoria via `GET finance/expense-categories`, ambos por `HumanLookupField` |
-| finance/budgets | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | parcial | DONE | período (id) sem listagem — `PARK HUMAN_LOOKUP_API_GAP` |
+| finance/budgets | Y | Y | Y | Y | - | Y | Y | **Y** | Y | Y | Y | Y | parcial | DONE | **RESOLVIDO**: período contábil por `HumanLookupField` com escopo de unidade (`searchAccountingPeriodOptions`); consultar sem unidade devolve vazio em vez de vazar escopo |
 | accounting | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | DONE | período descoberto pela unidade (`GET accounting/periods`), central de fechamento em `/app/closing` com bloqueadores reais e drill-down, lançamento com origem persistida; `PARK HUMAN_LOOKUP_API_GAP` apenas para o registro de imobilizado |
 | fiscal | Y | Y | Y | Y | - | Y | Y | Y | Y | Y | Y | Y | Y | DONE | lista operacional por unidade + competência, status na URL com filtro server-side, total real e drill-down a partir da central de fechamento; `PARK HUMAN_LOOKUP_API_GAP`: centro de custo (id) e `?status=FAILED` anunciado no Ctrl+K sem existir no enum do backend |
 | payroll | Y | Y | Y | Y | - | Y | Y | **Y** | Y | Y | Y | Y | Y | DONE | `GET payroll/periods` e `GET payroll/contracts` **existem e estão cobertos**; o PARK que os declarava ausentes estava incorreto. Resta apenas edição de contrato (não existe no backend) |
@@ -74,10 +74,10 @@ Registrados aqui; **não** substituir por input livre nem por carga massiva no n
 
 | Item | Consumidor | Motivo | Status |
 | --- | --- | --- | --- |
-| Centro de custo (id) | procurement receive, supplier-invoice, fiscal tax-assessment, finance expenses | Sem endpoint de listagem de centro de custo no backend local | ABERTO |
-| Categoria de despesa (id) | procurement receive, supplier-invoice validate | Existe `POST finance/expense-categories`, mas **não** existe listagem | ABERTO |
+| Centro de custo (id) | procurement receive, supplier-invoice, fiscal tax-assessment, finance expenses | **RESOLVIDO na rodada MASTER-003** — migration `0118` + `GET finance/cost-centers` + `HumanLookupField` | FECHADO |
+| Categoria de despesa (id) | procurement receive, supplier-invoice validate | **RESOLVIDO na rodada MASTER-003** — `GET finance/expense-categories` + `HumanLookupField` | FECHADO |
 | Documento de origem (UUID) | finance treasury | Identificador da autorização de origem; sem endpoint de listagem | ABERTO |
-| Período (id) | finance budgets, fiscal apuração | Período contábil/fiscal sem endpoint de listagem por contexto | ABERTO |
+| Período (id) | finance budgets, fiscal apuração | **RESOLVIDO na rodada MASTER-003 (2ª frente)** — `GET accounting/periods` já existia e era usado pela Contabilidade, mas `BudgetsPage` pedia UUID em `Input` livre; agora usa `searchAccountingPeriodOptions` com escopo de unidade. `GET fiscal/periods` também já existia | FECHADO |
 
 ---
 
@@ -210,12 +210,14 @@ executado — e não apresentado como concluído.**
 
 | Entrega | Arquivo |
 | --- | --- |
-| Busca humana de centro de custo e categoria | `apps/web/src/financial-ui/finance-directory-lookup.ts` |
+| Busca humana de centro de custo, categoria **e período contábil** | `apps/web/src/financial-ui/finance-directory-lookup.ts` |
+| Prova da fronteira (9 casos, inclui proibição de consultar período sem unidade) | `apps/web/src/financial-ui/finance-directory-lookup.test.ts` |
 | `ExpensesPage` — campo UUID → escolha | `apps/web/src/finance/pages/ExpensesPage.tsx` |
 | `TaxAssessmentsPage` — idem | `apps/web/src/fiscal/pages/TaxAssessmentsPage.tsx` |
 | `ProcurementPages` (conferência **e** nota) — idem | `apps/web/src/procurement/pages/ProcurementPages.tsx` |
+| `BudgetsPage` — período contábil por escolha, com escopo de unidade | `apps/web/src/finance/pages/BudgetsPage.tsx` |
 
-Quatro consumidores que antes digitavam UUID agora escolhem de uma lista publicada pelo servidor.
+**Cinco** consumidores que antes digitavam UUID agora escolhem de uma lista publicada pelo servidor.
 
 ---
 

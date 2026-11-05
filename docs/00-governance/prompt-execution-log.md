@@ -21407,3 +21407,55 @@ A suite WEB completa apresentou **1 falha variavel** — `service-requests.e2e`,
 3. Listagem de documento de origem (treasury) e de registro de ativo imobilizado — ABERTOS.
 4. Edicao de contrato de FOLHA nao existe no backend.
 
+
+## MASTER 003 — SEGUNDA FRENTE: PERÍODO CONTÁBIL COMO REFERÊNCIA HUMANA — 2026-11-05
+
+Autorizacao: continuidade do objetivo MASTER 003 (rodada 2). Classificacao: interpretacao de engenharia sobre requisito confirmado.
+
+### Achado
+
+`GET accounting/periods` e `GET fiscal/periods` **ja existiam** e ja eram consumidos pela Contabilidade (`ClosingCenterPage`, `PeriodClosePage`, `JournalsPage`). O `PARK` da matriz dizia "sem endpoint de listagem por contexto" — **incorreto**.
+
+O defeito real estava em outro ponto: `BudgetsPage` pedia o identificador do periodo em `<Input>` de texto livre (`Período (id)`). O operador de orcamento precisava copiar UUID de outra tela. **Endpoint existir nao basta; o consumidor precisa alcancar-lo.**
+
+### Entregue
+
+- `searchAccountingPeriodOptions(term, unitId, signal)` em `apps/web/src/financial-ui/finance-directory-lookup.ts`.
+- `BudgetsPage`: campo `Período (id)` substituido por `HumanLookupField` (`budget-period-select`), com a unidade do proprio orcamento.
+- `apps/web/src/financial-ui/finance-directory-lookup.test.ts` — **9 casos**.
+
+### Regra de escopo, e por que ela e diferente das outras duas
+
+Categoria de despesa e centro de custo sao cadastros **GLOBAIS** (sem `unit_id`). O periodo contabil **e escopado por unidade**: o servidor exige `unitId`.
+
+`searchAccountingPeriodOptions` **devolve lista vazia e NAO chama o servidor** quando a unidade nao esta disponivel. Consultar sem `unitId` traria periodo de outra unidade para dentro de um orcamento — exatamente o vazamento de escopo que a autorizacao contextual existe para impedir. O caso de teste `PROIBE consulta de periodo sem unidade` verifica as duas coisas: retorno vazio E `fetch` nao invocado.
+
+### Outras regras provadas pelos testes
+
+- **Falha de rede propaga como erro, nunca como lista vazia.** Lista vazia significa "nada cadastrado"; a busca cair e outra coisa, e o campo precisa dizer isso.
+- **Registro INATIVO permanece visivel e rotulado** (`"Legado (inativo)"`). Escondê-lo faria o detalhe exibir apenas o identificador tecnico.
+- **Sem sessao a busca e recusada com 401** e nenhuma requisicao e disparada.
+- **Competencia nao e inventada**: sem `periodKey`/ano/mes a rotulo e a posicao real (`"Período 1"`).
+- **Teto explicito** (`limit=20`): escolha humana, nao exportacao de cadastro.
+
+### Gates medidos
+
+- WEB typecheck (`tsc -b --force`) PASS.
+- ESLint WEB PASS.
+- `finance-directory-lookup.test.ts` **9/9 PASS**.
+- WEB focado (financial-ui + finance + catch-up) **190/190 em 31 arquivos**.
+- **API unit 1905/1905 em 296 arquivos** (nenhuma regressao).
+
+### Estado dos PARK de referencia humana
+
+| Item | Estado |
+| --- | --- |
+| Centro de custo | FECHADO (1ª frente) |
+| Categoria de despesa | FECHADO (1ª frente) |
+| Periodo contabil/fiscal | FECHADO (esta frente) |
+| Documento de origem (treasury) | **ABERTO** |
+| Registro de ativo imobilizado | **ABERTO** |
+| Pessoa juridica / estabelecimento | **PARK por decisao de produto** |
+
+Documento de origem e ativo imobilizado permanecem abertos e exigem modelagem propria; nao foram tocados para nao inventar contrato.
+

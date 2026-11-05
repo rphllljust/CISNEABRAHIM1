@@ -170,3 +170,121 @@ export async function resolveCostCenterLabel(
     return null;
   }
 }
+
+/**
+ * PERIODO CONTABIL — referencia humana para a linha de orcamento.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * POR QUE ESTA FUNCAO EXISTE
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * `GET accounting/periods` JA existia e JA era usado pela Contabilidade. Mas a tela de ORCAMENTO
+ * pedia o identificador do periodo em um `Input` de texto livre, entao o operador de orcamento
+ * precisava copiar UUID de outra tela — o mesmo defeito que o centro de custo tinha, apenas em
+ * outro consumidor. O endpoint existir nao basta: o consumidor precisa alcancar-lo.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * DIFERENCA DELIBERADA: ESCOPO POR UNIDADE
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Diferente de categoria de despesa e centro de custo (cadastros GLOBAIS), o periodo contabil e
+ * escopado por UNIDADE — o servidor exige `unitId`. Por isso a funcao RECEBE a unidade e, quando
+ * ela nao esta disponivel, devolve lista vazia em vez de consultar sem escopo.
+ *
+ * Consultar sem `unitId` traria periodo de outra unidade para dentro de um orcamento, o que e
+ * exatamente o vazamento de escopo que a autorizacao contextual existe para impedir. Devolver
+ * vazio e honesto: o campo diz "informe a unidade" e o operador entende a dependencia.
+ */
+
+type AccountingPeriodRecord = {
+  id: string;
+  periodKey?: string;
+  year?: number;
+  month?: number;
+  status?: string;
+};
+
+type PeriodsByUnitResponse = {
+  items: AccountingPeriodRecord[];
+};
+
+function periodLabel(record: AccountingPeriodRecord, index: number): string {
+  if (record.periodKey) {
+    return record.periodKey;
+  }
+  if (typeof record.year === 'number' && typeof record.month === 'number') {
+    return `${record.year}-${String(record.month).padStart(2, '0')}`;
+  }
+  // Sem competencia declarada pelo servidor nao se inventa rotulo: a posicao e o dado real.
+  return `Período ${index + 1}`;
+}
+
+export async function searchAccountingPeriodOptions(
+  term: string,
+  unitId: string | null | undefined,
+  signal?: AbortSignal,
+): Promise<HumanLookupOption[]> {
+  /**
+   * Sem unidade nao ha como consultar com escopo. Devolver `[]` mantem a fronteira: a lista
+   * vazia diz "depende da unidade", nao "nao existe periodo". Consultar sem `unitId` traria
+   * periodo de outra unidade para dentro de um orcamento — exatamente o vazamento de escopo
+   * que a autorizacao contextual existe para impedir.
+   */
+  if (!unitId || unitId.trim().length === 0) {
+    return [];
+  }
+
+  const search = new URLSearchParams({ unitId: unitId.trim() });
+  /**
+   * `GET accounting/periods` responde `{ items }`, sem o envelope de paginacao do Financeiro.
+   * Le-se o formato REAL do endpoint em vez de se inventar um contrato que o servidor nao
+   * publica — e nao se reimplementa o cliente do modulo de Contabilidade.
+   */
+  const raw = await requestJson<PeriodsByUnitResponse>(
+    `/api/v1/accounting/periods?${search.toString()}`,
+    signal,
+  );
+
+  const needle = term.trim().toLowerCase();
+  return raw.items
+    .map((record, index) => ({
+      id: record.id,
+      label: periodLabel(record, index),
+      support: record.status,
+    }))
+    .filter((option) =>
+      needle.length === 0
+        ? true
+        : option.label.toLowerCase().includes(needle) ||
+          (option.support ?? '').toLowerCase().includes(needle),
+    );
+}
+
+/** Leitura crua, usada quando o endpoint nao segue o envelope paginado do Financeiro. */
+async function requestJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, {
+      method: 'GET',
+      headers: authHeaders(),
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof DirectoryLookupError) throw error;
+    if (isNetworkError(error)) throw new DirectoryLookupError(0, 'NETWORK');
+    throw new DirectoryLookupError(0, 'UNKNOWN');
+  }
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as {
+      code?: string;
+      error?: { code?: string };
+    };
+    throw new DirectoryLookupError(
+      response.status,
+      body.error?.code ?? body.code ?? 'FINANCE_DIRECTORY_REQUEST_FAILED',
+    );
+  }
+
+  return (await response.json()) as T;
+}
