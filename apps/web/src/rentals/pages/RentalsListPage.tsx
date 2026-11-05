@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import { listRentalServiceOrders } from '../api/rentals-api';
+import { OperationalArchetypeContext } from '../../service-orders/components/OperationalArchetypeContext';
 import {
   DynamicContextDrawer,
   DynamicSavedViewsBar,
@@ -24,7 +24,6 @@ import {
   WorklistHeader,
   WorklistRowLink,
   WorklistStatePanel,
-  rowPrimaryActionClass,
   worklistCellClass,
   worklistCellRaisedClass,
   worklistHeadCellClass,
@@ -436,12 +435,13 @@ export function RentalsListPage() {
         crossReferences={selected ? rentalCrossReferences(selected) : []}
       >
         {selected ? (
-          <Link
-            to={`/app/service-orders/${selected.id}/planning`}
-            className={rowPrimaryActionClass}
-          >
-            Abrir planejamento
-          </Link>
+          <div className="flex flex-col gap-3">
+            <OperationalArchetypeContext
+              key={selected.id}
+              serviceOrderId={selected.id}
+              onChanged={() => setRetryNonce((value) => value + 1)}
+            />
+          </div>
         ) : null}
       </DynamicContextDrawer>
     </ModulePage>
