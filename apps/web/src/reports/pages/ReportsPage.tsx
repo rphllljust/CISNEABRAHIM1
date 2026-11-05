@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useReportsCenter } from '../hooks/useReportsCenter';
 import { presentReportCell } from '../utils/report-cell-presenter';
@@ -56,13 +57,23 @@ export function ReportsPage() {
     cancelExport,
     reload,
   } = useReportsCenter();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { options, unitId, setUnitId } = useOperationalUnits();
 
-  // O filtro de unidade continua sendo enviado como `unitId` (valor real do contrato). A URL pode
-  // trazer um recorte de outra superficie; ela vence para nao contradizer o que o operador clicou.
-  const activeUnitId =
-    searchParams.get('unitId') ?? (state.phase === 'ready' ? (state.filters.unitId ?? unitId) : unitId);
+  // O escopo informado por um drilldown precisa ser aplicado ao payload efetivo do
+  // preview e da exportação; exibir uma unidade no select sem filtrá-la na API
+  // produziria um relatório com recorte diferente do que o operador solicitou.
+  const urlUnitId = searchParams.get('unitId');
+  const filterUnitId = state.phase === 'ready' ? state.filters.unitId : undefined;
+  const activeUnitId = urlUnitId ?? filterUnitId ?? '';
+
+  useEffect(() => {
+    if (state.phase !== 'ready' || urlUnitId === null) return;
+    const normalized = urlUnitId || undefined;
+    if (filterUnitId !== normalized) {
+      setFilters({ unitId: normalized });
+    }
+  }, [state.phase, urlUnitId, filterUnitId, setFilters]);
 
   if (state.phase === 'loading') {
     return (
@@ -201,8 +212,15 @@ export function ReportsPage() {
             className={reportSelectClass}
             value={activeUnitId}
             onChange={(event) => {
-              setUnitId(event.target.value);
-              setFilters({ unitId: event.target.value || undefined });
+              const selected = event.target.value;
+              setUnitId(selected);
+              setFilters({ unitId: selected || undefined });
+              setSearchParams((previous) => {
+                const next = new URLSearchParams(previous);
+                if (selected) next.set('unitId', selected);
+                else next.delete('unitId');
+                return next;
+              }, { replace: true });
             }}
           >
             <OperationalUnitOptions options={options} includeAllLabel="Todas as unidades" />
