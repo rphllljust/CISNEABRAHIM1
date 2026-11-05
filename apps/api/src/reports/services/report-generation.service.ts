@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ObjectStorageService } from '../../documents/storage/object-storage.service';
 import { buildCsvLine } from '../domain/csv-export';
 import { buildReportXlsx } from '../domain/xlsx-export';
+import { renderReportPdf } from '../domain/pdf-export';
 import {
   REPORT_DEFINITIONS,
   REPORT_FORMATS,
@@ -58,7 +59,7 @@ export class ReportGenerationService {
           }
           for (const row of batch) {
             const values = columnKeys.map((key) => row[key] ?? '');
-            if (exportRow.format === REPORT_FORMATS.Xlsx) {
+            if (exportRow.format === REPORT_FORMATS.Xlsx || exportRow.format === REPORT_FORMATS.Pdf) {
               spreadsheetRows.push(values);
             } else {
               csvChunks.push(buildCsvLine(values));
@@ -68,9 +69,12 @@ export class ReportGenerationService {
         },
       );
 
+      const generatedAt = new Date().toISOString();
       const buffer = exportRow.format === REPORT_FORMATS.Xlsx
         ? buildReportXlsx(headers, spreadsheetRows)
-        : Buffer.from(csvChunks.join(''), 'utf8');
+        : exportRow.format === REPORT_FORMATS.Pdf
+          ? await renderReportPdf(definition.label, headers, spreadsheetRows, generatedAt)
+          : Buffer.from(csvChunks.join(''), 'utf8');
       const storageKey = this.buildStorageKey(exportId, exportRow.report_type, exportRow.format);
       await this.objectStorage.putObject({
         storageKey,
@@ -78,7 +82,6 @@ export class ReportGenerationService {
         mimeType: this.resolveMimeType(exportRow.format),
       });
 
-      const generatedAt = new Date().toISOString();
       const contract: ReportContract = {
         ...exportRow.contract,
         generatedAt,
@@ -121,7 +124,7 @@ export class ReportGenerationService {
 
   buildStorageKey(exportId: string, reportType: ReportType, format: ReportFormat = REPORT_FORMATS.Csv): string {
     const hash = createHash('sha256').update(exportId).digest('hex').slice(0, 16);
-    const extension = format === REPORT_FORMATS.Xlsx ? 'xlsx' : 'csv';
+    const extension = format === REPORT_FORMATS.Xlsx ? 'xlsx' : format === REPORT_FORMATS.Pdf ? 'pdf' : 'csv';
     return `reports/${reportType.toLowerCase()}/${hash}.${extension}`;
   }
 
