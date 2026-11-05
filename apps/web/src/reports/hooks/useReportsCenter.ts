@@ -21,6 +21,7 @@ const POLL_INTERVAL_MS = 2_000;
 export type ReportsPageState =
   | { phase: 'loading' }
   | { phase: 'denied' }
+  | { phase: 'empty' }
   | { phase: 'error'; message: string }
   | {
       phase: 'ready';
@@ -29,6 +30,7 @@ export type ReportsPageState =
       filters: ReportFilters;
       preview: ReportPreviewResponse | null;
       previewLoading: boolean;
+      previewError: string | null;
       exportJob: ReportExportSummary | null;
       generating: boolean;
       downloadBusy: boolean;
@@ -62,8 +64,9 @@ export function useReportsCenter() {
   const loadCatalog = useCallback(async (signal?: AbortSignal) => {
     try {
       const catalog = await getReportCatalog(signal);
+      if (signal?.aborted) return;
       if (catalog.length === 0) {
-        setState({ phase: 'denied' });
+        setState({ phase: 'empty' });
         return;
       }
       setState({
@@ -73,11 +76,13 @@ export function useReportsCenter() {
         filters: DEFAULT_FILTERS,
         preview: null,
         previewLoading: true,
+        previewError: null,
         exportJob: null,
         generating: false,
         downloadBusy: false,
       });
     } catch (error) {
+      if (signal?.aborted) return;
       if (error instanceof ReportsApiError && error.kind === 'denied') {
         setState({ phase: 'denied' });
         return;
@@ -104,24 +109,32 @@ export function useReportsCenter() {
       const controller = new AbortController();
       previewAbort.current = controller;
       setState((previous) =>
-        previous.phase === 'ready'
-          ? { ...previous, previewLoading: true }
+        previous.phase === 'ready' &&
+        previous.selectedReportType === reportType &&
+        previous.filters === filters
+          ? { ...previous, preview: null, previewLoading: true, previewError: null }
           : previous,
       );
       try {
         const preview = await previewReport(reportType, filters, controller.signal);
+        if (controller.signal.aborted) return;
         setState((previous) =>
-          previous.phase === 'ready' && previous.selectedReportType === reportType
-            ? { ...previous, preview, previewLoading: false }
+          previous.phase === 'ready' &&
+          previous.selectedReportType === reportType &&
+          previous.filters === filters
+            ? { ...previous, preview, previewLoading: false, previewError: null }
             : previous,
         );
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return;
-        }
+        if (controller.signal.aborted) return;
+        const message = error instanceof ReportsApiError && error.kind === 'denied'
+          ? 'Sem permissão para consultar a prévia deste relatório.'
+          : 'Falha ao consultar a prévia deste relatório. Tente novamente.';
         setState((previous) =>
-          previous.phase === 'ready'
-            ? { ...previous, previewLoading: false }
+          previous.phase === 'ready' &&
+          previous.selectedReportType === reportType &&
+          previous.filters === filters
+            ? { ...previous, preview: null, previewLoading: false, previewError: message }
             : previous,
         );
       }
@@ -167,6 +180,8 @@ export function useReportsCenter() {
   }, [previewReportType, previewFilters, schedulePreview, clearPreviewTimer]);
 
   const setSelectedReportType = useCallback((reportType: string) => {
+    clearPreviewTimer();
+    previewAbort.current?.abort();
     setState((previous) =>
       previous.phase === 'ready'
         ? {
@@ -174,24 +189,35 @@ export function useReportsCenter() {
             selectedReportType: reportType,
             preview: null,
             previewLoading: true,
+            previewError: null,
             exportJob: null,
           }
         : previous,
     );
-  }, []);
+  }, [clearPreviewTimer]);
 
   const setFilters = useCallback((next: Partial<ReportFilters>) => {
+    clearPreviewTimer();
+    previewAbort.current?.abort();
     setState((previous) =>
       previous.phase === 'ready'
         ? {
             ...previous,
             filters: { ...previous.filters, ...next },
+            preview: null,
             previewLoading: true,
+            previewError: null,
             exportJob: null,
           }
         : previous,
     );
-  }, []);
+  }, [clearPreviewTimer]);
+
+  const retryPreview = useCallback(() => {
+    if (state.phase !== 'ready') return;
+    clearPreviewTimer();
+    void refreshPreview(state.selectedReportType, state.filters);
+  }, [state, clearPreviewTimer, refreshPreview]);
 
   const pollExport = useCallback(
     (exportId: string) => {
@@ -332,6 +358,7 @@ export function useReportsCenter() {
     selectedCatalogItem,
     setSelectedReportType,
     setFilters,
+    retryPreview,
     generateExport,
     downloadExport,
     cancelExport,
