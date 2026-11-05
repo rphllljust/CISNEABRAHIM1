@@ -135,6 +135,7 @@ export class ReportExportAccessService {
     if (!exportRow) {
       throw new ReportHttpException(404, REPORT_ERROR_CODES.NOT_FOUND, 'Report export not found.');
     }
+    await this.assertAccess(actor, this.parseReportType(exportRow.report_type));
     return this.serializeExport(exportRow);
   }
 
@@ -147,9 +148,18 @@ export class ReportExportAccessService {
       reportType?: string;
     },
   ) {
-    // Fail closed: somente atores que podem acessar ao menos um relatório
-    // conseguem listar as exportações que eles próprios solicitaram.
-    await this.assertAnyReportAccess(actor);
+    // Revoke access to historical export metadata along with the report grant.
+    // Identity ownership alone is not permission to keep reading an old export.
+    const authorizedTypes = (
+      await Promise.all(
+        Object.values(REPORT_TYPES).map(async (reportType) =>
+          (await this.canAccessReportAsync(actor, reportType)) ? reportType : null,
+        ),
+      )
+    ).filter((reportType): reportType is ReportType => reportType !== null);
+    if (authorizedTypes.length === 0) {
+      throw new ReportHttpException(403, REPORT_ERROR_CODES.ACCESS_DENIED, 'Access denied.');
+    }
 
     const page = this.parsePage(input.page, 0);
     const pageSize = Math.min(this.parsePage(input.pageSize, 30), 100);
@@ -159,6 +169,9 @@ export class ReportExportAccessService {
       throw new ReportHttpException(400, REPORT_ERROR_CODES.INVALID_REQUEST, 'Invalid export status filter.');
     }
     const reportType = input.reportType?.trim() ? this.parseReportType(input.reportType) : undefined;
+    if (reportType && !authorizedTypes.includes(reportType)) {
+      throw new ReportHttpException(403, REPORT_ERROR_CODES.ACCESS_DENIED, 'Access denied.');
+    }
 
     const { rows, total } = await this.exports.listForActor({
       identityId: actor.identityId,
@@ -166,6 +179,7 @@ export class ReportExportAccessService {
       pageSize,
       status,
       reportType,
+      allowedReportTypes: authorizedTypes,
     });
     return {
       items: rows.map((row) => this.serializeExport(row)),
@@ -180,6 +194,7 @@ export class ReportExportAccessService {
     if (!exportRow) {
       throw new ReportHttpException(404, REPORT_ERROR_CODES.NOT_FOUND, 'Report export not found.');
     }
+    await this.assertAccess(actor, this.parseReportType(exportRow.report_type));
     if (exportRow.status !== 'COMPLETED' || !exportRow.storage_key) {
       throw new ReportHttpException(409, REPORT_ERROR_CODES.NOT_READY, 'Report export is not ready.');
     }
@@ -203,6 +218,7 @@ export class ReportExportAccessService {
     if (!exportRow) {
       throw new ReportHttpException(404, REPORT_ERROR_CODES.NOT_FOUND, 'Report export not found.');
     }
+    await this.assertAccess(actor, this.parseReportType(exportRow.report_type));
     if (exportRow.status === 'COMPLETED') {
       throw new ReportHttpException(409, REPORT_ERROR_CODES.INVALID_REQUEST, 'Completed export cannot be cancelled.');
     }
@@ -282,15 +298,6 @@ export class ReportExportAccessService {
     if (!(await this.canAccessReportAsync(actor, reportType))) {
       throw new ReportHttpException(403, REPORT_ERROR_CODES.ACCESS_DENIED, 'Access denied.');
     }
-  }
-
-  private async assertAnyReportAccess(actor: IdentityAuthzContext): Promise<void> {
-    for (const reportType of Object.values(REPORT_TYPES)) {
-      if (await this.canAccessReportAsync(actor, reportType)) {
-        return;
-      }
-    }
-    throw new ReportHttpException(403, REPORT_ERROR_CODES.ACCESS_DENIED, 'Access denied.');
   }
 
   private parsePage(raw: string | number | undefined, fallback: number): number {
