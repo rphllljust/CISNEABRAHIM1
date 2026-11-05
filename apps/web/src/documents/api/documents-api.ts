@@ -270,6 +270,39 @@ export async function issueDocumentDownloadUrl(
   );
 }
 
+/**
+ * GED bulk export: only explicitly selected document versions are sent.
+ * NestJS checks DOWNLOAD authorization for every document before returning a ZIP.
+ */
+export async function downloadDocumentBatch(
+  documents: Array<{ documentId: string; versionNumber: number }>,
+  signal?: AbortSignal,
+): Promise<void> {
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/documents/download-batch`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documents }),
+      signal,
+    });
+    if (!response.ok) throw await parseError(response);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    try {
+      const anchor = window.document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'cisne-documentos.zip';
+      anchor.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch (error) {
+    if (error instanceof DocumentsApiError) throw error;
+    if (isNetworkError(error)) throw new DocumentsApiError(0, undefined, 'network');
+    throw new DocumentsApiError(0, undefined, 'unknown');
+  }
+}
+
 export async function triggerAuthorizedDownload(
   documentId: string,
   versionNumber: number,
