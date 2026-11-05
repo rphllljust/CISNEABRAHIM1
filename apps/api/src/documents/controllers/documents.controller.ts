@@ -24,6 +24,7 @@ import { DOCUMENT_ERROR_CODES } from '../errors/document-error-codes';
 import { DocumentHttpException } from '../errors/document-http.exception';
 import { DocumentsAccessService } from '../services/documents-access.service';
 import { sanitizeUploadFilename } from '../../security/domain/safe-filename';
+import { DocumentBatchValidationError, parseDocumentBatch } from '../domain/document-batch-zip';
 
 type MultipartPart = MultipartFile | MultipartValue<unknown>;
 
@@ -77,6 +78,37 @@ export class DocumentsController {
       .header('Content-Type', content.mimeType)
       .header('Content-Disposition', `attachment; filename="${content.filename}"`)
       .send(content.buffer);
+  }
+
+  @Post('download-batch')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async downloadBatch(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Req() request: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ) {
+    let documents: ReturnType<typeof parseDocumentBatch>;
+    try {
+      documents = parseDocumentBatch(request.body);
+    } catch (error) {
+      if (!(error instanceof DocumentBatchValidationError)) throw error;
+      throw new DocumentHttpException(
+        HttpStatus.BAD_REQUEST,
+        DOCUMENT_ERROR_CODES.INVALID_INPUT,
+        'Invalid batch document selection.',
+      );
+    }
+    const result = await this.documentsAccess.streamBatch(
+      { identityId: auth.sub, sessionId: auth.sid },
+      documents,
+    );
+    reply
+      .header('Content-Type', 'application/zip')
+      .header('Content-Disposition', 'attachment; filename="cisne-documentos.zip"')
+      .header('Cache-Control', 'no-store')
+      .header('X-Document-Count', String(result.count))
+      .send(result.buffer);
   }
 
   @Post()
