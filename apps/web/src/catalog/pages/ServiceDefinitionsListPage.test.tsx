@@ -51,7 +51,7 @@ describe('ServiceDefinitionsListPage integration', () => {
     await user.type(screen.getByLabelText(/^buscar$/i), 'zzz-nao-existe');
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(/nenhuma definição encontrada/i);
+      expect(screen.getByRole('status')).toHaveTextContent(/nenhuma definição corresponde aos filtros/i);
     });
   });
 
@@ -82,12 +82,12 @@ describe('ServiceDefinitionsListPage integration', () => {
     await user.type(screen.getByLabelText(/^buscar$/i), 'zzz-nao-existe');
 
     await waitFor(() => {
-      expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+      expect(screen.getByText('0–0 de 0')).toBeInTheDocument();
     });
     expect(screen.getByRole('navigation', { name: 'Paginação' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled();
-    expect(screen.queryByLabelText(/registros no recorte/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('0 registros no recorte')).toBeInTheDocument();
   });
 
   it('lets the operator return from an empty second page without claiming the catalog is empty', async () => {
@@ -112,32 +112,49 @@ describe('ServiceDefinitionsListPage integration', () => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ items, limit: 20, offset }),
+        json: async () => ({ items, limit: 20, offset, total: offset === 0 ? 21 : 20, asOf: '2026-11-04T12:00:00.000Z' }),
       } as Response;
     });
     vi.stubGlobal('fetch', fetchMock);
     renderWithProviders(<ServiceDefinitionsListPage />);
     const user = userEvent.setup();
 
-    await waitFor(() => expect(screen.getByText('1–20 nesta página')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('1–20 de 21')).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Próxima' }));
     await waitFor(() => {
-      expect(screen.getByText('Nenhuma definição nesta página.')).toBeInTheDocument();
+      expect(screen.getByText('Esta página não existe mais para o recorte atual.')).toBeInTheDocument();
     });
-    expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    expect(screen.getByText('0 nesta página de 20')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Anterior' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Próxima' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Anterior' }));
-    await waitFor(() => expect(screen.getByText('1–20 nesta página')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('1–20 de 21')).toBeInTheDocument());
     expect(screen.getByRole('table', { name: /lista de definições de serviço/i })).toBeInTheDocument();
+  });
+
+  it('resolves the version filter in the backend before pagination', async () => {
+    const mock = createCatalogFetchMock();
+    vi.stubGlobal('fetch', mock);
+    renderWithProviders(<ServiceDefinitionsListPage />);
+    const user = userEvent.setup();
+    await screen.findByRole('link', { name: 'Locação de automóveis sem condutor' });
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Versões' }), 'HAS_DRAFT');
+    await waitFor(() => {
+      expect(mock).toHaveBeenCalledWith(
+        expect.stringContaining('versionFilter=HAS_DRAFT'),
+        expect.anything(),
+      );
+    });
+    expect(await screen.findByText('Nenhuma definição corresponde aos filtros aplicados.')).toBeInTheDocument();
+    expect(screen.getByText('0–0 de 0')).toBeInTheDocument();
   });
 
   it('does not confuse authorization denial with an empty catalog', async () => {
     vi.stubGlobal('fetch', createCatalogFetchMock({ catalogListAllowed: false }));
     renderWithProviders(<ServiceDefinitionsListPage />);
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/permissão|acesso/i));
-    expect(screen.queryByText('0 nesta página')).not.toBeInTheDocument();
+    expect(screen.queryByText('0–0 de 0')).not.toBeInTheDocument();
   });
 
 });

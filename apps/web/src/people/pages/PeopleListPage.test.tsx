@@ -23,7 +23,7 @@ describe('PeopleListPage', () => {
     expect(screen.getByRole('table', { name: /lista de pessoas/i })).toBeInTheDocument();
   });
 
-  it('does not display a false 1–0 range or a global total when the authorized list is empty', async () => {
+  it('shows authoritative 0–0 de 0 instead of a false 1–0 range when the list is empty', async () => {
     vi.stubGlobal('fetch', createPeopleFetchMock({ seed: [] }));
     renderWithProviders(<PeopleListPage />);
 
@@ -31,7 +31,7 @@ describe('PeopleListPage', () => {
       expect(screen.getByText('Nenhuma Pessoa cadastrada ainda.')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    expect(screen.getByText('0–0 de 0')).toBeInTheDocument();
     expect(screen.queryByText(/1[–-]0 nesta página/)).not.toBeInTheDocument();
   });
 
@@ -46,7 +46,7 @@ describe('PeopleListPage', () => {
       expect(screen.getByText('Nenhuma Pessoa corresponde aos filtros aplicados.')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    expect(screen.getByText('0–0 de 0')).toBeInTheDocument();
     expect(mock).toHaveBeenCalledWith(
       expect.stringContaining('q=nao-existe-no-servidor'),
       expect.anything(),
@@ -63,10 +63,10 @@ describe('PeopleListPage', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Nenhuma Pessoa nesta página.')).toBeInTheDocument();
+      expect(screen.getByText('Esta página não existe mais para o recorte atual.')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('0 nesta página')).toBeInTheDocument();
+    expect(screen.getByText('0 nesta página de 1')).toBeInTheDocument();
     expect(screen.queryByText('Nenhuma Pessoa cadastrada ainda.')).not.toBeInTheDocument();
   });
 

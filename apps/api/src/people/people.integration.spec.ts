@@ -179,6 +179,8 @@ describe('People PostgreSQL integration', () => {
 
     const empty = await personAccess.list(actor, { limit: 10, offset: 0 });
     expect(empty.items).toEqual([]);
+    expect(empty.total).toBe(0);
+    expect(empty.asOf).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
     for (let index = 0; index < 3; index += 1) {
       await personAccess.create(actor, {
@@ -188,6 +190,18 @@ describe('People PostgreSQL integration', () => {
 
     const page = await personAccess.list(actor, { limit: 2, offset: 0 });
     expect(page.items).toHaveLength(2);
+    expect(page.total).toBe(3);
+    const secondPage = await personAccess.list(actor, { limit: 2, offset: 2 });
+    expect(secondPage.items).toHaveLength(1);
+    expect(secondPage.total).toBe(3);
+    const beyond = await personAccess.list(actor, { limit: 2, offset: 20 });
+    expect(beyond.items).toEqual([]);
+    expect(beyond.total).toBe(3);
+    const matched = await personAccess.list(actor, { limit: 2, offset: 0, q: 'Paginacao 1' });
+    expect(matched.items).toHaveLength(1);
+    expect(matched.total).toBe(1);
+    const missing = await personAccess.list(actor, { limit: 2, offset: 0, q: 'nao-existe-abc' });
+    expect(missing.total).toBe(0);
   });
 
   it('documents that service order allocations reference a physical asset or a workforce member', async () => {

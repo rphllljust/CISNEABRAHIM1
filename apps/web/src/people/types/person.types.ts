@@ -46,6 +46,9 @@ export type PersonListResponse = {
   items: Person[];
   limit: number;
   offset: number;
+  /** Exact authorized count for the same query. */
+  total: number;
+  asOf: string;
 };
 
 export type CreatePersonPayload = {

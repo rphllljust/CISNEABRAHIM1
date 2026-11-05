@@ -164,6 +164,17 @@ export class ServiceCatalogRepository {
     return result.rows;
   }
 
+  /** Exact count under the same status/search/version predicate as the list. */
+  async countDefinitions(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM cat.service_definitions d
+       WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   async findVersionDetail(
     definitionId: string,
     versionNumber: number,

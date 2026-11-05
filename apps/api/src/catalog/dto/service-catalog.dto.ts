@@ -556,11 +556,13 @@ export function parseListServiceDefinitionsQuery(query: Record<string, unknown>)
   offset: number;
   status?: LineageStatus;
   search?: string;
+  versionFilter?: 'HAS_DRAFT' | 'HAS_PUBLISHED' | 'NO_PUBLISHED';
 } {
   const limitRaw = query['limit'];
   const offsetRaw = query['offset'];
   const statusRaw = query['status'];
   const searchRaw = query['q'];
+  const versionRaw = query['versionFilter'];
 
   let limit = 20;
   if (limitRaw !== undefined) {
@@ -600,7 +602,25 @@ export function parseListServiceDefinitionsQuery(query: Record<string, unknown>)
     status = statusRaw;
   }
 
-  return { limit, offset, status, search: parseCatalogSearchQuery(searchRaw) };
+  if (
+    versionRaw !== undefined &&
+    versionRaw !== 'HAS_DRAFT' &&
+    versionRaw !== 'HAS_PUBLISHED' &&
+    versionRaw !== 'NO_PUBLISHED'
+  ) {
+    throw new CatalogHttpException(
+      HttpStatus.BAD_REQUEST,
+      CATALOG_ERROR_CODES.VALIDATION_FAILED,
+      'Invalid query parameters.',
+    );
+  }
+  return {
+    limit,
+    offset,
+    status,
+    search: parseCatalogSearchQuery(searchRaw),
+    versionFilter: versionRaw,
+  };
 }
 
 /**
