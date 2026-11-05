@@ -83,6 +83,24 @@ describe('OperationalArchetypeContext', () => {
     expect(releaseServiceOrder).not.toHaveBeenCalled();
   });
 
+  it('keeps the backend error visible after re-reading the record on a version conflict', async () => {
+    getServiceOrder.mockResolvedValueOnce(order).mockResolvedValueOnce({
+      ...order,
+      rowVersion: 4,
+    });
+    const { ServiceOrdersApiError } = await import('../api/service-orders-api');
+    prepareServiceOrder.mockRejectedValueOnce(
+      new ServiceOrdersApiError(409, 'SERVICE_ORDERS_VERSION_CONFLICT', 'version_conflict'),
+    );
+
+    render(<MemoryRouter><OperationalArchetypeContext serviceOrderId="order-1" /></MemoryRouter>);
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Preparar OS' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Comando não autorizado pelo domínio.');
+    await waitFor(() => expect(getServiceOrder).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole('alert')).toHaveTextContent('Comando não autorizado pelo domínio.');
+    expect(screen.getByRole('button', { name: 'Preparar OS' })).toBeEnabled();
+  });
+
   it('does not fabricate a command when the owner returns no transition', async () => {
     getServiceOrder.mockResolvedValueOnce({
       ...order,
