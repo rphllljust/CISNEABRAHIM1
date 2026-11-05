@@ -58,13 +58,15 @@ const REOPEN_DESCRIPTION = 'Reabertura segue SOD no backend.';
 export function PayrollRoute({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { expireSession, identityId } = useAuth();
+  const [retryAccessNonce, setRetryAccessNonce] = useState(0);
   const [accessState, setAccessState] = useState<
-    'loading' | 'allowed' | 'denied' | 'session_expired'
+    'loading' | 'allowed' | 'denied' | 'session_expired' | 'error'
   >('loading');
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    setAccessState('loading');
 
     async function resolveAccess() {
       if (!identityId) {
@@ -97,7 +99,9 @@ export function PayrollRoute({ children }: { children: ReactNode }) {
           setAccessState('session_expired');
           return;
         }
-        setAccessState('denied');
+        // A failed scope read or 5xx is not an authoritative PDP 403.
+        // Provide recovery without exposing the protected PayrollPage.
+        setAccessState('error');
       }
     }
 
@@ -106,12 +110,22 @@ export function PayrollRoute({ children }: { children: ReactNode }) {
       cancelled = true;
       controller.abort();
     };
-  }, [expireSession, identityId, location.pathname]);
+  }, [expireSession, identityId, location.pathname, retryAccessNonce]);
 
   if (accessState === 'loading') {
     return (
       <div className="shell-loading" aria-busy="true" aria-live="polite">
         <p>Verificando acesso…</p>
+      </div>
+    );
+  }
+  if (accessState === 'error') {
+    return (
+      <div className="shell-loading" role="alert" aria-live="polite">
+        <p>Não foi possível verificar o acesso à folha. O serviço pode estar indisponível.</p>
+        <button type="button" onClick={() => setRetryAccessNonce((value) => value + 1)}>
+          Tentar novamente
+        </button>
       </div>
     );
   }

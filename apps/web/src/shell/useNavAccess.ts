@@ -26,7 +26,6 @@ import {
 import { probeFixedAssetReadAccess } from '../accounting/api/accounting-api';
 import { probeProcurementReadAccess } from '../procurement/api/procurement-api';
 import { probeInventoryReadAccess } from '../inventory/api/inventory-api';
-import { probePayrollReadAccess } from '../payroll/api/payroll-api';
 import { probeAccessAdminAccess } from '../access-admin/api/access-admin-api';
 import { useAuth } from '../auth/context/AuthProvider';
 import { useSessionMeta } from '../service-orders/context/SessionMetaProvider';
@@ -589,8 +588,16 @@ export function useNavAccess(): NavAccessState {
         }
 
         if (item.accessCheck === 'payroll-read') {
+          // On an unresolved unit the real list probe is undetermined.
+          // A synthetic period ID returning 404 is NOT permission evidence.
+          // Fall back to the exact capability used by PayrollRoute.
           try {
-            nextAccess[item.id] = await probePayrollReadAccess(controller.signal);
+            const decision = await probeExplicitCapability(
+              ownerIdentityId,
+              'payroll:ledger:read',
+              controller.signal,
+            );
+            nextAccess[item.id] = decision.outcome === 'allowed';
           } catch {
             transientFailure = true;
             if (!cancelled) {
