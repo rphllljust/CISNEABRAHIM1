@@ -1,14 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { probeServiceOrderListAccess } from './service-orders-api';
 
 vi.mock('../../auth/api/auth-api', () => ({
   getApiBaseUrl: () => '',
   isNetworkError: (error: unknown) => error instanceof TypeError,
 }));
-vi.mock('../../auth/storage/token-store', () => ({
-  tokenStore: { getAccessToken: () => 'session-token' },
-}));
-
 function reply(status: number) {
   return new Response(JSON.stringify(status === 200 ? { items: [], total: 0 } : { error: {} }), {
     status, headers: { 'Content-Type': 'application/json' },
@@ -16,6 +13,10 @@ function reply(status: number) {
 }
 
 describe('OS list access: no implicit authorization on failure', () => {
+  beforeEach(() => {
+    resetTokenStoreForTests();
+    tokenStore.setTokens('session-token', 'refresh-token');
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it('allows an authenticated 200 list response', async () => {
