@@ -4,13 +4,14 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReceiptProvenanceWorkbench } from './ReceiptProvenanceWorkbench';
 import { listPostedReceiptLines } from '../api/procurement-api';
-import { bindReceiptProvenance, listInventoryItems, listWarehouses, postStockMovement } from '../../inventory/api/inventory-api';
+import { bindReceiptProvenance, getReceiptProvenance, listInventoryItems, listWarehouses, postStockMovement } from '../../inventory/api/inventory-api';
 
 vi.mock('../api/procurement-api', () => ({
   listPostedReceiptLines: vi.fn(),
 }));
 vi.mock('../../inventory/api/inventory-api', () => ({
   bindReceiptProvenance: vi.fn(),
+  getReceiptProvenance: vi.fn(),
   listInventoryItems: vi.fn(),
   listWarehouses: vi.fn(),
   postStockMovement: vi.fn(),
@@ -59,6 +60,12 @@ describe('Procure-to-Pay receipt provenance workbench', () => {
       limit: 50,
       offset: 0,
       totalPages: 1,
+    });
+    vi.mocked(getReceiptProvenance).mockResolvedValue({
+      receiptLineId: receiptId,
+      receivedQuantity: '10.0000',
+      allocatedQuantity: '0.0000',
+      items: [],
     });
     vi.mocked(bindReceiptProvenance).mockResolvedValue({
       id: 'binding-1',
