@@ -21459,3 +21459,58 @@ Categoria de despesa e centro de custo sao cadastros **GLOBAIS** (sem `unit_id`)
 
 Documento de origem e ativo imobilizado permanecem abertos e exigem modelagem propria; nao foram tocados para nao inventar contrato.
 
+
+## MASTER 003 — TERCEIRA FRENTE: ORIGEM DO MOVIMENTO DE TESOURARIA — 2026-11-05
+
+Autorizacao: continuidade do objetivo MASTER 003 (rodada 3). Classificacao: interpretacao de engenharia sobre requisito confirmado.
+
+### Defeito de causa raiz (dois, nao um)
+
+O `PARK` dizia "documento de origem sem endpoint de listagem". Havia **um defeito maior por baixo**:
+
+1. **`originKind` era constante no cliente.** `buildPostMovementPayload` enviava sempre `TREASURY_ORIGIN_KINDS.ManualAuthorized`. Todo movimento de tesouraria — inclusive o que quitava um titulo real — se declarava "despesa manual autorizada". `originKind` e justamente o campo que a contabilidade usa para explicar de onde veio o dinheiro; a origem persistida **mentia sobre a natureza**.
+2. **`originId` era UUID livre.** A tela rotulava "Documento de origem (UUID)" com dica "identificador da autorizacao", e nenhuma tela publicava essa lista.
+
+### Entregue
+
+- `searchTreasuryOriginOptions(term, kind, signal)` em `finance-directory-lookup.ts`, com `TREASURY_ORIGIN_LOOKUP_KINDS`.
+- `TreasuryAccountDetailPage`: campo "Documento de origem (UUID)" substituido por **Tipo de origem** (select) + **Origem autorizada** (`HumanLookupField`).
+- `buildPostMovementPayload` passa a exigir `originKind`; ausencia entra em `missing` em vez de assumir tipo.
+- Trocar o TIPO limpa o `originId` e a referencia: manter id de uma natureza e enviar com outra inverteria a direcao economica.
+
+### Regra central
+
+Nao existe "documento" generico. `originKind` determina **qual listagem autorizada responde**:
+
+| originKind | Listagem |
+| --- | --- |
+| `PAYABLE_PAYMENT` | `GET finance/payables` |
+| `RECEIVABLE_SETTLEMENT` | `GET finance/receivables` |
+
+Sem tipo, a funcao devolve `[]` e **nao chama o servidor**. Buscar em todas as origens de uma vez ofereceria titulo de natureza errada — pagar uma conta a receber como se fosse a pagar inverte a direcao economica do lancamento.
+
+### Gates medidos
+
+- WEB typecheck (`tsc -b --force`) PASS.
+- ESLint WEB PASS.
+- `finance-directory-lookup.test.ts` **13/13 PASS** (5 casos novos de origem).
+- `treasury-forms.test.ts` atualizado: prova que o `originKind` ESCOLHIDO e preservado e que a ausencia e recusada.
+- WEB focado (finance + financial-ui + catch-up) **196/196 em 31 arquivos**.
+
+### Teste antigo corrigido, nao afrouxado
+
+O caso `reports every required field that is missing` esperava 4 campos ausentes; agora sao 5, porque `originKind` tornou-se obrigatorio. A assercao foi ajustada ao comportamento correto — a anterior codificava o defeito (tipo assumido pelo cliente).
+
+### Estado final dos PARK de referencia humana
+
+| Item | Estado |
+| --- | --- |
+| Centro de custo | FECHADO |
+| Categoria de despesa | FECHADO |
+| Periodo contabil/fiscal | FECHADO |
+| Documento de origem (treasury) | **FECHADO (esta frente)** |
+| Registro de ativo imobilizado | **ABERTO** |
+| Pessoa juridica / estabelecimento | **PARK por decisao de produto** |
+
+Permanecem abertos: listagem de registro de ativo imobilizado (o `GET` existente e consulta por ativo operacional) e o gating de `issuer/establishments`, que e decisao de produto, nao de engenharia.
+

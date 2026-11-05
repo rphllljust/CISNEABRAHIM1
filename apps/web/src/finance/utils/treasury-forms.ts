@@ -68,6 +68,15 @@ export function buildPostMovementPayload(input: {
   direction: string;
   amount: string;
   reference: string;
+  /**
+   * TIPO DA ORIGEM — vem da ESCOLHA do operador, nao de constante.
+   *
+   * Antes era `TREASURY_ORIGIN_KINDS.ManualAuthorized` fixo: todo movimento se declarava despesa
+   * manual autorizada, mesmo quando quitava um titulo real. Isso corrompia a natureza da origem
+   * persistida — e `originKind` e justamente o campo que a contabilidade usa para explicar de onde
+   * o dinheiro veio. Ausente, o payload e recusado aqui em vez de assumir um tipo.
+   */
+  originKind: string;
   originId: string;
   originReference: string;
   idempotencyKey: string;
@@ -77,6 +86,7 @@ export function buildPostMovementPayload(input: {
   const reference = trimmed(input.reference);
   const originReference = trimmed(input.originReference);
   const amount = trimmed(input.amount);
+  const originKind = trimmed(input.originKind);
   if (!amount) {
     missing.push('amount');
   }
@@ -85,6 +95,10 @@ export function buildPostMovementPayload(input: {
   }
   if (!originReference) {
     missing.push('originReference');
+  }
+  if (!originKind) {
+    // Sem tipo nao se assume `MANUAL_AUTHORIZED`: escolher pelo operador e o ponto do campo.
+    missing.push('originKind');
   }
   if (!input.originId.trim()) {
     missing.push('originId');
@@ -96,7 +110,7 @@ export function buildPostMovementPayload(input: {
       rowVersion: input.accountRowVersion,
       idempotencyKey: input.idempotencyKey,
       reference,
-      originKind: TREASURY_ORIGIN_KINDS.ManualAuthorized,
+      originKind,
       originId: input.originId.trim(),
       originReference,
       occurredAt: input.occurredAt,

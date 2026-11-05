@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { tokenStore } from '../auth/storage/token-store';
 import {
   DirectoryLookupError,
+  TREASURY_ORIGIN_LOOKUP_KINDS,
   searchAccountingPeriodOptions,
   searchCostCenterOptions,
   searchExpenseCategoryOptions,
+  searchTreasuryOriginOptions,
 } from './finance-directory-lookup';
 
 /**
@@ -199,5 +201,88 @@ describe('finance directory lookup', () => {
     // inventar dado; a posicao e o dado real disponivel.
     expect(options[0]?.label).toBe('Período 1');
     expect(options[0]?.id).toBe(PERIOD_ID);
+  });
+
+  it('PROIBE busca de origem sem tipo — nao oferece titulo de natureza errada', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ items: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const options = await searchTreasuryOriginOptions('PAG', null);
+
+    // Sem `originKind` nao ha listagem a consultar. Oferecer tudo de uma vez permitiria pagar
+    // uma conta a receber como se fosse a pagar, invertendo a direcao economica do lancamento.
+    expect(options).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('busca a origem na listagem do TIPO escolhido', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({
+        items: [
+          {
+            id: 'payable-1',
+            reference: 'PAG-0001',
+            counterpartyName: 'Fornecedor Alfa',
+            status: 'OPEN',
+          },
+        ],
+        limit: 20,
+        offset: 0,
+        total: 1,
+        totalPages: 1,
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const options = await searchTreasuryOriginOptions(
+      'PAG',
+      TREASURY_ORIGIN_LOOKUP_KINDS.PayablePayment,
+    );
+
+    const calledUrl = String((fetchMock.mock.calls[0] as unknown[])[0]);
+    expect(calledUrl).toContain('/api/v1/finance/payables');
+    expect(calledUrl).not.toContain('/receivables');
+    expect(options[0]).toMatchObject({
+      id: 'payable-1',
+      label: 'PAG-0001 — Fornecedor Alfa',
+    });
+    expect(options[0]?.support).toContain('Conta a pagar');
+  });
+
+  it('origem a receber consulta a listagem de recebiveis, nao a de pagaveis', async () => {
+    const fetchMock = vi.fn(async () =>
+      jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await searchTreasuryOriginOptions('REC', TREASURY_ORIGIN_LOOKUP_KINDS.ReceivableSettlement);
+
+    const calledUrl = String((fetchMock.mock.calls[0] as unknown[])[0]);
+    expect(calledUrl).toContain('/api/v1/finance/receivables');
+    expect(calledUrl).not.toContain('/payables');
+  });
+
+  it('origem sem referencia declarada exibe o identificador real, sem rotulo inventado', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          items: [{ id: 'payable-sem-referencia', status: 'OPEN', currencyCode: 'BRL' }],
+          limit: 20,
+          offset: 0,
+          total: 1,
+          totalPages: 1,
+        }),
+      ),
+    );
+
+    const options = await searchTreasuryOriginOptions(
+      '',
+      TREASURY_ORIGIN_LOOKUP_KINDS.PayablePayment,
+    );
+
+    // Sem referencia o servidor nao publicou numero de titulo. Exibir o id mantem a ausencia
+    // VISIVEL em vez de esconder atras de um rotulo fabricado.
+    expect(options[0]?.label).toBe('payable-sem-referencia');
   });
 });

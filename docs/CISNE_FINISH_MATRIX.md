@@ -76,7 +76,7 @@ Registrados aqui; **não** substituir por input livre nem por carga massiva no n
 | --- | --- | --- | --- |
 | Centro de custo (id) | procurement receive, supplier-invoice, fiscal tax-assessment, finance expenses | **RESOLVIDO na rodada MASTER-003** — migration `0118` + `GET finance/cost-centers` + `HumanLookupField` | FECHADO |
 | Categoria de despesa (id) | procurement receive, supplier-invoice validate | **RESOLVIDO na rodada MASTER-003** — `GET finance/expense-categories` + `HumanLookupField` | FECHADO |
-| Documento de origem (UUID) | finance treasury | Identificador da autorização de origem; sem endpoint de listagem | ABERTO |
+| Documento de origem (UUID) | finance treasury | **RESOLVIDO na rodada MASTER-003 (3ª frente)** — `originKind` era fixo em `MANUAL_AUTHORIZED` no cliente e `originId` era UUID livre; um pagamento de título real se declarava despesa manual. Agora o operador escolhe o TIPO e o título vem de `GET finance/payables` / `receivables` | FECHADO |
 | Período (id) | finance budgets, fiscal apuração | **RESOLVIDO na rodada MASTER-003 (2ª frente)** — `GET accounting/periods` já existia e era usado pela Contabilidade, mas `BudgetsPage` pedia UUID em `Input` livre; agora usa `searchAccountingPeriodOptions` com escopo de unidade. `GET fiscal/periods` também já existia | FECHADO |
 
 ---
@@ -251,7 +251,7 @@ executado — e não apresentado como concluído.**
 | --- | --- | --- |
 | Extrato bancário | finance/bank-reconciliation | **RESOLVIDO** — `GET bank-statements` publica listagem com filtro server-side |
 | Movimento financeiro / transação | finance/bank-reconciliation, treasury | `GET accounts/:accountId/reconciliation` + `POST .../movements`; vínculo manual por id permanece |
-| Documento de origem (UUID) | finance/treasury | sem listagem — ABERTO |
+| Documento de origem (UUID) | finance/treasury | **RESOLVIDO** — tipo de origem escolhido + título por `HumanLookupField` |
 | Centro de custo (id) | procurement, fiscal, finance/expenses | **RESOLVIDO** — migration 0118 + `GET finance/cost-centers` + `HumanLookupField` nos 4 consumidores |
 | Categoria de despesa (id) | procurement, finance/expenses | **RESOLVIDO** — `GET finance/expense-categories` + `HumanLookupField` |
 | Período de folha | payroll | **RESOLVIDO** — `GET payroll/periods` e `GET payroll/contracts` já existiam; o PARK estava incorreto |
