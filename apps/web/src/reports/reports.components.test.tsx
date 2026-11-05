@@ -36,7 +36,8 @@ const catalog = [
   {
     reportType: 'SERVICE_ORDERS_BY_PERIOD',
     label: 'OS por período',
-    formats: ['CSV'],
+    formats: ['CSV', 'XLSX'],
+    allowedFilters: ['period', 'from', 'to', 'unitId'],
     sensitive: false,
     columns: ['Número OS', 'Cliente', 'Status'],
   },
@@ -215,6 +216,7 @@ describe('ReportsPage', () => {
       expect(createReportExport).toHaveBeenCalledWith(
         'SERVICE_ORDERS_BY_PERIOD',
         expect.objectContaining({ unitId }),
+        'CSV',
       );
     });
   });
@@ -230,6 +232,65 @@ describe('ReportsPage', () => {
     expect(screen.queryByText('Nenhum dado para os filtros atuais')).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: /tentar novamente/i }));
     expect(await screen.findByText('SO-001')).toBeInTheDocument();
+  });
+
+  it('selects XLSX and sends the actual format through the export command', async () => {
+    const user = userEvent.setup();
+    createReportExport.mockResolvedValue({
+      id: 'export-xlsx',
+      reportType: 'SERVICE_ORDERS_BY_PERIOD',
+      format: 'XLSX',
+      status: 'COMPLETED',
+      contract: preview.contract,
+      rowCount: 1,
+      fileSizeBytes: 1294,
+      errorMessage: null,
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      downloadReady: true,
+    });
+
+    render(<MemoryRouter><ReportsPage /></MemoryRouter>);
+    await screen.findByText('SO-001');
+
+    await user.selectOptions(screen.getByLabelText('Formato'), 'XLSX');
+    await user.click(screen.getByRole('button', { name: /gerar exportação/i }));
+
+    await waitFor(() => {
+      expect(createReportExport).toHaveBeenCalledWith(
+        'SERVICE_ORDERS_BY_PERIOD',
+        expect.any(Object),
+        'XLSX',
+      );
+    });
+    expect(await screen.findByRole('button', { name: /baixar xlsx/i })).toBeInTheDocument();
+  });
+
+  it('does not send incompatible period/unit filters to the report owner', async () => {
+    getReportCatalog.mockResolvedValue([
+      ...catalog,
+      {
+        reportType: 'FINANCIAL_AGING',
+        label: 'Aging financeiro',
+        formats: ['CSV', 'XLSX'],
+        allowedFilters: [],
+        sensitive: true,
+        columns: ['Faixa', 'Quantidade', 'Valor'],
+      },
+    ]);
+    render(<MemoryRouter initialEntries={['/app/reports?unitId=unit-from-drill']}><ReportsPage /></MemoryRouter>);
+    await screen.findByText('SO-001');
+
+    await userEvent.setup().selectOptions(screen.getByLabelText('Tipo'), 'FINANCIAL_AGING');
+    await waitFor(() => {
+      expect(previewReport).toHaveBeenCalledWith(
+        'FINANCIAL_AGING',
+        {},
+        expect.any(AbortSignal),
+      );
+    });
+    expect(screen.queryByLabelText('Período')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Unidade')).not.toBeInTheDocument();
   });
 
 });
