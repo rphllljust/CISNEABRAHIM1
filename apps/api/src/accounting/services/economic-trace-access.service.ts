@@ -123,7 +123,24 @@ export class EconomicTraceAccessService {
       id: actor.identityId,
       unitId: query.unitId,
     });
-    return this.readModel.worklist(query.unitId, query.limit, query.offset, query.situation);
+    const page = await this.readModel.worklist(query.unitId, query.limit, query.offset, query.situation);
+    const canRetry = await this.authz.hasAccountingAction(actor, AUTHZ_ACTIONS.AccountingPostingRequest);
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...item,
+        availableCommands: item.availableCommands.filter((command) =>
+          command !== 'RETRY_POSTING' || canRetry),
+        nextAction: item.nextAction.command === 'RETRY_POSTING' && !canRetry
+          ? {
+              command: null,
+              label: 'Consultar exceção contábil',
+              reason: 'O reprocessamento exige permissão contábil específica.',
+              owner: null,
+            }
+          : item.nextAction,
+      })),
+    };
   }
 
   /**
