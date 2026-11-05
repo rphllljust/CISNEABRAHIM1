@@ -206,27 +206,27 @@ export class ReportDataService {
 
     if (filters.from) {
       params.push(new Date(filters.from));
-      filterParts.push(`${ownerAlias}.created_at >= ${params.length}`);
+      filterParts.push(`${ownerAlias}.created_at >= $${params.length}`);
     }
     if (filters.to) {
       params.push(new Date(filters.to));
-      filterParts.push(`${ownerAlias}.created_at < ${params.length}`);
+      filterParts.push(`${ownerAlias}.created_at < $${params.length}`);
     }
     if (filters.unitId) {
       params.push(filters.unitId);
-      filterParts.push(`${ownerAlias}.unit_id = ${params.length}`);
+      filterParts.push(`${ownerAlias}.unit_id = $${params.length}`);
     }
     if (filters.clientId) {
       params.push(filters.clientId);
-      filterParts.push(`${clientAlias}.client_id = ${params.length}::uuid`);
+      filterParts.push(`${clientAlias}.client_id = $${params.length}::uuid`);
     }
     if (filters.serviceDefinitionId) {
       params.push(filters.serviceDefinitionId);
-      filterParts.push(`${ownerAlias}.service_definition_id = ${params.length}::uuid`);
+      filterParts.push(`${ownerAlias}.service_definition_id = $${params.length}::uuid`);
     }
     if (filters.status) {
       params.push(filters.status);
-      filterParts.push(`${ownerAlias}.status = ${params.length}`);
+      filterParts.push(`${ownerAlias}.status = $${params.length}`);
     }
 
     const whereClause = filterParts.join(' AND ');
