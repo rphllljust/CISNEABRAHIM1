@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BUILT_MODULES, STUB_MODULES, resolveModuleFlag } from './feature-flags';
+import { BUILT_MODULES, HML_CANDIDATE_MODULES, STUB_MODULES, resolveModuleFlag } from './feature-flags';
 import { FEATURE_FLAG_ENV, GATED_MODULE_IDS } from './release-1-scope';
 
 /**
@@ -80,6 +80,15 @@ describe('artefato de producao: decisao de release dos modulos', () => {
     const env = readProductionBuildEnv();
     const on = [...STUB_MODULES].filter((moduleId) => resolveModuleFlag(moduleId, env).enabled);
     expect(on, `modulos sem backend real ligados em producao: ${on.join(', ')}`).toEqual([]);
+  });
+
+  it('keeps MASTER 002 HML candidates out of production until business acceptance', () => {
+    const env = readProductionBuildEnv();
+    expect([...HML_CANDIDATE_MODULES].sort()).toEqual(['rentals', 'transport']);
+    for (const moduleId of HML_CANDIDATE_MODULES) {
+      expect(resolveModuleFlag(moduleId, env).enabled).toBe(false);
+      expect(env[FEATURE_FLAG_ENV[moduleId]]).not.toBe('true');
+    }
   });
 
   it('libera producao modulo a modulo, sem herdar de superficie de homologacao', () => {

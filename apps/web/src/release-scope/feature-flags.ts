@@ -28,8 +28,10 @@ import { FEATURE_FLAG_ENV, type GatedModuleId } from './release-1-scope';
  *   Em produção o default permanece conservador (desligado) e a decisão de ligar é declarada
  *   no env de produção, nunca herdada por omissão.
  *
- * Módulos que são apenas STUB (sem API real por trás) permanecem desligados em todos os
- * ambientes: `rentals` e `transport` têm `*-api.ts` de 8 linhas e não são produto construído.
+ * Locações e Transporte reutilizam a OS canônica e podem ser homologados, mas
+ * ainda não têm o aceite empresarial completo do MASTER 002. Portanto NÃO
+ * integram BUILT_MODULES, pois esse conjunto é usado pelo CI como lista de
+ * módulos obrigatoriamente liberados no artefato de produção.
  */
 
 /**
@@ -52,14 +54,14 @@ export const BUILT_MODULES: ReadonlySet<GatedModuleId> = new Set<GatedModuleId>(
   'operational-profitability',
 ]);
 
-/**
- * Módulos que são apenas superfície sem backend real por trás (stub comprovado).
- * Permanecem desligados por padrão em TODOS os ambientes até serem produto.
- */
-export const STUB_MODULES: ReadonlySet<GatedModuleId> = new Set<GatedModuleId>([
+/** Superfícies reais em homologação, mas ainda sem aceite produtivo integral. */
+export const HML_CANDIDATE_MODULES: ReadonlySet<GatedModuleId> = new Set<GatedModuleId>([
   'rentals',
   'transport',
 ]);
+
+/** Superfícies sem API canônica existente. */
+export const STUB_MODULES: ReadonlySet<GatedModuleId> = new Set<GatedModuleId>();
 
 type FlagEnv = Record<string, string | undefined>;
 
@@ -104,7 +106,7 @@ export function resolveModuleFlag(
   }
 
   const surface = env[SURFACE_ENV_KEY]?.trim().toLowerCase();
-  if (surface && HOMOLOGATION_SURFACES.has(surface) && BUILT_MODULES.has(moduleId)) {
+  if (surface && HOMOLOGATION_SURFACES.has(surface) && (BUILT_MODULES.has(moduleId) || HML_CANDIDATE_MODULES.has(moduleId))) {
     return { enabled: true, origin: 'surface-default' };
   }
 

@@ -156,7 +156,20 @@ export async function probeReadAccess(path: string, signal?: AbortSignal): Promi
         return true;
       }
     }
-    return false;
+    throw error;
+  }
+}
+
+/** Only a live 2xx list response proves list access. No synthetic IDs or 404 shortcuts. */
+export async function probeRealListAccess(path: string, signal?: AbortSignal): Promise<boolean> {
+  try {
+    await requestJson<unknown>(path, { method: 'GET', headers: authHeaders(), signal });
+    return true;
+  } catch (error) {
+    if (error instanceof BackofficeApiError && error.status === 403) {
+      return false;
+    }
+    throw error;
   }
 }
 

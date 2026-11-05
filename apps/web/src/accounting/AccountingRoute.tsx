@@ -33,12 +33,14 @@ export function AccountingRoute({
 }) {
   const location = useLocation();
   const { expireSession, identityId } = useAuth();
-  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>('loading');
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired' | 'error'>('loading');
   const policy = ACCOUNTING_ACCESS[access];
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    setState('loading');
 
     async function resolveAccess() {
       if (!identityId) {
@@ -77,6 +79,10 @@ export function AccountingRoute({
               controller.signal,
             );
           }
+          if (result.outcome === 'undetermined') {
+            if (!cancelled) setState('error');
+            return;
+          }
           allowed = result.outcome === 'allowed';
         }
 
@@ -95,7 +101,7 @@ export function AccountingRoute({
           setState('session_expired');
           return;
         }
-        setState('denied');
+        setState('error');
       }
     }
 
@@ -110,6 +116,7 @@ export function AccountingRoute({
     expireSession,
     identityId,
     location.pathname,
+    retryNonce,
     policy.accessCheck,
   ]);
 
@@ -120,6 +127,18 @@ export function AccountingRoute({
       </div>
     );
   }
+
+  if (state === 'error') {
+    return (
+      <div className="shell-loading" role="alert" aria-live="polite">
+        <p>Não foi possível verificar o acesso. O serviço pode estar indisponível.</p>
+        <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
   if (state === 'session_expired') {
     return <Navigate to="/login" replace state={{ reason: 'session_expired', from: location.pathname }} />;
   }

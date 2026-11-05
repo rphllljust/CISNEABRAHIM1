@@ -118,7 +118,10 @@ export async function getWorkInbox(
       signal,
     });
     if (!response.ok) {
-      throw new WorkInboxApiError(response.status, response.status === 403 ? 'denied' : 'unknown');
+      throw new WorkInboxApiError(
+        response.status,
+        response.status === 401 || response.status === 403 ? 'denied' : 'unknown',
+      );
     }
     return (await response.json()) as WorkInboxPage;
   } catch (error) {

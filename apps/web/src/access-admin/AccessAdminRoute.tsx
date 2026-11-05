@@ -15,13 +15,15 @@ type AccessAdminRouteProps = {
 export function AccessAdminRoute({ children }: AccessAdminRouteProps) {
   const location = useLocation();
   const { expireSession } = useAuth();
-  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>(
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired' | 'error'>(
     'loading',
   );
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    setState('loading');
 
     void probeAccessAdminAccess(controller.signal)
       .then((allowed) => {
@@ -38,19 +40,30 @@ export function AccessAdminRoute({ children }: AccessAdminRouteProps) {
           setState('session_expired');
           return;
         }
-        setState('denied');
+        setState('error');
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [expireSession, location.pathname]);
+  }, [expireSession, location.pathname, retryNonce]);
 
   if (state === 'loading') {
     return (
       <div className="shell-loading" aria-busy="true" aria-live="polite">
         <p>Verificando acesso…</p>
+      </div>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <div className="shell-loading" role="alert" aria-live="polite">
+        <p>Não foi possível verificar as permissões administrativas. O servidor pode estar indisponível.</p>
+        <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>
+          Tentar novamente
+        </button>
       </div>
     );
   }

@@ -71,7 +71,15 @@ export class DocumentsApiError extends Error {
 const PROBE_DOCUMENT_ID = '00000000-0000-4000-8000-000000000050';
 
 function classifyError(status: number, code: string | undefined): DocumentsApiErrorKind {
-  if (code === DOCUMENT_ERROR_CODES.DENIED || status === 403) {
+  // The HTTP status is authoritative; a malformed error envelope never turns
+  // an expired session into an unrelated validation/not-found state.
+  if (status === 401 || status === 403) {
+    return 'denied';
+  }
+  if (status >= 500) {
+    return 'unknown';
+  }
+  if (code === DOCUMENT_ERROR_CODES.DENIED) {
     return 'denied';
   }
   if (
@@ -97,8 +105,8 @@ function classifyError(status: number, code: string | undefined): DocumentsApiEr
 async function parseError(response: Response): Promise<DocumentsApiError> {
   let code: string | undefined;
   try {
-    const body = (await response.json()) as { error?: { code?: string } };
-    code = body.error?.code;
+    const body = (await response.json()) as { code?: string; error?: { code?: string } };
+    code = body.error?.code ?? body.code;
   } catch {
     // ignore
   }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
-import { DynamicSavedViewsBar, useSavedViews } from '../../engine';
+import { DynamicContextDrawer, DynamicSavedViewsBar, useSavedViews } from '../../engine';
+import { useMediaQuery } from '../../shell/hooks/useMediaQuery';
 import { listTransportServiceOrders } from '../api/transport-api';
 import { OperationalArchetypeContext } from '../../service-orders/components/OperationalArchetypeContext';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
@@ -63,6 +64,7 @@ function readTransportRouteLabel(location: Record<string, unknown> | null | unde
 
 export function TransportListPage() {
   const savedViews = useSavedViews(useOptionalIdentityId(), 'transport');
+  const isWideViewport = useMediaQuery('(min-width: 80rem)');
   const [offset, setOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState<'' | ServiceOrderStatus>('');
   const [searchInput, setSearchInput] = useState('');
@@ -270,6 +272,14 @@ export function TransportListPage() {
                     <WorklistRowLink href={`/app/service-orders/${order.id}/planning`}>
                       {order.orderNumber}
                     </WorklistRowLink>
+                    <button
+                      type="button"
+                      aria-label={`Ver contexto da OS ${order.orderNumber}`}
+                      className="ml-2 rounded-sm text-xs font-semibold text-brand-700 underline focus-visible:outline-2 focus-visible:outline-brand-500"
+                      onClick={() => setSelectedId(order.id === selectedId ? null : order.id)}
+                    >
+                      Contexto
+                    </button>
                   </td>
                   <td className={worklistCellRaisedClass}>
                     {formatClientLabel(order.clientSnapshot, order.clientId)}
@@ -315,8 +325,9 @@ export function TransportListPage() {
         densa e o produto. Escondida, ela nao deixa espaco morto — o que acontece e a fila usar
         toda a largura, que e a leitura correta em tela estreita.
       */}
+      {isWideViewport ? (
       <aside
-        className="hidden min-w-0 xl:block"
+        className="min-w-0"
         data-region="context-column"
         aria-label="Contexto do transporte"
       >
@@ -382,8 +393,36 @@ export function TransportListPage() {
           </section>
         )}
       </aside>
+      ) : null}
       </div>
       </div>
+
+      {/* No mobile o contexto precisa abrir em um drawer acessível; a coluna XL é oculta. */}
+      {!isWideViewport && selected ? (
+        <DynamicContextDrawer
+          open
+          title={`Transporte ${selected.orderNumber}`}
+          onClose={() => setSelectedId(null)}
+          crossReferences={[
+            { label: 'Cliente', detail: formatClientLabel(selected.clientSnapshot, selected.clientId) },
+            { label: 'Trecho', detail: readTransportRouteLabel(selected.location) ?? 'Trecho não publicado' },
+            { label: 'Situação', detail: formatServiceOrderStatus(selected.status) },
+            { label: 'Atualizado', detail: formatDateTime(selected.updatedAt) },
+          ]}
+        >
+          <OperationalArchetypeContext
+            key={selected.id}
+            serviceOrderId={selected.id}
+            onChanged={() => setRetryNonce((value) => value + 1)}
+          />
+          <Link
+            to={`/app/service-orders/${selected.id}/planning`}
+            className="cisne-type-action mt-3 inline-block text-brand-700 underline"
+          >
+            Abrir planejamento da ordem
+          </Link>
+        </DynamicContextDrawer>
+      ) : null}
     </ModulePage>
   );
 }

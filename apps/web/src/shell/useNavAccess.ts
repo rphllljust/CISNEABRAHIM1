@@ -26,7 +26,6 @@ import {
 import { probeFixedAssetReadAccess } from '../accounting/api/accounting-api';
 import { probeProcurementReadAccess } from '../procurement/api/procurement-api';
 import { probeInventoryReadAccess } from '../inventory/api/inventory-api';
-import { probePayrollReadAccess } from '../payroll/api/payroll-api';
 import { probeAccessAdminAccess } from '../access-admin/api/access-admin-api';
 import { useAuth } from '../auth/context/AuthProvider';
 import { useSessionMeta } from '../service-orders/context/SessionMetaProvider';
@@ -210,12 +209,20 @@ export function useNavAccess(): NavAccessState {
 
     async function resolveAccess() {
       const nextAccess: NavAccessMap = { ...INITIAL_ACCESS };
+      let transientFailure = false;
 
       /**
        * ESCOPO AUTORIZADO resolvido UMA vez para todas as sondas que exigem unidade.
        * Sem ele, fiscal e contabilidade não têm como montar a leitura de entrada.
        */
-      const unitId = await resolveAuthorizedUnit(ownerIdentityId, controller.signal);
+      let unitId = '';
+      try {
+        unitId = await resolveAuthorizedUnit(ownerIdentityId, controller.signal);
+      } catch {
+        // The session may be valid while the unit directory is unavailable.
+        // Continue fail closed without caching a false scope decision.
+        transientFailure = true;
+      }
       if (cancelled) {
         return;
       }
@@ -259,6 +266,7 @@ export function useNavAccess(): NavAccessState {
               continue;
             }
           } catch {
+            transientFailure = true;
             // Falha de rede na sonda não autoriza: fail-closed.
             nextAccess[item.id] = false;
             continue;
@@ -274,6 +282,7 @@ export function useNavAccess(): NavAccessState {
               nextAccess[item.id] = false;
               continue;
             }
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -286,6 +295,7 @@ export function useNavAccess(): NavAccessState {
             const allowed = await probeClientListAccess(controller.signal);
             nextAccess[item.id] = allowed;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -298,6 +308,7 @@ export function useNavAccess(): NavAccessState {
             const allowed = await probeCatalogListAccess(controller.signal);
             nextAccess[item.id] = allowed;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -310,6 +321,7 @@ export function useNavAccess(): NavAccessState {
             const allowed = await probeAssetListAccess(controller.signal);
             nextAccess[item.id] = allowed;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -322,6 +334,7 @@ export function useNavAccess(): NavAccessState {
             const allowed = await probeServiceRequestListAccess(controller.signal);
             nextAccess[item.id] = allowed;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -334,6 +347,7 @@ export function useNavAccess(): NavAccessState {
             const allowed = await probeProposalListAccess(controller.signal);
             nextAccess[item.id] = allowed;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -346,6 +360,7 @@ export function useNavAccess(): NavAccessState {
             const allowed = await probePurchaseOrderListAccess(controller.signal);
             nextAccess[item.id] = allowed;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -373,6 +388,7 @@ export function useNavAccess(): NavAccessState {
             const allowed = await probeServiceOrderListAccess(controller.signal);
             nextAccess[item.id] = allowed;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -385,6 +401,7 @@ export function useNavAccess(): NavAccessState {
             const allowed = await probePersonListAccess(controller.signal);
             nextAccess[item.id] = allowed;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -401,6 +418,7 @@ export function useNavAccess(): NavAccessState {
             ]);
             nextAccess[item.id] = receivables || payables || treasury;
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -412,6 +430,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeReceivableListAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -423,6 +442,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probePayableListAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -434,6 +454,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeTreasuryListAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -445,6 +466,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeReconciliationReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -456,6 +478,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeExpenseReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -467,6 +490,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeBudgetReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -478,6 +502,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeForecastReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -489,6 +514,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeFiscalDocumentReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -500,6 +526,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeTaxReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -511,6 +538,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeFiscalPeriodReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -527,6 +555,7 @@ export function useNavAccess(): NavAccessState {
             );
             nextAccess[item.id] = result.outcome === 'allowed';
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -538,6 +567,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeFixedAssetReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -549,6 +579,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeInventoryReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -557,9 +588,18 @@ export function useNavAccess(): NavAccessState {
         }
 
         if (item.accessCheck === 'payroll-read') {
+          // On an unresolved unit the real list probe is undetermined.
+          // A synthetic period ID returning 404 is NOT permission evidence.
+          // Fall back to the exact capability used by PayrollRoute.
           try {
-            nextAccess[item.id] = await probePayrollReadAccess(controller.signal);
+            const decision = await probeExplicitCapability(
+              ownerIdentityId,
+              'payroll:ledger:read',
+              controller.signal,
+            );
+            nextAccess[item.id] = decision.outcome === 'allowed';
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -571,6 +611,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeProcurementReadAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -585,6 +626,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeSupplierListAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -601,6 +643,7 @@ export function useNavAccess(): NavAccessState {
           try {
             nextAccess[item.id] = await probeAccessAdminAccess(controller.signal);
           } catch {
+            transientFailure = true;
             if (!cancelled) {
               nextAccess[item.id] = false;
             }
@@ -610,12 +653,17 @@ export function useNavAccess(): NavAccessState {
 
       if (!cancelled) {
         const resolved: NavAccessState = { loading: false, access: nextAccess };
-        navAccessCache = {
-          identityId: ownerIdentityId,
-          surfaceSignature,
-          state: resolved,
-        };
-        persistNavAccess(ownerIdentityId, resolved);
+        if (!transientFailure) {
+          navAccessCache = {
+            identityId: ownerIdentityId,
+            surfaceSignature,
+            state: resolved,
+          };
+          persistNavAccess(ownerIdentityId, resolved);
+        } else {
+          // The menu is a presentation cache: an API outage is not a denial.
+          navAccessCache = null;
+        }
         setState(resolved);
       }
     }

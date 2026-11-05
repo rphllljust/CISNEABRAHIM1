@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isNavItemVisible } from '../shell/useNavAccess';
 import {
   BUILT_MODULES,
+  HML_CANDIDATE_MODULES,
   STUB_MODULES,
   isReleaseModuleEnabled,
   resolveModuleFlag,
@@ -76,12 +77,14 @@ describe('web release feature flags', () => {
  * silenciosa que motivou a Wave 0: um default de Dockerfile produzindo HML mutilado.
  */
 describe('release surface policy', () => {
-  it('classifies every gated module as built or stub, never both', () => {
+  it('classifies every gated module as production-built, HML candidate or stub', () => {
     for (const moduleId of GATED_MODULE_IDS) {
-      const built = BUILT_MODULES.has(moduleId);
-      const stub = STUB_MODULES.has(moduleId);
-      expect(built || stub).toBe(true);
-      expect(built && stub).toBe(false);
+      const statuses = [
+        BUILT_MODULES.has(moduleId),
+        HML_CANDIDATE_MODULES.has(moduleId),
+        STUB_MODULES.has(moduleId),
+      ];
+      expect(statuses.filter(Boolean)).toHaveLength(1);
     }
   });
 
@@ -94,13 +97,23 @@ describe('release surface policy', () => {
     }
   });
 
-  it('keeps stub modules OFF even on a homologation surface', () => {
-    const env = { VITE_CISNE_SURFACE: 'hml' };
-    for (const moduleId of STUB_MODULES) {
-      expect(resolveModuleFlag(moduleId, env)).toEqual({
+  it('exposes OS-backed rental and transport worklists to HML, not production by default', () => {
+    for (const moduleId of ['rentals', 'transport'] as const) {
+      expect(BUILT_MODULES.has(moduleId)).toBe(false);
+      expect(HML_CANDIDATE_MODULES.has(moduleId)).toBe(true);
+      expect(STUB_MODULES.has(moduleId)).toBe(false);
+      expect(resolveModuleFlag(moduleId, { VITE_CISNE_SURFACE: 'hml' })).toEqual({
+        enabled: true,
+        origin: 'surface-default',
+      });
+      expect(resolveModuleFlag(moduleId, { VITE_CISNE_SURFACE: 'prod' })).toEqual({
         enabled: false,
         origin: 'conservative-default',
       });
+      expect(resolveModuleFlag(moduleId, {
+        VITE_CISNE_SURFACE: 'prod',
+        [FEATURE_FLAG_ENV[moduleId]]: 'true',
+      })).toEqual({ enabled: true, origin: 'explicit-env' });
     }
   });
 

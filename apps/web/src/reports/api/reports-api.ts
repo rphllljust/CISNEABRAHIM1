@@ -64,13 +64,17 @@ function buildFilterQuery(filters: ReportFilters): URLSearchParams {
 async function parseError(response: Response): Promise<ReportsApiError> {
   let code: ReportErrorCode | undefined;
   try {
-    const body = (await response.json()) as { code?: ReportErrorCode };
-    code = body.code;
+    const body = (await response.json()) as {
+      code?: ReportErrorCode;
+      error?: { code?: ReportErrorCode };
+    };
+    // A API pode serializar o erro no envelope { error: { code } }.
+    code = body.error?.code ?? body.code;
   } catch {
     code = undefined;
   }
 
-  if (code === REPORT_ERROR_CODES.ACCESS_DENIED || response.status === 403) {
+  if (code === REPORT_ERROR_CODES.ACCESS_DENIED || response.status === 401 || response.status === 403) {
     return new ReportsApiError(response.status, code, 'denied');
   }
   if (code === REPORT_ERROR_CODES.NOT_READY || response.status === 409) {

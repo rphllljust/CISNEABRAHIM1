@@ -86,6 +86,10 @@ jobs:
         run: node scripts/ci/github-actions-runtime-audit.mjs
       - name: Toolchain version audit
         run: node scripts/ci/toolchain-version-audit.mjs
+      # Checks all 16 module owners and five MASTER 002 journeys are represented.
+      # Structural scope != functional acceptance; cannot authorize release.
+      - name: MASTER 002 source scope gate
+        run: node scripts/ci/master-002-scope-gate.mjs
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Lint
@@ -97,7 +101,7 @@ jobs:
       - name: SRC-002 business gate
         run: pnpm gate:src-002
       - name: Immutable release focused tests
-        run: node --test scripts/cd/immutable-release.test.mjs scripts/cd/provider-cutover.test.mjs scripts/cd/coolify-deploy-payload.test.mjs scripts/cd/coolify-postdeploy-smoke.test.mjs scripts/cd/production-business-attestation.test.mjs scripts/cd/release-sequence.test.mjs scripts/ops/coolify-tls-audit.test.mjs scripts/ops/coolify-tls-harden.test.mjs
+        run: node --test scripts/cd/immutable-release.test.mjs scripts/cd/provider-cutover.test.mjs scripts/cd/coolify-deploy-payload.test.mjs scripts/cd/coolify-postdeploy-smoke.test.mjs scripts/cd/production-business-attestation.test.mjs scripts/cd/release-sequence.test.mjs scripts/cd/verify-business-release-approval.test.mjs scripts/ops/coolify-tls-audit.test.mjs scripts/ops/coolify-tls-harden.test.mjs
       # Impede que o artefato de producao volte a ser compilado com modulos CONSTRUIDOS
       # desligados. Falhou aqui = o operador receberia produto mutilado sem gate vermelho.
       # Roda no runner oficial do web (vitest), que resolve os imports de release-scope.

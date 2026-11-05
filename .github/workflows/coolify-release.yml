@@ -40,6 +40,14 @@ jobs:
         with:
           fetch-depth: 1
 
+      # This release gate is separate from code CI and business acceptance.
+      # A merge must never implicitly authorize GHCR publication or Coolify deploy.
+      # Settings > Secrets and variables > Actions > Variables: approve exact main SHA.
+      - name: Require explicit business release approval (exact SHA)
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          CISNE_BUSINESS_APPROVED_SHA: ${{ vars.CISNE_BUSINESS_APPROVED_SHA }}
+        run: node scripts/cd/verify-business-release-approval.mjs
       - id: authority
         env:
           GH_TOKEN: ${{ github.token }}

@@ -55,22 +55,31 @@ export type RentalCheckInInput = {
 };
 
 function assertValidWindow(window: RentalWindow): void {
-  if (!window.startsOn || !window.endsOn || window.endsOn <= window.startsOn) {
+  const start = Date.parse(window.startsOn);
+  const end = Date.parse(window.endsOn);
+  if (!window.startsOn || !window.endsOn || !Number.isFinite(start) ||
+      !Number.isFinite(end) || end <= start) {
     throw new RentalCycleError(RENTAL_CYCLE_ERROR_CODES.INVALID_RENTAL_WINDOW);
   }
 }
 
 function toScaled(value: string): bigint {
-  const [whole, fraction = ''] = String(value).split('.');
-  const padded = fraction.padEnd(4, '0').slice(0, 4);
-  return BigInt(whole || '0') * 10_000n + BigInt(padded || '0');
+  const normalized = value.trim();
+  // Meter readings are nonnegative decimals, stored exactly to 4 places.
+  // Never truncate a fifth digit (which could silently change a return value).
+  if (!/^\d+(?:\.\d{1,4})?$/.test(normalized)) {
+    throw new RentalCycleError(RENTAL_CYCLE_ERROR_CODES.METER_BACKWARD);
+  }
+  const [whole, fraction = ''] = normalized.split('.');
+  return BigInt(whole!) * 10_000n + BigInt(fraction.padEnd(4, '0'));
 }
 
 /** Sobreposição: janelas [start,end) que se cruzam. */
 export function windowsOverlap(left: RentalWindow, right: RentalWindow): boolean {
   assertValidWindow(left);
   assertValidWindow(right);
-  return left.startsOn < right.endsOn && right.startsOn < left.endsOn;
+  return Date.parse(left.startsOn) < Date.parse(right.endsOn)
+    && Date.parse(right.startsOn) < Date.parse(left.endsOn);
 }
 
 /**

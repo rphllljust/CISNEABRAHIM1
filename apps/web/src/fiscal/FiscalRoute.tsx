@@ -38,12 +38,14 @@ type FiscalRouteProps = {
 export function FiscalRoute({ children, access }: FiscalRouteProps) {
   const location = useLocation();
   const { expireSession, identityId } = useAuth();
-  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>('loading');
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired' | 'error'>('loading');
   const accessPolicy = FISCAL_ACCESS[access];
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    setState('loading');
 
     async function resolveAccess() {
       if (!identityId) {
@@ -77,7 +79,7 @@ export function FiscalRoute({ children, access }: FiscalRouteProps) {
               controller.signal,
             );
         if (!cancelled) {
-          setState(result.outcome === 'allowed' ? 'allowed' : 'denied');
+          setState(result.outcome === 'allowed' ? 'allowed' : result.outcome === 'denied' ? 'denied' : 'error');
         }
       } catch (error: unknown) {
         if (cancelled) {
@@ -88,7 +90,7 @@ export function FiscalRoute({ children, access }: FiscalRouteProps) {
           setState('session_expired');
           return;
         }
-        setState('denied');
+        setState('error');
       }
     }
 
@@ -98,7 +100,7 @@ export function FiscalRoute({ children, access }: FiscalRouteProps) {
       cancelled = true;
       controller.abort();
     };
-  }, [accessPolicy.accessCheck, expireSession, identityId, location.pathname]);
+  }, [accessPolicy.accessCheck, expireSession, identityId, location.pathname, retryNonce]);
 
   if (state === 'loading') {
     return (
@@ -107,6 +109,18 @@ export function FiscalRoute({ children, access }: FiscalRouteProps) {
       </div>
     );
   }
+
+  if (state === 'error') {
+    return (
+      <div className="shell-loading" role="alert" aria-live="polite">
+        <p>Não foi possível verificar o acesso. O serviço pode estar indisponível.</p>
+        <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
   if (state === 'session_expired') {
     return <Navigate to="/login" replace state={{ reason: 'session_expired', from: location.pathname }} />;
   }

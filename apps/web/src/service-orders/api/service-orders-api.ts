@@ -413,7 +413,8 @@ export async function probeServiceOrderListAccess(signal?: AbortSignal): Promise
     if (error instanceof ServiceOrdersApiError && error.kind === 'denied') {
       return false;
     }
-    return true;
+    // A temporary API failure cannot authorize a route.
+    throw error;
   }
 }
 

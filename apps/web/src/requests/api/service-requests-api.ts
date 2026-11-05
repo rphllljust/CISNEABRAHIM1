@@ -464,6 +464,6 @@ export async function probeServiceRequestListAccess(signal?: AbortSignal): Promi
         return false;
       }
     }
-    return false;
+    throw error;
   }
 }

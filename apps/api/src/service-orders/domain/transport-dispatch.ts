@@ -66,8 +66,16 @@ export type ExistingTripAssignmentView = TripWindow & {
   status: TripStatus;
 };
 
+function dispatchInstant(value: string): number {
+  const instant = Date.parse(value);
+  if (!value.trim() || !Number.isFinite(instant)) {
+    throw new TransportDispatchError(TRANSPORT_DISPATCH_ERROR_CODES.INVALID_DISPATCH_STEP);
+  }
+  return instant;
+}
+
 export function assertValidTripWindow(window: TripWindow): void {
-  if (!window.plannedDepartureAt || !window.plannedArrivalAt || window.plannedArrivalAt <= window.plannedDepartureAt) {
+  if (dispatchInstant(window.plannedArrivalAt) <= dispatchInstant(window.plannedDepartureAt)) {
     throw new TransportDispatchError(TRANSPORT_DISPATCH_ERROR_CODES.INVALID_DISPATCH_STEP);
   }
 }
@@ -76,7 +84,8 @@ export function assertValidTripWindow(window: TripWindow): void {
 export function tripWindowsOverlap(left: TripWindow, right: TripWindow): boolean {
   assertValidTripWindow(left);
   assertValidTripWindow(right);
-  return left.plannedDepartureAt < right.plannedArrivalAt && right.plannedDepartureAt < left.plannedArrivalAt;
+  return dispatchInstant(left.plannedDepartureAt) < dispatchInstant(right.plannedArrivalAt)
+    && dispatchInstant(right.plannedDepartureAt) < dispatchInstant(left.plannedArrivalAt);
 }
 
 function conflicts(
@@ -150,6 +159,7 @@ export function dispatchTrip(plan: TripPlan): TripExecution {
 /** Saída (CheckOut do trip). */
 export function recordDeparture(execution: TripExecution, departedAt: string): TripExecution {
   assertExecutionStep(execution, 'DISPATCHED');
+  dispatchInstant(departedAt);
   return { ...execution, status: 'ACTIVE', departedAt };
 }
 
@@ -163,7 +173,11 @@ export function recordArrival(
   if (!arrivalEvidenceId) {
     throw new TransportDispatchError(TRANSPORT_DISPATCH_ERROR_CODES.ARRIVAL_EVIDENCE_REQUIRED);
   }
-  if (execution.departedAt && arrivedAt <= execution.departedAt) {
+  const arrivalTime = dispatchInstant(arrivedAt);
+  if (!execution.departedAt) {
+    throw new TransportDispatchError(TRANSPORT_DISPATCH_ERROR_CODES.INVALID_DISPATCH_STEP);
+  }
+  if (arrivalTime <= dispatchInstant(execution.departedAt)) {
     throw new TransportDispatchError(TRANSPORT_DISPATCH_ERROR_CODES.ARRIVAL_BEFORE_DEPARTURE);
   }
   return {
