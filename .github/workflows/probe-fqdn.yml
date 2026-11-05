@@ -1,0 +1,20 @@
+﻿on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump FQDNs from Coolify
+        env:
+          TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          BASE: ${{ secrets.COOLIFY_BASE_URL }}
+          API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+          WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
+        run: |
+          set -euo pipefail
+          for pair in "api:$API_UUID" "web:$WEB_UUID"; do
+            name="${pair%%:*}"; uuid="${pair##*:}"
+            echo "--- $name ---"
+            curl -s -H "Authorization: Bearer $TOKEN" "$BASE/api/v1/applications/$uuid" \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); print('fqdn=', d.get('fqdn')); print('status=', d.get('status'))"
+          done
