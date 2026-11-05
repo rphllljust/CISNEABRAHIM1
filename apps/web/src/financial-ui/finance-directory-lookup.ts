@@ -288,3 +288,97 @@ async function requestJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 
   return (await response.json()) as T;
 }
+
+/**
+ * ORIGEM DO MOVIMENTO DE TESOURARIA — a autorizacao que o lancamento referencia.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * O DEFEITO QUE ESTA FUNCAO FECHA
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * O contrato de `POST treasury/accounts/:id/movements` exige `originKind` + `originId` +
+ * `originReference`: todo movimento tem de apontar para a AUTORIZACAO que o originou. A tela
+ * pedia esse identificador em `<Input>` rotulado "Documento de origem (UUID)", com a dica
+ * "Identificador da autorizacao que origina o movimento".
+ *
+ * O operador nao tinha como saber qual UUID digitar: nenhuma tela publicava essa lista. E o
+ * `originKind` era fixo em `MANUAL_AUTHORIZED` no cliente, entao a origem era sempre declarada
+ * como despesa manual autorizada mesmo quando o lancamento correspondia a um titulo real.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * POR QUE A BUSCA DEPENDE DO TIPO
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * Nao existe um "documento" generico. `originKind` determina qual listagem autorizada responde:
+ *
+ *   PAYABLE_PAYMENT        -> `GET finance/payables`
+ *   RECEIVABLE_SETTLEMENT  -> `GET finance/receivables`
+ *
+ * Buscar em todas as origens de uma vez devolveria titulos de natureza errada — pagar uma conta
+ * a receber como se fosse a pagar inverteria a direcao economica do lancamento. Por isso o tipo
+ * e PARAMETRO OBRIGATORIO e a funcao recusa sem ele, exatamente como o servidor exige.
+ */
+export const TREASURY_ORIGIN_LOOKUP_KINDS = {
+  PayablePayment: 'PAYABLE_PAYMENT',
+  ReceivableSettlement: 'RECEIVABLE_SETTLEMENT',
+} as const;
+
+export type TreasuryOriginLookupKind =
+  (typeof TREASURY_ORIGIN_LOOKUP_KINDS)[keyof typeof TREASURY_ORIGIN_LOOKUP_KINDS];
+
+type TreasuryOriginRecord = {
+  id: string;
+  reference?: string;
+  externalReference?: string;
+  counterpartyName?: string;
+  status?: string;
+  currencyCode?: string;
+};
+
+/**
+ * Rotulo humano do titulo de origem.
+ *
+ * A referencia do titulo e o dado que o operador reconhece; o nome da contraparte qualifica.
+ * Sem referencia declarada, o identificador tecnico e exibido — a ausencia fica VISIVEL em vez
+ * de ser escondida atras de um rotulo inventado.
+ */
+function treasuryOriginOption(record: TreasuryOriginRecord, kind: TreasuryOriginLookupKind) {
+  const reference = record.reference ?? record.externalReference ?? record.id;
+  const nature = kind === TREASURY_ORIGIN_LOOKUP_KINDS.PayablePayment ? 'Conta a pagar' : 'Conta a receber';
+  return {
+    id: record.id,
+    label: record.counterpartyName ? `${reference} — ${record.counterpartyName}` : reference,
+    support: record.status ? `${nature} · ${record.status}` : nature,
+  };
+}
+
+export async function searchTreasuryOriginOptions(
+  term: string,
+  kind: TreasuryOriginLookupKind | null | undefined,
+  signal?: AbortSignal,
+): Promise<HumanLookupOption[]> {
+  /**
+   * Sem `originKind` nao ha listagem a consultar. Lista vazia mantem a fronteira: a tela precisa
+   * dizer "escolha o tipo de origem", nao "nao ha origem" — e nenhum titulo de natureza errada
+   * chega a ser oferecido.
+   */
+  if (!kind) {
+    return [];
+  }
+
+  const base =
+    kind === TREASURY_ORIGIN_LOOKUP_KINDS.PayablePayment
+      ? '/api/v1/finance/payables'
+      : '/api/v1/finance/receivables';
+
+  const params = new URLSearchParams();
+  const trimmed = term.trim();
+  if (trimmed.length > 0) {
+    params.set('q', trimmed);
+  }
+  params.set('limit', String(LOOKUP_PAGE_SIZE));
+  params.set('offset', '0');
+
+  const page = await requestPage<TreasuryOriginRecord>(`${base}?${params.toString()}`, signal);
+  return page.items.map((record) => treasuryOriginOption(record, kind));
+}

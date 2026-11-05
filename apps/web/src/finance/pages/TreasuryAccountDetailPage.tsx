@@ -12,6 +12,8 @@ import {
   TREASURY_LIFECYCLE_LABELS,
 } from '../../financial-ui/labels';
 import { CreateRecordForm } from '../../financial-ui/VersionedActionForm';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchTreasuryOriginOptions } from '../../financial-ui/finance-directory-lookup';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
 import { DynamicForm, useEntitySchema } from '../../engine';
@@ -95,6 +97,12 @@ export function TreasuryAccountDetailPage() {
     direction: 'CREDIT',
     amount: '',
     reference: '',
+    /**
+     * TIPO DE ORIGEM — antes era fixo em `MANUAL_AUTHORIZED` dentro de `buildPostMovementPayload`,
+     * entao TODO movimento se declarava despesa manual autorizada mesmo quando correspondia a um
+     * titulo real. O contrato do servidor exige `originKind`; a tela passa a escolhe-lo.
+     */
+    originKind: '' as '' | 'PAYABLE_PAYMENT' | 'RECEIVABLE_SETTLEMENT',
     originId: '',
     originReference: '',
   });
@@ -182,7 +190,14 @@ export function TreasuryAccountDetailPage() {
   const selectedToAccount = accounts.find((item) => item.id === reverseTransfer.toAccountId);
 
   function resetMovementDraft() {
-    setMovementDraft({ direction: 'CREDIT', amount: '', reference: '', originId: '', originReference: '' });
+    setMovementDraft({
+      direction: 'CREDIT',
+      amount: '',
+      reference: '',
+      originKind: '',
+      originId: '',
+      originReference: '',
+    });
   }
   function resetTransferDraft() {
     setTransferDraft({ toAccountId: '', amount: '', reference: '', originId: '', originReference: '' });
@@ -319,6 +334,7 @@ export function TreasuryAccountDetailPage() {
                   direction: movementDraft.direction,
                   amount: movementDraft.amount,
                   reference: movementDraft.reference,
+                  originKind: movementDraft.originKind,
                   originId: movementDraft.originId,
                   originReference: movementDraft.originReference,
                   idempotencyKey,
@@ -356,18 +372,50 @@ export function TreasuryAccountDetailPage() {
                 />
               </Field>
               <Field
-                label="Documento de origem (UUID)"
+                label="Tipo de origem"
+                htmlFor="movement-origin-kind"
+                required
+                hint="Define qual título pode ser escolhido como origem do movimento."
+              >
+                <Select
+                  id="movement-origin-kind"
+                  data-testid="movement-origin-kind"
+                  value={movementDraft.originKind}
+                  onChange={(event) =>
+                    setMovementDraft((current) => ({
+                      ...current,
+                      // Trocar o TIPO invalida a origem escolhida: manter o id de uma natureza
+                      // e enviar com outra inverteria a direcao economica do lancamento.
+                      originKind: event.target.value as typeof current.originKind,
+                      originId: '',
+                      originReference: '',
+                    }))
+                  }
+                  required
+                >
+                  <option value="">Selecione o tipo</option>
+                  <option value="PAYABLE_PAYMENT">Conta a pagar</option>
+                  <option value="RECEIVABLE_SETTLEMENT">Conta a receber</option>
+                </Select>
+              </Field>
+              <HumanLookupField
+                label="Origem autorizada"
                 htmlFor="movement-origin-id"
                 required
-                hint="Identificador da autorização que origina o movimento."
-              >
-                <Input
-                  id="movement-origin-id"
-                  value={movementDraft.originId}
-                  onChange={(event) => setMovementDraft((current) => ({ ...current, originId: event.target.value }))}
-                  required
-                />
-              </Field>
+                hint="Título que autoriza o movimento."
+                search={(term, signal) => searchTreasuryOriginOptions(term, movementDraft.originKind || null, signal)}
+                value={movementDraft.originId}
+                onChange={(originId) =>
+                  setMovementDraft((current) => ({ ...current, originId }))
+                }
+                placeholder="Busque pelo número do título"
+                emptyMessage={
+                  movementDraft.originKind
+                    ? 'Nenhum título encontrado para esta busca.'
+                    : 'Escolha o tipo de origem para listar os títulos.'
+                }
+                selectTestId="movement-origin-select"
+              />
               <Field label="Referência da origem" htmlFor="movement-origin-reference" required className="md:col-span-2">
                 <Input
                   id="movement-origin-reference"
