@@ -36,6 +36,9 @@ import { ClientsModule } from '../clients/clients.module';
 import { CONTACT_PURPOSES } from '../clients/domain/client-status';
 import { ClientAccessService } from '../clients/services/client-access.service';
 import { ResourcesModule } from '../resources/resources.module';
+import { PeopleModule } from '../people/people.module';
+import { PersonAccessService } from '../people/services/person-access.service';
+import { PERSON_ERROR_CODES } from '../people/errors/person-error-codes';
 import { PhysicalAssetsAccessService } from '../resources/services/physical-assets-access.service';
 import { PhysicalResourceTypesAccessService } from '../resources/services/physical-resource-types-access.service';
 import {
@@ -139,6 +142,7 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
   let clientAccess: ClientAccessService;
   let catalogAccess: ServiceCatalogAccessService;
   let assetsAccess: PhysicalAssetsAccessService;
+  let personAccess: PersonAccessService;
   let resourceTypesAccess: PhysicalResourceTypesAccessService;
   const testDatabaseUrl = process.env['TEST_DATABASE_URL'];
 
@@ -159,6 +163,7 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
         ClientsModule,
         CatalogModule,
         ResourcesModule,
+        PeopleModule,
         ServiceOrdersModule,
       ],
     }).compile();
@@ -170,6 +175,7 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
     clientAccess = module.get(ClientAccessService);
     catalogAccess = module.get(ServiceCatalogAccessService);
     assetsAccess = module.get(PhysicalAssetsAccessService);
+    personAccess = module.get(PersonAccessService);
     resourceTypesAccess = module.get(PhysicalResourceTypesAccessService);
     pool = new Pool({ connectionString: testDatabaseUrl });
   });
@@ -364,6 +370,46 @@ describe('Service order planning and allocation PostgreSQL integration', () => {
 
     const listed = await planningAccess.listPlannedResources(actor, released.id);
     expect(listed).toHaveLength(2);
+  });
+
+  it('prevents workforce deactivation while a persisted OS allocation is active', async () => {
+    const { actor } = await seedActor();
+    const { released } = await seedReleasedOrder(actor);
+    const employee = await createEmployee(`DR-${crypto.randomUUID().slice(0, 8)}`);
+    for (const action of [AUTHZ_ACTIONS.PeoplePersonRead, AUTHZ_ACTIONS.PeoplePersonDeactivate]) {
+      await insertGrant(pool, {
+        identityId: actor.identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.PeoplePerson,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: actor.identityId,
+      });
+    }
+    const planned = await planningAccess.planResource(actor, released.id, {
+      requirementKind: PLANNED_RESOURCE_KINDS.Labor,
+      laborTypeCode: 'DRIVER',
+      plannedQuantity: '1',
+    });
+    const allocation = await planningAccess.allocateResource(actor, released.id, {
+      plannedResourceId: planned.id,
+      workforceMemberId: employee.workforceMemberId,
+      operationalStart: '2026-06-01T08:00:00.000Z',
+      operationalEnd: '2026-06-01T10:00:00.000Z',
+    });
+    const person = await personAccess.getById(actor, employee.workforceMemberId);
+
+    await expect(
+      personAccess.deactivate(actor, person.id, person.version, 'Encerramento do vínculo'),
+    ).rejects.toMatchObject({ code: PERSON_ERROR_CODES.ACTIVE_ALLOCATIONS });
+
+    const persisted = await personAccess.getById(actor, person.id);
+    expect(persisted.status).toBe('ACTIVE');
+    expect(persisted.version).toBe(person.version);
+    const allocationRecord = await pool.query<{ status: string }>(
+      'SELECT status::text AS status FROM res.resource_allocations WHERE id = $1',
+      [allocation.id],
+    );
+    expect(allocationRecord.rows[0]?.status).toBe('ACTIVE');
   });
 
   it('allocates asset to planned resource and records history and audit', async () => {
