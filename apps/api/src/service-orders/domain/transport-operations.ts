@@ -39,7 +39,9 @@ export function assertTransportRoutePresent(location: Record<string, unknown> | 
 export function assertTransportScheduledWindowPresent(
   planned: { operationalStart?: string | null; operationalEnd?: string | null },
 ): void {
-  if (!planned.operationalStart || !planned.operationalEnd) {
+  const start = Date.parse(planned.operationalStart ?? '');
+  const end = Date.parse(planned.operationalEnd ?? '');
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
     throw new Error('TRANSPORT_SCHEDULED_WINDOW_REQUIRED');
   }
 }
@@ -50,7 +52,13 @@ export function assertTransportAllocationWithinScheduledWindow(
   scheduledStart: Date,
   scheduledEnd: Date,
 ): void {
-  if (allocationStart < scheduledStart || allocationEnd > scheduledEnd) {
+  const [start, end, windowStart, windowEnd] = [
+    allocationStart.getTime(), allocationEnd.getTime(),
+    scheduledStart.getTime(), scheduledEnd.getTime(),
+  ];
+  if (![start, end, windowStart, windowEnd].every(Number.isFinite) ||
+      start >= end || windowStart >= windowEnd ||
+      start < windowStart || end > windowEnd) {
     throw new Error('ALLOCATION_OUTSIDE_PLANNED_WINDOW');
   }
 }

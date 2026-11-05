@@ -19,7 +19,9 @@ export function resolveRentalCommercialUnitCode(
 export function assertRentalContractedPeriodPresent(
   planned: { operationalStart?: string | null; operationalEnd?: string | null },
 ): void {
-  if (!planned.operationalStart || !planned.operationalEnd) {
+  const start = Date.parse(planned.operationalStart ?? '');
+  const end = Date.parse(planned.operationalEnd ?? '');
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
     throw new Error('RENTAL_CONTRACTED_PERIOD_REQUIRED');
   }
 }
@@ -30,7 +32,13 @@ export function assertRentalAllocationWithinContractedPeriod(
   contractedStart: Date,
   contractedEnd: Date,
 ): void {
-  if (allocationStart < contractedStart || allocationEnd > contractedEnd) {
+  const [start, end, windowStart, windowEnd] = [
+    allocationStart.getTime(), allocationEnd.getTime(),
+    contractedStart.getTime(), contractedEnd.getTime(),
+  ];
+  if (![start, end, windowStart, windowEnd].every(Number.isFinite) ||
+      start >= end || windowStart >= windowEnd ||
+      start < windowStart || end > windowEnd) {
     throw new Error('ALLOCATION_OUTSIDE_PLANNED_WINDOW');
   }
 }
