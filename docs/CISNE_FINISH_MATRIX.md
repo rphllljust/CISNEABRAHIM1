@@ -221,6 +221,24 @@ executado — e não apresentado como concluído.**
 
 ---
 
+## MASTER 010 — aceite visual e operacional transversal (2026-11-05)
+
+**Estado: IN_PROGRESS / NO-GO.** Esta etapa não substitui a matriz histórica de funcionalidade: `DONE` em linha de módulo não implica aprovação de responsividade, consulta autorizada, regressão visual, HML ou reconciliação real no SHA atual.
+
+| Escopo MASTER 010 | Estado comprovável | Pendência |
+| --- | --- | --- |
+| Rotas declaradas em AppRoutes | 137 declarações, 136 caminhos distintos (130 sob `/app`) | Verificar roteadores secundários e rotas dinâmicas |
+| Rotas com inspeção de código e patch nesta rodada | 2: `/app/contracts`, `/app/purchase-orders` | Teste de navegador, 390/768/1440/1920px, evidência antes/depois |
+| Moldura reutilizada | `WorkspaceToolbar` com modo de filtros extensos; `WorklistField` com quebra responsiva | Regressão nos demais consumidores ainda não comprovada |
+| Integridade de filtros | Detecção compartilhada, reset integral de recortes e guarda contra resultado obsoleto em Pedidos de Compra | CI, API, permissões e dados reais ainda não comprovados |
+| Rotas aguardando investigação | 134 caminhos distintos | `PENDING` — não presumir correção, nem defeito |
+| Gates | **NÃO APROVADOS NESTA ETAPA** | Lint, typecheck, unit, PostgreSQL Integration, API E2E, Playwright, Visual Full, HML, reconciliação empresarial |
+| Release | **BLOQUEADO** | Sem merge, GHCR, Coolify ou produção até aprovação formal |
+
+Evidência estática e pendências por caminho: [`master-010-route-inventory.md`](00-governance/master-010-route-inventory.md). Base: `f9147c8396f8795e03dfc931f3557a65e0fbaa40`; branch: `fix/master-010-filter-layout-state`.
+
+---
+
 ## Registro de execução
 
 | Data | Commit | Módulo | Resultado |
