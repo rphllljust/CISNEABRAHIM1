@@ -42,14 +42,12 @@ const DEFAULT_FILTERS: ReportFilters = { period: 'month' };
 /** Drop filters that the selected backend report contract does not authorize. */
 export function compatibleReportFilters(filters: ReportFilters, item: ReportCatalogItem): ReportFilters {
   if (!item.allowedFilters) return filters;
-  const permitted = new Set<string>(item.allowedFilters);
   const result: ReportFilters = {};
-  for (const [key, value] of Object.entries(filters)) {
-    if (permitted.has(key) && value !== undefined) {
-      Object.assign(result, { [key]: value });
-    }
+  for (const key of item.allowedFilters) {
+    const value = filters[key];
+    if (value !== undefined) result[key] = value;
   }
-  if (permitted.has('period') && !result.period && !result.from && !result.to) {
+  if (item.allowedFilters.includes('period') && !result.period && !result.from && !result.to) {
     result.period = 'month';
   }
   return result;
