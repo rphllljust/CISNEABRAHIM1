@@ -102,6 +102,7 @@ describe('ServiceRequestsAccessService characterization (orchestration)', () => 
   };
   const securityAudit = { record: vi.fn() };
   const conversionPort = { convert: vi.fn() };
+  const documentEvidence = { canRead: vi.fn(), requireReadable: vi.fn() };
 
   let service: ServiceRequestsAccessService;
 
@@ -123,9 +124,11 @@ describe('ServiceRequestsAccessService characterization (orchestration)', () => 
     authz.filterAuthorizedLinkedChain.mockResolvedValue(new Set<string>());
     authz.canReadCatalogService.mockResolvedValue(false);
     authz.canPerformRecordAction.mockResolvedValue(true);
+    documentEvidence.canRead.mockResolvedValue(true);
+    documentEvidence.requireReadable.mockResolvedValue(undefined);
     const persistence = new ServiceRequestsAccessPersistence(repository as never);
     const validation = new ServiceRequestsAccessValidation(referenceValidation as never);
-    const query = new ServiceRequestsAccessQuery(persistence, authz as never, scopeEnforcement as never);
+    const query = new ServiceRequestsAccessQuery(persistence, authz as never, scopeEnforcement as never, documentEvidence as never);
     const audit = new ServiceRequestsAccessAudit(securityAudit as never);
     const idempotency = new ServiceRequestsAccessIdempotency(persistence, authz as never, query);
     const commands = new ServiceRequestsAccessCommands(
@@ -135,6 +138,7 @@ describe('ServiceRequestsAccessService characterization (orchestration)', () => 
       idempotency,
       query,
       audit,
+      documentEvidence as never,
       conversionPort,
     );
     service = new ServiceRequestsAccessService(commands, query);
