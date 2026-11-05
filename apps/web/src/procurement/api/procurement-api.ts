@@ -1,8 +1,7 @@
 import {
   authHeaders,
-  BACKOFFICE_PROBE_ID,
   jsonHeaders,
-  probeReadAccess,
+  probeRealListAccess,
   requestJson,
 } from '../../financial-ui/enterprise-api';
 
@@ -408,5 +407,5 @@ export async function getThreeWayMatch(matchId: string, signal?: AbortSignal): P
 }
 
 export async function probeProcurementReadAccess(signal?: AbortSignal): Promise<boolean> {
-  return probeReadAccess(`/api/v1/procurement/requests/${BACKOFFICE_PROBE_ID}`, signal);
+  return probeRealListAccess('/api/v1/procurement/requests?limit=1&offset=0', signal);
 }

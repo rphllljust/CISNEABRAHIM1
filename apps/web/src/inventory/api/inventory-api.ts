@@ -1,8 +1,7 @@
 import {
   authHeaders,
-  BACKOFFICE_PROBE_ID,
   jsonHeaders,
-  probeReadAccess,
+  probeRealListAccess,
   requestJson,
 } from '../../financial-ui/enterprise-api';
 
@@ -365,8 +364,5 @@ export async function reconcileStockQuantity(
 }
 
 export async function probeInventoryReadAccess(signal?: AbortSignal): Promise<boolean> {
-  return probeReadAccess(
-    `/api/v1/inventory/balances/${BACKOFFICE_PROBE_ID}/${BACKOFFICE_PROBE_ID}`,
-    signal,
-  );
+  return probeRealListAccess('/api/v1/inventory/items?limit=1&offset=0', signal);
 }

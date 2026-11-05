@@ -3,6 +3,7 @@ import {
   BACKOFFICE_PROBE_ID,
   jsonHeaders,
   probeReadAccess,
+  probeRealListAccess,
   requestJson,
 } from '../../financial-ui/enterprise-api';
 import type {
@@ -127,5 +128,5 @@ export async function probeSupplierReadAccess(signal?: AbortSignal): Promise<boo
  * vazia.
  */
 export async function probeSupplierListAccess(signal?: AbortSignal): Promise<boolean> {
-  return probeReadAccess('/api/v1/suppliers?limit=1&offset=0', signal);
+  return probeRealListAccess('/api/v1/suppliers?limit=1&offset=0', signal);
 }
