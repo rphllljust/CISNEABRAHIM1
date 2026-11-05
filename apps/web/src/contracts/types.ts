@@ -102,6 +102,8 @@ export type ContractListResponse = {
   items: Contract[];
   limit: number;
   offset: number;
+  total?: number;
+  hasMore?: boolean;
 };
 
 export type ListContractsParams = {
