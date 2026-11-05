@@ -325,8 +325,9 @@ export function TransportListPage() {
         densa e o produto. Escondida, ela nao deixa espaco morto — o que acontece e a fila usar
         toda a largura, que e a leitura correta em tela estreita.
       */}
+      {isWideViewport ? (
       <aside
-        className="hidden min-w-0 xl:block"
+        className="min-w-0"
         data-region="context-column"
         aria-label="Contexto do transporte"
       >
@@ -392,6 +393,7 @@ export function TransportListPage() {
           </section>
         )}
       </aside>
+      ) : null}
       </div>
       </div>
 
