@@ -94,13 +94,22 @@ describe('release surface policy', () => {
     }
   });
 
-  it('keeps stub modules OFF even on a homologation surface', () => {
-    const env = { VITE_CISNE_SURFACE: 'hml' };
-    for (const moduleId of STUB_MODULES) {
-      expect(resolveModuleFlag(moduleId, env)).toEqual({
+  it('exposes OS-backed rental and transport worklists to HML, not production by default', () => {
+    for (const moduleId of ['rentals', 'transport'] as const) {
+      expect(BUILT_MODULES.has(moduleId)).toBe(true);
+      expect(STUB_MODULES.has(moduleId)).toBe(false);
+      expect(resolveModuleFlag(moduleId, { VITE_CISNE_SURFACE: 'hml' })).toEqual({
+        enabled: true,
+        origin: 'surface-default',
+      });
+      expect(resolveModuleFlag(moduleId, { VITE_CISNE_SURFACE: 'prod' })).toEqual({
         enabled: false,
         origin: 'conservative-default',
       });
+      expect(resolveModuleFlag(moduleId, {
+        VITE_CISNE_SURFACE: 'prod',
+        [FEATURE_FLAG_ENV[moduleId]]: 'true',
+      })).toEqual({ enabled: true, origin: 'explicit-env' });
     }
   });
 
