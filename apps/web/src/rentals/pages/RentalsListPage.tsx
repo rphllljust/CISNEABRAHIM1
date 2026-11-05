@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import { listRentalServiceOrders } from '../api/rentals-api';
@@ -9,6 +9,8 @@ import {
   type CrossReference,
 } from '../../engine';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
+import { resolveServiceOrderPage } from '../../service-orders/api/service-orders-pagination';
+import { SERVICE_ORDER_STATUSES } from '../../service-orders/types/service-order.types';
 import { mapServiceOrdersErrorToMessage } from '../../service-orders/api/service-orders-error-messages';
 import { ServiceOrderStatusBadge } from '../../service-orders/components/ServiceOrderStatusBadge';
 import { formatClientLabel, formatDateTime, formatServiceOrderStatus } from '../../service-orders/utils/service-order-labels';
@@ -41,6 +43,7 @@ import {
 } from '../../ui/module-layout';
 
 const PAGE_SIZE = 20;
+const STATUS_OPTIONS = Object.values(SERVICE_ORDER_STATUSES).map((status) => [status, formatServiceOrderStatus(status)] as const);
 
 /**
  * Proxima acao REAL da locacao, derivada do status que o backend ja devolve.
@@ -78,7 +81,7 @@ type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
-  | { phase: 'ready'; items: Awaited<ReturnType<typeof listRentalServiceOrders>>['items']; offset: number; hasMore: boolean };
+  | { phase: 'ready'; items: Awaited<ReturnType<typeof listRentalServiceOrders>>['items']; offset: number; hasMore: boolean; total: number | null };
 
 export function RentalsListPage() {
   /* DONO REAL: sem identidade a visão não é persistida nem lida (ver `useSavedViews`). */
@@ -91,6 +94,7 @@ export function RentalsListPage() {
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Busca vai ao servidor: filtrar so a pagina atual esconderia uma OS que existe adiante.
   useEffect(() => {
@@ -123,7 +127,7 @@ export function RentalsListPage() {
           phase: 'ready',
           items: response.items,
           offset: response.offset,
-          hasMore: response.items.length === response.limit,
+          ...resolveServiceOrderPage(response),
         });
       } catch (error) {
         if (signal?.aborted) {
@@ -155,7 +159,7 @@ export function RentalsListPage() {
     const controller = new AbortController();
     void loadPage(offset, controller.signal);
     return () => controller.abort();
-  }, [loadPage, offset]);
+  }, [loadPage, offset, retryNonce]);
 
   /**
    * Opcoes do filtro de status, derivadas das linhas ja carregadas.
@@ -166,17 +170,7 @@ export function RentalsListPage() {
    * HOOK ANTES DOS RETORNOS ANTECIPADOS: `useMemo` depois de um `return` condicional viola a
    * ordem de hooks do React (erro #310 na tela de carregamento/erro).
    */
-  const statusOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    if (listState.phase === 'ready') {
-      for (const order of listState.items) {
-        if (!seen.has(order.status)) {
-          seen.set(order.status, formatServiceOrderStatus(order.status));
-        }
-      }
-    }
-    return [...seen.entries()];
-  }, [listState]);
+
 
   if (listState.phase === 'loading') {
     return (
@@ -198,13 +192,13 @@ export function RentalsListPage() {
         <ModuleErrorState
         message={listState.message}
         retryable={listState.retryable}
-        onRetry={() => void loadPage(offset)}
+        onRetry={() => setRetryNonce((value) => value + 1)}
       />
       </ModuleStatePage>
     );
   }
 
-  const { items, hasMore } = listState;
+  const { items, hasMore, total } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const activeFilters = Boolean(statusFilter || search.trim());
   const activeStatusLabel = statusFilter ? formatServiceOrderStatus(statusFilter) : null;
@@ -222,7 +216,7 @@ export function RentalsListPage() {
       <div data-region="operating-header">
       <WorklistHeader
         title="Locações"
-        count={items.length}
+        count={total ?? items.length}
         context="Ordens de serviço com arquétipo de locação, com o estágio de execução de cada contrato."
       />
       </div>
@@ -249,7 +243,7 @@ export function RentalsListPage() {
       </div>
 
       <div data-region="command-filter-surface">
-      <WorklistFilterBar meta={`${items.length} nesta página`}>
+      <WorklistFilterBar meta={total === null ? `${items.length} nesta página` : `${total} no recorte autorizado`}>
         <WorklistField label="Buscar" htmlFor="rental-search" grow>
           <input
             id="rental-search"
@@ -271,7 +265,7 @@ export function RentalsListPage() {
             }}
           >
             <option value="">Todos</option>
-            {statusOptions.map(([value, label]) => (
+            {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
               </option>
@@ -417,7 +411,7 @@ export function RentalsListPage() {
       )}
 
       <WorklistFooter
-        rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}
+        rangeLabel={`${offset + 1}–${offset + items.length}${total === null ? ' nesta página' : ` de ${total}`}`}
         extra={activeStatusLabel ? `status: ${activeStatusLabel}` : undefined}
       >
         <ModulePagination
