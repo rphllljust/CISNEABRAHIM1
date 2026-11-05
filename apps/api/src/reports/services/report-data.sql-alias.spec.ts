@@ -15,7 +15,7 @@ function buildHarness() {
         params: ['unit-a'],
       }),
       buildPhysicalAssetListFilter: vi.fn().mockReturnValue({
-        clause: 'unit_id = $1',
+        clause: 'a.unit_id = $1',
         params: ['unit-a'],
       }),
     } as never,
