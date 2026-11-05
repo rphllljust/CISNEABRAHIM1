@@ -281,26 +281,31 @@ export function WorkspaceToolbar({
   views,
   children,
   className,
+  layout = 'split',
 }: {
   /** Visoes salvas / recortes de sistema — sempre a esquerda. */
   views?: ReactNode;
   /** Busca, filtros, ordenacao, colunas, exportacao — a direita. */
   children?: ReactNode;
   className?: string;
+  /** Bancadas com muitos filtros usam a largura toda, sem comprimir o lookup. */
+  layout?: 'split' | 'stacked';
 }) {
   return (
     <div
       className={cn(
-        'mb-2 grid items-start gap-2 overflow-hidden rounded-[10px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-header)] p-2.5 xl:grid-cols-[minmax(12rem,1fr)_minmax(0,2fr)]',
+        'mb-2 grid min-w-0 items-start gap-2 overflow-visible rounded-[10px] border border-[color:var(--color-border-default)] bg-[color:var(--color-surface-header)] p-2.5',
+        layout === 'split' ? 'xl:grid-cols-[minmax(12rem,1fr)_minmax(0,2fr)]' : 'xl:grid-cols-1',
         className,
       )}
       data-region="workspace-toolbar"
+      data-toolbar-layout={layout}
     >
       {views ? <div className="flex min-w-0 flex-wrap items-center gap-1.5">{views}</div> : null}
       <div
         className={cn(
           'flex min-w-0 flex-wrap items-center justify-start gap-2',
-          !views && 'xl:col-span-2',
+          !views && layout === 'split' && 'xl:col-span-2',
         )}
       >
         {children}
