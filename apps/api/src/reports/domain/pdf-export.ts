@@ -48,6 +48,8 @@ export async function renderReportPdf(
         .text('CISNE · RELATÓRIO EMPRESARIAL', 45, 30, { width: 500 });
       doc.moveTo(45, 43).lineTo(550, 43).strokeColor('#d1d5db').lineWidth(0.6).stroke();
       doc.fillColor('#111827');
+      // Keep the report body below the repeated header, including after a page break.
+      doc.y = 58;
     };
     doc.on('pageAdded', pageHeader);
     pageHeader();
