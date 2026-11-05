@@ -86,6 +86,10 @@ jobs:
         run: node scripts/ci/github-actions-runtime-audit.mjs
       - name: Toolchain version audit
         run: node scripts/ci/toolchain-version-audit.mjs
+      # Checks all 16 module owners and five MASTER 002 journeys are represented.
+      # Structural scope != functional acceptance; cannot authorize release.
+      - name: MASTER 002 source scope gate
+        run: node scripts/ci/master-002-scope-gate.mjs
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Lint
