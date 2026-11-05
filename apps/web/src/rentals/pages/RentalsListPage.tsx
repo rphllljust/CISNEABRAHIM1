@@ -85,9 +85,7 @@ type ListState =
 export function RentalsListPage() {
   /* DONO REAL: sem identidade a visão não é persistida nem lida (ver `useSavedViews`). */
   const savedViews = useSavedViews(useOptionalIdentityId(), 'rentals');
-  const [selected, setSelected] = useState<
-    Awaited<ReturnType<typeof listRentalServiceOrders>>['items'][number] | null
-  >(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [statusFilter, setStatusFilter] = useState<'' | ServiceOrderStatus>('');
   const [searchInput, setSearchInput] = useState('');
@@ -198,6 +196,8 @@ export function RentalsListPage() {
   }
 
   const { items, hasMore, total } = listState;
+  // Selection follows the refreshed authorized list, never a stale row snapshot.
+  const selected = items.find((row) => row.id === selectedId) ?? null;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const activeFilters = Boolean(statusFilter || search.trim());
   const activeStatusLabel = statusFilter ? formatServiceOrderStatus(statusFilter) : null;
@@ -345,7 +345,7 @@ export function RentalsListPage() {
                      * mesmo tempo. O painel lateral mostra a situação da locação clicada sem
                      * perder o recorte; o número da OS continua sendo o caminho ao planejamento.
                      */
-                    onClick={() => setSelected(order)}
+                    onClick={() => setSelectedId(order.id)}
                   >
                     <td className={worklistCellClass}>
                       <WorklistRowLink href={`/app/service-orders/${order.id}/planning`}>
@@ -431,7 +431,7 @@ export function RentalsListPage() {
       <DynamicContextDrawer
         open={selected !== null}
         title={selected ? selected.orderNumber : 'Locação'}
-        onClose={() => setSelected(null)}
+        onClose={() => setSelectedId(null)}
         crossReferences={selected ? rentalCrossReferences(selected) : []}
       >
         {selected ? (
