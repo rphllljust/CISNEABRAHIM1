@@ -52,13 +52,14 @@ export function ReportsPage() {
     selectedCatalogItem,
     setSelectedReportType,
     setFilters,
+    retryPreview,
     generateExport,
     downloadExport,
     cancelExport,
     reload,
   } = useReportsCenter();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { options, unitId, setUnitId } = useOperationalUnits();
+  const { options, setUnitId } = useOperationalUnits();
 
   // O escopo informado por um drilldown precisa ser aplicado ao payload efetivo do
   // preview e da exportação; exibir uma unidade no select sem filtrá-la na API
@@ -83,6 +84,15 @@ export function ReportsPage() {
           description="Exportações auditáveis do estado real da operação."
         />
         <ModuleLoadingState message="Carregando catálogo de relatórios…" />
+      </ModulePage>
+    );
+  }
+
+  if (state.phase === 'empty') {
+    return (
+      <ModulePage>
+        <ReportWorkbenchHeader title="Relatórios" description="Exportações auditáveis do estado real da operação." />
+        <EmptyState title="Nenhum relatório disponível" description="O catálogo autorizado não publicou relatórios para esta sessão." />
       </ModulePage>
     );
   }
@@ -235,7 +245,9 @@ export function ReportsPage() {
             : `Até ${rows.length} de ${total} linhas${state.preview?.contract.timezone ? ` · ${state.preview.contract.timezone}` : ''}`
         }
       >
-        {rows.length === 0 ? (
+        {state.previewError ? (
+          <ModuleErrorState message={state.previewError} retryable onRetry={retryPreview} />
+        ) : rows.length === 0 ? (
           <EmptyState
             title={state.previewLoading ? 'Carregando pré-visualização…' : 'Nenhum dado para os filtros atuais'}
             description={
