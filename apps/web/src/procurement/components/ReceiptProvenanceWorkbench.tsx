@@ -292,7 +292,7 @@ export function ReceiptProvenanceWorkbench({
                 {catalogState.phase === 'loading' ? <p role="status">Consultando cadastros de estoque…</p> : null}
                 {catalogState.phase === 'denied' ? <p role="alert">Sem autorização para consultar itens e depósitos.</p> : null}
                 {catalogState.phase === 'error' ? <p role="alert">Não foi possível consultar os cadastros de estoque.</p> : null}
-                <button type="submit" disabled={busy || catalogState.phase !== 'ready' || !selected?.canCertify || !inventoryItemId || !warehouseId || !quantity}
+                <button type="submit" disabled={busy || catalogState.phase !== 'ready' || evidence.phase !== 'ready' || !selected?.canCertify || !inventoryItemId || !warehouseId || !quantity}
                   className="rounded-md bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
                   {busy ? 'Certificando…' : 'Certificar origem no Estoque'}
                 </button>
