@@ -22,9 +22,13 @@ vi.mock('../auth/api/authz-api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../auth/api/authz-api')>()),
   probeRequest: vi.fn(),
 }));
+const { expireSession } = vi.hoisted(() => ({ expireSession: vi.fn() }));
+
 vi.mock('../auth/context/AuthProvider', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../auth/context/AuthProvider')>()),
-  useAuth: () => ({ expireSession: vi.fn() }),
+  // Keep the identity function stable across re-renders, as the real AuthProvider does.
+  // An unstable mock re-triggers route effects and exhausts one-shot API responses.
+  useAuth: () => ({ expireSession }),
 }));
 
 function route(element: ReactNode) {

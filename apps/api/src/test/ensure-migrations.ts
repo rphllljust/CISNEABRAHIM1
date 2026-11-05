@@ -1210,6 +1210,22 @@ $$;`);
       await applySqlFile(pool, '0116_physical_asset_document_links.sql');
     }
 
+    /*
+     * 0117 — PostgreSQL expression index for authorized OS / Rentals / Transport
+     * worklists. Verify the index itself; the OS table predates this migration.
+     * Never journal-reconcile an absent expression index.
+     */
+    const archetypeIndex = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+        SELECT 1 FROM pg_indexes
+        WHERE schemaname = 'so'
+          AND indexname = 'service_orders_unit_archetype_created_idx'
+      ) AS exists`,
+    );
+    if (!archetypeIndex.rows[0]?.exists) {
+      await applySqlFile(pool, '0117_service_order_archetype_worklist_index.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

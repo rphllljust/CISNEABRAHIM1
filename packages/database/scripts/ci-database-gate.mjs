@@ -417,6 +417,17 @@ async function assertExpectedSchema(connectionString) {
       }
     }
 
+    // Prove the new index exists after both fresh and incremental upgrade paths.
+    const archetypeIndex = await client.query(
+      `SELECT EXISTS (
+         SELECT 1 FROM pg_indexes WHERE schemaname = 'so'
+         AND indexname = 'service_orders_unit_archetype_created_idx'
+       ) AS exists`,
+    );
+    if (!archetypeIndex.rows[0]?.exists) {
+      throw new Error('0117 OS archetype index is missing after migration');
+    }
+
     for (const qualifiedView of EXPECTED_READ_CONTRACTS) {
       const result = await client.query('SELECT to_regclass($1) AS regclass', [qualifiedView]);
       if (!result.rows[0]?.regclass) {
@@ -1573,6 +1584,23 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       );
       if (!prior.rows[0]?.has_jobs || prior.rows[0]?.already_has_handoff) {
         throw new Error('0112 N-1 must have background_jobs but not the handoff job kind');
+      }
+      return;
+    }
+
+    if (deltaFile === '0117_service_order_archetype_worklist_index.sql') {
+      // N-1 must contain the canonical OS table but NOT the 0117 expression index.
+      const baseline = await client.query(
+        `SELECT to_regclass('so.service_orders') IS NOT NULL AS has_orders,
+                EXISTS (
+                  SELECT 1 FROM pg_indexes
+                  WHERE schemaname = 'so'
+                    AND indexname = 'service_orders_unit_archetype_created_idx'
+                ) AS already_indexed`,
+      );
+      const row = baseline.rows[0];
+      if (!row?.has_orders || row.already_indexed) {
+        throw new Error('0117 N-1 requires canonical service orders without the new archetype index');
       }
       return;
     }
