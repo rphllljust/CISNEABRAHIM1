@@ -80,7 +80,9 @@ describe('ReportGenerationService', () => {
         return 1;
       }),
     };
-    const objectStorage = { putObject: vi.fn() };
+    const objectStorage = {
+      putObject: vi.fn(async (_input: { storageKey: string; buffer: Buffer; mimeType: string }) => undefined),
+    };
     const service = new ReportGenerationService(exports as never, data as never, objectStorage as never);
     await service.generateExport('export-xlsx', { identityId: 'a', sessionId: 's' });
     expect(objectStorage.putObject).toHaveBeenCalledWith(
