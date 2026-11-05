@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import {
   bindReceiptProvenance,
+  getReceiptProvenance,
   listInventoryItems,
   listWarehouses,
   type InventoryItem,
   type ReceiptProvenanceBinding,
+  type ReceiptProvenanceEvidence,
   type Warehouse,
 } from '../../inventory/api/inventory-api';
 import {
@@ -48,6 +50,11 @@ export function ReceiptProvenanceWorkbench({
   const [itemSearch, setItemSearch] = useState('');
   const [warehouseSearch, setWarehouseSearch] = useState('');
   const [receiptLineId, setReceiptLineId] = useState('');
+  const [evidenceRevision, setEvidenceRevision] = useState(0);
+  const [evidence, setEvidence] = useState<
+    | { phase: 'none' | 'loading' | 'denied' | 'error' }
+    | { phase: 'ready'; data: ReceiptProvenanceEvidence }
+  >({ phase: 'none' });
   const [inventoryItemId, setInventoryItemId] = useState('');
   const [warehouseId, setWarehouseId] = useState('');
   const [quantity, setQuantity] = useState('');
