@@ -74,6 +74,13 @@ export function OperationalProfitabilityPage() {
             {query.state.data.period.from} — {query.state.data.period.to}.{' '}
             {query.state.data.summary.disclaimer}
           </p>
+          {query.state.data.summary.currencyMixed ? (
+            <p role="status" className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              Existem valores registrados em moedas diferentes neste recorte.
+              Totais de receita, custo e margem estão indisponíveis sem uma política cambial aprovada.
+              Os registros individuais permanecem consultáveis.
+            </p>
+          ) : null}
           <dl className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <dt className="text-xs font-semibold uppercase text-gray-500">Receita operacional</dt>

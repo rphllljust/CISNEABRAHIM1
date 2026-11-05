@@ -63,4 +63,54 @@ describe('operational-profitability-summary', () => {
     expect(supported.contract).toBe(true);
     expect(supported.period).toBe(true);
   });
+  it('refuses to sum BRL and USD operational balances without an approved FX conversion', () => {
+    const another = {
+      ...BASE_ROW,
+      serviceOrderId: 'so-usd',
+      currencyCode: 'USD',
+      operationalRevenue: '2000.0000',
+      realizedCost: '900.0000',
+    };
+    const summary = buildProfitabilitySummary([BASE_ROW, another], 'BRL');
+    expect(summary.currencyMixed).toBe(true);
+    expect(summary.operationalRevenue).toBeNull();
+    expect(summary.realizedCost).toBeNull();
+    expect(summary.operationalMargin).toBeNull();
+    expect(summary.serviceOrderCount).toBe(2);
+
+    const groups = groupProfitabilityRows([BASE_ROW, another], PROFITABILITY_GROUP_BY.Client, 'BRL');
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.supported).toBe(false);
+    expect(groups[0]?.summary.currencyMixed).toBe(true);
+  });
+
+  it('preserves independent currency-homogeneous groups without converting them', () => {
+    const another = {
+      ...BASE_ROW,
+      serviceOrderId: 'so-usd',
+      clientId: 'client-usd',
+      currencyCode: 'USD',
+      operationalRevenue: '2000.0000',
+      realizedCost: '900.0000',
+    };
+    const groups = groupProfitabilityRows([BASE_ROW, another], PROFITABILITY_GROUP_BY.Client, 'BRL');
+    expect(groups).toHaveLength(2);
+    expect(groups[0]?.supported).toBe(true);
+    expect(groups[0]?.summary.currencyCode).toBe('BRL');
+    expect(groups[0]?.summary.operationalMargin).toBe('700');
+    expect(groups[1]?.supported).toBe(true);
+    expect(groups[1]?.summary.currencyCode).toBe('USD');
+    expect(groups[1]?.summary.operationalMargin).toBe('1100');
+  });
+
+  it('does not publish money for an OS whose persisted cost entries mix currencies', () => {
+    const summary = buildProfitabilitySummary([
+      { ...BASE_ROW, currencyAmbiguous: true, realizedCost: null },
+    ], 'BRL');
+    expect(summary.currencyMixed).toBe(true);
+    expect(summary.operationalRevenue).toBeNull();
+    expect(summary.realizedCost).toBeNull();
+    expect(summary.operationalMargin).toBeNull();
+  });
+
 });

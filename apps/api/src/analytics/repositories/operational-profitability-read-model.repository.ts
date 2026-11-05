@@ -83,9 +83,11 @@ export class OperationalProfitabilityReadModelRepository {
       ? `cost_by_so AS (
           SELECT
             oc.service_order_id,
-            SUM(oc.amount)::text AS realized_cost,
+            CASE WHEN COUNT(DISTINCT oc.currency_code) = 1
+              THEN SUM(oc.amount)::text ELSE NULL::text END AS realized_cost,
             COUNT(oc.id)::int AS cost_entry_count,
-            MIN(oc.currency_code) AS currency_code
+            MIN(oc.currency_code) AS currency_code,
+            (COUNT(DISTINCT oc.currency_code) > 1) AS currency_ambiguous
           FROM rpt.read_operational_cost_entries oc
           WHERE oc.service_order_id IN (SELECT id FROM scoped_orders)
             AND oc.cost_kind = 'ACTUAL'::so.operational_cost_kind
@@ -94,7 +96,7 @@ export class OperationalProfitabilityReadModelRepository {
           GROUP BY oc.service_order_id
         )`
       : `cost_by_so AS (
-          SELECT NULL::uuid AS service_order_id, NULL::text AS realized_cost, 0::int AS cost_entry_count, 'BRL'::bpchar AS currency_code
+          SELECT NULL::uuid AS service_order_id, NULL::text AS realized_cost, 0::int AS cost_entry_count, 'BRL'::bpchar AS currency_code, FALSE AS currency_ambiguous
           WHERE FALSE
         )`;
 
@@ -116,7 +118,8 @@ export class OperationalProfitabilityReadModelRepository {
         c.realized_cost,
         COALESCE(r.revenue_line_count, 0)::int AS revenue_line_count,
         COALESCE(c.cost_entry_count, 0)::int AS cost_entry_count,
-        COALESCE(c.currency_code, 'BRL') AS currency_code
+        COALESCE(c.currency_code, 'BRL') AS currency_code,
+        COALESCE(c.currency_ambiguous, FALSE) AS currency_ambiguous
       FROM scoped_orders ord
       LEFT JOIN revenue_by_so r ON r.service_order_id = ord.id
       LEFT JOIN cost_by_so c ON c.service_order_id = ord.id
@@ -134,6 +137,7 @@ export class OperationalProfitabilityReadModelRepository {
       revenue_line_count: number;
       cost_entry_count: number;
       currency_code: string;
+      currency_ambiguous: boolean;
     }>(sql, params);
 
     return result.rows.map((row) => ({
@@ -147,6 +151,7 @@ export class OperationalProfitabilityReadModelRepository {
       revenueLineCount: row.revenue_line_count,
       costEntryCount: row.cost_entry_count,
       currencyCode: row.currency_code,
+      currencyAmbiguous: row.currency_ambiguous,
     }));
   }
 }

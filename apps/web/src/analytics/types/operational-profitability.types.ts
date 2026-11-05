@@ -9,6 +9,7 @@ export type ProfitabilitySummary = {
   formula: string;
   disclaimer: string;
   currencyCode: string;
+  currencyMixed: boolean;
 };
 
 export type OperationalProfitabilitySnapshot = {
