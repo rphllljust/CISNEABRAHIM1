@@ -27,6 +27,7 @@ export type ReportsPageState =
       phase: 'ready';
       catalog: ReportCatalogItem[];
       selectedReportType: string;
+      exportFormat: string;
       filters: ReportFilters;
       preview: ReportPreviewResponse | null;
       previewLoading: boolean;
@@ -37,6 +38,22 @@ export type ReportsPageState =
     };
 
 const DEFAULT_FILTERS: ReportFilters = { period: 'month' };
+
+/** Drop filters that the selected backend report contract does not authorize. */
+export function compatibleReportFilters(filters: ReportFilters, item: ReportCatalogItem): ReportFilters {
+  if (!item.allowedFilters) return filters;
+  const permitted = new Set<string>(item.allowedFilters);
+  const result: ReportFilters = {};
+  for (const [key, value] of Object.entries(filters)) {
+    if (permitted.has(key) && value !== undefined) {
+      Object.assign(result, { [key]: value });
+    }
+  }
+  if (permitted.has('period') && !result.period && !result.from && !result.to) {
+    result.period = 'month';
+  }
+  return result;
+}
 
 export function useReportsCenter() {
   const [state, setState] = useState<ReportsPageState>({ phase: 'loading' });
@@ -73,7 +90,8 @@ export function useReportsCenter() {
         phase: 'ready',
         catalog,
         selectedReportType: catalog[0]!.reportType,
-        filters: DEFAULT_FILTERS,
+        exportFormat: catalog[0]!.formats[0] ?? 'CSV',
+        filters: compatibleReportFilters(DEFAULT_FILTERS, catalog[0]!),
         preview: null,
         previewLoading: true,
         previewError: null,
@@ -182,19 +200,32 @@ export function useReportsCenter() {
   const setSelectedReportType = useCallback((reportType: string) => {
     clearPreviewTimer();
     previewAbort.current?.abort();
-    setState((previous) =>
-      previous.phase === 'ready'
-        ? {
-            ...previous,
-            selectedReportType: reportType,
-            preview: null,
-            previewLoading: true,
-            previewError: null,
-            exportJob: null,
-          }
-        : previous,
-    );
+    setState((previous) => {
+      if (previous.phase !== 'ready') return previous;
+      const selected = previous.catalog.find((item) => item.reportType === reportType);
+      if (!selected) return previous;
+      return {
+        ...previous,
+        selectedReportType: reportType,
+        exportFormat: selected.formats.includes(previous.exportFormat)
+          ? previous.exportFormat : (selected.formats[0] ?? 'CSV'),
+        filters: compatibleReportFilters(previous.filters, selected),
+        preview: null,
+        previewLoading: true,
+        previewError: null,
+        exportJob: null,
+      };
+    });
   }, [clearPreviewTimer]);
+
+  const setExportFormat = useCallback((format: string) => {
+    setState((previous) => {
+      if (previous.phase !== 'ready') return previous;
+      const item = previous.catalog.find((entry) => entry.reportType === previous.selectedReportType);
+      if (!item?.formats.includes(format)) return previous;
+      return { ...previous, exportFormat: format, exportJob: null };
+    });
+  }, []);
 
   const setFilters = useCallback((next: Partial<ReportFilters>) => {
     clearPreviewTimer();
@@ -203,7 +234,10 @@ export function useReportsCenter() {
       previous.phase === 'ready'
         ? {
             ...previous,
-            filters: { ...previous.filters, ...next },
+            filters: compatibleReportFilters(
+              { ...previous.filters, ...next },
+              previous.catalog.find((item) => item.reportType === previous.selectedReportType)!,
+            ),
             preview: null,
             previewLoading: true,
             previewError: null,
@@ -255,7 +289,7 @@ export function useReportsCenter() {
       previous.phase === 'ready' ? { ...previous, generating: true, exportJob: null } : previous,
     );
     try {
-      const job = await createReportExport(state.selectedReportType, state.filters);
+      const job = await createReportExport(state.selectedReportType, state.filters, state.exportFormat);
       setState((previous) =>
         previous.phase === 'ready' ? { ...previous, exportJob: job, generating: !job.downloadReady } : previous,
       );
@@ -275,7 +309,7 @@ export function useReportsCenter() {
               exportJob: {
                 id: 'local-error',
                 reportType: previous.selectedReportType,
-                format: 'CSV',
+                format: previous.exportFormat,
                 status: 'FAILED',
                 contract: previous.preview?.contract ?? {
                   name: '',
@@ -313,7 +347,7 @@ export function useReportsCenter() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `${state.exportJob.reportType.toLowerCase()}.csv`;
+      anchor.download = `${state.exportJob.reportType.toLowerCase()}.${state.exportJob.format.toLowerCase()}`;
       anchor.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -357,6 +391,7 @@ export function useReportsCenter() {
     state,
     selectedCatalogItem,
     setSelectedReportType,
+    setExportFormat,
     setFilters,
     retryPreview,
     generateExport,
