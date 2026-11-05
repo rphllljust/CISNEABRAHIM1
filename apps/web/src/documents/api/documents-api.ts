@@ -405,7 +405,7 @@ export async function probeDocumentCapabilities(signal?: AbortSignal): Promise<D
       signal,
     });
     firstDocument = listed.items[0] ?? null;
-  } catch (error) {
+  } catch {
     canList = false;
   }
 
