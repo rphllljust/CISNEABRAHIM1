@@ -294,7 +294,7 @@ describe('Reports PostgreSQL integration', () => {
     await expect(
       access.createExport(
         { identityId: identityA, sessionId: 's-a' },
-        { reportType: REPORT_TYPES.ServiceOrdersByPeriod, format: 'XLSX', filters: {} },
+        { reportType: REPORT_TYPES.ServiceOrdersByPeriod, format: 'ODS', filters: {} },
       ),
     ).rejects.toBeInstanceOf(ReportHttpException);
   });
