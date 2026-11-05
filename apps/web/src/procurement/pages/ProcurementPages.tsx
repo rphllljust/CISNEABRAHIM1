@@ -110,10 +110,6 @@ type ListsState = {
   invoices: { phase: 'loading' } | { phase: 'ready'; items: SupplierInvoiceSummary[]; total: number } | { phase: 'denied' } | { phase: 'error' };
 };
 
-/**
- * Listas operacionais do módulo. Cada lista é uma entidade do fluxo de compras que antes só era
- * alcançável por identificador digitado: requisição → pedido ao fornecedor → nota.
- */
 function ProcurementLists() {
   const [state, setState] = useState<ListsState>({
     requests: { phase: 'loading' },
@@ -980,9 +976,7 @@ export function PurchaseOrderPage() {
           </table>
         </div>
       ) : null}
-      {order.receipts.length > 0 ? (
-        <ReceiptProvenanceWorkbench orderId={order.id} unitId={order.unitId} />
-      ) : null}
+      {order.receipts.length > 0 && <ReceiptProvenanceWorkbench orderId={order.id} unitId={order.unitId} />}
       <CreateRecordForm
         title="Receber"
         description="Informe por linha a quantidade a receber. O recebimento gera o título a pagar no backend."
