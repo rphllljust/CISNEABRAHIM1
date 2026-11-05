@@ -24,7 +24,6 @@ import type { ServiceRequestDetailResponse } from '../serializers/service-reques
 import { ServiceRequestsAccessAuthz } from './service-requests-access.authz';
 import { ServiceRequestsAccessAudit } from './service-requests-access.audit';
 import {
-  serviceRequestsAccessDenied,
   serviceRequestsAccessNotFound,
   serviceRequestsConversionNotAllowed,
   serviceRequestsDuplicateIdempotency,
