@@ -10,13 +10,15 @@ type CatalogRouteProps = {
 export function CatalogRoute({ children }: CatalogRouteProps) {
   const location = useLocation();
   const { expireSession } = useAuth();
-  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>(
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired' | 'error'>(
     'loading',
   );
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    setState('loading');
 
     void probeCatalogListAccess(controller.signal)
       .then((allowed) => {
@@ -33,19 +35,35 @@ export function CatalogRoute({ children }: CatalogRouteProps) {
           setState('session_expired');
           return;
         }
-        setState('denied');
+        if (error instanceof CatalogApiError && error.status === 403) {
+          setState('denied');
+          return;
+        }
+        setState('error');
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [expireSession, location.pathname]);
+  }, [expireSession, location.pathname, retryNonce]);
 
   if (state === 'loading') {
     return (
       <div className="shell-loading" aria-busy="true" aria-live="polite">
         <p>Verificando acesso…</p>
+      </div>
+    );
+  }
+
+
+  if (state === 'error') {
+    return (
+      <div className="shell-loading" role="alert" aria-live="polite">
+        <p>Não foi possível verificar o acesso. O serviço pode estar indisponível.</p>
+        <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>
+          Tentar novamente
+        </button>
       </div>
     );
   }

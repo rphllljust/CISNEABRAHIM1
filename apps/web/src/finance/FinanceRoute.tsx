@@ -71,12 +71,14 @@ type FinanceRouteProps = {
 export function FinanceRoute({ children, access }: FinanceRouteProps) {
   const location = useLocation();
   const { expireSession, identityId } = useAuth();
-  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>('loading');
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired' | 'error'>('loading');
   const policy = FINANCE_ACCESS[access];
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
+    setState('loading');
 
     async function resolveAccess() {
       if (!identityId) {
@@ -109,7 +111,7 @@ export function FinanceRoute({ children, access }: FinanceRouteProps) {
         );
 
         if (!cancelled) {
-          setState(result.outcome === 'allowed' ? 'allowed' : 'denied');
+          setState(result.outcome === 'allowed' ? 'allowed' : result.outcome === 'denied' ? 'denied' : 'error');
         }
       } catch (error: unknown) {
         if (cancelled) {
@@ -120,7 +122,7 @@ export function FinanceRoute({ children, access }: FinanceRouteProps) {
           setState('session_expired');
           return;
         }
-        setState('denied');
+        setState('error');
       }
     }
 
@@ -134,6 +136,7 @@ export function FinanceRoute({ children, access }: FinanceRouteProps) {
     expireSession,
     identityId,
     location.pathname,
+    retryNonce,
     policy.accessCheck,
     policy.requiresUnit,
   ]);
@@ -142,6 +145,18 @@ export function FinanceRoute({ children, access }: FinanceRouteProps) {
     return (
       <div className="shell-loading" aria-busy="true" aria-live="polite">
         <p>Verificando acesso…</p>
+      </div>
+    );
+  }
+
+
+  if (state === 'error') {
+    return (
+      <div className="shell-loading" role="alert" aria-live="polite">
+        <p>Não foi possível verificar o acesso. O serviço pode estar indisponível.</p>
+        <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>
+          Tentar novamente
+        </button>
       </div>
     );
   }
