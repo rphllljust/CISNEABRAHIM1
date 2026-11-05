@@ -169,7 +169,7 @@ describe('ReportsPage', () => {
     expect(screen.getByText(/concluída — 1 linhas/i)).toBeInTheDocument();
   });
 
-  it('shows denied state when catalog is empty', async () => {
+  it('distinguishes an empty authorized catalog from permission denied', async () => {
     getReportCatalog.mockResolvedValue([]);
     render(
       <MemoryRouter>
@@ -177,6 +177,59 @@ describe('ReportsPage', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/não tem permissão/i);
+    expect(await screen.findByText('Nenhum relatório disponível')).toBeInTheDocument();
+    expect(screen.queryByText(/não tem permissão/i)).not.toBeInTheDocument();
   });
+
+  it('uses the unitId from cross-module drilldown in the preview and export payload', async () => {
+    const unitId = '11111111-1111-4111-8111-111111111111';
+    createReportExport.mockResolvedValue({
+      id: 'export-scoped',
+      reportType: 'SERVICE_ORDERS_BY_PERIOD',
+      format: 'CSV',
+      status: 'COMPLETED',
+      contract: { ...preview.contract, filters: { period: 'month', unitId } },
+      rowCount: 1,
+      fileSizeBytes: 200,
+      errorMessage: null,
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+      downloadReady: true,
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/app/reports?unitId=${unitId}`]}>
+        <ReportsPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => {
+      expect(previewReport).toHaveBeenCalledWith(
+        'SERVICE_ORDERS_BY_PERIOD',
+        expect.objectContaining({ unitId }),
+        expect.any(AbortSignal),
+      );
+    });
+
+    await userEvent.setup().click(screen.getByRole('button', { name: /gerar exportação/i }));
+    await waitFor(() => {
+      expect(createReportExport).toHaveBeenCalledWith(
+        'SERVICE_ORDERS_BY_PERIOD',
+        expect.objectContaining({ unitId }),
+      );
+    });
+  });
+
+  it('distinguishes preview API failure from an empty dataset and supports a retry', async () => {
+    previewReport.mockRejectedValueOnce(new Error('unavailable')).mockResolvedValueOnce(preview);
+    render(
+      <MemoryRouter>
+        <ReportsPage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/Falha ao consultar a prévia deste relatório/)).toBeInTheDocument();
+    expect(screen.queryByText('Nenhum dado para os filtros atuais')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: /tentar novamente/i }));
+    expect(await screen.findByText('SO-001')).toBeInTheDocument();
+  });
+
 });
