@@ -172,6 +172,7 @@ export function ReceiptProvenanceWorkbench({
         idempotencyKey: commandKey.current,
       });
       setResult(bound);
+      setEvidenceRevision((v) => v + 1);
       commandKey.current = null;
     } catch (reason) {
       setError(
