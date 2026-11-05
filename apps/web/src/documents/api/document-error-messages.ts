@@ -1,6 +1,12 @@
 import { DOCUMENT_ERROR_CODES } from '../types/document.types';
 
 export function mapDocumentErrorToMessage(code: string | undefined, status: number): string {
+  if (status === 401 || status === 403) {
+    return 'Você não tem permissão para esta operação com documentos.';
+  }
+  if (status >= 500) {
+    return 'O serviço documental está indisponível. Tente novamente.';
+  }
   switch (code) {
     case DOCUMENT_ERROR_CODES.DENIED:
       return 'Você não tem permissão para esta operação com documentos.';

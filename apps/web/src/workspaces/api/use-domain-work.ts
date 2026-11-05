@@ -101,7 +101,7 @@ async function loadAgora(
     return { count: null, unavailable: true };
   }
   const count = page.byDomain?.[domain];
-  if (!Number.isSafeInteger(count) || count < 0) {
+  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
     throw new WorkInboxApiError(502, 'unknown');
   }
   return { count, unavailable: false };
