@@ -5,8 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { BackofficeApiError } from './enterprise-api';
 import { BackofficeCapabilityRoute } from './BackofficeCapabilityRoute';
 
+// Stable function identity is essential: the route depends on expireSession in
+// its effect; creating a new mock each render would cancel every probe.
+const { expireSession } = vi.hoisted(() => ({ expireSession: vi.fn() }));
 vi.mock('../auth/context/AuthProvider', () => ({
-  useAuth: () => ({ expireSession: vi.fn() }),
+  useAuth: () => ({ expireSession }),
 }));
 
 function mount(probe: () => Promise<boolean>) {
