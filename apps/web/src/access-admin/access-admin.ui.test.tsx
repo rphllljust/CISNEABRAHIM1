@@ -41,6 +41,7 @@ function errorResponse(code: string, status: number): Response {
 
 type AccessAdminFetchMockOptions = {
   probeDenied?: boolean;
+  probeNetworkError?: boolean;
   versionConflictOnUpdate?: boolean;
 };
 
@@ -58,6 +59,9 @@ function createAccessAdminFetchMock(options: AccessAdminFetchMockOptions = {}) {
 
     if (pathname.startsWith('/api/v1/authz/access-admin')) {
       if (pathname === '/api/v1/authz/access-admin/catalog' && method === 'GET') {
+        if (options.probeNetworkError) {
+          throw new TypeError('Network unavailable');
+        }
         if (options.probeDenied) {
           return errorResponse('AUTHZ_DENIED', 403);
         }
@@ -130,6 +134,32 @@ describe('access-admin frontend', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/conflito de versão/i);
     });
+  });
+
+
+  it('preserves administrator access on network outages and retries without a fake 403', async () => {
+    const options = { probeNetworkError: true };
+    vi.stubGlobal('fetch', createAccessAdminFetchMock(options));
+    const user = userEvent.setup();
+
+    render(
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/app/access-admin']}>
+          <Routes>
+            <Route path="/app/access-admin" element={
+              <AccessAdminRoute><div>ALLOWED</div></AccessAdminRoute>
+            } />
+            <Route path="/app/no-access" element={<div>NO ACCESS PAGE</div>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/servidor pode estar indisponível/i);
+    expect(screen.queryByText('NO ACCESS PAGE')).not.toBeInTheDocument();
+    options.probeNetworkError = false;
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    expect(await screen.findByText('ALLOWED')).toBeInTheDocument();
   });
 
   it('redirects to /app/no-access when the probe returns 403', async () => {
