@@ -851,7 +851,9 @@ async function probeList(path: string, signal?: AbortSignal): Promise<boolean> {
     await requestJson<unknown>(path, { method: 'GET', headers: authHeaders(), signal });
     return true;
   } catch (error) {
-    if (error instanceof BackofficeApiError && error.kind === 'denied') {
+    // 401 is an expired session, not an authorization decision. Only a
+    // verified business denial can hide the entry; 404/429/5xx need UI handling.
+    if (error instanceof BackofficeApiError && error.status === 403) {
       return false;
     }
     throw error;
