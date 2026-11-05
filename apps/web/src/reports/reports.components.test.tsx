@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReportsPage } from './pages/ReportsPage';
+import type { ReportCatalogItem } from './types/reports.types';
 
 const {
   getReportCatalog,
@@ -32,7 +33,7 @@ vi.mock('./api/reports-api', () => ({
   },
 }));
 
-const catalog = [
+const catalog: ReportCatalogItem[] = [
   {
     reportType: 'SERVICE_ORDERS_BY_PERIOD',
     label: 'OS por período',
