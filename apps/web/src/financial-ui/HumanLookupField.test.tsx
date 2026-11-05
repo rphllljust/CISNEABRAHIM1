@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -79,4 +79,59 @@ describe('HumanLookupField', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(/não foi possível buscar/i);
     });
   });
+
+  it('discards a late response from an aborted lookup instead of showing stale options', async () => {
+    let resolveInitial!: (items: HumanLookupOption[]) => void;
+    let resolveNext!: (items: HumanLookupOption[]) => void;
+    const search = vi.fn((term: string): Promise<HumanLookupOption[]> => new Promise((resolve) => {
+      if (term === '') resolveInitial = resolve;
+      else resolveNext = resolve;
+    }));
+    const user = userEvent.setup();
+    renderWithProviders(<Harness search={search} />);
+
+    await waitFor(() => expect(search).toHaveBeenCalledWith('', expect.anything()));
+    await user.type(screen.getByLabelText('Buscar fornecedor'), 'B');
+    await waitFor(() => expect(search).toHaveBeenCalledWith('B', expect.anything()));
+
+    await act(async () => {
+      resolveInitial([{ id: 'stale', label: 'Resultado antigo' }]);
+    });
+    expect(screen.queryByRole('option', { name: 'Resultado antigo' })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveNext(OPTIONS);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: 'Beta Pecas — 33.444.555/0001-03' }))
+        .toBeInTheDocument();
+    });
+  });
+
+  it('keeps compact controls shrinkable and does not advertise no-results before a search', async () => {
+    const search = vi.fn(async (): Promise<HumanLookupOption[]> => []);
+    const user = userEvent.setup();
+    renderWithProviders(
+      <HumanLookupField
+        variant="compact"
+        label="Fornecedor"
+        htmlFor="compact-supplier"
+        search={search}
+        value=""
+        onChange={() => undefined}
+        emptyMessage="Nenhum fornecedor encontrado."
+      />,
+    );
+
+    await waitFor(() => expect(search).toHaveBeenCalled());
+    expect(screen.getByLabelText('Buscar fornecedor')).toHaveClass('min-w-0');
+    expect(screen.getByLabelText('Fornecedor')).toHaveClass('min-w-0');
+    expect(screen.queryByText('Nenhum fornecedor encontrado.')).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Buscar fornecedor'), 'Beta');
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('Nenhum fornecedor encontrado.');
+    });
+  });
+
 });
