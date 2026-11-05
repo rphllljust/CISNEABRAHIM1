@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
 import { DynamicSavedViewsBar, useSavedViews } from '../../engine';
 import { listTransportServiceOrders } from '../api/transport-api';
+import { OperationalArchetypeContext } from '../../service-orders/components/OperationalArchetypeContext';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
 import { resolveServiceOrderPage } from '../../service-orders/api/service-orders-pagination';
 import { SERVICE_ORDER_STATUSES, type ServiceOrderStatus } from '../../service-orders/types/service-order.types';
@@ -350,6 +351,12 @@ export function TransportListPage() {
                 {formatDateTime(selected.updatedAt)}
               </dd>
             </dl>
+
+            <OperationalArchetypeContext
+              key={selected.id}
+              serviceOrderId={selected.id}
+              onChanged={() => setRetryNonce((value) => value + 1)}
+            />
 
             {/*
               O DRILLDOWN E O LINK REAL. O contexto mostra o que a linha JA publica e oferece a
