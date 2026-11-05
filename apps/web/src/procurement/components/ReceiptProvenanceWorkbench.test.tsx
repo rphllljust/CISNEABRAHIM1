@@ -82,6 +82,7 @@ describe('Procure-to-Pay receipt provenance workbench', () => {
     const user = userEvent.setup();
     renderWorkbench();
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Linha recebida' }), receiptId);
+    expect(await screen.findByText(/Recebido: 10.0000/)).toBeInTheDocument();
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Item cadastrado' }), skuId);
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Depósito cadastrado' }), warehouseId);
     await user.type(screen.getByRole('textbox', { name: /Quantidade a vincular/i }), '6');
@@ -97,6 +98,7 @@ describe('Procure-to-Pay receipt provenance workbench', () => {
     }));
     expect(screen.getByText(/Nenhuma movimentação de saldo foi criada/)).toBeInTheDocument();
     expect(postStockMovement).not.toHaveBeenCalled();
+    await waitFor(() => expect(getReceiptProvenance).toHaveBeenCalledTimes(2));
     expect(listInventoryItems).toHaveBeenCalledWith(
       expect.objectContaining({ unitId: 'unit-real' }),
       expect.any(AbortSignal),
