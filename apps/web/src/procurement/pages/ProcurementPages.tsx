@@ -59,6 +59,7 @@ import {
   type ThreeWayMatch,
 } from '../api/procurement-api';
 import { mapProcurementErrorToMessage } from '../api/procurement-error-messages';
+import { ReceiptProvenanceWorkbench } from '../components/ReceiptProvenanceWorkbench';
 import {
   buildPartialReceive,
   defaultReceiveQuantities,
@@ -978,6 +979,9 @@ export function PurchaseOrderPage() {
             </tbody>
           </table>
         </div>
+      ) : null}
+      {order.receipts.length > 0 ? (
+        <ReceiptProvenanceWorkbench orderId={order.id} unitId={order.unitId} />
       ) : null}
       <CreateRecordForm
         title="Receber"
