@@ -21578,3 +21578,11 @@ Todos os `HUMAN_LOOKUP_API_GAP` de superfície estao **FECHADOS**: centro de cus
 
 Permanece **PARK por decisao de produto**: `issuer/establishments` — backend completo, gating nao autorizado.
 
+## MASTER 010 — 2026-11-05 — correção transversal de layout e filtros (IN_PROGRESS)
+
+- Origem: ordem MASTER 010 do patrocinador; base `f9147c8396f8795e03dfc931f3557a65e0fbaa40` e branch `fix/master-010-filter-layout-state`.
+- Estado: `IN_PROGRESS`, gates obrigatórios `PENDING`, release `NO-GO`; PR #248 **draft**, sem autorização de merge/publicação.
+- Evidência de código: correções de WorkspaceToolbar/WorklistField/theme, Contratos e Pedidos de Compra, com detecção completa de recortes, limpeza unificada da URL e proteção contra respostas fora de ordem. Testes de componente acrescentados, sem afirmar execução.
+- Inventário: `AppRoutes.tsx` registra 137 declarações / 136 caminhos únicos (130 `/app`); duas rotas receberam inspeção e patch; 134 permanecem sem evidência desta rodada. Detalhes em `master-010-route-inventory.md`.
+- Gates não comprovados nesta rodada: lint, typecheck, unit, PostgreSQL, API E2E, Playwright, Visual Full, HML, reconciliação real; não extrapolar resultados do PR #238 já mesclado.
+- Rastreabilidade: `docs/CISNE_FINISH_MATRIX.md`, `docs/00-governance/master-010-route-inventory.md`, PR #248.
