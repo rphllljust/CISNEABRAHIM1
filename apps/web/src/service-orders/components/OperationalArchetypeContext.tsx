@@ -36,9 +36,14 @@ export function OperationalArchetypeContext({
   const [commandError, setCommandError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Errors from a rejected command must survive a re-fetch after HTTP 409.
+    // A new record is a different context and must not inherit an old error.
+    setCommandError(null);
+  }, [serviceOrderId]);
+
+  useEffect(() => {
     const controller = new AbortController();
     setState({ phase: 'loading' });
-    setCommandError(null);
     void getServiceOrder(serviceOrderId, controller.signal).then(
       (detail) => {
         if (!controller.signal.aborted) setState({ phase: 'ready', detail });
