@@ -156,7 +156,7 @@ export async function probeReadAccess(path: string, signal?: AbortSignal): Promi
         return true;
       }
     }
-    return false;
+    throw error;
   }
 }
 

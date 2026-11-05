@@ -66,7 +66,7 @@ const enc = encodeURIComponent;
  * `probeEntry` (o que autoriza, o que nega) EXIGE incrementar esta revisão. Mapa persistido com
  * revisão diferente é DESCARTADO e o menu é resolvido de novo pela rede.
  */
-export const SURFACE_ACCESS_CONTRACT_VERSION = 8;
+export const SURFACE_ACCESS_CONTRACT_VERSION = 9;
 
 /** Operação de leitura que representa entrar no módulo. `null` = superfície sem leitura própria. */
 export type SurfaceEntryRead = (unitId: string) => string | null;
@@ -278,6 +278,10 @@ async function probeEntry(url: string, signal?: AbortSignal): Promise<SurfaceAcc
   if (response.ok) {
     return { outcome: 'allowed' };
   }
+  // Outages are not authorization verdicts; route guards must offer retry.
+  if (response.status === 429 || response.status >= 500) {
+    throw new Error(`Surface access probe unavailable (${response.status})`);
+  }
   return { outcome: 'denied' };
 }
 
@@ -312,6 +316,9 @@ export async function probeExplicitCapability(
     throw new Error('session_expired');
   }
   if (!response.ok) {
+    if (response.status === 429 || response.status >= 500) {
+      throw new Error(`Capability probe unavailable (${response.status})`);
+    }
     return { outcome: 'denied' };
   }
 
