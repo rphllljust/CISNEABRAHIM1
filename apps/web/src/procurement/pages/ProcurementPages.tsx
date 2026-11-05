@@ -60,6 +60,7 @@ import {
 } from '../api/procurement-api';
 import { mapProcurementErrorToMessage } from '../api/procurement-error-messages';
 import { ReceiptProvenanceWorkbench } from '../components/ReceiptProvenanceWorkbench';
+import { SupplierReceiptFinancePanel } from '../components/SupplierReceiptFinancePanel';
 import {
   buildPartialReceive,
   defaultReceiveQuantities,
@@ -954,28 +955,7 @@ export function PurchaseOrderPage() {
           </tbody>
         </table>
       </div>
-      {order.receipts.length > 0 ? (
-        <div className={worklistTableCardClass}>
-          <table className={worklistTableClass} aria-label="Recebimentos do pedido">
-            <thead className={worklistHeadCellClass}>
-              <tr>
-                <th scope="col" className={worklistHeadCellClass}>Recebimento</th>
-                <th scope="col" className={worklistHeadCellClass}>Status</th>
-                <th scope="col" className={worklistHeadCellClass}>Título a pagar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.receipts.map((receipt) => (
-                <tr key={receipt.id} className={worklistRowClass}>
-                  <td className={worklistCellClass}>{receipt.id}</td>
-                  <td className={worklistCellClass}>{receipt.status}</td>
-                  <td className={worklistCellClass}>{receipt.payableId ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      {order.receipts.length > 0 && <SupplierReceiptFinancePanel receipts={order.receipts} />}
       {order.receipts.length > 0 && <ReceiptProvenanceWorkbench orderId={order.id} unitId={order.unitId} />}
       <CreateRecordForm
         title="Receber"
