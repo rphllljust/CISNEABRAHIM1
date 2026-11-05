@@ -398,7 +398,7 @@ export class ContractsAccessService {
   async list(
     actor: IdentityAuthzContext,
     query: ContractListQuery,
-  ): Promise<{ items: ReturnType<typeof toContractResponse>[]; limit: number; offset: number }> {
+  ): Promise<{ items: ReturnType<typeof toContractResponse>[]; limit: number; offset: number; total: number; hasMore: boolean }> {
     const scopeFilter = await this.authz.buildListScopeFilter(actor);
 
     /*
@@ -410,18 +410,23 @@ export class ContractsAccessService {
      */
     const where = buildContractListWhere(scopeFilter, query);
 
-    const rows = await this.contractsRepository.listContracts(
-      where.clause,
-      where.params,
-      query.limit,
-      query.offset,
-      buildContractListOrderClause(query.sort, query.direction),
-    );
+    const [rows, total] = await Promise.all([
+      this.contractsRepository.listContracts(
+        where.clause,
+        where.params,
+        query.limit,
+        query.offset,
+        buildContractListOrderClause(query.sort, query.direction),
+      ),
+      this.contractsRepository.countContracts(where.clause, where.params),
+    ]);
 
     return {
       items: rows.map(toContractResponse),
       limit: query.limit,
       offset: query.offset,
+      total,
+      hasMore: query.offset + rows.length < total,
     };
   }
 
