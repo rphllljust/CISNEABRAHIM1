@@ -372,7 +372,7 @@ export class PersonAccessService {
         'Person was modified by another request.',
       );
     }
-    if (updated === 'INVALID_STATE') {
+    if (updated === 'INVALID_STATE' || updated === 'HAS_ACTIVE_ALLOCATIONS') {
       throw new PersonHttpException(
         HttpStatus.CONFLICT,
         PERSON_ERROR_CODES.INVALID_STATE,
