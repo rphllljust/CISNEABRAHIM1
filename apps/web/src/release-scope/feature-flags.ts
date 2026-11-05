@@ -28,8 +28,9 @@ import { FEATURE_FLAG_ENV, type GatedModuleId } from './release-1-scope';
  *   Em produção o default permanece conservador (desligado) e a decisão de ligar é declarada
  *   no env de produção, nunca herdada por omissão.
  *
- * Módulos que são apenas STUB (sem API real por trás) permanecem desligados em todos os
- * ambientes: `rentals` e `transport` têm `*-api.ts` de 8 linhas e não são produto construído.
+ * Locações e Transporte utilizam as consultas e transições autorizadas de OS; são
+ * superfícies construídas sobre o mesmo domínio, não APIs/fluxos paralelos. Isso
+ * não equivale a homologar toda a jornada econômica de cada arquétipo.
  */
 
 /**
@@ -50,16 +51,16 @@ export const BUILT_MODULES: ReadonlySet<GatedModuleId> = new Set<GatedModuleId>(
   'reports',
   'approval-matrix',
   'operational-profitability',
-]);
-
-/**
- * Módulos que são apenas superfície sem backend real por trás (stub comprovado).
- * Permanecem desligados por padrão em TODOS os ambientes até serem produto.
- */
-export const STUB_MODULES: ReadonlySet<GatedModuleId> = new Set<GatedModuleId>([
+  // Worklists transacionais do domínio autorizado de service-orders.
   'rentals',
   'transport',
 ]);
+
+/**
+ * Superfícies ainda sem backend de domínio verificável. Nenhuma nesta revisão:
+ * Locações e Transporte dependem da OS canônica e seus guards/PDP.
+ */
+export const STUB_MODULES: ReadonlySet<GatedModuleId> = new Set<GatedModuleId>();
 
 type FlagEnv = Record<string, string | undefined>;
 
