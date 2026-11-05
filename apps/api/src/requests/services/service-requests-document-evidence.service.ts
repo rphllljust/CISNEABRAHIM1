@@ -9,6 +9,11 @@ import { serviceRequestsDocumentNotFound } from './service-requests-access.error
  * owner is authoritative for classification, scope and per-record read rights.
  * A denied or absent document has the same non-enumerable outcome.
  */
+const INACCESSIBLE_DOCUMENT_STATUSES: ReadonlySet<number> = new Set<number>([
+  HttpStatus.FORBIDDEN,
+  HttpStatus.NOT_FOUND,
+]);
+
 @Injectable()
 export class ServiceRequestsDocumentEvidenceService {
   constructor(private readonly documents: DocumentsAccessService) {}
@@ -19,7 +24,7 @@ export class ServiceRequestsDocumentEvidenceService {
       return document.unitId === requestUnitId;
     } catch (error) {
       if (error instanceof DocumentHttpException &&
-          (error.getStatus() === HttpStatus.FORBIDDEN || error.getStatus() === HttpStatus.NOT_FOUND)) {
+          INACCESSIBLE_DOCUMENT_STATUSES.has(error.getStatus())) {
         return false;
       }
       // Infrastructure errors are not empty evidence: preserve error state.
