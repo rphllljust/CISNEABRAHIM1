@@ -271,7 +271,7 @@ export function ReceiptProvenanceWorkbench({
             </form>
           )}
         </>
-      )}
+      ) : null}
       {error ? <p role="alert" className="mt-3 text-sm text-red-700">{error}</p> : null}
       {result ? (
         <p role="status" className="mt-3 text-sm text-green-800">
