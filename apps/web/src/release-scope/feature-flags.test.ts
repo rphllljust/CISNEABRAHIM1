@@ -94,6 +94,15 @@ describe('release surface policy', () => {
     }
   });
 
+  it('exercises OS-backed rentals and transport in HML while keeping production fail-closed', () => {
+    for (const moduleId of ['rentals', 'transport'] as const) {
+      expect(BUILT_MODULES.has(moduleId)).toBe(true);
+      expect(STUB_MODULES.has(moduleId)).toBe(false);
+      expect(resolveModuleFlag(moduleId, { VITE_CISNE_SURFACE: 'hml' }).enabled).toBe(true);
+      expect(resolveModuleFlag(moduleId, { VITE_CISNE_SURFACE: 'production' }).enabled).toBe(false);
+    }
+  });
+
   it('keeps stub modules OFF even on a homologation surface', () => {
     const env = { VITE_CISNE_SURFACE: 'hml' };
     for (const moduleId of STUB_MODULES) {
