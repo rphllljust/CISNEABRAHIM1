@@ -422,6 +422,20 @@ describe('Procurement core PostgreSQL integration', () => {
       receiptLineId, inventoryItemId: products[0]!.id, warehouseId: wh.id,
       unitId: UNIT, allocatedQuantity: '6.0000', idempotent: false,
     });
+    const persistedEvidence = await inventory.getReceiptProvenance(checker, receiptLineId);
+    expect(persistedEvidence).toMatchObject({
+      receiptLineId,
+      receivedQuantity: '10.0000',
+      allocatedQuantity: '6.0000',
+      items: [{
+        id: recorded.id,
+        inventoryItemId: products[0]!.id,
+        warehouseId: wh.id,
+        allocatedQuantity: '6.0000',
+      }],
+    });
+    await expect(inventory.getReceiptProvenance(outsider, receiptLineId))
+      .rejects.toMatchObject({ code: PROCUREMENT_ERROR_CODES.DENIED });
     const replay = await inventory.bindReceiptProvenance(checker, input);
     expect(replay).toMatchObject({ id: recorded.id, idempotent: true });
     await expect(inventory.bindReceiptProvenance(checker, {
