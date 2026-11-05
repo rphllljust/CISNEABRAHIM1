@@ -255,6 +255,7 @@ export function ReceiptProvenanceWorkbench({
                   onChange={(event) => { setQuantity(event.target.value); resetCommand(); }}
                   className="rounded border border-gray-300 p-2" />
               </label>
+              <ReceiptEvidencePanel evidence={evidence} />
               <label className="flex flex-col gap-1 text-sm">
                 Buscar item de estoque
                 <input aria-label="Buscar item de estoque" value={itemSearch}
