@@ -206,7 +206,7 @@ async function loadModules(
               <span className="text-xs text-gray-600">Revisão {item.currentVersionNumber}</span>
             ),
         })),
-      completeCount,
+      (response) => response.total ?? completeCount(response),
     ),
     purchaseOrders: toModule(
       purchaseOrders,
@@ -230,7 +230,7 @@ async function loadModules(
           meta: item.title,
           badge: <ContractStatusBadge status={item.status} />,
         })),
-      completeCount,
+      (response) => response.total ?? completeCount(response),
     ),
     serviceOrders: toModule(
       serviceOrders,
