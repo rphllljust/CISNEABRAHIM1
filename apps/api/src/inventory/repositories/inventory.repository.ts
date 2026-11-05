@@ -247,6 +247,17 @@ export class InventoryRepository {
     return result.rows;
   }
 
+
+  /** Numeric(18,4) sum stays in PostgreSQL; never convert a stock quantity to JS Number. */
+  async sumReceiptProvenanceQuantity(receiptLineId: string): Promise<string> {
+    const result = await this.pool().query<{ quantity: string }>(
+      `SELECT COALESCE(SUM(allocated_quantity), 0)::text AS quantity
+       FROM inv.receipt_inventory_provenance WHERE receipt_line_id = $1::uuid`,
+      [receiptLineId],
+    );
+    return result.rows[0]?.quantity ?? '0';
+  }
+
   async findWarehouseById(id: string): Promise<WarehouseRow | null> {
     const result = await this.pool().query<WarehouseRow>(
       `SELECT ${WAREHOUSE_RETURNING} FROM inv.warehouses WHERE id = $1`,
