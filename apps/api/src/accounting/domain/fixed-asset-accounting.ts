@@ -14,6 +14,18 @@ export const FIXED_ASSET_STATUSES = {
 
 export type FixedAssetStatus = (typeof FIXED_ASSET_STATUSES)[keyof typeof FIXED_ASSET_STATUSES];
 
+const FIXED_ASSET_STATUS_SET: ReadonlySet<string> = new Set(Object.values(FIXED_ASSET_STATUSES));
+
+/**
+ * Predicado do conjunto FECHADO de status de imobilizado.
+ *
+ * Usado na borda da listagem: valor desconhecido e RECUSADO ali, em vez de descer ao SQL como
+ * comparacao que nunca casa — o que devolveria lista vazia e seria lido como "nao ha registros".
+ */
+export function isFixedAssetStatus(value: string): value is FixedAssetStatus {
+  return FIXED_ASSET_STATUS_SET.has(value);
+}
+
 export const FIXED_ASSET_MOVEMENT_KINDS = {
   Acquisition: 'ACQUISITION',
   Disposal: 'DISPOSAL',

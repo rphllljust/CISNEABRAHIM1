@@ -256,5 +256,5 @@ executado — e não apresentado como concluído.**
 | Categoria de despesa (id) | procurement, finance/expenses | **RESOLVIDO** — `GET finance/expense-categories` + `HumanLookupField` |
 | Período de folha | payroll | **RESOLVIDO** — `GET payroll/periods` e `GET payroll/contracts` já existiam; o PARK estava incorreto |
 | Cálculo tributário (apuração) | fiscal/apuração | **RESOLVIDO** — `GET tax-assessments` já existia; o PARK estava incorreto |
-| Registro de ativo imobilizado | accounting/fixed-assets | `GET` é consulta por ativo operacional; sem lista — ABERTO |
+| Registro de ativo imobilizado | accounting/fixed-assets | **RESOLVIDO na rodada MASTER-003 (4ª frente)** — `GET accounting/fixed-assets?unitId=X` agora LISTA; com `operationalAssetId` mantém a consulta por ativo (contrato anterior intacto) | FECHADO |
 | Pessoa jurídica / estabelecimento | issuer/establishments | backend completo; **gating não decidido** — PARK mantido por decisão de produto |

@@ -29,5 +29,13 @@ export const ACCOUNTING_ERROR_CODES = {
   FIXED_ASSET_NOT_FOUND: 'ACCOUNTING_FIXED_ASSET_NOT_FOUND',
   FIXED_ASSET_INVALID: 'ACCOUNTING_FIXED_ASSET_INVALID',
   FIXED_ASSET_NOT_CAPITALIZED: 'ACCOUNTING_FIXED_ASSET_NOT_CAPITALIZED',
+  /**
+   * Status pedido fora do enum real de `acc.fixed_asset_registers`.
+   *
+   * Recusar e o comportamento correto: converter valor desconhecido em "sem filtro" faria o
+   * operador receber a lista inteira acreditando ter aplicado um recorte; devolver lista vazia
+   * faria ler "nao ha registro de imobilizado".
+   */
+  FIXED_ASSET_STATUS_INVALID: 'ACCOUNTING_FIXED_ASSET_STATUS_INVALID',
   DEPRECIATION_RATE_NOT_CONFIGURED: 'ACCOUNTING_DEPRECIATION_RATE_NOT_CONFIGURED',
 } as const;

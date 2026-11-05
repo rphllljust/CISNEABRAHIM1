@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { toResourceContextFromAccounting } from '../../authorization/scope/scope-matcher';
 import {
+  assertListAccess,
   assertPolicyAndGrantScope,
   hasPolicyAndGrantScope,
 } from '../../authorization/services/domain-grant-authz.helper';
 import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
-import type { AuthzAction } from '../../authorization/types/authz-actions';
+import { AUTHZ_ACTIONS, type AuthzAction } from '../../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import { accountingAccessDenied } from './accounting-access.errors';
@@ -33,6 +34,34 @@ export class AccountingAccessAuthz {
         action,
         resourceType: AUTHZ_RESOURCE_TYPES.AccountingLedger,
         context: toResourceContextFromAccounting(resource),
+        onDenied: accountingAccessDenied,
+      },
+    );
+  }
+
+  /**
+   * Gate de LISTAGEM do registro de ativo imobilizado.
+   *
+   * A capacidade e `accounting:fixed-asset:read`, a MESMA da leitura por ativo — mas o gate e
+   * `assertListAccess` (capacidade + ao menos um grant aplicavel) e nao
+   * `assertAccountingAction`, porque nao existe um registro unico para compor contexto: a
+   * listagem e anterior a escolha do registro. Usar `assertAccountingAction` aqui exigiria um
+   * `id`/`unitId` de registro que o solicitante ainda nao tem.
+   *
+   * Sem este gate, quem nao tem concessao receberia `{ items: [], total: 0 }` em vez de 403 —
+   * lista vazia mascarando negacao como ausencia de dado. E o mesmo defeito ja corrigido em
+   * contas a pagar.
+   */
+  async assertFixedAssetList(actor: IdentityAuthzContext): Promise<void> {
+    await assertListAccess(
+      {
+        authorizationRepository: this.authorizationRepository,
+        policyDecisionPoint: this.policyDecisionPoint,
+      },
+      {
+        actor,
+        action: AUTHZ_ACTIONS.AccountingFixedAssetRead,
+        resourceType: AUTHZ_RESOURCE_TYPES.AccountingLedger,
         onDenied: accountingAccessDenied,
       },
     );
