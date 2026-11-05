@@ -89,6 +89,32 @@ export const expenseCategoryStatusEnum = finSchema.enum('expense_category_status
 
 export const paymentKindEnum = finSchema.enum('payment_kind', ['PAYMENT', 'REVERSAL']);
 
+/**
+ * CENTRO DE CUSTO — referencia que `payables.cost_center_id` e `expenses.cost_center_id`
+ * sempre assumiram existir, mas que nunca foi modelada (o UUID era literal, sem FK).
+ *
+ * A tabela nasce como FONTE AUTORITATIVA de referencia para quem escolhe o centro de custo.
+ * A convergencia para chave estrangeira sobre os registros historicos permanece pendencia
+ * registrada: os UUIDs ja persistidos sao arbitrarios e um backfill exigiria autorizacao
+ * empresarial sobre a taxonomia real.
+ */
+export const costCenterStatusEnum = finSchema.enum('cost_center_status', ['ACTIVE', 'INACTIVE']);
+
+export const costCenters = finSchema.table('cost_centers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull(),
+  name: text('name').notNull(),
+  status: costCenterStatusEnum('status').notNull().default('ACTIVE'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  createdByIdentityId: uuid('created_by_identity_id')
+    .notNull()
+    .references(() => identities.id),
+  updatedByIdentityId: uuid('updated_by_identity_id')
+    .notNull()
+    .references(() => identities.id),
+});
+
 export const expenseCategories = finSchema.table('expense_categories', {
   id: uuid('id').primaryKey().defaultRandom(),
   code: text('code').notNull(),
@@ -106,8 +132,7 @@ export const expenseCategories = finSchema.table('expense_categories', {
 
 export const payables = finSchema.table('payables', {
   id: uuid('id').primaryKey().defaultRandom(),
-  unitId: text('unit_id').notNull(),
-  counterpartyId: uuid('counterparty_id').notNull(),
+  unitId: text('unit_id').notNull(),  counterpartyId: uuid('counterparty_id').notNull(),
   originKind: payableOriginKindEnum('origin_kind').notNull(),
   originId: uuid('origin_id').notNull(),
   originReference: text('origin_reference').notNull(),

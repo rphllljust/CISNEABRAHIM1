@@ -1,4 +1,4 @@
-﻿import { randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { Pool, PoolClient } from 'pg';
 import { classifyRowVersion } from '../../infrastructure/database/optimistic-lock';
@@ -21,6 +21,7 @@ import type {
   CancelPayablePersistenceInput,
   CreateExpenseCategoryPersistenceInput,
   ExpenseCategoryRow,
+  ListExpenseCategoriesInput,
   OpenPayablePersistenceInput,
   PayPayablePersistenceInput,
   PayableInstallmentRow,
@@ -100,6 +101,71 @@ export class PayablesRepository {
       }
       throw error;
     }
+  }
+
+  /**
+   * LISTAGEM de categorias de despesa.
+   *
+   * DEFEITO QUE ESTA FUNCAO FECHA: `POST finance/expense-categories` existia, mas nao havia
+   * listagem. Todo consumidor que precisa ESCOLHER uma categoria (despesa, conferencia de nota,
+   * validacao de fornecedor) ficava sem referencia humana e era forcado a digitar UUID — o que
+   * a `CISNE_FINISH_MATRIX` registra como `PARK: HUMAN_LOOKUP_API_GAP`.
+   *
+   * `fin.expense_categories` e um cadastro GLOBAL (nao tem `unit_id`), portanto a leitura nao
+   * recebe recorte de unidade: nao se inventa escopo que o dado nao possui.
+   *
+   * Filtros: `search` casa codigo OU nome (ILIKE parametrizado, nenhum nome de coluna vem do
+   * cliente); `status` e validado contra o enum real do banco antes de descer ao SQL.
+   */
+  async listExpenseCategories(input: ListExpenseCategoriesInput): Promise<ExpenseCategoryRow[]> {
+    const conditions: string[] = [];
+    const parameters: unknown[] = [];
+
+    if (input.search) {
+      parameters.push(`%${input.search}%`);
+      conditions.push(`(code ILIKE $${parameters.length} OR name ILIKE $${parameters.length})`);
+    }
+    if (input.status) {
+      parameters.push(input.status);
+      conditions.push(`status::text = $${parameters.length}`);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    parameters.push(input.limit, input.offset);
+
+    const result = await this.pool().query<ExpenseCategoryRow>(
+      `SELECT ${CATEGORY_RETURNING}
+         FROM fin.expense_categories
+         ${where}
+        ORDER BY code ASC
+        LIMIT $${parameters.length - 1} OFFSET $${parameters.length}`,
+      parameters,
+    );
+    return result.rows;
+  }
+
+  /** Total do MESMO recorte aplicado em `listExpenseCategories` — nunca uma contagem paralela. */
+  async countExpenseCategories(
+    input: Pick<ListExpenseCategoriesInput, 'search' | 'status'>,
+  ): Promise<number> {
+    const conditions: string[] = [];
+    const parameters: unknown[] = [];
+
+    if (input.search) {
+      parameters.push(`%${input.search}%`);
+      conditions.push(`(code ILIKE $${parameters.length} OR name ILIKE $${parameters.length})`);
+    }
+    if (input.status) {
+      parameters.push(input.status);
+      conditions.push(`status::text = $${parameters.length}`);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM fin.expense_categories ${where}`,
+      parameters,
+    );
+    return Number.parseInt(result.rows[0]?.total ?? '0', 10);
   }
 
   async findExpenseCategoryById(categoryId: string): Promise<ExpenseCategoryRow | null> {

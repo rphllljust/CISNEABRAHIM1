@@ -29,9 +29,11 @@ import {
   PAYABLE_ORIGIN_KINDS,
   PayableError,
   emptyPayableAgingSummary,
+  isExpenseCategoryStatus,
   type PayableAgingBucket,
   type PayableAgingSummary,
 } from '../domain/payable';
+import type { FinanceListQuery } from '../dto/finance-list.dto';
 import {
   validateCancelPayableInput,
   validateCreateExpenseCategoryInput,
@@ -65,6 +67,21 @@ import { mapPayableDomainError, payableNotFound } from './payables-access.errors
  */
 export type PayableListResponse = {
   items: PayableDetailResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
+
+/**
+ * Pagina de categorias de despesa.
+ *
+ * MESMO contrato das demais listagens do modulo (`{ items, limit, offset, total, totalPages }`).
+ * Reutilizar o shape nao e estetica: o `HumanLookupField` do frontend, os contadores de
+ * workspace e a paginacao server-side sao os mesmos componentes para toda lista do Financeiro.
+ */
+export type ExpenseCategoryListResponse = {
+  items: ExpenseCategoryResponse[];
   limit: number;
   offset: number;
   total: number;
@@ -125,11 +142,53 @@ export class PayablesAccessService implements FinancePayablePort {
     private readonly scopeEnforcement: ScopeEnforcementService,
   ) {}
 
+  /**
+   * LISTAGEM de categorias de despesa — referencia humana para os consumidores.
+   *
+   * Fecha o `PARK: HUMAN_LOOKUP_API_GAP` registrado na `CISNE_FINISH_MATRIX`: existia `POST` mas
+   * nao existia listagem, entao quem precisava ESCOLHER uma categoria era forcado a digitar o
+   * UUID. O gate de autorizacao e `finance:expense-category:list`, deliberadamente separado de
+   * `:create` para que a segregacao de funcoes possa distinguir cadastro de uso operacional.
+   *
+   * `fin.expense_categories` e cadastro GLOBAL (nao possui `unit_id`), portanto a leitura nao
+   * aplica recorte de unidade: escopo que o dado nao tem nao e inventado.
+   *
+   * O recorte usa `parseFinanceListQuery`, o MESMO DTO de paginacao/filtro do resto do modulo.
+   * Valor de `status` fora do enum real do banco NAO desce ao SQL nem vira silenciosamente
+   * "todos": e recusado com 400, porque lista vazia seria lida como "nao ha categorias".
+   */
+  async listExpenseCategories(
+    actor: IdentityAuthzContext,
+    query: FinanceListQuery,
+  ): Promise<ExpenseCategoryListResponse> {
+    await this.authz.assertExpenseCategoryList(actor);
+
+    const statusCandidate = query.status?.toUpperCase();
+    if (statusCandidate !== undefined && !isExpenseCategoryStatus(statusCandidate)) {
+      throw mapPayableDomainError(new PayableError('EXPENSE_CATEGORY_STATUS_INVALID'));
+    }
+
+    const filter = { search: query.q, status: statusCandidate };
+    const total = await this.repository.countExpenseCategories(filter);
+    const rows = await this.repository.listExpenseCategories({
+      ...filter,
+      limit: query.limit,
+      offset: query.offset,
+    });
+
+    return {
+      items: rows.map(toExpenseCategoryResponse),
+      limit: query.limit,
+      offset: query.offset,
+      total,
+      totalPages: query.limit > 0 ? Math.ceil(total / query.limit) : 0,
+    };
+  }
+
   async createExpenseCategory(
     actor: IdentityAuthzContext,
     input: CreateExpenseCategoryInput,
-  ): Promise<ExpenseCategoryResponse> {
-    await this.authz.assertPayableAction(actor, AUTHZ_ACTIONS.FinanceExpenseCategoryCreate, {
+  ): Promise<ExpenseCategoryResponse> {    await this.authz.assertPayableAction(actor, AUTHZ_ACTIONS.FinanceExpenseCategoryCreate, {
       id: actor.identityId,
       unitId: 'global',
     });

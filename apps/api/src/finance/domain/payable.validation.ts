@@ -85,6 +85,25 @@ export function validateCreateExpenseCategoryInput(
   };
 }
 
+export type CreateCostCenterInput = {
+  code: string;
+  name: string;
+};
+
+/**
+ * Validacao do cadastro de centro de custo.
+ *
+ * O codigo e o identificador HUMANO: e por ele que o operador escolhe o centro de custo no
+ * lancamento. Por isso e obrigatorio e nao pode ser so espaco — um codigo vazio criaria uma
+ * referencia que ninguem consegue distinguir de outra na busca.
+ */
+export function validateCreateCostCenterInput(input: CreateCostCenterInput): CreateCostCenterInput {
+  return {
+    code: requireNonEmpty(input.code, 'code'),
+    name: requireNonEmpty(input.name, 'name'),
+  };
+}
+
 export function validateOpenPayableInput(
   input: OpenPayableInput,
 ): OpenPayableInput & { counterpartyId: string } {

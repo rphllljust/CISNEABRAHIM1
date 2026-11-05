@@ -43,6 +43,24 @@ function parsePayableAdvancedFilterOrThrow(value: unknown): PayableAdvancedFilte
 export class PayablesController {
   constructor(private readonly payablesAccess: PayablesAccessService) {}
 
+  /**
+   * LISTAGEM de categorias de despesa — referencia humana.
+   *
+   * Fecha o `PARK: HUMAN_LOOKUP_API_GAP`: existia `POST` sem listagem, e todo consumidor que
+   * precisa ESCOLHER uma categoria digitava UUID. Rota propria (`GET finance/expense-categories`)
+   * e nao um sufixo de `payables`, porque o recurso e o CATALOGO, nao um titulo.
+   */
+  @Get('expense-categories')
+  listExpenseCategories(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Query() query: Record<string, unknown>,
+  ) {
+    return this.payablesAccess.listExpenseCategories(
+      { identityId: auth.sub, sessionId: auth.sid },
+      parseFinanceListQuery(query),
+    );
+  }
+
   @Post('expense-categories')
   @HttpCode(200)
   createExpenseCategory(@CurrentAuth() auth: AccessTokenClaims, @Req() request: FastifyRequest) {

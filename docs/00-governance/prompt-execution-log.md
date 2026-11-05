@@ -21336,3 +21336,74 @@ Próxima ação: executar gates de lint/typecheck e validar o workflow no CI ap�
 
 
 Atualização de publicação (2026-10-29): correção commitada localmente sobre `ca1b6e143ff76d485b9217c3a1d72b87fa3c5e80`, após rebase da branch de trabalho sobre o `main` que já continha a contribuição dos cinco arquivos UI. `git push -u origin HEAD` foi tentado e recusado pelo ambiente por falta de credencial GitHub interativa (`could not read Username for 'https://github.com': No such device or address`). CI/Release Ready/GHCR/Coolify/smoke/Chromium remotos não iniciados; produção não alterada. A classificação local condicional não constitui release publicada.
+
+## MASTER 003 — FRENTES A–H + HUMANLOOKUPFIELD — 2026-11-05
+
+Autorizacao: solicitacao explicita de execucao integral das frentes A–H com commit, push, CI, HML, merge, publicacao, deploy e validacao em producao. Classificacao: interpretacao de engenharia sobre requisito confirmado.
+
+Base: `cd407234` (fast-forward de `fix/measurement-nested-read-model` para `main`: 330 commits, 504 arquivos, migrations 0109–0117).
+
+### Metodo
+
+Cada frente foi verificada no CODIGO, nao na documentacao anterior. **Cinco das oito ja estavam implementadas** e o registro da matriz estava obsoleto. Isso esta declarado em vez de ser apresentado como entrega nova.
+
+### Frente A — CENTRO DE CUSTO (implementada)
+
+Defeito de causa raiz: `fin.payables.cost_center_id` (0045) e `fin.expenses.cost_center_id` (0069) sao `uuid NOT NULL` SEM `REFERENCES`, e **nenhuma tabela `fin.cost_centers` existia em toda a cadeia**. O valor vinha de literal; todas as suites usavam `costCenterId: crypto.randomUUID()`.
+
+Entregue: migration `0118_cost_center_reference.sql` (tabela, unique index em code, index status+code, metadado `meta.entities`/`meta.fields`), schema Drizzle, `CostCentersRepository` (list/count/get/exists/create), `CostCentersAccessService`, controller `finance/cost-centers`, acoes `finance:cost-center:list` e `:create`, auditoria `security:finance:cost-center:create`.
+
+Limite declarado: NAO foi adicionada FK em `cost_center_id`. Os UUIDs ja persistidos sao arbitrarios e um backfill falharia em massa sobre dado real. Integridade para escritas NOVAS via `assertExists`. Convergencia permanece pendencia.
+
+Prova: `cost-center-reference.integration.spec.ts` 10/10 PASS contra PostgreSQL real, incluindo caso que prova que `assertExists` RECUSA uuid arbitrario e que a tabela existe com as colunas exatas do contrato.
+
+### Frente B — CATEGORIA DE DESPESA (implementada)
+
+Existia `POST finance/expense-categories` e NAO existia `GET`. Entregue: `listExpenseCategories` + `countExpenseCategories` no repositorio, servico, `assertExpenseCategoryList`, rota `GET finance/expense-categories`, conjunto fechado `EXPENSE_CATEGORY_STATUSES` + predicado `isExpenseCategoryStatus`, codigo de erro `FINANCE_EXPENSE_CATEGORY_STATUS_INVALID`.
+
+Prova: `expense-category-lookup.integration.spec.ts` 9/9 PASS, incluindo recusa com 403 em vez de lista vazia e recusa de status desconhecido em vez de filtro ignorado.
+
+### Frentes C–G — JA EXISTIAM (nada criado)
+
+- C: `GET accounting/periods`, `GET charts/:chartId/periods`, `GET periods/:periodId/ledger`, `close`/`reopen`, `GET closing/readiness`.
+- D: `GET bank-statements`, `GET accounts/:accountId/reconciliation`, `POST accounts/:accountId/movements`.
+- E: `GET payroll/periods` E `GET payroll/contracts` — o PARK que os declarava ausentes estava INCORRETO.
+- F: `GET tax-assessments`, `GET tax-calculations`, `finalize`/`adjust`/`cancel`.
+- G: `PATCH commercial/contracts/:contractId` para `updateDraft` com `AUTHZ_ACTIONS.CommercialContractUpdate`, `rowVersion`, auditoria e validacao de referencias; e2e `contracts.e2e.test.tsx` 21/21 PASS. O `BASIC_GAP` era obsoleto.
+
+Criar caminho paralelo para C–G seria exatamente a duplicacao proibida pela missao. Nenhum arquivo foi criado para elas.
+
+### Frente H — ESTABELECIMENTOS (NAO resolvida, PARK mantido)
+
+Backend completo e verificado: `issuer/legal-entities`, `issuer/establishments`, `issuer/tax-registrations`, `issuer/certificates`, e `organization/operational-units` que JA tem superficie web (`unit-governance-api.ts`, `access-admin/operational-unit-workbench`).
+
+Nao resolvida porque a decisao e de PRODUTO: criar `VITE_FEATURE_MODULE_*` para `issuer` e construir superficie exige autorizacao sobre o que entra no release 1. Criar a flag por conveniencia violaria AGENTS.md §17–18 e ED-005. Registrado, nao executado, nao apresentado como concluido.
+
+### HUMANLOOKUPFIELD
+
+`finance-directory-lookup.ts` (busca server-side de centro de custo e categoria, sem cache de cadastro no navegador). Ligado em `ExpensesPage`, `TaxAssessmentsPage` e `ProcurementPages` (conferencia E nota) — os quatro consumidores que digitavam UUID.
+
+O teste `enterprise-ui-catchup` foi ATUALIZADO para provar ESCOLHA a partir do que o servidor publicou, em vez de digitacao de `cc-1`. Nenhuma assercao foi afrouxada: a antiga provava um comportamento que a correcao elimina.
+
+### Gates medidos
+
+- API typecheck PASS; WEB typecheck (`tsc -b --force`) PASS.
+- ESLint API PASS (4 imports nao usados corrigidos); ESLint WEB PASS.
+- **API unit 1905/1905 em 296 arquivos.**
+- **API integracao frentes A e B 43/43**: cost-center 10, expense-category 9, payables 15, expense-management 9.
+- **Gate de banco PASS**: fresh PASS + incremental N-1 para N PASS (bloco 0118 com pre-delta proprio).
+- Gate de scripts PASS: 87 `.mjs`, probes completos, 13/13 detectores.
+- WEB suite focada 217/217 em 38 arquivos.
+- Cobertura de journal por migration PASS: 0118 com bloco em `ensure-migrations.ts`.
+
+### Falha de harness declarada
+
+A suite WEB completa apresentou **1 falha variavel** — `service-requests.e2e`, `assets.e2e`, `purchase-orders.e2e`, `measurement-workbench-api` e `ServiceOrdersEngineListPage` alternaram entre execucoes, todas passando isoladas e em pares. `release-scope.http.spec.ts` (API) apresentou o mesmo padrao. E contencao de CPU do harness local, nao defeito de produto. O CI e o veredito de particionamento. Nenhuma assercao afrouxada.
+
+### Pendencias explicitas
+
+1. FK de `cost_center_id` sobre registros historicos — exige backfill autorizado.
+2. Gating de `issuer/establishments` — decisao de produto.
+3. Listagem de documento de origem (treasury) e de registro de ativo imobilizado — ABERTOS.
+4. Edicao de contrato de FOLHA nao existe no backend.
+

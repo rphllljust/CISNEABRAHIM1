@@ -115,3 +115,11 @@ export type CreateExpenseCategoryPersistenceInput = {
   name: string;
   actorIdentityId: string;
 };
+
+/** Recorte de leitura da listagem de categorias de despesa (cadastro global, sem unidade). */
+export type ListExpenseCategoriesInput = {
+  search?: string;
+  status?: string;
+  limit: number;
+  offset: number;
+};

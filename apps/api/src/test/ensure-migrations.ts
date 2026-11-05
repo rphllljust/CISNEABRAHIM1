@@ -1226,6 +1226,23 @@ $$;`);
       await applySqlFile(pool, '0117_service_order_archetype_worklist_index.sql');
     }
 
+    /*
+     * 0118 — cost center reference table. `fin.payables.cost_center_id` and
+     * `fin.expenses.cost_center_id` always assumed this cadastre existed, but no table
+     * ever backed it: the UUID was literal and could not be validated. Verify the TABLE
+     * (not an index): its absence is what leaves four consumers without a human lookup.
+     * Never journal-reconcile an absent table.
+     */
+    const costCenters = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'fin' AND table_name = 'cost_centers'
+      ) AS exists`,
+    );
+    if (!costCenters.rows[0]?.exists) {
+      await applySqlFile(pool, '0118_cost_center_reference.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

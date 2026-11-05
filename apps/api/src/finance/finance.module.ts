@@ -1,4 +1,4 @@
-﻿import { Global, Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { SuppliersModule } from '../suppliers/suppliers.module';
 import { AuditModule } from '../audit/audit.module';
 import { AuthModule } from '../auth/auth.module';
@@ -17,6 +17,9 @@ import { CashFlowForecastController } from './controllers/cash-flow-forecast.con
 import { ClientFinancialContextController } from './controllers/client-financial-context.controller';
 import { BankReconciliationRepository } from './repositories/bank-reconciliation.repository';
 import { BudgetRepository } from './repositories/budget.repository';
+import { CostCentersRepository } from './repositories/cost-centers.repository';
+import { CostCentersController } from './controllers/cost-centers.controller';
+import { CostCentersAccessService } from './services/cost-centers-access.service';
 import { BankReconciliationAccessService } from './services/bank-reconciliation-access.service';
 import { BudgetAccessAuthz } from './services/budget-access.authz';
 import { BudgetAccessService } from './services/budget-access.service';
@@ -70,6 +73,7 @@ import { OutboxModule } from '../platform/outbox/outbox.module';
     BudgetController,
     CashFlowForecastController,
     ClientFinancialContextController, 
+    CostCentersController,
   ],
   providers: [
     ReceivablesRepository,
@@ -99,6 +103,8 @@ import { OutboxModule } from '../platform/outbox/outbox.module';
     CashFlowForecastAccessService,
     ClientFinancialContextRepository,
     ClientFinancialContextService,
+    CostCentersRepository,
+    CostCentersAccessService,
     {
       provide: ENTERPRISE_CORE_PORT.FinanceReceivable,
       useExisting: ReceivablesAccessService,
@@ -118,6 +124,7 @@ import { OutboxModule } from '../platform/outbox/outbox.module';
     BankReconciliationAccessService,
     BudgetAccessService,
     CashFlowForecastAccessService,
+    CostCentersAccessService,
     ENTERPRISE_CORE_PORT.FinanceReceivable,
     ENTERPRISE_CORE_PORT.FinancePayable,
   ],

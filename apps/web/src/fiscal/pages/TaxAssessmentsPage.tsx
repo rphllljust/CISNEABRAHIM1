@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Field, Input, Money, StatusBadge } from '../../ui';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchCostCenterOptions } from '../../financial-ui/finance-directory-lookup';
 import {
   ModuleErrorState,
   ModuleLoadingState,
@@ -590,9 +592,17 @@ function TaxAssessmentDetail({ assessmentId }: { assessmentId: string }) {
                 <Field label="Categoria" htmlFor="finalize-category" required>
                   <Input id="finalize-category" value={expenseCategoryId} onChange={(event) => setExpenseCategoryId(event.target.value)} required />
                 </Field>
-                <Field label="Centro de custo (id)" htmlFor="finalize-cc-id" required>
-                  <Input id="finalize-cc-id" value={costCenterId} onChange={(event) => setCostCenterId(event.target.value)} required />
-                </Field>
+                <HumanLookupField
+                  label="Centro de custo"
+                  htmlFor="finalize-cc-id"
+                  required
+                  search={searchCostCenterOptions}
+                  value={costCenterId}
+                  onChange={(id) => setCostCenterId(id)}
+                  placeholder="Busque por código ou nome do centro de custo"
+                  emptyMessage="Nenhum centro de custo encontrado para a busca."
+                  selectTestId="fiscal-cost-center-select"
+                />
                 <Field label="Centro de custo (código)" htmlFor="finalize-cc-code" required>
                   <Input id="finalize-cc-code" value={costCenterCode} onChange={(event) => setCostCenterCode(event.target.value)} required />
                 </Field>

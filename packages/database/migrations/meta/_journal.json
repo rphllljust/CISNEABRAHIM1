@@ -827,6 +827,13 @@
       "when": 179091500000200000,
       "tag": "0117_service_order_archetype_worklist_index",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 179091550000000000,
+      "tag": "0118_cost_center_reference",
+      "breakpoints": true
     }
   ]
 }

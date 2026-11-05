@@ -139,6 +139,7 @@ export const SECURITY_AUDIT_ACTIONS = {
   FinancePayableReverse: 'security:finance:payable:reverse',
   FinancePayableRead: 'security:finance:payable:read',
   FinanceExpenseCategoryCreate: 'security:finance:expense-category:create',
+  FinanceCostCenterCreate: 'security:finance:cost-center:create',
   FinanceExpenseCreate: 'security:finance:expense:create',
   FinanceExpenseSubmit: 'security:finance:expense:submit',
   FinanceExpenseApprove: 'security:finance:expense:approve',

@@ -1,8 +1,10 @@
-﻿import { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DateTime, EmptyState, Field, Input, Money } from '../../ui';
 import { ModulePage } from '../../ui/module-layout';
 import { DefinitionList } from '../../financial-ui/DefinitionList';
+import { HumanLookupField } from '../../financial-ui/HumanLookupField';
+import { searchCostCenterOptions } from '../../financial-ui/finance-directory-lookup';
 import { CreateRecordForm, VersionedActionForm } from '../../financial-ui/VersionedActionForm';
 import { renderQueryGate } from '../../financial-ui/BackofficeStates';
 import { useBackofficeQuery } from '../../financial-ui/useBackofficeQuery';
@@ -126,14 +128,17 @@ export function ExpensesPage() {
             required
           />
         </Field>
-        <Field label="Centro de custo (id)" htmlFor="expense-cc-id" required>
-          <Input
-            id="expense-cc-id"
-            value={costCenterId}
-            onChange={(event) => setCostCenterId(event.target.value)}
-            required
-          />
-        </Field>
+        <HumanLookupField
+          label="Centro de custo"
+          htmlFor="expense-cc-id"
+          required
+          search={searchCostCenterOptions}
+          value={costCenterId}
+          onChange={(id) => setCostCenterId(id)}
+          placeholder="Busque por código ou nome do centro de custo"
+          emptyMessage="Nenhum centro de custo encontrado para a busca."
+          selectTestId="expense-cost-center-select"
+        />
         <Field label="Centro de custo (código)" htmlFor="expense-cc-code" required>
           <Input
             id="expense-cc-code"

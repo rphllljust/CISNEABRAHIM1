@@ -274,6 +274,10 @@ const MIGRATION_EFFECT_CHECKS = {
   '0116_physical_asset_document_links': { table: ['doc', 'physical_asset_document_links'] },
   // Verify the exact index created by 0117; its absence must not be journal-reconciled.
   '0117_service_order_archetype_worklist_index': { index: 'service_orders_unit_archetype_created_idx' },
+  // 0118 introduces the cost center reference table that `fin.payables.cost_center_id` and
+  // `fin.expenses.cost_center_id` always assumed but never had. Probe the TABLE, not an index:
+  // the table is what closes `PARK: HUMAN_LOOKUP_API_GAP` for four consumers.
+  '0118_cost_center_reference': { table: ['fin', 'cost_centers'] },
 };
 
 /**
