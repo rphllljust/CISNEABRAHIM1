@@ -176,6 +176,13 @@ function buildProposalTextClause(
 
 export const MAX_PROPOSAL_SEARCH_LENGTH = 120;
 
+export const PROPOSAL_WORKBENCH_FROM = `
+  FROM com.proposals p
+  LEFT JOIN com.proposal_versions v
+    ON v.proposal_id = p.id
+   AND v.version_number = p.current_version_number
+`;
+
 export const PROPOSAL_WORKBENCH_SELECT = `
   SELECT
     p.id,
@@ -206,10 +213,7 @@ export const PROPOSAL_WORKBENCH_SELECT = `
       WHERE prior.proposal_id = p.id
         AND prior.version_number < COALESCE(p.current_version_number, 1)
     ) AS prior_revision_count
-  FROM com.proposals p
-  LEFT JOIN com.proposal_versions v
-    ON v.proposal_id = p.id
-   AND v.version_number = p.current_version_number
+  ${PROPOSAL_WORKBENCH_FROM}
 `;
 
 function escapeLikePattern(term: string): string {
