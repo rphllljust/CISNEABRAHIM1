@@ -90,6 +90,8 @@ jobs:
       # Structural scope != functional acceptance; cannot authorize release.
       - name: MASTER 002 source scope gate
         run: node scripts/ci/master-002-scope-gate.mjs
+      - name: MASTER 002 definitive acceptance source and ledger integrity
+        run: node scripts/ci/master-002-acceptance-ledger.mjs
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Lint
