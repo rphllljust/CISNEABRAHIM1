@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { PERIOD_STATUSES } from '../../accounting/domain/ledger';
 import type { PeriodResponse } from '../../accounting/serializers/accounting-response.serializer';
 import type { ClosingException } from '../../accounting/services/closing-readiness.service';
-import { AccountingWorkSource, describeBlockers, toClosingWorkItem } from './accounting.source';
+import { AccountingWorkSource, describeBlockers, toClosingWorkItem, postingExceptionToWorkItem } from './accounting.source';
 
 /**
  * FONTE CONTABIL — comportamento vinculante.
@@ -351,6 +351,35 @@ describe('accounting source — leitura e autorizacao', () => {
     expect(economicTrace.worklist).toHaveBeenCalledWith(ACTOR, {
       unitId: 'UN-A', limit: 50, offset: 0,
     });
+  });
+
+  it('keeps inventory, payroll, fiscal and asset economic exceptions in their real domains', () => {
+    const origin = {
+      factKind: 'INVENTORY_MOVEMENT' as const,
+      factId: 'fact-uuid',
+      unitId: 'UN-A',
+      reference: 'STOCK-IN-07',
+      amount: '12.0000',
+      currencyCode: 'BRL',
+      financialState: 'NOT_APPLICABLE' as const,
+      accountingState: 'FAILED' as const,
+      situation: 'ATTENTION' as const,
+      severity: 'CRITICAL' as const,
+      reason: 'Regra não publicada',
+      firstFailedAt: '2026-11-05T01:00:00.000Z',
+      attempts: 1,
+      nextAction: { command: null, label: 'Conferir origem', reason: 'Fato registrado', owner: null },
+      availableCommands: [],
+      route: '/app/accounting/economic-trace/inventory_movement/fact-uuid',
+    };
+    expect(postingExceptionToWorkItem(origin).title).toBe('Movimentação de estoque sem contabilização');
+    expect(postingExceptionToWorkItem({ ...origin, factKind: 'PAYROLL_PERIOD' }).title)
+      .toBe('Competência de folha sem contabilização');
+    expect(postingExceptionToWorkItem({ ...origin, factKind: 'FISCAL_DOCUMENT' }).title)
+      .toBe('Documento fiscal sem contabilização');
+    expect(postingExceptionToWorkItem({ ...origin, factKind: 'FIXED_ASSET' }).title)
+      .toBe('Ativo imobilizado sem contabilização');
+    expect(postingExceptionToWorkItem(origin).businessReference).toContain('BRL 12.0000');
   });
 
 });
