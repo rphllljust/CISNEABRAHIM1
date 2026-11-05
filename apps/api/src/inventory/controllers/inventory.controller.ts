@@ -75,6 +75,17 @@ export class InventoryController {
    * Explicit inventory provenance confirmation after a posted Procurement receipt.
    * No stock IN, cost valuation or journal is created by this command.
    */
+  @Get('receipt-provenance/:receiptLineId')
+  getReceiptProvenance(
+    @CurrentAuth() auth: AccessTokenClaims,
+    @Param('receiptLineId') receiptLineId: string,
+  ) {
+    return this.inventory.getReceiptProvenance(
+      { identityId: auth.sub, sessionId: auth.sid },
+      receiptLineId,
+    );
+  }
+
   @Post('receipt-provenance')
   @HttpCode(200)
   bindReceiptProvenance(

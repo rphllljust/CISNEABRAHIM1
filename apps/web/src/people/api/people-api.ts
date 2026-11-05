@@ -58,7 +58,7 @@ function classifyError(status: number, code: PersonErrorCode | undefined): Peopl
   if (code === PERSON_ERROR_CODES.EXTERNAL_ID_CONFLICT) {
     return 'external_id_conflict';
   }
-  if (code === PERSON_ERROR_CODES.INVALID_STATE) {
+  if (code === PERSON_ERROR_CODES.INVALID_STATE || code === PERSON_ERROR_CODES.ACTIVE_ALLOCATIONS) {
     return 'invalid_state';
   }
   if (code === PERSON_ERROR_CODES.VALIDATION_FAILED || status === 400) {

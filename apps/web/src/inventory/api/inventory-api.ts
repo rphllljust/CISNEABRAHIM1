@@ -204,6 +204,66 @@ export async function createInventoryItem(payload: Record<string, unknown>): Pro
   });
 }
 
+/**
+ * Confirm physical receipt provenance after Procurement recorded a POSTED
+ * receipt line. Inventory enforces its own PDP, maker-checker and aggregate
+ * 4dp quantity cap transactionally. THIS COMMAND DOES NOT POST STOCK.
+ */
+export type ReceiptProvenanceBinding = {
+  id: string;
+  receiptLineId: string;
+  inventoryItemId: string;
+  warehouseId: string;
+  unitId: string;
+  allocatedQuantity: string;
+  idempotent: boolean;
+};
+
+/** Persisted receipt-to-SKU evidence, not a stock movement. */
+export type ReceiptProvenanceEvidence = {
+  receiptLineId: string;
+  receivedQuantity: string;
+  allocatedQuantity: string;
+  items: Array<{
+    id: string;
+    receiptLineId: string;
+    inventoryItemId: string;
+    warehouseId: string;
+    unitId: string;
+    allocatedQuantity: string;
+    sku: string;
+    itemName: string;
+    warehouseCode: string;
+    warehouseName: string;
+    recordedAt: string;
+  }>;
+};
+
+export async function getReceiptProvenance(
+  receiptLineId: string,
+  signal?: AbortSignal,
+): Promise<ReceiptProvenanceEvidence> {
+  return requestJson<ReceiptProvenanceEvidence>(
+    `/api/v1/inventory/receipt-provenance/${encodeURIComponent(receiptLineId)}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
+export async function bindReceiptProvenance(payload: {
+  receiptLineId: string;
+  inventoryItemId: string;
+  warehouseId: string;
+  unitId: string;
+  allocatedQuantity: string;
+  idempotencyKey: string;
+}): Promise<ReceiptProvenanceBinding> {
+  return requestJson<ReceiptProvenanceBinding>('/api/v1/inventory/receipt-provenance', {
+    method: 'POST',
+    headers: jsonHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function postStockMovement(payload: Record<string, unknown>): Promise<PostStockMovementResult> {
   return requestJson<PostStockMovementResult>('/api/v1/inventory/movements', {
     method: 'POST',

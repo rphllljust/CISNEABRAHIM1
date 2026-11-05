@@ -24,10 +24,8 @@ import type { ServiceRequestDetailResponse } from '../serializers/service-reques
 import { ServiceRequestsAccessAuthz } from './service-requests-access.authz';
 import { ServiceRequestsAccessAudit } from './service-requests-access.audit';
 import {
-  serviceRequestsAccessDenied,
   serviceRequestsAccessNotFound,
   serviceRequestsConversionNotAllowed,
-  serviceRequestsDocumentNotFound,
   serviceRequestsDuplicateIdempotency,
   serviceRequestsInvalidState,
   serviceRequestsServiceNotFound,
@@ -39,6 +37,7 @@ import { assertValidServiceRequestId, generateServiceRequestCode } from './servi
 import { ServiceRequestsAccessPersistence } from './service-requests-access.persistence';
 import { ServiceRequestsAccessQuery } from './service-requests-access.query';
 import { ServiceRequestsAccessValidation } from './service-requests-access.validation';
+import { ServiceRequestsDocumentEvidenceService } from './service-requests-document-evidence.service';
 
 @Injectable()
 export class ServiceRequestsAccessCommands {
@@ -49,6 +48,7 @@ export class ServiceRequestsAccessCommands {
     private readonly idempotency: ServiceRequestsAccessIdempotency,
     private readonly query: ServiceRequestsAccessQuery,
     private readonly audit: ServiceRequestsAccessAudit,
+    private readonly documentEvidence: ServiceRequestsDocumentEvidenceService,
     @Inject(SERVICE_REQUEST_CONVERSION_PORT)
     private readonly conversionPort: ServiceRequestConversionPort,
   ) {}
@@ -288,13 +288,9 @@ export class ServiceRequestsAccessCommands {
 
     const validated = this.validation.validateLinkDocument(input);
 
-    const document = await this.persistence.findDocumentById(validated.documentId);
-    if (!document) {
-      throw serviceRequestsDocumentNotFound();
-    }
-    if (document.unit_id !== current.unit_id) {
-      throw serviceRequestsAccessDenied();
-    }
+    // GED owns per-document classification and read rights. Matching unit IDs
+    // alone is insufficient to authorize linking restricted evidence.
+    await this.documentEvidence.requireReadable(actor, validated.documentId, current.unit_id);
 
     await this.persistence.linkDocument(
       serviceRequestId,

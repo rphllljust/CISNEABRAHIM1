@@ -59,6 +59,8 @@ import {
   type ThreeWayMatch,
 } from '../api/procurement-api';
 import { mapProcurementErrorToMessage } from '../api/procurement-error-messages';
+import { ReceiptProvenanceWorkbench } from '../components/ReceiptProvenanceWorkbench';
+import { SupplierReceiptFinancePanel } from '../components/SupplierReceiptFinancePanel';
 import {
   buildPartialReceive,
   defaultReceiveQuantities,
@@ -109,10 +111,6 @@ type ListsState = {
   invoices: { phase: 'loading' } | { phase: 'ready'; items: SupplierInvoiceSummary[]; total: number } | { phase: 'denied' } | { phase: 'error' };
 };
 
-/**
- * Listas operacionais do módulo. Cada lista é uma entidade do fluxo de compras que antes só era
- * alcançável por identificador digitado: requisição → pedido ao fornecedor → nota.
- */
 function ProcurementLists() {
   const [state, setState] = useState<ListsState>({
     requests: { phase: 'loading' },
@@ -957,28 +955,8 @@ export function PurchaseOrderPage() {
           </tbody>
         </table>
       </div>
-      {order.receipts.length > 0 ? (
-        <div className={worklistTableCardClass}>
-          <table className={worklistTableClass} aria-label="Recebimentos do pedido">
-            <thead className={worklistHeadCellClass}>
-              <tr>
-                <th scope="col" className={worklistHeadCellClass}>Recebimento</th>
-                <th scope="col" className={worklistHeadCellClass}>Status</th>
-                <th scope="col" className={worklistHeadCellClass}>Título a pagar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {order.receipts.map((receipt) => (
-                <tr key={receipt.id} className={worklistRowClass}>
-                  <td className={worklistCellClass}>{receipt.id}</td>
-                  <td className={worklistCellClass}>{receipt.status}</td>
-                  <td className={worklistCellClass}>{receipt.payableId ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      {order.receipts.length > 0 && <SupplierReceiptFinancePanel receipts={order.receipts} />}
+      {order.receipts.length > 0 && <ReceiptProvenanceWorkbench orderId={order.id} unitId={order.unitId} />}
       <CreateRecordForm
         title="Receber"
         description="Informe por linha a quantidade a receber. O recebimento gera o título a pagar no backend."

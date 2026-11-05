@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ObjectStorageService } from '../../documents/storage/object-storage.service';
 import { buildCsvLine } from '../domain/csv-export';
+import { buildReportXlsx } from '../domain/xlsx-export';
+import { renderReportPdf } from '../domain/pdf-export';
 import {
   REPORT_DEFINITIONS,
   REPORT_FORMATS,
@@ -42,7 +44,8 @@ export class ReportGenerationService {
     const definition = REPORT_DEFINITIONS[exportRow.report_type];
     const columnKeys = definition.columns.map((column) => column.key);
     const headers = definition.columns.map((column) => column.header);
-    const chunks: string[] = [buildCsvLine(headers)];
+    const csvChunks: string[] = exportRow.format === REPORT_FORMATS.Csv ? [buildCsvLine(headers)] : [];
+    const spreadsheetRows: unknown[][] = [];
 
     try {
       let rowCount = 0;
@@ -55,22 +58,30 @@ export class ReportGenerationService {
             throw new Error('REPORT_EXPORT_CANCELLED');
           }
           for (const row of batch) {
-            chunks.push(buildCsvLine(columnKeys.map((key) => row[key] ?? '')));
+            const values = columnKeys.map((key) => row[key] ?? '');
+            if (exportRow.format === REPORT_FORMATS.Xlsx || exportRow.format === REPORT_FORMATS.Pdf) {
+              spreadsheetRows.push(values);
+            } else {
+              csvChunks.push(buildCsvLine(values));
+            }
           }
           rowCount += batch.length;
         },
       );
 
-      const csv = chunks.join('');
-      const buffer = Buffer.from(csv, 'utf8');
-      const storageKey = this.buildStorageKey(exportId, exportRow.report_type);
+      const generatedAt = new Date().toISOString();
+      const buffer = exportRow.format === REPORT_FORMATS.Xlsx
+        ? buildReportXlsx(headers, spreadsheetRows)
+        : exportRow.format === REPORT_FORMATS.Pdf
+          ? await renderReportPdf(definition.label, headers, spreadsheetRows, generatedAt)
+          : Buffer.from(csvChunks.join(''), 'utf8');
+      const storageKey = this.buildStorageKey(exportId, exportRow.report_type, exportRow.format);
       await this.objectStorage.putObject({
         storageKey,
         buffer,
-        mimeType: 'text/csv; charset=utf-8',
+        mimeType: this.resolveMimeType(exportRow.format),
       });
 
-      const generatedAt = new Date().toISOString();
       const contract: ReportContract = {
         ...exportRow.contract,
         generatedAt,
@@ -111,9 +122,10 @@ export class ReportGenerationService {
     return { rows, total };
   }
 
-  buildStorageKey(exportId: string, reportType: ReportType): string {
+  buildStorageKey(exportId: string, reportType: ReportType, format: ReportFormat = REPORT_FORMATS.Csv): string {
     const hash = createHash('sha256').update(exportId).digest('hex').slice(0, 16);
-    return `reports/${reportType.toLowerCase()}/${hash}.csv`;
+    const extension = format === REPORT_FORMATS.Xlsx ? 'xlsx' : format === REPORT_FORMATS.Pdf ? 'pdf' : 'csv';
+    return `reports/${reportType.toLowerCase()}/${hash}.${extension}`;
   }
 
   resolveMimeType(format: ReportFormat): string {

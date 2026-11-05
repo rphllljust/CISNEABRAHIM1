@@ -54,6 +54,17 @@ describe('service-order-list.query', () => {
     expect(parsed.toExclusive?.toISOString()).toBe('2026-08-30T00:00:00.000Z');
   });
 
+  it('rejects invalid paging before passing inputs to PostgreSQL', () => {
+    for (const limit of ['1.2', 'NaN', '-1', '0', '', ' 10', '1e3', null, [], {}, 1.5]) {
+      expect(() => parseListServiceOrdersQuery({ limit })).toThrow(ServiceOrderListQueryError);
+    }
+    for (const offset of ['1.2', '-1', '', ' 2', 'Infinity', '1e3', null, [], {}, 1.5]) {
+      expect(() => parseListServiceOrdersQuery({ offset })).toThrow(ServiceOrderListQueryError);
+    }
+    expect(parseListServiceOrdersQuery({ limit: 1000 }).limit).toBe(100);
+    expect(parseListServiceOrdersQuery({ limit: '100', offset: '0' }).offset).toBe(0);
+  });
+
   it('builds stable ordering and overdue deadline join', () => {
     const query = parseListServiceOrdersQuery({ filter: SERVICE_ORDER_LIST_FILTERS.Overdue });
     const parts = buildServiceOrderListSqlParts(query, 'unit_id = $1', ['unit-a']);

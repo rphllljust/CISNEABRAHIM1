@@ -170,6 +170,42 @@ describe('Supplier invoice PostgreSQL integration', () => {
     return Number(result.rows[0]?.count ?? '0');
   }
 
+  it('isolates supplier invoice rows, authorized totals and supplier references by unit', async () => {
+    const issuer = await seedActor();
+    const supplier = await seedSupplier(issuer);
+    const draft = await invoices.create(issuer, {
+      unitId: UNIT,
+      supplierId: supplier.id,
+      invoiceNumber: 'NF-SCOPE-001',
+      issuedOn: '2026-09-01',
+      dueDate: '2026-10-01',
+      totalAmount: '45',
+      paymentTerms: '30 DDL',
+      idempotencyKey: `scope-${crypto.randomUUID()}`,
+    });
+    const scopedReader = await seedActor(false);
+    const otherUnitReader = await seedActor(false);
+    for (const [reader, unitId] of [
+      [scopedReader, UNIT],
+      [otherUnitReader, 'unit-unrelated'],
+    ] as const) {
+      await insertGrant(pool, {
+        identityId: reader.identityId,
+        action: AUTHZ_ACTIONS.ProcurementInvoiceList,
+        resourceType: AUTHZ_RESOURCE_TYPES.Procurement,
+        scopeType: AUTHZ_SCOPES.Unit,
+        resourceId: unitId,
+        grantedByIdentityId: issuer.identityId,
+      });
+    }
+    const visible = await invoices.list(scopedReader, { limit: 20, offset: 0 });
+    const hidden = await invoices.list(otherUnitReader, { limit: 20, offset: 0 });
+    expect(visible.total).toBe(1);
+    expect(visible.items.map((item) => item.id)).toEqual([draft.id]);
+    expect(hidden.total).toBe(0);
+    expect(hidden.items).toEqual([]);
+  });
+
   it('validates a standalone invoice into exactly one payable', async () => {
     const actor = await seedActor();
     const supplier = await seedSupplier(actor);

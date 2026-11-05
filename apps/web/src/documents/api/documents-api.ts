@@ -270,6 +270,39 @@ export async function issueDocumentDownloadUrl(
   );
 }
 
+/**
+ * GED bulk export: only explicitly selected document versions are sent.
+ * NestJS checks DOWNLOAD authorization for every document before returning a ZIP.
+ */
+export async function downloadDocumentBatch(
+  documents: Array<{ documentId: string; versionNumber: number }>,
+  signal?: AbortSignal,
+): Promise<void> {
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/documents/download-batch`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ documents }),
+      signal,
+    });
+    if (!response.ok) throw await parseError(response);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    try {
+      const anchor = window.document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'cisne-documentos.zip';
+      anchor.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  } catch (error) {
+    if (error instanceof DocumentsApiError) throw error;
+    if (isNetworkError(error)) throw new DocumentsApiError(0, undefined, 'network');
+    throw new DocumentsApiError(0, undefined, 'unknown');
+  }
+}
+
 export async function triggerAuthorizedDownload(
   documentId: string,
   versionNumber: number,
@@ -299,7 +332,7 @@ export async function triggerAuthorizedDownload(
  * (400/404), portanto qualquer resposta que nao seja uma negativa explicita indica que a
  * capability existe. Nao serve para conceder permissao — ver `probeDownload`.
  */
-async function probeMutation(path: string, method: string, body?: unknown): Promise<boolean> {
+async function probeMutation(path: string, method: string, signal?: AbortSignal, body?: unknown): Promise<boolean> {
   try {
     await requestJson(path, {
       method,
@@ -308,13 +341,14 @@ async function probeMutation(path: string, method: string, body?: unknown): Prom
         ...(body ? { 'Content-Type': 'application/json' } : {}),
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
+      signal,
     });
     return true;
   } catch (error) {
-    if (error instanceof DocumentsApiError && error.kind === 'denied') {
-      return false;
-    }
-    return true;
+    // A malformed probe payload may only show that the guarded route is reachable.
+    // A network/5xx/timeout must not publish an authorized mutation control.
+    return error instanceof DocumentsApiError &&
+      (error.kind === 'validation' || error.kind === 'not_found');
   }
 }
 
@@ -345,8 +379,8 @@ async function probeDownload(
 
 export async function probeDocumentCapabilities(signal?: AbortSignal): Promise<DocumentCapabilities> {
   const [canCreate, canUploadVersion] = await Promise.all([
-    probeMutation('/api/v1/documents', 'POST'),
-    probeMutation(`/api/v1/documents/${PROBE_DOCUMENT_ID}/versions`, 'POST'),
+    probeMutation('/api/v1/documents', 'POST', signal),
+    probeMutation(`/api/v1/documents/${PROBE_DOCUMENT_ID}/versions`, 'POST', signal),
   ]);
 
   let canRead = true;
@@ -359,7 +393,7 @@ export async function probeDocumentCapabilities(signal?: AbortSignal): Promise<D
       signal,
     });
   } catch (error) {
-    if (error instanceof DocumentsApiError && error.kind === 'denied') {
+    if (!(error instanceof DocumentsApiError && error.kind === 'not_found')) {
       canRead = false;
     }
   }
@@ -371,10 +405,8 @@ export async function probeDocumentCapabilities(signal?: AbortSignal): Promise<D
       signal,
     });
     firstDocument = listed.items[0] ?? null;
-  } catch (error) {
-    if (error instanceof DocumentsApiError && error.kind === 'denied') {
-      canList = false;
-    }
+  } catch {
+    canList = false;
   }
 
   // Sem documento com versao no escopo nao existe download a oferecer e nao existe prova positiva.

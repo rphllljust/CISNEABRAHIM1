@@ -255,6 +255,8 @@ export type ProposalListResponse = {
   items: Proposal[];
   limit: number;
   offset: number;
+  total?: number;
+  hasMore?: boolean;
 };
 
 export type ProposalItemInput = {

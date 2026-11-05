@@ -94,4 +94,39 @@ describe('documents-api capabilities', () => {
 
     expect(capabilities.canDownload).toBe(false);
   });
+  it('fails closed when the documents service returns 503 instead of an authorization decision', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () =>
+      jsonResponse({ error: { code: 'SERVICE_UNAVAILABLE' } }, 503),
+    ));
+
+    const capabilities = await probeDocumentCapabilities();
+    expect(capabilities).toEqual({
+      canCreate: false,
+      canRead: false,
+      canList: false,
+      canUploadVersion: false,
+      canDownload: false,
+    });
+  });
+
+  it('treats an invalid probe payload as route reachability, not infrastructure availability', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(input);
+      const method = init?.method ?? 'GET';
+      if (path === '/api/v1/documents' && method === 'POST') {
+        return jsonResponse({ error: { code: 'DOCUMENT_INVALID_INPUT' } }, 400);
+      }
+      if (path === '/api/v1/documents' && method === 'GET') {
+        return jsonResponse({ items: [], limit: 1, offset: 0, total: 0 });
+      }
+      return jsonResponse({ error: { code: 'DOCUMENT_NOT_FOUND' } }, 404);
+    }));
+    const capabilities = await probeDocumentCapabilities();
+    expect(capabilities.canCreate).toBe(true);
+    expect(capabilities.canList).toBe(true);
+    expect(capabilities.canUploadVersion).toBe(true);
+    expect(capabilities.canDownload).toBe(false);
+  });
+
+
 });

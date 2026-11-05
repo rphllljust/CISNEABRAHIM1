@@ -206,7 +206,7 @@ async function loadModules(
               <span className="text-xs text-gray-600">Revisão {item.currentVersionNumber}</span>
             ),
         })),
-      completeCount,
+      (response) => response.total ?? completeCount(response),
     ),
     purchaseOrders: toModule(
       purchaseOrders,
@@ -218,7 +218,7 @@ async function loadModules(
           meta: item.issueDate ? `Emissão ${formatShortDateTime(item.issueDate)}` : item.internalCode,
           badge: <PurchaseOrderStatusBadge status={item.status} />,
         })),
-      completeCount,
+      (response) => response.summary?.recordCount ?? completeCount(response),
     ),
     contracts: toModule(
       contracts,
@@ -230,7 +230,7 @@ async function loadModules(
           meta: item.title,
           badge: <ContractStatusBadge status={item.status} />,
         })),
-      completeCount,
+      (response) => response.total ?? completeCount(response),
     ),
     serviceOrders: toModule(
       serviceOrders,
@@ -242,7 +242,7 @@ async function loadModules(
           meta: serviceOrderMeta(item),
           badge: <ServiceOrderStatusBadge status={item.status} />,
         })),
-      completeCount,
+      (response) => response.total ?? completeCount(response),
     ),
   };
 }

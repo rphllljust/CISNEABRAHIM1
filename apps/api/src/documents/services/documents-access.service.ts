@@ -18,6 +18,13 @@ import {
   MAX_VERSIONS_PER_DOCUMENT,
 } from '../domain/document-categories';
 import { validateUploadedFile } from '../domain/file-validation';
+import {
+  buildAuthorizedDocumentZip,
+  DOCUMENT_BATCH_MAX_BYTES,
+  DOCUMENT_BATCH_MAX_FILES,
+  type DocumentBatchItem,
+  type DocumentBatchFile,
+} from '../domain/document-batch-zip';
 import type { CreateDocumentUploadInput, ListDocumentsQuery, UploadedFileInput } from '../dto/documents.dto';
 import { DocumentsRepository } from '../repositories/documents.repository';
 import {
@@ -326,6 +333,58 @@ export class DocumentsAccessService {
     const response = toDocumentVersionResponse(version, document.current_version_number);
     assertNoStorageKeyLeak(response);
     return response;
+  }
+
+  /**
+   * Download several GED versions as one bounded ZIP. Every row is preflighted
+   * for the SAME per-document DOWNLOAD action used by streamContent. If any
+   * document fails authorization, the entire batch fails before any byte is
+   * returned; no unscoped metadata or archive entry is exposed.
+   */
+  async streamBatch(
+    actor: IdentityAuthzContext,
+    items: DocumentBatchItem[],
+  ): Promise<{ buffer: Buffer; count: number }> {
+    if (items.length < 1 || items.length > DOCUMENT_BATCH_MAX_FILES) {
+      throw documentsInvalidInput('Invalid document selection.');
+    }
+    let totalSize = 0;
+    const seen = new Set<string>();
+    for (const item of items) {
+      assertValidDocumentId(item.documentId);
+      if (!Number.isSafeInteger(item.versionNumber) || item.versionNumber < 1) {
+        throw documentsInvalidInput('Invalid document version.');
+      }
+      const key = `${item.documentId.toLowerCase()}:${item.versionNumber}`;
+      if (seen.has(key)) {
+        throw documentsInvalidInput('Duplicate document version.');
+      }
+      seen.add(key);
+      const document = await this.documentsRepository.findDocumentById(item.documentId);
+      if (!document) throw documentsAccessNotFound();
+      await this.authz.assertRecordAction(actor, AUTHZ_ACTIONS.DocumentsDocumentDownload, document);
+      const version = await this.documentsRepository.findVersionWithStorage(
+        item.documentId, item.versionNumber,
+      );
+      if (!version) throw documentsVersionNotFound();
+      totalSize += version.byte_size;
+      if (totalSize > DOCUMENT_BATCH_MAX_BYTES) {
+        throw documentsFileValidationError('FILE_TOO_LARGE');
+      }
+    }
+
+    const files: DocumentBatchFile[] = [];
+    let downloadedSize = 0;
+    for (const item of items) {
+      // Re-authorizes per object and writes the same audit event as a single download.
+      const content = await this.streamContent(actor, item.documentId, item.versionNumber);
+      downloadedSize += content.buffer.byteLength;
+      if (downloadedSize > DOCUMENT_BATCH_MAX_BYTES) {
+        throw documentsFileValidationError('FILE_TOO_LARGE');
+      }
+      files.push({ filename: content.filename, buffer: content.buffer });
+    }
+    return { buffer: buildAuthorizedDocumentZip(files), count: files.length };
   }
 
   async streamContent(

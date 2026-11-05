@@ -212,6 +212,46 @@ describe('Documents PostgreSQL integration', () => {
     ).rejects.toMatchObject({ code: DOCUMENT_ERROR_CODES.DENIED });
   });
 
+  it('downloads several authorized GED versions as one ZIP and refuses an unauthorized mixed batch', async () => {
+    const owner = await seedActor();
+    const otherUnit = await seedActor('UNIT_B');
+    const pdf = minimalPdfBuffer();
+
+    const create = (title: string, filename: string) =>
+      documentsAccess.createWithUpload(
+        owner,
+        {
+          title,
+          categoryCode: DOCUMENT_CATEGORIES.Evidence,
+          classificationCode: 'INTERNAL',
+          unitId: UNIT_A,
+        },
+        { buffer: pdf, filename, mimetype: 'application/pdf' },
+      );
+
+    const first = await create('Comprovante A', 'a.pdf');
+    const second = await create('Comprovante B', 'b.pdf');
+    const entries = [
+      { documentId: first.document.id, versionNumber: 1 },
+      { documentId: second.document.id, versionNumber: 1 },
+    ];
+
+    const archive = await documentsAccess.streamBatch(owner, entries);
+    expect(archive.count).toBe(2);
+    expect(archive.buffer.readUInt32LE(0)).toBe(0x04034b50);
+    expect(archive.buffer.readUInt32LE(archive.buffer.length - 22)).toBe(0x06054b50);
+    expect(archive.buffer.readUInt16LE(archive.buffer.length - 14)).toBe(2);
+
+    await expect(
+      documentsAccess.streamBatch(otherUnit, entries),
+    ).rejects.toMatchObject({ code: DOCUMENT_ERROR_CODES.DENIED });
+    // No ZIP is returned for a mixed-scope request, even though individual
+    // records can be selected from a previously authorized workspace.
+    await expect(
+      documentsAccess.streamBatch(owner, [entries[0]!, entries[0]!]),
+    ).rejects.toMatchObject({ code: DOCUMENT_ERROR_CODES.INVALID_INPUT });
+  });
+
   it('enforces cross-unit scope on list', async () => {
     const owner = await seedActor();
     const unitBReader = await seedActor('UNIT_B');

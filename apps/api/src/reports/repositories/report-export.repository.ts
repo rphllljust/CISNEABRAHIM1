@@ -87,10 +87,13 @@ export class ReportExportRepository {
     pageSize: number;
     status?: string;
     reportType?: string;
+    allowedReportTypes: readonly string[];
   }): Promise<{ rows: ReportExportRow[]; total: number }> {
-    const conditions = ['requested_by_identity_id = $1'];
-    const params: unknown[] = [input.identityId];
-    let index = 1;
+    // The owning identity cannot bypass a revoked report capability.
+    if (input.allowedReportTypes.length === 0) return { rows: [], total: 0 };
+    const conditions = ['requested_by_identity_id = $1', 'report_type::text = ANY($2::text[])'];
+    const params: unknown[] = [input.identityId, input.allowedReportTypes];
+    let index = 2;
     if (input.status) {
       index += 1;
       conditions.push(`status = $${index}`);

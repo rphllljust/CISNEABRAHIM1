@@ -164,6 +164,65 @@ export class ProcurementRepository {
     return result.rows;
   }
 
+  /**
+   * Posted receipt lines for one supplier order, never an inferred stock receipt.
+   * The service checks read + receive grants before this query; the receiver's
+   * identity is returned internally only to enforce maker/checker in the UI.
+   * Bound quantities remain authoritative in Inventory's own provenance table.
+   */
+  async listPostedReceiptLinesPage(
+    orderId: string,
+    limit: number,
+    offset: number,
+  ): Promise<Array<{
+    receiptLineId: string;
+    receiptId: string;
+    orderLineId: string;
+    lineNumber: number;
+    description: string;
+    receivedQuantity: string;
+    receivedByIdentityId: string;
+  }>> {
+    const result = await this.pool().query<{
+      receiptLineId: string;
+      receiptId: string;
+      orderLineId: string;
+      lineNumber: number;
+      description: string;
+      receivedQuantity: string;
+      receivedByIdentityId: string;
+    }>(
+      `SELECT l.id AS "receiptLineId", r.id AS "receiptId",
+              pl.id AS "orderLineId", pl.line_number AS "lineNumber",
+              pl.description, l.quantity::text AS "receivedQuantity",
+              r.actor_identity_id AS "receivedByIdentityId"
+       FROM prc.goods_receipt_lines l
+       JOIN prc.goods_receipts r ON r.id = l.receipt_id
+       JOIN prc.supplier_purchase_order_lines pl
+         ON pl.id = l.spo_line_id AND pl.supplier_purchase_order_id = r.supplier_purchase_order_id
+       WHERE r.supplier_purchase_order_id = $1::uuid
+         AND r.status = 'POSTED'::prc.receipt_status
+       ORDER BY r.received_at ASC, r.id ASC, pl.line_number ASC, l.id ASC
+       LIMIT $2 OFFSET $3`,
+      [orderId, limit, offset],
+    );
+    return result.rows;
+  }
+
+  async countPostedReceiptLines(orderId: string): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM prc.goods_receipt_lines l
+       JOIN prc.goods_receipts r ON r.id = l.receipt_id
+       JOIN prc.supplier_purchase_order_lines pl
+         ON pl.id = l.spo_line_id AND pl.supplier_purchase_order_id = r.supplier_purchase_order_id
+       WHERE r.supplier_purchase_order_id = $1::uuid
+         AND r.status = 'POSTED'::prc.receipt_status`,
+      [orderId],
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   async listReceipts(orderId: string): Promise<GoodsReceiptRow[]> {
     const result = await this.pool().query<GoodsReceiptRow>(
       `SELECT id, supplier_purchase_order_id, status::text AS status, currency_code, received_at,

@@ -733,7 +733,11 @@ export class EconomicTraceReadModelService {
     const accountingState = failed
       ? ECONOMIC_ACCOUNTING_STATES.Failed
       : ECONOMIC_ACCOUNTING_STATES.Pending;
-    const financialState = ECONOMIC_FINANCIAL_STATES.Settled;
+    // Only actual financial settlements/payments represent moved cash. Inventory,
+    // Fiscal, Payroll and Fixed Assets publish an economic event, not settlement.
+    const financialState = factKind === 'SETTLEMENT' || factKind === 'PAYMENT'
+      ? ECONOMIC_FINANCIAL_STATES.Settled
+      : ECONOMIC_FINANCIAL_STATES.NotApplicable;
     const { situation, severity } = resolveSituation(financialState, accountingState);
     const reversalCommand = isPayment
       ? ECONOMIC_COMMANDS.ReversePayment
@@ -764,16 +768,23 @@ export class EconomicTraceReadModelService {
         reversalCommand,
         viewCommand,
       }),
-      availableCommands: resolveAvailableCommands({
-        accountingState,
-        financialState,
-        eventKind: row.event_kind,
-        ownerKind: isPayment ? 'PAYABLE' : 'RECEIVABLE',
-        reversalCommand,
-        viewCommand,
-        journalEntryId: row.journal_entry_id,
-        eventId: row.event_id,
-      }),
+      availableCommands: financialState === ECONOMIC_FINANCIAL_STATES.NotApplicable
+        ? [
+            ECONOMIC_COMMANDS.OpenEconomicEvent,
+            ...(failed || accountingState === ECONOMIC_ACCOUNTING_STATES.Pending
+              ? [ECONOMIC_COMMANDS.RetryPosting]
+              : []),
+          ]
+        : resolveAvailableCommands({
+            accountingState,
+            financialState,
+            eventKind: row.event_kind,
+            ownerKind: isPayment ? 'PAYABLE' : 'RECEIVABLE',
+            reversalCommand,
+            viewCommand,
+            journalEntryId: row.journal_entry_id,
+            eventId: row.event_id,
+          }),
       route: `${ECONOMIC_TRACE_ROUTE_BASE}/${factKind.toLowerCase()}/${row.source_id}`,
     };
   }

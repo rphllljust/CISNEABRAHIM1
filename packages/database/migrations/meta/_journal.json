@@ -820,6 +820,13 @@
       "when": 179091500000100000,
       "tag": "0116_physical_asset_document_links",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 179091500000200000,
+      "tag": "0117_service_order_archetype_worklist_index",
+      "breakpoints": true
     }
   ]
 }

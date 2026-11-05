@@ -657,7 +657,9 @@ export async function probeClientListAccess(signal?: AbortSignal): Promise<boole
       if (error.kind === 'denied') {
         return false;
       }
+      // Disponibilidade nao e autorizacao. Rede/5xx jamais viram 403.
+      throw error;
     }
-    return false;
+    throw error;
   }
 }

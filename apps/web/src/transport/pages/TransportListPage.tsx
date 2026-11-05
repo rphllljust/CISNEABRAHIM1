@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useOptionalIdentityId } from '../../auth/context/AuthProvider';
+import { DynamicSavedViewsBar, useSavedViews } from '../../engine';
 import { listTransportServiceOrders } from '../api/transport-api';
+import { OperationalArchetypeContext } from '../../service-orders/components/OperationalArchetypeContext';
 import { ServiceOrdersApiError } from '../../service-orders/api/service-orders-api';
+import { resolveServiceOrderPage } from '../../service-orders/api/service-orders-pagination';
+import { SERVICE_ORDER_STATUSES, type ServiceOrderStatus } from '../../service-orders/types/service-order.types';
 import { mapServiceOrdersErrorToMessage } from '../../service-orders/api/service-orders-error-messages';
 import { ServiceOrderStatusBadge } from '../../service-orders/components/ServiceOrderStatusBadge';
-import { formatClientLabel, formatDateTime } from '../../service-orders/utils/service-order-labels';
+import { formatClientLabel, formatDateTime, formatServiceOrderStatus } from '../../service-orders/utils/service-order-labels';
 import {
   ModuleDeniedState,
   ModuleErrorState,
@@ -15,6 +20,9 @@ import {
 } from '../../ui/module-layout';
 import {
   RecordStatusCell,
+  WorklistClearFilters,
+  WorklistField,
+  WorklistFilterBar,
   WorklistFooter,
   WorklistHeader,
   WorklistRowLink,
@@ -25,10 +33,12 @@ import {
   worklistRowClass,
   worklistTableCardClass,
   worklistTableClass,
+  worklistSelectClass,
 } from '../../ui/enterprise-list';
 import { cn } from '../../ui/utils/cn';
 
 const PAGE_SIZE = 20;
+const STATUS_OPTIONS = Object.values(SERVICE_ORDER_STATUSES).map((status) => [status, formatServiceOrderStatus(status)] as const);
 
 type ListState =
   | { phase: 'loading' }
@@ -39,6 +49,7 @@ type ListState =
       items: Awaited<ReturnType<typeof listTransportServiceOrders>>['items'];
       offset: number;
       hasMore: boolean;
+      total: number | null;
     };
 
 function readTransportRouteLabel(location: Record<string, unknown> | null | undefined): string | null {
@@ -51,7 +62,12 @@ function readTransportRouteLabel(location: Record<string, unknown> | null | unde
 }
 
 export function TransportListPage() {
+  const savedViews = useSavedViews(useOptionalIdentityId(), 'transport');
   const [offset, setOffset] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<'' | ServiceOrderStatus>('');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [retryNonce, setRetryNonce] = useState(0);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   /**
    * LINHA EM CONTEXTO — qual ordem a coluna lateral esta descrevendo.
@@ -61,20 +77,25 @@ export function TransportListPage() {
    */
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearch(searchInput.trim());
+      setOffset(0);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
   const loadPage = useCallback(async (pageOffset: number, signal?: AbortSignal) => {
-    setListState({ phase: 'loading' });
+    setListState((previous) => previous.phase === 'ready' ? previous : { phase: 'loading' });
     try {
       const response = await listTransportServiceOrders(
-        { limit: PAGE_SIZE, offset: pageOffset },
+        { limit: PAGE_SIZE, offset: pageOffset, status: statusFilter || undefined, q: search || undefined },
         signal,
       );
-      setListState({
-        phase: 'ready',
-        items: response.items,
-        offset: response.offset,
-        hasMore: response.items.length === response.limit,
-      });
+      if (signal?.aborted) return;
+      setListState({ phase: 'ready', items: response.items, offset: response.offset, ...resolveServiceOrderPage(response) });
     } catch (error) {
+      if (signal?.aborted) return;
       if (error instanceof ServiceOrdersApiError) {
         if (error.kind === 'denied') {
           setListState({ phase: 'denied' });
@@ -93,13 +114,13 @@ export function TransportListPage() {
         retryable: true,
       });
     }
-  }, []);
+  }, [search, statusFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
     void loadPage(offset, controller.signal);
     return () => controller.abort();
-  }, [loadPage, offset]);
+  }, [loadPage, offset, retryNonce]);
 
   if (listState.phase === 'loading') {
     return (
@@ -121,14 +142,15 @@ export function TransportListPage() {
         <ModuleErrorState
           message={listState.message}
           retryable={listState.retryable}
-          onRetry={() => void loadPage(offset)}
+          onRetry={() => setRetryNonce((value) => value + 1)}
         />
       </ModuleStatePage>
     );
   }
 
-  const { items, hasMore } = listState;
+  const { items, hasMore, total } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
+  const activeFilters = Boolean(statusFilter || search.trim());
   /*
    * A SELECAO E DERIVADA DAS LINHAS CARREGADAS, nunca um objeto guardado: trocar de pagina
    * descarta a selecao sozinho, porque a ordem selecionada deixa de estar na lista. Guardar o
@@ -154,17 +176,50 @@ export function TransportListPage() {
         <div data-region="operating-header">
           <WorklistHeader
             title="Transporte"
-            count={items.length}
+            count={total ?? items.length}
             context="Ordens de serviço com arquétipo TRANSPORT. Origem, destino, veículo, cliente e pedido permanecem nos módulos existentes."
           />
+        </div>
+        <div data-region="saved-view-surface">
+          <DynamicSavedViewsBar
+            views={savedViews.views}
+            persistable={savedViews.persistable}
+            persistedLocally={savedViews.persistedLocally}
+            onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
+            onDelete={savedViews.remove}
+            onApply={(view) => {
+              setSearchInput(view.filters['search'] ?? '');
+              setSearch(view.filters['search'] ?? '');
+              setStatusFilter((view.filters['statusFilter'] ?? '') as '' | ServiceOrderStatus);
+              setOffset(0);
+            }}
+          />
+        </div>
+        <div data-region="command-filter-surface">
+          <WorklistFilterBar meta={total === null ? `${items.length} nesta página` : `${total} no recorte autorizado`}>
+            <WorklistField label="Buscar" htmlFor="transport-search" grow>
+              <input id="transport-search" type="search" className={worklistSelectClass}
+                placeholder="Número da OS ou cliente" value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)} />
+            </WorklistField>
+            <WorklistField label="Status" htmlFor="transport-status">
+              <select id="transport-status" className={worklistSelectClass} value={statusFilter}
+                onChange={(event) => { setStatusFilter(event.target.value as '' | ServiceOrderStatus); setOffset(0); }}>
+                <option value="">Todos</option>
+                {STATUS_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </WorklistField>
+            <WorklistClearFilters visible={activeFilters}
+              onClick={() => { setSearchInput(''); setSearch(''); setStatusFilter(''); setOffset(0); }} />
+          </WorklistFilterBar>
         </div>
 
       <div data-region="work-split" className="grid items-start gap-x-4 xl:grid-cols-[minmax(0,74fr)_minmax(0,26fr)]">
       <div data-region="worklist-master" className="flex min-w-0 flex-col">
       {items.length === 0 ? (
         <WorklistStatePanel
-          title="Nenhum transporte encontrado."
-          description="Nenhuma ordem de serviço com arquétipo TRANSPORT no seu escopo autorizado."
+          title={activeFilters ? 'Nenhum transporte corresponde aos filtros.' : 'Nenhum transporte encontrado.'}
+          description={activeFilters ? 'Ajuste a busca ou o status para consultar outras ordens autorizadas.' : 'Nenhuma ordem de serviço com arquétipo TRANSPORT no seu escopo autorizado.'}
         />
       ) : (
         <div className={worklistTableCardClass}>
@@ -236,7 +291,7 @@ export function TransportListPage() {
       )}
 
       {items.length > 0 ? (
-        <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length} nesta página`}>
+        <WorklistFooter rangeLabel={`${offset + 1}–${offset + items.length}${total === null ? ' nesta página' : ` de ${total}`}`}>
           <ModulePagination
             pageNumber={pageNumber}
             previousDisabled={offset === 0}
@@ -296,6 +351,12 @@ export function TransportListPage() {
                 {formatDateTime(selected.updatedAt)}
               </dd>
             </dl>
+
+            <OperationalArchetypeContext
+              key={selected.id}
+              serviceOrderId={selected.id}
+              onChanged={() => setRetryNonce((value) => value + 1)}
+            />
 
             {/*
               O DRILLDOWN E O LINK REAL. O contexto mostra o que a linha JA publica e oferece a

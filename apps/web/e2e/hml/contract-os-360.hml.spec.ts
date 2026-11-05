@@ -60,8 +60,12 @@ test.describe('HML isolada — Customer 360 → Contract 360 ↔ OS 360 (API rea
       expect(browserName).toBe('chromium');
       const { clientId, contractId, serviceOrderId, label } = scenario;
       await page.goto(`${baseUrl}/app/clients/${clientId}`);
-      const customerLink = page.locator(`a[href="/app/contracts?clientId=${clientId}"]`);
-      await expect(customerLink).toBeVisible({ timeout: 30_000 });
+      // Customer 360 exposes this destination in both the relationship summary
+      // and the actionable related-record card. Select the business action by
+      // its accessible name, not by a non-unique href.
+      const customerLink = page.getByRole('link', { name: /abrir contratos deste cliente/i });
+      await expect(customerLink).toHaveCount(1, { timeout: 30_000 });
+      await expect(customerLink).toHaveAttribute('href', `/app/contracts?clientId=${clientId}`);
       await customerLink.click();
       await expect(page).toHaveURL(new RegExp(`/app/contracts\\?clientId=${clientId}`));
 

@@ -25,7 +25,7 @@ import type {
   ServiceSnapshotSource,
   UpdateProposalDraftPersistenceInput,
 } from './proposals.repository.types';
-import { PROPOSAL_WORKBENCH_SELECT } from './proposal-list-sql';
+import { PROPOSAL_WORKBENCH_FROM, PROPOSAL_WORKBENCH_SELECT } from './proposal-list-sql';
 import {
   copyProposalItemsFromVersion,
   replaceProposalItems,
@@ -256,6 +256,16 @@ export class ProposalsRepository {
       [...params, limit, offset],
     );
     return result.rows;
+  }
+
+  /** Exact count on the same authorized filter and current-version JOIN as the worklist. */
+  async countProposalsForWorkbench(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total ${PROPOSAL_WORKBENCH_FROM}
+       WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
   }
 
   /** Nomes de cliente da pagina em UMA consulta, apenas para os ids ja autorizados. */

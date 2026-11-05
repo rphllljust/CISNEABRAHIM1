@@ -446,7 +446,7 @@ describe('Object page do Cliente', () => {
     renderClientPage();
     await awaitHeader();
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /solicitações/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^Abrir solicitações deste cliente/i })).toBeInTheDocument();
     });
 
     const text = document.body.textContent ?? '';
@@ -462,27 +462,27 @@ describe('Object page do Cliente', () => {
     await awaitHeader();
 
     // Solicitações: total publicado pelo resumo do backend (3), não o tamanho da lista visível.
-    const requests = await screen.findByRole('link', { name: /solicitações/i });
+    const requests = await screen.findByRole('link', { name: /^Abrir solicitações deste cliente/i });
     expect(within(requests).getByText('3')).toBeInTheDocument();
     expect(requests).toHaveAttribute('href', `/app/requests?clientId=${CLIENT_ID}`);
 
     // Propostas: página devolvida sem enchimento — o conjunto está comprovado (2).
-    const proposals = screen.getByRole('link', { name: /propostas/i });
+    const proposals = screen.getByRole('link', { name: /^Abrir propostas deste cliente/i });
     expect(within(proposals).getByText('2')).toBeInTheDocument();
     expect(proposals).toHaveAttribute('href', `/app/proposals?clientId=${CLIENT_ID}`);
 
     // Zero comprovado é um número honesto: nenhum registro persistido.
-    const purchaseOrders = screen.getByRole('link', { name: /pedidos de compra/i });
+    const purchaseOrders = screen.getByRole('link', { name: /^Abrir pedidos de compra deste cliente/i });
     expect(within(purchaseOrders).getByText('0')).toBeInTheDocument();
     expect(purchaseOrders).toHaveAttribute('href', `/app/purchase-orders?clientId=${CLIENT_ID}`);
 
     // Contratos têm contagem exata apenas quando a página do backend é comprovadamente completa.
-    const contracts = screen.getByRole('link', { name: /contratos/i });
+    const contracts = screen.getByRole('link', { name: /^Abrir contratos deste cliente/i });
     expect(within(contracts).getByText('1')).toBeInTheDocument();
     expect(contracts).toHaveAttribute('href', `/app/contracts?clientId=${CLIENT_ID}`);
 
     // Ordens de serviço usam o montador de href do próprio módulo, que lê o filtro na tela.
-    const serviceOrders = screen.getByRole('link', { name: /ordens de serviço/i });
+    const serviceOrders = screen.getByRole('link', { name: /^Abrir ordens de serviço deste cliente/i });
     expect(within(serviceOrders).getByText('0')).toBeInTheDocument();
     expect(serviceOrders).toHaveAttribute('href', `/app/service-orders?clientId=${CLIENT_ID}`);
   });
@@ -524,7 +524,7 @@ describe('Object page do Cliente', () => {
     renderClientPage();
     await awaitHeader();
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /solicitações/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^Abrir solicitações deste cliente/i })).toBeInTheDocument();
     });
     expect(screen.queryByRole('link', { name: /contratos/i })).not.toBeInTheDocument();
     await openTab(/relacionamentos/i);
@@ -539,7 +539,7 @@ describe('Object page do Cliente', () => {
     await awaitHeader();
 
     await waitFor(() => {
-      expect(screen.getByRole('link', { name: /solicitações/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^Abrir solicitações deste cliente/i })).toBeInTheDocument();
     });
 
     // Leitura negada não vira rótulo, contagem nem aviso de item oculto.
@@ -547,7 +547,7 @@ describe('Object page do Cliente', () => {
     expect(screen.queryByRole('link', { name: /propostas/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/oculto/i)).not.toBeInTheDocument();
     // A relação autorizada permanece intocada.
-    expect(screen.getByRole('link', { name: /solicitações/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Abrir solicitações deste cliente/i })).toBeInTheDocument();
   });
 
   it('marca o estado corrente real no fluxo e não desenha fluxo fora do vocabulário', async () => {

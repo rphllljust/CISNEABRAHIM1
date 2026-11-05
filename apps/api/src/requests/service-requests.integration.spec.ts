@@ -441,6 +441,52 @@ describe('Service requests PostgreSQL integration', () => {
     expect(linked.documentLinks[0]?.documentId).toBe(document.document.id);
   });
 
+  it('rejects restricted GED evidence on link and hides existing links from unauthorized request readers', async () => {
+    const { actor } = await seedActor();
+    const request = await serviceRequestsAccess.create(actor, {
+      unitId: UNIT_A,
+      originSource: SERVICE_REQUEST_ORIGINS.Whatsapp,
+      externalContact: { name: 'Protocolo evidência' },
+      description: 'Solicitação com evidência protegida',
+    });
+    const document = await documentsAccess.createWithUpload(actor, {
+      title: 'Anexo protegido',
+      categoryCode: DOCUMENT_CATEGORIES.General,
+      classificationCode: 'INTERNAL',
+      unitId: UNIT_A,
+    }, { buffer: minimalPdfBuffer(), filename: 'anexo.pdf', mimetype: 'application/pdf' });
+
+    await serviceRequestsAccess.linkDocument(actor, request.serviceRequest.id, {
+      documentId: document.document.id,
+      linkPurpose: SERVICE_REQUEST_DOCUMENT_LINK_PURPOSES.Evidence,
+    });
+
+    const login = normalizeLoginIdentifier(`sr-reader-${crypto.randomUUID()}@cisne.invalid`);
+    const { identityId } = await insertIdentity(pool, login, await hashPassword(AUTH_TEST_PASSWORD));
+    const restricted = { identityId, sessionId: 'sid' };
+    for (const action of [AUTHZ_ACTIONS.RequestsServiceRequestRead, AUTHZ_ACTIONS.RequestsServiceRequestUpdate]) {
+      await insertGrant(pool, {
+        identityId,
+        action,
+        resourceType: AUTHZ_RESOURCE_TYPES.RequestsServiceRequest,
+        scopeType: AUTHZ_SCOPES.Global,
+        grantedByIdentityId: actor.identityId,
+      });
+    }
+
+    const detail = await serviceRequestsAccess.getById(restricted, request.serviceRequest.id);
+    expect(detail.documentLinks).toEqual([]);
+    await expect(serviceRequestsAccess.linkDocument(restricted, request.serviceRequest.id, {
+      documentId: document.document.id,
+      linkPurpose: SERVICE_REQUEST_DOCUMENT_LINK_PURPOSES.Evidence,
+    })).rejects.toMatchObject({ code: REQUESTS_ERROR_CODES.DOCUMENT_NOT_FOUND });
+    const persisted = await pool.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM sr.service_request_document_links WHERE service_request_id = $1',
+      [request.serviceRequest.id],
+    );
+    expect(persisted.rows[0]?.count).toBe('1');
+  });
+
   it('converts approved request to service order and blocks rejected conversion', async () => {
     const { actor } = await seedActor();
     const client = await seedClient(actor);

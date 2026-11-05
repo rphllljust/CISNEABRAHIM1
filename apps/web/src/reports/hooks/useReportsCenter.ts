@@ -21,20 +21,37 @@ const POLL_INTERVAL_MS = 2_000;
 export type ReportsPageState =
   | { phase: 'loading' }
   | { phase: 'denied' }
+  | { phase: 'empty' }
   | { phase: 'error'; message: string }
   | {
       phase: 'ready';
       catalog: ReportCatalogItem[];
       selectedReportType: string;
+      exportFormat: string;
       filters: ReportFilters;
       preview: ReportPreviewResponse | null;
       previewLoading: boolean;
+      previewError: string | null;
       exportJob: ReportExportSummary | null;
       generating: boolean;
       downloadBusy: boolean;
     };
 
 const DEFAULT_FILTERS: ReportFilters = { period: 'month' };
+
+/** Drop filters that the selected backend report contract does not authorize. */
+export function compatibleReportFilters(filters: ReportFilters, item: ReportCatalogItem): ReportFilters {
+  if (!item.allowedFilters) return filters;
+  const result: ReportFilters = {};
+  for (const key of item.allowedFilters) {
+    const value = filters[key];
+    if (value !== undefined) result[key] = value;
+  }
+  if (item.allowedFilters.includes('period') && !result.period && !result.from && !result.to) {
+    result.period = 'month';
+  }
+  return result;
+}
 
 export function useReportsCenter() {
   const [state, setState] = useState<ReportsPageState>({ phase: 'loading' });
@@ -62,22 +79,26 @@ export function useReportsCenter() {
   const loadCatalog = useCallback(async (signal?: AbortSignal) => {
     try {
       const catalog = await getReportCatalog(signal);
+      if (signal?.aborted) return;
       if (catalog.length === 0) {
-        setState({ phase: 'denied' });
+        setState({ phase: 'empty' });
         return;
       }
       setState({
         phase: 'ready',
         catalog,
         selectedReportType: catalog[0]!.reportType,
-        filters: DEFAULT_FILTERS,
+        exportFormat: catalog[0]!.formats[0] ?? 'CSV',
+        filters: compatibleReportFilters(DEFAULT_FILTERS, catalog[0]!),
         preview: null,
         previewLoading: true,
+        previewError: null,
         exportJob: null,
         generating: false,
         downloadBusy: false,
       });
     } catch (error) {
+      if (signal?.aborted) return;
       if (error instanceof ReportsApiError && error.kind === 'denied') {
         setState({ phase: 'denied' });
         return;
@@ -104,24 +125,32 @@ export function useReportsCenter() {
       const controller = new AbortController();
       previewAbort.current = controller;
       setState((previous) =>
-        previous.phase === 'ready'
-          ? { ...previous, previewLoading: true }
+        previous.phase === 'ready' &&
+        previous.selectedReportType === reportType &&
+        previous.filters === filters
+          ? { ...previous, preview: null, previewLoading: true, previewError: null }
           : previous,
       );
       try {
         const preview = await previewReport(reportType, filters, controller.signal);
+        if (controller.signal.aborted) return;
         setState((previous) =>
-          previous.phase === 'ready' && previous.selectedReportType === reportType
-            ? { ...previous, preview, previewLoading: false }
+          previous.phase === 'ready' &&
+          previous.selectedReportType === reportType &&
+          previous.filters === filters
+            ? { ...previous, preview, previewLoading: false, previewError: null }
             : previous,
         );
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return;
-        }
+        if (controller.signal.aborted) return;
+        const message = error instanceof ReportsApiError && error.kind === 'denied'
+          ? 'Sem permissão para consultar a prévia deste relatório.'
+          : 'Falha ao consultar a prévia deste relatório. Tente novamente.';
         setState((previous) =>
-          previous.phase === 'ready'
-            ? { ...previous, previewLoading: false }
+          previous.phase === 'ready' &&
+          previous.selectedReportType === reportType &&
+          previous.filters === filters
+            ? { ...previous, preview: null, previewLoading: false, previewError: message }
             : previous,
         );
       }
@@ -167,31 +196,60 @@ export function useReportsCenter() {
   }, [previewReportType, previewFilters, schedulePreview, clearPreviewTimer]);
 
   const setSelectedReportType = useCallback((reportType: string) => {
-    setState((previous) =>
-      previous.phase === 'ready'
-        ? {
-            ...previous,
-            selectedReportType: reportType,
-            preview: null,
-            previewLoading: true,
-            exportJob: null,
-          }
-        : previous,
-    );
+    clearPreviewTimer();
+    previewAbort.current?.abort();
+    setState((previous) => {
+      if (previous.phase !== 'ready') return previous;
+      const selected = previous.catalog.find((item) => item.reportType === reportType);
+      if (!selected) return previous;
+      return {
+        ...previous,
+        selectedReportType: reportType,
+        exportFormat: selected.formats.includes(previous.exportFormat)
+          ? previous.exportFormat : (selected.formats[0] ?? 'CSV'),
+        filters: compatibleReportFilters(previous.filters, selected),
+        preview: null,
+        previewLoading: true,
+        previewError: null,
+        exportJob: null,
+      };
+    });
+  }, [clearPreviewTimer]);
+
+  const setExportFormat = useCallback((format: string) => {
+    setState((previous) => {
+      if (previous.phase !== 'ready') return previous;
+      const item = previous.catalog.find((entry) => entry.reportType === previous.selectedReportType);
+      if (!item?.formats.includes(format)) return previous;
+      return { ...previous, exportFormat: format, exportJob: null };
+    });
   }, []);
 
   const setFilters = useCallback((next: Partial<ReportFilters>) => {
+    clearPreviewTimer();
+    previewAbort.current?.abort();
     setState((previous) =>
       previous.phase === 'ready'
         ? {
             ...previous,
-            filters: { ...previous.filters, ...next },
+            filters: compatibleReportFilters(
+              { ...previous.filters, ...next },
+              previous.catalog.find((item) => item.reportType === previous.selectedReportType)!,
+            ),
+            preview: null,
             previewLoading: true,
+            previewError: null,
             exportJob: null,
           }
         : previous,
     );
-  }, []);
+  }, [clearPreviewTimer]);
+
+  const retryPreview = useCallback(() => {
+    if (state.phase !== 'ready') return;
+    clearPreviewTimer();
+    void refreshPreview(state.selectedReportType, state.filters);
+  }, [state, clearPreviewTimer, refreshPreview]);
 
   const pollExport = useCallback(
     (exportId: string) => {
@@ -229,7 +287,7 @@ export function useReportsCenter() {
       previous.phase === 'ready' ? { ...previous, generating: true, exportJob: null } : previous,
     );
     try {
-      const job = await createReportExport(state.selectedReportType, state.filters);
+      const job = await createReportExport(state.selectedReportType, state.filters, state.exportFormat);
       setState((previous) =>
         previous.phase === 'ready' ? { ...previous, exportJob: job, generating: !job.downloadReady } : previous,
       );
@@ -249,7 +307,7 @@ export function useReportsCenter() {
               exportJob: {
                 id: 'local-error',
                 reportType: previous.selectedReportType,
-                format: 'CSV',
+                format: previous.exportFormat,
                 status: 'FAILED',
                 contract: previous.preview?.contract ?? {
                   name: '',
@@ -287,7 +345,7 @@ export function useReportsCenter() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `${state.exportJob.reportType.toLowerCase()}.csv`;
+      anchor.download = `${state.exportJob.reportType.toLowerCase()}.${state.exportJob.format.toLowerCase()}`;
       anchor.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -331,7 +389,9 @@ export function useReportsCenter() {
     state,
     selectedCatalogItem,
     setSelectedReportType,
+    setExportFormat,
     setFilters,
+    retryPreview,
     generateExport,
     downloadExport,
     cancelExport,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import {
@@ -176,7 +176,7 @@ type ListState =
   | { phase: 'loading' }
   | { phase: 'denied' }
   | { phase: 'error'; message: string; retryable: boolean }
-  | { phase: 'ready'; items: Proposal[]; offset: number; hasMore: boolean };
+  | { phase: 'ready'; items: Proposal[]; offset: number; hasMore: boolean; total: number | null };
 
 export function ProposalsListPage() {
   const { identityId } = useAuth();
@@ -196,6 +196,7 @@ export function ProposalsListPage() {
    */
   const [selected, setSelected] = useState<Proposal | null>(null);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const requestGeneration = useRef(0);
   /*
    * CONTEXTO AUTORITATIVO — a linha NÃO basta para agir.
    *
@@ -242,6 +243,7 @@ export function ProposalsListPage() {
 
   const loadPage = useCallback(
     async (offset: number, active: QueueFilters, signal?: AbortSignal) => {
+      const generation = ++requestGeneration.current;
       setListState({ phase: 'loading' });
       try {
         const response = await listProposals(
@@ -264,13 +266,19 @@ export function ProposalsListPage() {
           },
           signal,
         );
+        if (signal?.aborted || generation !== requestGeneration.current) return;
+        const total = typeof response.total === 'number' ? response.total : null;
         setListState({
           phase: 'ready',
           items: response.items,
           offset: response.offset,
-          hasMore: response.items.length === response.limit,
+          total,
+          hasMore: response.hasMore ?? (total !== null
+            ? response.offset + response.items.length < total
+            : response.items.length === response.limit),
         });
       } catch (error) {
+        if (signal?.aborted || generation !== requestGeneration.current) return;
         if (error instanceof ProposalsApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
@@ -455,7 +463,7 @@ export function ProposalsListPage() {
     );
   }
 
-  const { items, offset, hasMore } = listState;
+  const { items, offset, hasMore, total } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
   const now = new Date();
 
@@ -547,7 +555,7 @@ export function ProposalsListPage() {
       */}
       <WorkspaceHeader
         title="Propostas comerciais"
-        scope={`Página ${pageNumber} — decisão comercial por proposta. Esta lista não publica total; a contagem acima é desta página.${hasActiveFilters ? ' · recorte aplicado' : ''}`}
+        scope={`Página ${pageNumber} — ${total === null ? 'total não publicado' : `${total} propostas no recorte autorizado`}. Indicadores de situação nesta página.${hasActiveFilters ? ' · recorte aplicado' : ''}`}
         status={<WorkspaceStatusLine items={statusItems} />}
         action={
           capabilities.canCreate ? (

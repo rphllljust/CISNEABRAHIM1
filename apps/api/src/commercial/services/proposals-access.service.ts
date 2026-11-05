@@ -823,7 +823,7 @@ export class ProposalsAccessService {
   async list(
     actor: IdentityAuthzContext,
     query: ProposalListQuery,
-  ): Promise<{ items: ProposalListItemResponse[]; limit: number; offset: number }> {
+  ): Promise<{ items: ProposalListItemResponse[]; limit: number; offset: number; total: number; hasMore: boolean }> {
     const scopeFilter = await this.authz.buildListScopeFilter(actor);
 
     let whereClause: { clause: string; params: unknown[] };
@@ -845,13 +845,16 @@ export class ProposalsAccessService {
       throw error;
     }
 
-    const rows = await this.proposalsRepository.listProposalsForWorkbench(
-      whereClause.clause,
-      whereClause.params,
-      query.limit,
-      query.offset,
-      orderClause,
-    );
+    const [rows, total] = await Promise.all([
+      this.proposalsRepository.listProposalsForWorkbench(
+        whereClause.clause,
+        whereClause.params,
+        query.limit,
+        query.offset,
+        orderClause,
+      ),
+      this.proposalsRepository.countProposalsForWorkbench(whereClause.clause, whereClause.params),
+    ]);
 
     const clientLabels = await this.buildClientLabels(
       actor,
@@ -871,6 +874,8 @@ export class ProposalsAccessService {
       ),
       limit: query.limit,
       offset: query.offset,
+      total,
+      hasMore: query.offset + rows.length < total,
     };
   }
 

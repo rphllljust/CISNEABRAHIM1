@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useReportsCenter } from '../hooks/useReportsCenter';
 import { presentReportCell } from '../utils/report-cell-presenter';
@@ -50,19 +51,33 @@ export function ReportsPage() {
     state,
     selectedCatalogItem,
     setSelectedReportType,
+    setExportFormat,
     setFilters,
+    retryPreview,
     generateExport,
     downloadExport,
     cancelExport,
     reload,
   } = useReportsCenter();
-  const [searchParams] = useSearchParams();
-  const { options, unitId, setUnitId } = useOperationalUnits();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { options, setUnitId } = useOperationalUnits();
 
-  // O filtro de unidade continua sendo enviado como `unitId` (valor real do contrato). A URL pode
-  // trazer um recorte de outra superficie; ela vence para nao contradizer o que o operador clicou.
-  const activeUnitId =
-    searchParams.get('unitId') ?? (state.phase === 'ready' ? (state.filters.unitId ?? unitId) : unitId);
+  // O escopo informado por um drilldown precisa ser aplicado ao payload efetivo do
+  // preview e da exportação; exibir uma unidade no select sem filtrá-la na API
+  // produziria um relatório com recorte diferente do que o operador solicitou.
+  const urlUnitId = searchParams.get('unitId');
+  const filterUnitId = state.phase === 'ready' ? state.filters.unitId : undefined;
+  const activeUnitId = urlUnitId ?? filterUnitId ?? '';
+  const supportsPeriod = selectedCatalogItem?.allowedFilters?.includes('period') ?? true;
+  const supportsUnit = selectedCatalogItem?.allowedFilters?.includes('unitId') ?? true;
+
+  useEffect(() => {
+    if (state.phase !== 'ready' || urlUnitId === null || !supportsUnit) return;
+    const normalized = urlUnitId || undefined;
+    if (filterUnitId !== normalized) {
+      setFilters({ unitId: normalized });
+    }
+  }, [state.phase, urlUnitId, filterUnitId, supportsUnit, setFilters]);
 
   if (state.phase === 'loading') {
     return (
@@ -72,6 +87,15 @@ export function ReportsPage() {
           description="Exportações auditáveis do estado real da operação."
         />
         <ModuleLoadingState message="Carregando catálogo de relatórios…" />
+      </ModulePage>
+    );
+  }
+
+  if (state.phase === 'empty') {
+    return (
+      <ModulePage>
+        <ReportWorkbenchHeader title="Relatórios" description="Exportações auditáveis do estado real da operação." />
+        <EmptyState title="Nenhum relatório disponível" description="O catálogo autorizado não publicou relatórios para esta sessão." />
       </ModulePage>
     );
   }
@@ -138,7 +162,7 @@ export function ReportsPage() {
                 disabled={state.downloadBusy}
                 className="inline-flex min-h-8 items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {state.downloadBusy ? 'Baixando…' : 'Baixar CSV'}
+                {state.downloadBusy ? 'Baixando…' : `Baixar ${exportJob.format}`}
               </button>
             ) : null}
             {exportJob && !exportJob.downloadReady && exportJob.status !== 'FAILED' && exportJob.status !== 'CANCELLED' ? (
@@ -176,7 +200,20 @@ export function ReportsPage() {
           </select>
         </ReportField>
 
-        <ReportField label="Período" htmlFor="report-period">
+        <ReportField label="Formato" htmlFor="report-format">
+          <select
+            id="report-format"
+            className={reportSelectClass}
+            value={state.exportFormat}
+            onChange={(event) => setExportFormat(event.target.value)}
+          >
+            {(selectedCatalogItem?.formats ?? ['CSV']).map((format) => (
+              <option key={format} value={format}>{format}</option>
+            ))}
+          </select>
+        </ReportField>
+
+        {supportsPeriod ? <ReportField label="Período" htmlFor="report-period">
           <select
             id="report-period"
             className={reportSelectClass}
@@ -188,26 +225,33 @@ export function ReportsPage() {
             <option value="quarter">Trimestre</option>
             <option value="year">Ano</option>
           </select>
-        </ReportField>
+        </ReportField> : null}
 
         {/*
           UNIDADE HUMANA: o filtro anterior era `<input type="text">` pedindo o identificador
           tecnico digitado a mao — o operador tinha que saber `unit-synthetic-homolog` de cor. O
           valor enviado a API continua sendo o identificador real; o que sai e a digitacao dele.
         */}
-        <ReportField label="Unidade" htmlFor="report-unit">
+        {supportsUnit ? <ReportField label="Unidade" htmlFor="report-unit">
           <select
             id="report-unit"
             className={reportSelectClass}
             value={activeUnitId}
             onChange={(event) => {
-              setUnitId(event.target.value);
-              setFilters({ unitId: event.target.value || undefined });
+              const selected = event.target.value;
+              setUnitId(selected);
+              setFilters({ unitId: selected || undefined });
+              setSearchParams((previous) => {
+                const next = new URLSearchParams(previous);
+                if (selected) next.set('unitId', selected);
+                else next.delete('unitId');
+                return next;
+              }, { replace: true });
             }}
           >
             <OperationalUnitOptions options={options} includeAllLabel="Todas as unidades" />
           </select>
-        </ReportField>
+        </ReportField> : null}
       </ReportToolbar>
 
       <ReportPreview
@@ -217,7 +261,9 @@ export function ReportsPage() {
             : `Até ${rows.length} de ${total} linhas${state.preview?.contract.timezone ? ` · ${state.preview.contract.timezone}` : ''}`
         }
       >
-        {rows.length === 0 ? (
+        {state.previewError ? (
+          <ModuleErrorState message={state.previewError} retryable onRetry={retryPreview} />
+        ) : rows.length === 0 ? (
           <EmptyState
             title={state.previewLoading ? 'Carregando pré-visualização…' : 'Nenhum dado para os filtros atuais'}
             description={

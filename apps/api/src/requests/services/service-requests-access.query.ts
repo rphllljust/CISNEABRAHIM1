@@ -34,6 +34,7 @@ import {
 } from './service-requests-access.errors';
 import { assertValidServiceRequestId } from './service-requests-input-resolution';
 import { ServiceRequestsAccessPersistence } from './service-requests-access.persistence';
+import { ServiceRequestsDocumentEvidenceService } from './service-requests-document-evidence.service';
 
 export type ServiceRequestListSummaryResponse = {
   total: number;
@@ -92,6 +93,7 @@ export class ServiceRequestsAccessQuery {
     private readonly persistence: ServiceRequestsAccessPersistence,
     private readonly authz: ServiceRequestsAccessAuthz,
     private readonly scopeEnforcement: ScopeEnforcementService,
+    private readonly documentEvidence: ServiceRequestsDocumentEvidenceService,
   ) {}
 
   async toDetail(
@@ -110,7 +112,18 @@ export class ServiceRequestsAccessQuery {
       this.buildReadiness(actor, row),
     ]);
 
-    return toServiceRequestDetailResponse(row, links, historyEvents, {
+    // The request does not grant access to related GED records: filter every
+    // relationship using the owner. A backend outage must propagate, not turn
+    // into a silent zero-document count.
+    const accessDecisions = await Promise.all(
+      links.map(async (link) => ({
+        link,
+        allowed: await this.documentEvidence.canRead(actor, link.document_id, row.unit_id),
+      })),
+    );
+    const readableLinks = accessDecisions.filter((entry) => entry.allowed).map((entry) => entry.link);
+
+    return toServiceRequestDetailResponse(row, readableLinks, historyEvents, {
       enrichment,
       linkedChain: chain.filter((link) => allowedLinked.has(`${link.kind}:${link.id}`)),
       readiness,

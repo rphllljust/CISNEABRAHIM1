@@ -272,6 +272,8 @@ const MIGRATION_EFFECT_CHECKS = {
   '0115_inventory_receipt_provenance': { table: ['inv', 'receipt_inventory_provenance'] },
   // GED-owned physical asset link must exist before reconciliation marks 0116 as applied.
   '0116_physical_asset_document_links': { table: ['doc', 'physical_asset_document_links'] },
+  // Verify the exact index created by 0117; its absence must not be journal-reconciled.
+  '0117_service_order_archetype_worklist_index': { index: 'service_orders_unit_archetype_created_idx' },
 };
 
 /**

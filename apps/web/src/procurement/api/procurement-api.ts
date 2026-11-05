@@ -23,6 +23,38 @@ export type PurchaseRequest = {
   }>;
 };
 
+/** Posted receipt evidence, scoped by procurement READ + RECEIVE grants. */
+export type PostedReceiptLine = {
+  receiptLineId: string;
+  receiptId: string;
+  orderLineId: string;
+  lineNumber: number;
+  description: string;
+  receivedQuantity: string;
+  /** Backend predicate: receiver cannot certify their own stock mapping. */
+  canCertify: boolean;
+};
+
+export type PostedReceiptLinePage = {
+  items: PostedReceiptLine[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+};
+
+export async function listPostedReceiptLines(
+  orderId: string,
+  params: { limit: number; offset: number },
+  signal?: AbortSignal,
+): Promise<PostedReceiptLinePage> {
+  const query = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
+  return requestJson<PostedReceiptLinePage>(
+    `/api/v1/procurement/orders/${orderId}/receipt-lines?${query}`,
+    { method: 'GET', headers: authHeaders(), signal },
+  );
+}
+
 export type SupplierPurchaseOrderReceipt = {
   id: string;
   payableId: string | null;

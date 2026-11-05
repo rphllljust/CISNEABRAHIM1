@@ -27,12 +27,16 @@ export type ProfitabilityServiceOrderRaw = {
   revenueLineCount: number;
   costEntryCount: number;
   currencyCode: string;
+  /** True when cost entries for one service order have incompatible currencies. */
+  currencyAmbiguous?: boolean;
 };
 
 export type ProfitabilitySummary = OperationalProfitabilityTotals & {
   formula: typeof OPERATIONAL_PROFITABILITY_FORMULA;
   disclaimer: typeof OPERATIONAL_PROFITABILITY_DISCLAIMER;
   currencyCode: string;
+  /** Never aggregate monetary values from different currencies without a verified FX rule. */
+  currencyMixed: boolean;
 };
 
 export type ProfitabilitySnapshot = {
@@ -85,11 +89,20 @@ export function buildProfitabilitySummary(
     })),
   );
 
+  const currencies = new Set(rows.map((row) => row.currencyCode));
+  const currencyMixed = rows.some((row) => row.currencyAmbiguous === true) || currencies.size > 1;
+
   return {
     ...totals,
+    // No exchange rate or conversion policy is assumed; preserve row-level
+    // evidence and counts, but do not publish financially invalid totals.
+    operationalRevenue: currencyMixed ? null : totals.operationalRevenue,
+    realizedCost: currencyMixed ? null : totals.realizedCost,
+    operationalMargin: currencyMixed ? null : totals.operationalMargin,
     formula: OPERATIONAL_PROFITABILITY_FORMULA,
     disclaimer: OPERATIONAL_PROFITABILITY_DISCLAIMER,
-    currencyCode,
+    currencyCode: currencies.size === 1 ? [...currencies][0]! : currencyCode,
+    currencyMixed,
   };
 }
 
@@ -116,11 +129,12 @@ export function groupProfitabilityRows(
 
   return [...buckets.entries()].map(([key, groupedRows]) => {
     const label = resolveGroupLabel(groupedRows[0]!, groupBy, key);
+    const summary = buildProfitabilitySummary(groupedRows, currencyCode);
     return {
       key,
       label,
-      summary: buildProfitabilitySummary(groupedRows, currencyCode),
-      supported: true,
+      summary,
+      supported: !summary.currencyMixed,
     };
   });
 }

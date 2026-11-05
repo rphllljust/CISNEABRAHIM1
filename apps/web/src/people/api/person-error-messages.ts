@@ -18,6 +18,8 @@ export function mapPersonErrorToMessage(code: PersonErrorCode | undefined, statu
       return 'Já existe uma pessoa com esta referência externa.';
     case PERSON_ERROR_CODES.INVALID_STATE:
       return 'A operação não é válida para o status atual.';
+    case PERSON_ERROR_CODES.ACTIVE_ALLOCATIONS:
+      return 'Esta pessoa está alocada em uma OS ativa. Remova as alocações antes da inativação.';
     case PERSON_ERROR_CODES.LABOR_TYPE_NOT_FOUND:
       return 'Função operacional informada não existe no catálogo.';
     case PERSON_ERROR_CODES.VALIDATION_FAILED:

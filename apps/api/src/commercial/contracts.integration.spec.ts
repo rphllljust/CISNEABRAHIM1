@@ -223,6 +223,28 @@ describe('Commercial contracts PostgreSQL integration', () => {
     expect(orderA2.contractId).toBe(contractA2.contract.id);
     expect(orderB1.contractId).toBe(contractB1.contract.id);
 
+    // Client A has two contracts, and client B must not enter its total.
+    const contractPage = await contractsAccess.list(actor, {
+      clientId: clientA.id, unitId: UNIT_A, limit: 1, offset: 0,
+    });
+    expect(contractPage.total).toBe(2);
+    expect(contractPage.items).toHaveLength(1);
+    expect(contractPage.hasMore).toBe(true);
+    const contractLast = await contractsAccess.list(actor, {
+      clientId: clientA.id, unitId: UNIT_A, limit: 1, offset: 1,
+    });
+    expect(contractLast.total).toBe(2);
+    expect(contractLast.hasMore).toBe(false);
+    const contractBeyond = await contractsAccess.list(actor, {
+      clientId: clientA.id, unitId: UNIT_A, limit: 1, offset: 2,
+    });
+    expect(contractBeyond.total).toBe(2);
+    expect(contractBeyond.items).toEqual([]);
+    const noContracts = await contractsAccess.list(actor, {
+      clientId: crypto.randomUUID(), unitId: UNIT_A, limit: 1, offset: 0,
+    });
+    expect(noContracts.total).toBe(0);
+
     const query = parseListServiceOrdersQuery({
       contractId: contractA1.contract.id, clientId: clientA.id, unitId: UNIT_A, limit: 1, offset: 0,
     });

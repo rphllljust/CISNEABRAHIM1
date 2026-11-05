@@ -400,6 +400,49 @@ export class InventoryAccessService implements InventoryStockPort {
    * #193 / 2F-a: explicit, dual-authorized receipt-line -> SKU/warehouse fact.
    * Does NOT post stock, valuation or GL. Procurement owns the receipt evidence.
    */
+
+  /**
+   * Reconcile one posted procurement receipt against Inventory-owned immutable
+   * certification facts. Two authorization boundaries are enforced.
+   */
+  async getReceiptProvenance(actor: IdentityAuthzContext, receiptLineId: string) {
+    try {
+      if (!this.receiptEvidence) throw new InventoryError('INVENTORY_NOT_FOUND');
+      assertUuid(receiptLineId, 'receiptLineId');
+      const source = await this.receiptEvidence.readPostedLine({
+        actorIdentityId: actor.identityId,
+        actorSessionId: actor.sessionId,
+        receiptLineId,
+      });
+      if (!source) throw new InventoryError('INVENTORY_NOT_FOUND');
+
+      const items = await this.repository.listReceiptProvenance(receiptLineId);
+      // No partial/unauthorized aggregate: enforce the inventory item scope for
+      // every persisted mapping before any evidence is returned.
+      if (!items.length) {
+        await this.authz.assertInventoryAction(actor, AUTHZ_ACTIONS.InventoryMove, {
+          id: receiptLineId, unitId: source.unitId,
+        });
+      }
+      for (const item of items) {
+        await this.authz.assertInventoryAction(actor, AUTHZ_ACTIONS.InventoryMove, {
+          id: item.inventoryItemId, unitId: source.unitId,
+        });
+      }
+
+      const allocatedQuantity = await this.repository.sumReceiptProvenanceQuantity(receiptLineId);
+      return {
+        receiptLineId,
+        receivedQuantity: normalizeQuantity(source.receivedQuantity),
+        allocatedQuantity: normalizeQuantity(allocatedQuantity),
+        items,
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw mapInventoryDomainError(error);
+    }
+  }
+
   async bindReceiptProvenance(
     actor: IdentityAuthzContext,
     input: {

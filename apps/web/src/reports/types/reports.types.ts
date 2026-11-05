@@ -13,6 +13,8 @@ export type ReportCatalogItem = {
   reportType: string;
   label: string;
   formats: string[];
+  /** Backend-authorized filter contract for this report type. */
+  allowedFilters?: Array<keyof ReportFilters>;
   sensitive: boolean;
   columns: string[];
 };

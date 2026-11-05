@@ -251,10 +251,25 @@ export class ServiceOrderListQueryError extends Error {
 }
 
 export function parseListServiceOrdersQuery(query: Record<string, unknown>): ListServiceOrdersQuery {
-  const limitRaw = Number(query['limit'] ?? 20);
-  const offsetRaw = Number(query['offset'] ?? 0);
-  const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 20;
-  const offset = Number.isFinite(offsetRaw) ? Math.max(offsetRaw, 0) : 0;
+  // PostgreSQL LIMIT/OFFSET accept only integral, finite values; coercing arrays,
+  // decimals or negative values silently can corrupt a worklist's authorized cursor.
+  // Preserve the documented cap of 100 without changing the accepted positive range.
+  const parsePageInteger = (value: unknown, field: 'limit' | 'offset', fallback: number): number => {
+    if (value === undefined) return fallback;
+    if (typeof value !== 'string' && typeof value !== 'number') {
+      throw new ServiceOrderListQueryError(field);
+    }
+    if (typeof value === 'string' && !/^(0|[1-9][0-9]*)$/.test(value)) {
+      throw new ServiceOrderListQueryError(field);
+    }
+    const parsed = Number(value);
+    if (!Number.isSafeInteger(parsed) || parsed < (field === 'limit' ? 1 : 0)) {
+      throw new ServiceOrderListQueryError(field);
+    }
+    return parsed;
+  };
+  const limit = Math.min(parsePageInteger(query['limit'], 'limit', 20), 100);
+  const offset = parsePageInteger(query['offset'], 'offset', 0);
 
   const clientId = typeof query['clientId'] === 'string' ? query['clientId'].trim() : undefined;
   // A solicitação explícita de um contrato jamais se transforma silenciosamente em carteira global.

@@ -34,6 +34,7 @@ import { cn } from '../../ui/utils/cn';
 import {
   DOCUMENT_LIST_PAGE_SIZE,
   DocumentsApiError,
+  downloadDocumentBatch,
   listDocuments,
 } from '../api/documents-api';
 import { mapDocumentErrorToMessage } from '../api/document-error-messages';
@@ -107,6 +108,9 @@ export function DocumentsPage() {
   // `total` e do CONJUNTO escopado e filtrado — nao da pagina. E o que permite dizer a pagina atual
   // e desabilitar "Próxima" sem a heuristica de "a pagina veio cheia".
   const [total, setTotal] = useState(0);
+  const [selectedDocuments, setSelectedDocuments] = useState<Record<string, number>>({});
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
 
   // Busca e tipo sao resolvidos no SERVIDOR: a lista traz apenas uma pagina, entao filtrar no browser
   // mostraria um recorte como se fosse o cadastro inteiro.
@@ -158,6 +162,8 @@ export function DocumentsPage() {
           return;
         }
         setItems(response.items);
+        setSelectedDocuments({});
+        setBatchError(null);
         setTotal(response.total);
         setPhase('ready');
       } catch (error) {
@@ -241,6 +247,24 @@ export function DocumentsPage() {
     (item) => item.classificationCode === DOCUMENT_CLASSIFICATIONS.Restricted,
   ).length;
 
+  const downloadSelected = async () => {
+    const documents = Object.entries(selectedDocuments).map(([documentId, versionNumber]) => ({
+      documentId, versionNumber,
+    }));
+    if (batchBusy || documents.length === 0) return;
+    setBatchBusy(true);
+    setBatchError(null);
+    try {
+      await downloadDocumentBatch(documents);
+    } catch (error) {
+      setBatchError(error instanceof DocumentsApiError
+        ? mapDocumentErrorToMessage(error.code, error.status)
+        : 'Não foi possível baixar os documentos selecionados.');
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
   const clearAll = () => {
     setSearchInput('');
     setAppliedSearch('');
@@ -303,6 +327,12 @@ export function DocumentsPage() {
       />
 
       <WorklistFilterBar meta={`${items.length} nesta página`}>
+        {capabilities.canDownload && Object.keys(selectedDocuments).length > 0 ? (
+          <button type="button" disabled={batchBusy} onClick={() => void downloadSelected()}
+            className="cisne-type-action min-h-[var(--control-height)] rounded-md border border-brand-600 px-3 text-brand-700 disabled:opacity-50">
+            {batchBusy ? 'Preparando arquivo…' : `Baixar selecionados (${Object.keys(selectedDocuments).length})`}
+          </button>
+        ) : null}
         <WorklistField label="Buscar" htmlFor={searchInputId} grow>
           <input
             id={searchInputId}
@@ -341,6 +371,7 @@ export function DocumentsPage() {
           </p>
         ) : null}
       </WorklistFilterBar>
+      {batchError ? <p role="alert" className="text-sm text-red-700">{batchError}</p> : null}
 
       <SavedViewsBar
         views={smartList.savedViews.views}
@@ -462,6 +493,7 @@ export function DocumentsPage() {
               <table className={worklistTableClass} aria-label="Lista de documentos">
                 <thead>
                   <tr>
+                    <th scope="col" className={workspaceHeadCellClass}>Selecionar</th>
                     <th scope="col" className={workspaceHeadCellClass}>
                       Documento
                     </th>
@@ -485,6 +517,26 @@ export function DocumentsPage() {
                 <tbody>
                   {items.map((item) => (
                     <tr key={item.id} className={workspaceRowClass}>
+                      <td className={workspaceCellRaisedClass}>
+                        {capabilities.canDownload && item.currentVersionNumber ? (
+                          <input type="checkbox"
+                            aria-label={`Selecionar ${item.title} versão ${item.currentVersionNumber}`}
+                            checked={selectedDocuments[item.id] === item.currentVersionNumber}
+                            disabled={batchBusy || (Object.keys(selectedDocuments).length >= 20 && !(item.id in selectedDocuments))}
+                            onChange={(event) => {
+                              setSelectedDocuments((current) => {
+                                const next = { ...current };
+                                if (event.target.checked && item.currentVersionNumber) {
+                                  next[item.id] = item.currentVersionNumber;
+                                } else {
+                                  delete next[item.id];
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                        ) : null}
+                      </td>
                       <td className={workspaceCellRaisedClass}>
                         {/* IDENTIFICADOR PRIMARIO — texto primario em peso 600, conforme o contrato da grade. */}
                         <span

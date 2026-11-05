@@ -10,7 +10,8 @@ type ProposalsRouteProps = {
 export function ProposalsRoute({ children }: ProposalsRouteProps) {
   const location = useLocation();
   const { expireSession } = useAuth();
-  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired'>(
+  const [retryNonce, setRetryNonce] = useState(0);
+  const [state, setState] = useState<'loading' | 'allowed' | 'denied' | 'session_expired' | 'error'>(
     'loading',
   );
 
@@ -33,19 +34,34 @@ export function ProposalsRoute({ children }: ProposalsRouteProps) {
           setState('session_expired');
           return;
         }
-        setState('denied');
+        if (error instanceof ProposalsApiError && (error.status === 403 || error.kind === 'denied')) {
+          setState('denied');
+          return;
+        }
+        setState('error');
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [expireSession, location.pathname]);
+  }, [expireSession, location.pathname, retryNonce]);
 
   if (state === 'loading') {
     return (
       <div className="shell-loading" aria-busy="true" aria-live="polite">
         <p>Verificando acesso…</p>
+      </div>
+    );
+  }
+
+  if (state === 'error') {
+    return (
+      <div className="shell-loading" role="alert" aria-live="polite">
+        <p>Não foi possível verificar o acesso. O servidor pode estar indisponível.</p>
+        <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>
+          Tentar novamente
+        </button>
       </div>
     );
   }

@@ -9,6 +9,7 @@ import { SecurityAuditService } from '../../audit/services/security-audit.servic
 import { AUTHZ_ACTIONS } from '../../authorization/types/authz-actions';
 import { AUTHZ_RESOURCE_TYPES } from '../../authorization/types/authz-resources';
 import { AuthorizationRepository } from '../../authorization/repositories/authorization.repository';
+import { ScopeEnforcementService } from '../../authorization/services/scope-enforcement.service';
 import type { IdentityAuthzContext } from '../../authorization/types/authz-decision';
 import {
   ENTERPRISE_CORE_PORT,
@@ -42,6 +43,7 @@ export class SupplierInvoiceAccessService {
     private readonly repository: SupplierInvoiceRepository,
     private readonly authz: ProcurementAccessAuthz,
     private readonly authorizationRepository: AuthorizationRepository,
+    private readonly scopeEnforcement: ScopeEnforcementService,
     private readonly securityAudit: SecurityAuditService,
     private readonly failures: ProcurementFailureInjection,
     @Inject(ENTERPRISE_CORE_PORT.CommercialSupplier)
@@ -85,12 +87,13 @@ export class SupplierInvoiceAccessService {
       AUTHZ_ACTIONS.ProcurementInvoiceList,
       AUTHZ_RESOURCE_TYPES.Procurement,
     );
-    if (grants.length === 0) {
+    const scope = this.scopeEnforcement.buildProcurementListFilter(grants, 'i');
+    if (scope.clause === 'FALSE') {
       throw mapProcurementDomainError(procurementAccessDenied());
     }
     try {
-      const whereParts: string[] = [];
-      const params: unknown[] = [];
+      const whereParts: string[] = [scope.clause];
+      const params: unknown[] = [...scope.params];
       if (query.status) {
         whereParts.push(`i.status = $${params.length + 1}::prc.supplier_invoice_status`);
         params.push(query.status);

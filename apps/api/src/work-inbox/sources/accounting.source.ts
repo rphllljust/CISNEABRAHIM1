@@ -7,7 +7,7 @@ import {
   type ClosingReadinessResponse,
 } from '../../accounting/services/closing-readiness.service';
 import { AccountingAccessService } from '../../accounting/services/accounting-access.service';
-import { EconomicTraceReadModelService } from '../../accounting/repositories/economic-trace.read-model';
+import { EconomicTraceAccessService } from '../../accounting/services/economic-trace-access.service';
 import type { EconomicWorkItem } from '../../platform/bounded-contexts/economic-trace.contract';
 import { ScopeContextRepository } from '../../authorization/repositories/scope-context.repository';
 import type { WorkItem } from '../contracts/work-item.contract';
@@ -41,7 +41,7 @@ export class AccountingWorkSource implements WorkItemSource {
     private readonly closingReadiness: ClosingReadinessService,
     private readonly accountingAccess: AccountingAccessService,
     private readonly scopeContext: ScopeContextRepository,
-    private readonly economicTrace: EconomicTraceReadModelService,
+    private readonly economicTrace: EconomicTraceAccessService,
   ) {}
 
   async collect(actor: WorkItemActor): Promise<WorkItem[]> {
@@ -62,7 +62,7 @@ export class AccountingWorkSource implements WorkItemSource {
     // não existia em `acc.*`, e nenhuma fila o mostrava. Agora ele aparece aqui — na
     // Central de trabalho que o operador já usa — porque é exatamente o que esta fila
     // existe para responder: "o que exige minha atenção agora?".
-    const postingItems = await this.collectPostingExceptions(unitId);
+    const postingItems = await this.collectPostingExceptions(actor, unitId);
 
     const periods = await this.openPeriods(actor, unitId);
     if (periods === null) {
@@ -91,12 +91,17 @@ export class AccountingWorkSource implements WorkItemSource {
    * Leitura negada para o recorte desta unidade não produz item nem sinal de existência —
    * a mesma regra das demais leituras desta fonte.
    */
-  private async collectPostingExceptions(unitId: string): Promise<WorkItem[]> {
+  private async collectPostingExceptions(actor: WorkItemActor, unitId: string): Promise<WorkItem[]> {
     try {
-      const page = await this.economicTrace.worklist(unitId, 50, 0);
+      // The raw read model has NO PDP. Use the Accounting owner access service
+      // so an Inbox query cannot leak events and journal details across units.
+      const page = await this.economicTrace.worklist(actor, { unitId, limit: 50, offset: 0 });
       return page.items.map(postingExceptionToWorkItem);
-    } catch {
-      return [];
+    } catch (error) {
+      if (isAccessDenied(error)) return [];
+      // A database or service outage must mark the domain unavailable instead
+      // of pretending there are no posting exceptions.
+      throw error;
     }
   }
 
@@ -191,17 +196,26 @@ export function describeBlockers(blockers: ClosingException[]): string {
  * persistida entre o mundo financeiro e o contábil. A severidade vem do read model, não
  * é recalculada aqui.
  */
+/** The source kind is authoritative; a payroll or fiscal posting is not a payment. */
+const ECONOMIC_FACT_LABELS: Record<EconomicWorkItem['factKind'], string> = {
+  SETTLEMENT: 'Liquidação',
+  PAYMENT: 'Pagamento',
+  RECEIVABLE: 'Recebível',
+  PAYABLE: 'Título a pagar',
+  FISCAL_DOCUMENT: 'Documento fiscal',
+  TAX_CALCULATION: 'Apuração tributária',
+  INVENTORY_MOVEMENT: 'Movimentação de estoque',
+  PAYROLL_PERIOD: 'Competência de folha',
+  FIXED_ASSET: 'Ativo imobilizado',
+};
+
 export function postingExceptionToWorkItem(item: EconomicWorkItem): WorkItem {
   return {
     id: `CONTABILIDADE:POSTING:${item.factKind}:${item.factId}`,
     domain: 'CONTABILIDADE',
     kind: 'EXCEPTION',
-    businessReference:
-      item.factKind === 'SETTLEMENT' ? `Liquidação ${item.amount}` : `Pagamento ${item.amount}`,
-    title:
-      item.factKind === 'SETTLEMENT'
-        ? 'Liquidação sem contabilização'
-        : 'Pagamento sem contabilização',
+    businessReference: `${ECONOMIC_FACT_LABELS[item.factKind]} · ${item.currencyCode} ${item.amount}`,
+    title: `${ECONOMIC_FACT_LABELS[item.factKind]} sem contabilização`,
     contextLabel: `Unidade ${item.unitId} · ${item.reference}`,
     status: item.accountingState,
     reason: item.reason,
