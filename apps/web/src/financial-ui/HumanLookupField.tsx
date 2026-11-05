@@ -113,10 +113,14 @@ export function HumanLookupField({
       void searchRef
         .current(term, controller.signal)
         .then((items) => {
+          // Uma resposta tardia nao pode repor opcoes de outro termo ou de outra pagina.
+          if (controller.signal.aborted) return;
           setOptions(items);
           setPhase('ready');
         })
         .catch(() => {
+          // Abortado por troca de termo/desmontagem nao e falha do servidor.
+          if (controller.signal.aborted) return;
           setOptions([]);
           setPhase('error');
         });
@@ -138,7 +142,7 @@ export function HumanLookupField({
       quebrava a linha da barra.
     */
     return (
-      <div className={cn('flex items-center gap-1.5', className)}>
+      <div className={cn('flex min-w-0 flex-1 flex-wrap items-center gap-1.5', className)}>
         <input
           id={htmlFor}
           value={term}
@@ -147,7 +151,7 @@ export function HumanLookupField({
           autoComplete="off"
           spellCheck={false}
           aria-label={`Buscar ${label.toLowerCase()}`}
-          className={cn(compactControlClass, 'w-36')}
+          className={cn(compactControlClass, 'w-full min-w-0 flex-[1_1_8rem]')}
         />
         <select
           id={selectId}
@@ -155,7 +159,7 @@ export function HumanLookupField({
           onChange={(event) => onChange(event.target.value)}
           required={required}
           aria-label={label}
-          className={cn(compactControlClass, 'min-w-40 flex-1 cursor-pointer')}
+          className={cn(compactControlClass, 'w-full min-w-0 flex-[1_1_10rem] cursor-pointer')}
         >
           <option value="">
             {phase === 'loading'
@@ -171,13 +175,13 @@ export function HumanLookupField({
             </option>
           ))}
         </select>
-        {phase === 'ready' && options.length === 0 ? (
-          <span className="text-[11px] text-gray-500" role="status">
+        {phase === 'ready' && options.length === 0 && term.trim() ? (
+          <span className="min-w-0 basis-full whitespace-normal text-[11px] text-gray-500" role="status">
             {emptyMessage}
           </span>
         ) : null}
         {phase === 'error' ? (
-          <span className="text-[11px] text-red-700" role="alert">
+          <span className="min-w-0 basis-full whitespace-normal text-[11px] text-red-700" role="alert">
             Não foi possível buscar no servidor.
           </span>
         ) : null}
