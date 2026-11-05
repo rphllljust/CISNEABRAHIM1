@@ -23,6 +23,7 @@ import {
   FIXED_ASSET_STATUSES,
   assertDepreciationRateNotInvented,
   assertFixedAssetCanAcquire,
+  isFixedAssetStatus,
   assertFixedAssetCanDispose,
   assertFixedAssetCanReverseAcquisition,
   assertFixedAssetCanTransfer,
@@ -48,6 +49,20 @@ import {
 import { AccountingAccessAuthz } from './accounting-access.authz';
 import { AccountingAccessService } from './accounting-access.service';
 import { mapAccountingDomainError } from './accounting-access.errors';
+
+/**
+ * Pagina do registro de ativo imobilizado.
+ *
+ * MESMO contrato das demais listagens (`{ items, limit, offset, total, totalPages }`) — o
+ * `HumanLookupField`, a paginacao server-side e os contadores sao os mesmos componentes.
+ */
+export type FixedAssetListResponse = {
+  items: FixedAssetRegisterResponse[];
+  limit: number;
+  offset: number;
+  total: number;
+  totalPages: number;
+};
 
 @Injectable()
 export class FixedAssetAccountingAccessService {
@@ -350,6 +365,47 @@ export class FixedAssetAccountingAccessService {
     } catch (error) {
       throw mapAccountingDomainError(error);
     }
+  }
+
+  /**
+   * LISTAGEM do registro de ativo imobilizado.
+   *
+   * Fecha o `PARK: HUMAN_LOOKUP_API_GAP` que permanecia legitimo: o `GET` anterior era
+   * `getByOperationalAsset` e EXIGIA `operationalAssetId`, entao nao havia como descobrir quais
+   * registros existem — nem como vincula-los a um ativo operacional sem ja saber o UUID.
+   *
+   * Cada linha e serializada SEM movimentos (`movements: []`). A listagem nao carrega o
+   * historico de cada registro: faze-lo seria uma consulta por linha (N+1) e a tela de lista nao
+   * exibe movimentos. Quem precisa do historico pede o registro por `getByOperationalAsset`.
+   *
+   * ARQUIVO DE AUDITORIA NAO E USADO AQUI: listagem e leitura, nao comando de negocio.
+   */
+  async list(
+    actor: IdentityAuthzContext,
+    query: { unitId: string; status?: string; search?: string; limit: number; offset: number },
+  ): Promise<FixedAssetListResponse> {
+    await this.authz.assertFixedAssetList(actor);
+
+    const statusCandidate = query.status?.toUpperCase();
+    if (statusCandidate !== undefined && !isFixedAssetStatus(statusCandidate)) {
+      throw mapAccountingDomainError(new AccountingError('ACCOUNTING_FIXED_ASSET_STATUS_INVALID'));
+    }
+
+    const filter = { unitId: query.unitId, status: statusCandidate, search: query.search };
+    const total = await this.repository.count(filter);
+    const rows = await this.repository.list({
+      ...filter,
+      limit: query.limit,
+      offset: query.offset,
+    });
+
+    return {
+      items: rows.map((row) => toFixedAssetRegisterResponse(row, [])),
+      limit: query.limit,
+      offset: query.offset,
+      total,
+      totalPages: query.limit > 0 ? Math.ceil(total / query.limit) : 0,
+    };
   }
 
   async getByOperationalAsset(

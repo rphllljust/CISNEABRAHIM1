@@ -21514,3 +21514,67 @@ O caso `reports every required field that is missing` esperava 4 campos ausentes
 
 Permanecem abertos: listagem de registro de ativo imobilizado (o `GET` existente e consulta por ativo operacional) e o gating de `issuer/establishments`, que e decisao de produto, nao de engenharia.
 
+
+## MASTER 003 — QUARTA FRENTE: LISTAGEM DO REGISTRO DE ATIVO IMOBILIZADO — 2026-11-05
+
+Autorizacao: continuidade do objetivo MASTER 003 (rodada 4). Classificacao: interpretacao de engenharia sobre requisito confirmado.
+
+### Confirmacao do defeito
+
+`GET accounting/fixed-assets` **existia**, mas era `getByOperationalAsset`: exigia `operationalAssetId`. Era consulta por um ativo, nunca lista. O `PARK` nao estava errado — apenas incompleto: nao faltava endpoint, faltava a LEITURA de lista do mesmo recurso.
+
+Efeito no produto: o operador de contabilidade nao tinha como descobrir quais registros existem, nem como ligar um registro a um ativo sem ja saber o UUID.
+
+### Entregue
+
+**Backend**
+- `FixedAssetAccountingRepository.list` e `.count`, sobre `buildFixedAssetFilter` compartilhado — listagem e contagem atravessam a MESMA funcao, entao `total` nao tem como divergir do conjunto paginado.
+- `FixedAssetAccountingAccessService.list` com `FixedAssetListResponse` (`{ items, limit, offset, total, totalPages }`, mesmo contrato das demais listagens). Cada linha e serializada **sem movimentos** (`movements: []`): carregar historico por linha seria N+1 e a tela de lista nao o exibe.
+- `AccountingAccessAuthz.assertFixedAssetList` via `assertListAccess`. Nao usa `assertAccountingAction` porque nao existe registro unico para compor contexto — a listagem e anterior a escolha. Sem este gate, quem nao tem concessao receberia `{ items: [], total: 0 }` em vez de 403.
+- `isFixedAssetStatus` no dominio + `FIXED_ASSET_STATUS_INVALID` (400). Status desconhecido e RECUSADO, nunca virando filtro ignorado.
+- `parseFixedAssetListQuery` no controller: `unitId` obrigatorio, paginacao invalida recusada (nao coagida).
+
+**Contrato preservado.** A distincao e pela presenca de `operationalAssetId`, nao por rota nova:
+
+| Requisicao | Comportamento |
+| --- | --- |
+| `?unitId=X&operationalAssetId=Y` | registro DAQUELE ativo (anterior, intacto) |
+| `?unitId=X` | LISTA os registros da unidade (novo) |
+
+### Prova
+
+`fixed-asset-listing.integration.spec.ts` — **9/9 PASS** contra PostgreSQL real:
+
+- lista o registro criado pelo CAMINHO REAL do produto (nao por INSERT);
+- **nao carrega movimentos** — prova que a listagem nao faz consulta por linha;
+- **nega sem concessao** em vez de devolver lista vazia;
+- **recusa status fora do enum** com 400;
+- **nao vaza registro de outra unidade** (duas unidades, cada uma ve apenas a sua);
+- paginacao com total estavel, sem repetir nem pular;
+- lista vazia real = zero registros cadastrados;
+- conjunto de status fechado, rejeitando vizinhos parecidos (`registered`, `REGISTERED `).
+
+### Dois defeitos de SEED corrigidos durante a prova, e por que importa
+
+As primeiras execucoes falharam com `Catalog Http Exception` e depois `Asset Http Exception`. Nenhuma era defeito do codigo novo:
+
+1. As concessoes estavam todas no mesmo `resourceType`; cada grupo de acoes pertence a um tipo DIFERENTE (catalogo de tipos, ativo operacional, livro contabil). Concessao no tipo errado e uma concessao que o PDP nunca casa.
+2. Faltava `insertScopeRef(pool, { scopeType: 'UNIT', refId })`. A ancora de escopo e o que torna a unidade um alvo VALIDO de autorizacao; sem ela o PDP nao resolve o escopo e toda operacao sobre ativo responde negacao.
+
+Ambos foram corrigidos no SEED, sem tocar em regra de dominio e sem afrouxar assercao.
+
+### Gates medidos
+
+- API typecheck PASS.
+- ESLint API PASS.
+- **API unit 1905/1905 em 296 arquivos.**
+- Integracao focada `fixed-asset-listing` **9/9 PASS**.
+
+Observacao de gate: uma execucao intermediaria da suite API apresentou falha em `resolved-config.gate.spec.ts` (4 testes). Isolado passou 4/4 e a execucao seguinte da suite completa passou 1905/1905. E contencao de ambiente do host local, nao defeito do codigo — registrado em vez de omitido.
+
+### Estado dos PARK de referencia humana
+
+Todos os `HUMAN_LOOKUP_API_GAP` de superfície estao **FECHADOS**: centro de custo, categoria de despesa, periodo contabil e origem de tesouraria (frentes 1–3) e agora **registro de ativo imobilizado**.
+
+Permanece **PARK por decisao de produto**: `issuer/establishments` — backend completo, gating nao autorizado.
+

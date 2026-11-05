@@ -212,6 +212,12 @@ export function mapAccountingDomainError(error: unknown): AccountingHttpExceptio
         ACCOUNTING_ERROR_CODES.FIXED_ASSET_INVALID,
         'Fixed asset accounting operation is not allowed.',
       );
+    case 'ACCOUNTING_FIXED_ASSET_STATUS_INVALID':
+      return new AccountingHttpException(
+        HttpStatus.BAD_REQUEST,
+        ACCOUNTING_ERROR_CODES.FIXED_ASSET_STATUS_INVALID,
+        'Fixed asset status is not part of the known set.',
+      );
     case 'ACCOUNTING_DEPRECIATION_RATE_NOT_CONFIGURED':
       return new AccountingHttpException(
         HttpStatus.CONFLICT,

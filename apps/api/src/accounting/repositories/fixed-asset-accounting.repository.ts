@@ -21,6 +21,41 @@ const MOVEMENT_RETURNING = `
   reversed_movement_id, idempotency_key, created_at
 `;
 
+/**
+ * Recorte unico da listagem de imobilizado.
+ *
+ * Listagem e contagem atravessam esta MESMA funcao, entao `total` nunca pode divergir do
+ * conjunto paginado — o defeito de "12 resultados, total 3" nao tem como acontecer aqui.
+ *
+ * `search` casa `cost_center_code` (o unico campo textual de classificacao do registro) e o
+ * fragmento de identificador. Nenhum nome de coluna e nenhum fragmento de SQL vem do cliente:
+ * tudo e parametrizado.
+ */
+function buildFixedAssetFilter(input: {
+  unitId: string;
+  status?: string;
+  search?: string;
+}): { where: string; parameters: unknown[] } {
+  const conditions: string[] = [];
+  const parameters: unknown[] = [];
+
+  parameters.push(input.unitId);
+  conditions.push(`unit_id = $${parameters.length}`);
+
+  if (input.status) {
+    parameters.push(input.status);
+    conditions.push(`status::text = $${parameters.length}`);
+  }
+  if (input.search) {
+    parameters.push(`%${input.search}%`);
+    conditions.push(
+      `(cost_center_code ILIKE $${parameters.length} OR operational_asset_id::text ILIKE $${parameters.length})`,
+    );
+  }
+
+  return { where: `WHERE ${conditions.join(' AND ')}`, parameters };
+}
+
 @Injectable()
 export class FixedAssetAccountingRepository {
   constructor(private readonly databaseService: DatabaseService) {}
@@ -39,6 +74,48 @@ export class FixedAssetAccountingRepository {
       [registerId],
     );
     return result.rows[0] ?? null;
+  }
+
+  /**
+   * LISTAGEM de registros de ativo imobilizado.
+   *
+   * DEFEITO QUE ESTA FUNCAO FECHA: o `GET accounting/fixed-assets` existente e
+   * `getByOperationalAsset`, que EXIGE `operationalAssetId` — e consulta por um ativo, nao
+   * lista. Sem esta leitura o operador nao tinha como descobrir quais registros existem, e o
+   * `PARK: HUMAN_LOOKUP_API_GAP` do imobilizado permanecia legitimo.
+   *
+   * O recorte e por UNIDADE porque `acc.fixed_asset_registers.unit_id` e o escopo real do
+   * dado: nao se lista ativo imobilizado de outra unidade.
+   */
+  async list(input: {
+    unitId: string;
+    status?: string;
+    search?: string;
+    limit: number;
+    offset: number;
+  }): Promise<FixedAssetRegisterRow[]> {
+    const { where, parameters } = buildFixedAssetFilter(input);
+    const paged = [...parameters, input.limit, input.offset];
+
+    const result = await this.pool().query<FixedAssetRegisterRow>(
+      `SELECT ${REGISTER_RETURNING}
+         FROM acc.fixed_asset_registers
+         ${where}
+        ORDER BY created_at DESC, id DESC
+        LIMIT $${paged.length - 1} OFFSET $${paged.length}`,
+      paged,
+    );
+    return result.rows;
+  }
+
+  /** Total do MESMO recorte — mesma construcao de filtro, nenhuma contagem paralela. */
+  async count(input: { unitId: string; status?: string; search?: string }): Promise<number> {
+    const { where, parameters } = buildFixedAssetFilter(input);
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM acc.fixed_asset_registers ${where}`,
+      parameters,
+    );
+    return Number.parseInt(result.rows[0]?.total ?? '0', 10);
   }
 
   async findByOperationalAsset(unitId: string, operationalAssetId: string): Promise<FixedAssetRegisterRow | null> {
