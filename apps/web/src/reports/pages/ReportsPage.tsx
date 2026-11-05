@@ -51,6 +51,7 @@ export function ReportsPage() {
     state,
     selectedCatalogItem,
     setSelectedReportType,
+    setExportFormat,
     setFilters,
     retryPreview,
     generateExport,
@@ -67,14 +68,16 @@ export function ReportsPage() {
   const urlUnitId = searchParams.get('unitId');
   const filterUnitId = state.phase === 'ready' ? state.filters.unitId : undefined;
   const activeUnitId = urlUnitId ?? filterUnitId ?? '';
+  const supportsPeriod = selectedCatalogItem?.allowedFilters?.includes('period') ?? true;
+  const supportsUnit = selectedCatalogItem?.allowedFilters?.includes('unitId') ?? true;
 
   useEffect(() => {
-    if (state.phase !== 'ready' || urlUnitId === null) return;
+    if (state.phase !== 'ready' || urlUnitId === null || !supportsUnit) return;
     const normalized = urlUnitId || undefined;
     if (filterUnitId !== normalized) {
       setFilters({ unitId: normalized });
     }
-  }, [state.phase, urlUnitId, filterUnitId, setFilters]);
+  }, [state.phase, urlUnitId, filterUnitId, supportsUnit, setFilters]);
 
   if (state.phase === 'loading') {
     return (
@@ -159,7 +162,7 @@ export function ReportsPage() {
                 disabled={state.downloadBusy}
                 className="inline-flex min-h-8 items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-[13px] font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {state.downloadBusy ? 'Baixando…' : 'Baixar CSV'}
+                {state.downloadBusy ? 'Baixando…' : `Baixar ${exportJob.format}`}
               </button>
             ) : null}
             {exportJob && !exportJob.downloadReady && exportJob.status !== 'FAILED' && exportJob.status !== 'CANCELLED' ? (
@@ -197,7 +200,20 @@ export function ReportsPage() {
           </select>
         </ReportField>
 
-        <ReportField label="Período" htmlFor="report-period">
+        <ReportField label="Formato" htmlFor="report-format">
+          <select
+            id="report-format"
+            className={reportSelectClass}
+            value={state.exportFormat}
+            onChange={(event) => setExportFormat(event.target.value)}
+          >
+            {(selectedCatalogItem?.formats ?? ['CSV']).map((format) => (
+              <option key={format} value={format}>{format}</option>
+            ))}
+          </select>
+        </ReportField>
+
+        {supportsPeriod ? <ReportField label="Período" htmlFor="report-period">
           <select
             id="report-period"
             className={reportSelectClass}
@@ -209,14 +225,14 @@ export function ReportsPage() {
             <option value="quarter">Trimestre</option>
             <option value="year">Ano</option>
           </select>
-        </ReportField>
+        </ReportField> : null}
 
         {/*
           UNIDADE HUMANA: o filtro anterior era `<input type="text">` pedindo o identificador
           tecnico digitado a mao — o operador tinha que saber `unit-synthetic-homolog` de cor. O
           valor enviado a API continua sendo o identificador real; o que sai e a digitacao dele.
         */}
-        <ReportField label="Unidade" htmlFor="report-unit">
+        {supportsUnit ? <ReportField label="Unidade" htmlFor="report-unit">
           <select
             id="report-unit"
             className={reportSelectClass}
@@ -235,7 +251,7 @@ export function ReportsPage() {
           >
             <OperationalUnitOptions options={options} includeAllLabel="Todas as unidades" />
           </select>
-        </ReportField>
+        </ReportField> : null}
       </ReportToolbar>
 
       <ReportPreview
