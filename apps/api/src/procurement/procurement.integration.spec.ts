@@ -356,6 +356,28 @@ describe('Procurement core PostgreSQL integration', () => {
        WHERE r.supplier_purchase_order_id = $1`, [order.id],
     );
     const receiptLineId = receipt.rows[0]!.id;
+    // Procurement exposes the same posted receipt line the Inventory owner
+    // subsequently verifies, with no SKU inference or receiver PII leakage.
+    const evidence = await procurement.listPostedReceiptLines(checker, order.id, { limit: 1, offset: 0 });
+    expect(evidence).toMatchObject({
+      total: 1,
+      limit: 1,
+      offset: 0,
+      hasMore: false,
+      items: [{
+        receiptLineId,
+        orderLineId: order.lines[0]!.id,
+        receivedQuantity: '10.0000',
+        canCertify: true,
+      }],
+    });
+    expect(evidence.items[0]).not.toHaveProperty('receivedByIdentityId');
+    const makerEvidence = await procurement.listPostedReceiptLines(receiver, order.id);
+    expect(makerEvidence.items[0]?.canCertify).toBe(false);
+    await expect(procurement.listPostedReceiptLines(outsider, order.id))
+      .rejects.toMatchObject({ code: PROCUREMENT_ERROR_CODES.DENIED });
+    await expect(procurement.listPostedReceiptLines(checker, order.id, { limit: 101 }))
+      .rejects.toMatchObject({ code: PROCUREMENT_ERROR_CODES.VALIDATION_FAILED });
     const wh = await inventory.createWarehouse(checker, {
       unitId: UNIT, code: `WH-${crypto.randomUUID().slice(0, 8)}`, name: 'Received warehouse',
     });
