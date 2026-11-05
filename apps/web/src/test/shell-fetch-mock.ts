@@ -9,6 +9,8 @@ export const MOCK_UNIT_ID = 'UN-DEV-001';
 
 export type ShellFetchMockOptions = {
   probeAllowed?: boolean;
+  /** Grant the three Procure-to-Pay entry worklists for positive deep-link tests. */
+  enterpriseEntryAccess?: boolean;
   /**
    * Grants adicionais publicados por `GET /api/v1/me`, somados ao conjunto padrão.
    *
@@ -347,6 +349,43 @@ export function createShellFetchMock(options: ShellFetchMockOptions = {}) {
 
     if (pathname.startsWith('/api/v1/clients/') && (method === 'PATCH' || method === 'POST')) {
       return jsonResponse({ error: { code: 'CLIENT_DENIED', message: 'Forbidden.' } }, 403);
+    }
+
+    // Route gates now use the real list operation, not a synthetic record ID.
+    // Keep the shell fixture explicit: unknown authorizations must NOT look like
+    // transient 404 outages, otherwise the presentation cache never settles.
+    const enterpriseLists = new Set([
+      '/api/v1/inventory/items',
+      '/api/v1/procurement/requests',
+      '/api/v1/suppliers',
+    ]);
+    if (method === 'GET' && enterpriseLists.has(pathname)) {
+      if (options.enterpriseEntryAccess) {
+        return jsonResponse({ items: [], limit: 20, offset: 0, total: 0, totalPages: 0 });
+      }
+      return jsonResponse({ error: { code: 'AUTHZ_DENIED', message: 'Forbidden' } }, 403);
+    }
+
+    const otherEntryLists = new Set([
+      '/api/v1/commercial/proposals',
+      '/api/v1/commercial/purchase-orders',
+      '/api/v1/commercial/contracts',
+      '/api/v1/people',
+      '/api/v1/documents',
+      '/api/v1/finance/receivables',
+      '/api/v1/finance/payables',
+      '/api/v1/finance/treasury/accounts',
+      '/api/v1/finance/bank-statements',
+      '/api/v1/finance/cash-forecast',
+      '/api/v1/fiscal/documents',
+      '/api/v1/fiscal/periods',
+      '/api/v1/fiscal/tax/calculations',
+      '/api/v1/accounting/charts',
+      '/api/v1/payroll/periods',
+      '/api/v1/authz/access-admin/catalog',
+    ]);
+    if (method === 'GET' && otherEntryLists.has(pathname)) {
+      return jsonResponse({ error: { code: 'AUTHZ_DENIED', message: 'Forbidden' } }, 403);
     }
 
     return jsonResponse({ error: { code: 'UNKNOWN', message: 'Not found' } }, 404);
