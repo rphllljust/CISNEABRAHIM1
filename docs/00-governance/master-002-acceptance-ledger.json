@@ -1,0 +1,1585 @@
+{
+  "schema_version": 1,
+  "source": "docs/00-governance/master-002-annex-a.md",
+  "release_sha_at_registration": "c117e747aeffc7295f2c45823aa4fb23e6ee8fc2",
+  "criterion_count": 192,
+  "dimensions": [
+    "Experiência empresarial",
+    "Domínio/backend",
+    "Persistência PostgreSQL",
+    "Integração entre módulos",
+    "Segurança/auditoria",
+    "Testes/homologação"
+  ],
+  "note": "NOT_RUN indicates no criterion-specific homologation evidence has been recorded in this ledger; passing CI does not mean 192 criteria passed.",
+  "criteria": [
+    {
+      "id": "CE-01",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Workspace por função: usuários de Operações, Comercial, Financeiro, Fiscal, Contabilidade e Suprimentos visualizam filas e informações compatíveis com suas permissões.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-02",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Filas reais: as tarefas exibidas devem ser provenientes de consultas autoritativas aos módulos responsáveis. Não utilizar listas artificiais.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-03",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Priorização: pendências devem poder ser filtradas e ordenadas por situação, criticidade, responsável e prazo, quando esses atributos existirem no contrato empresarial.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-04",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Indicadores consistentes: as contagens apresentadas na Central devem corresponder aos registros consultáveis com o mesmo escopo e filtros.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-05",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Ações autorizadas: cada tarefa deve oferecer apenas operações permitidas pelo backend.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-06",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Navegação contextual: abrir uma pendência deve direcionar ao objeto empresarial correto, preservando contexto e filtros relevantes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-07",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Atualização transacional: após uma operação bem-sucedida, tarefa, contagem e situação devem ser atualizadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-08",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Exceções empresariais: bloqueadores e erros de processo devem ser apresentados com a origem e o encaminhamento aplicável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-09",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Visões salvas: filtros e configurações de trabalho devem poder ser recuperados pelo usuário autorizado.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CE-10",
+      "module": "CE",
+      "module_name": "Central Empresarial",
+      "requirement": "Resiliência: erro em um painel não pode ser apresentado como ausência de pendências nem inutilizar os demais painéis independentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-01",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Identidade: cada cliente possui identificação única, situação, unidade autorizada e dados cadastrais consistentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-02",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Página 360°: a página consolida informações cadastrais, comerciais, contratuais, operacionais, documentais e financeiras aplicáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-03",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Propostas: apresentar propostas vinculadas ao cliente, incluindo situação, versão e navegação para o registro original.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-04",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Contratos: apresentar contratos vigentes, encerrados e demais estados suportados, com vigência e referências corretas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-05",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "OS: apresentar Ordens de Serviço relacionadas e seus estados autoritativos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-06",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Histórico: disponibilizar histórico de eventos e mudanças rastreáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-07",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Faturamento: apresentar documentos ou operações de faturamento relacionadas por contratos públicos do domínio responsável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-08",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Recebíveis: apresentar títulos e situação financeira autorizada, sem misturar valores previstos, faturados e recebidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-09",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Relacionamentos: permitir navegação bidirecional entre cliente e objetos relacionados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CL-10",
+      "module": "CL",
+      "module_name": "Clientes 360",
+      "requirement": "Segurança: um usuário sem permissão não pode acessar dados do cliente por alteração direta de URL ou identificador.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-01",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Abertura: uma solicitação válida pode ser registrada com cliente, tipo, contexto e responsável conforme regras existentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-02",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Triagem: a solicitação pode avançar por estados suportados pelo domínio, com validação de transições.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-03",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Responsabilidade: alterações de responsável são persistidas e auditadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-04",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Prioridade: a prioridade é armazenada e utilizada nas filas, sem cálculo arbitrário no frontend.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-05",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "SLA: quando aplicável, prazos são derivados de regras configuradas e utilizados para identificar vencimentos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-06",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Aprovação: operações de aprovação ou rejeição respeitam capacidades, regras e justificativas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-07",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Conversão: quando autorizada, a conversão para proposta ou OS cria o objeto correto e preserva a origem.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-08",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Idempotência: solicitações repetidas de conversão não criam registros empresariais duplicados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-09",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Histórico: cada decisão e mudança de estado pode ser rastreada.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "SO-10",
+      "module": "SO",
+      "module_name": "Solicitações",
+      "requirement": "Exceções: erros de validação e bloqueadores devem ser exibidos sem alterar indevidamente o estado original.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-01",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Versionamento: revisões de propostas mantêm histórico e identidade da versão.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-02",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Integridade: versões emitidas ou aceitas não podem ser alteradas indevidamente como se fossem rascunhos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-03",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Ciclo de vida: emissão, revisão, aceite, rejeição, expiração e cancelamento respeitam as transições suportadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-04",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Aprovação: decisões exigem autorização e deixam evidência auditável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-05",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Condições econômicas: valores, moedas, itens e quantidades são persistidos sem perda de precisão.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-06",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Contratualização: a criação ou associação de contrato mantém referência à proposta ou origem comercial correspondente.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-07",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Vigência: períodos e estados contratuais são validados corretamente.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-08",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Execução: contratos apresentam as OS, serviços e medições relacionados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-09",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Compromissos: obrigações econômicas são obtidas de regras e contratos existentes, não de valores presumidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PC-10",
+      "module": "PC",
+      "module_name": "Propostas e Contratos",
+      "requirement": "Documentos: versões contratuais e anexos possuem vínculos e permissões corretos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-01",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Origem: a OS mantém referência à origem comercial, cliente, contrato e serviço quando aplicável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-02",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Catálogo: a OS preserva a identidade ou versão do serviço utilizada.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-03",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Ciclo de vida: transições seguem regras do backend, sem estados inventados pelo frontend.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-04",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Pré-condições: comandos como PREPARE e RELEASE somente aparecem como disponíveis quando suas condições são satisfeitas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-05",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Planejamento: recursos, pessoas, ativos, materiais e períodos são registrados por contratos de domínio válidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-06",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Disponibilidade: alocações não podem ignorar conflitos de recurso ou restrições existentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-07",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Execução: eventos operacionais e apontamentos possuem origem, responsável e histórico.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-08",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Custos: distinguir custos previstos, comprometidos, realizados e grandezas físicas, conforme semântica do domínio.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-09",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Consumo: consumo de materiais e recursos deve refletir movimentações e lançamentos reais quando aplicável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-10",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Medição: quantidades medidas devem possuir origem operacional, unidade e regra válida.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-11",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Aceite: aprovação ou rejeição de medição deve preservar responsabilidade, justificativa e auditoria.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-12",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Evidências: anexos e registros documentais devem ser relacionados às operações corretas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-13",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Faturamento: operações elegíveis devem originar faturamento sem duplicações.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-14",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Concorrência: comandos com `rowVersion` desatualizado devem produzir conflito controlado, sem persistência incorreta.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-15",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Sincronização: Worklist, Kanban, OS 360°, Workbench e Work Inbox devem apresentar estado consistente após comandos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "OS-16",
+      "module": "OS",
+      "module_name": "Ordens de Serviço",
+      "requirement": "Resultado econômico: informações financeiras exibidas devem preservar diferença entre custo, receita, faturamento, recebimento e contabilização.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-01",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Identidade: cada pessoa possui identificador único e dados mestres consistentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-02",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Qualificações: qualificações e habilitações podem ser consultadas e validadas quando exigidas pela operação.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-03",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Disponibilidade: a disponibilidade considera alocações, períodos e restrições documentadas no domínio.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-04",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Alocação: uma pessoa elegível pode ser vinculada a uma OS autorizada.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-05",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Conflitos: alocações incompatíveis devem ser impedidas ou tratadas conforme regra explícita.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-06",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Histórico: apresentar operações, alocações e situações históricas relacionadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-07",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Custos: custos de pessoal, quando disponíveis, devem vir das fontes autorizadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-08",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Documentos: documentos pessoais e profissionais exigem permissões adequadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-09",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Integração: as relações com OS e Folha devem utilizar identificadores e contratos existentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "PE-10",
+      "module": "PE",
+      "module_name": "Pessoas",
+      "requirement": "Privacidade: a interface não pode revelar informações pessoais sensíveis a usuários sem autorização.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-01",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Cadastro mestre: Frota reutiliza a identidade dos ativos físicos pertinentes, sem criar veículos duplicados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-02",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Classificação: apresentar tipo, situação e unidade operacional corretos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-03",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Disponibilidade: indicar capacidade de utilização com base no estado e nas alocações existentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-04",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Alocação: ativos elegíveis podem ser vinculados a operações autorizadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-05",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Conflitos: impedir utilização simultânea incompatível do mesmo recurso.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-06",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Motoristas: vínculos entre motorista, veículo e operação devem ser rastreáveis, quando aplicável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-07",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Manutenção: indisponibilidades relacionadas à manutenção devem ser respeitadas quando houver regras e registros autoritativos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-08",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Custos: custos operacionais devem ser vinculados ao recurso e à operação correspondente.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-09",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Histórico: apresentar utilização e OS relacionadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "AF-10",
+      "module": "AF",
+      "module_name": "Ativos e Frota",
+      "requirement": "Documentação: documentos e restrições relevantes devem respeitar vigência e autorização, quando aplicável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-01",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Domínio único: operações utilizam o ciclo de vida autoritativo de OS quando essa for sua origem.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-02",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Listagens: apresentar filtros, paginação, ordenação e contagens corretas no servidor.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-03",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Concorrência de consultas: respostas antigas não podem substituir dados de uma busca mais recente.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-04",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Programação: períodos, recursos e responsabilidades devem ser persistidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-05",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Despacho: comandos de despacho e liberação seguem estados e capacidades existentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-06",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Recursos: veículos, motoristas e ativos devem ser obtidos dos respectivos cadastros mestres.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-07",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Execução: registrar eventos operacionais e ocorrências quando suportados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-08",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Medição: quantidades e períodos executados devem preservar unidade, origem e regra contratual.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-09",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Custos: custos relacionados devem ser rastreáveis até o domínio responsável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-10",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Cobrança: operações elegíveis devem integrar o faturamento sem duplicidade.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-11",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Navegação: permitir ir da lista especializada à OS 360° e retornar preservando filtros.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "LT-12",
+      "module": "LT",
+      "module_name": "Locações e Transporte",
+      "requirement": "Consistência: a situação apresentada em Transporte, Locações e OS deve ser coerente.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-01",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Identidade: serviço e versão possuem identificadores estáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-02",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Rascunho: alterações de serviço ocorrem em estados editáveis permitidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-03",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Publicação: publicação valida requisitos e autorização.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-04",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Imutabilidade: versões publicadas não podem ser modificadas retroativamente de forma indevida.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-05",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Requisitos: materiais, qualificações, recursos e unidades de medida utilizam estruturas persistidas quando aplicáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-06",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Ordenação: o contrato de `sortOrder` deve aceitar e preservar corretamente valores válidos, inclusive zero quando definido como 0-based.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-07",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Relação com OS: a OS utiliza serviço e versão identificáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-08",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Histórico: versões anteriores continuam consultáveis conforme autorização.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-09",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Comparação: alterações entre versões podem ser identificadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CA-10",
+      "module": "CA",
+      "module_name": "Catálogo",
+      "requirement": "Validação: definições incompletas não podem ser publicadas quando desrespeitarem requisitos obrigatórios.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-01",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Captura: arquivo válido pode ser recebido e vinculado a uma identidade documental.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-02",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Metadados: tipo, classificação, proprietário, unidade e referências são persistidos conforme o modelo.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-03",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Versões: alterações documentais preservam histórico e identidade das versões.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-04",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Relacionamentos: documentos podem ser associados a Cliente, Contrato, OS, Pessoa ou Ativo quando autorizado.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-05",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Pesquisa: localizar documentos por filtros e metadados disponíveis, respeitando escopo de acesso.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-06",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Visualização: usuário autorizado pode consultar ou pré-visualizar documentos suportados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-07",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Download: downloads individuais exigem autorização no backend.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-08",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Download em lote: a operação deve filtrar permissões por documento e impedir exposição de arquivos indevidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-09",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Auditoria: operações de alteração, versão e acesso relevante devem ser rastreáveis conforme política de auditoria.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-10",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Segurança: impedir acesso direto não autorizado a objetos armazenados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-11",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "Integridade: arquivos, versões e referências não podem ficar inconsistentes após falhas de upload ou download.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "GD-12",
+      "module": "GD",
+      "module_name": "GED",
+      "requirement": "OCR: quando disponível, o OCR permanece complementar e não substitui o gerenciamento documental.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-01",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Requisição: registrar necessidade com origem, itens, quantidades e responsáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-02",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Aprovação: aplicar regras de autorização e estado.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-03",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Pedido: gerar ou registrar pedido com fornecedor, valores, moeda e condições consistentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-04",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Rastreabilidade: preservar vínculo entre requisição e pedido quando aplicável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-05",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Recebimento: registrar quantidades recebidas e diferenças em relação ao pedido.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-06",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Conferência: divergências de item, quantidade ou valor devem ser identificadas conforme os contratos disponíveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-07",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Estoque: entradas e saídas devem gerar movimentações persistidas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-08",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Reserva: materiais podem ser reservados para OS sem duplicar saldo.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-09",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Consumo: consumo operacional reduz ou movimenta disponibilidade conforme regras do estoque.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-10",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Saldo: saldo apresentado deve reconciliar com movimentos e reservas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-11",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Financeiro: obrigações a pagar devem preservar referência ao documento de origem.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-12",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Contabilidade: eventos econômicos devem ser encaminhados ao subledger ou mecanismo contábil aplicável.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-13",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Concorrência: movimentos simultâneos não podem provocar inconsistência ou consumo indevido.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CO-14",
+      "module": "CO",
+      "module_name": "Compras e Estoque",
+      "requirement": "Estornos: correções de movimentos devem preservar o histórico e respeitar regras de reversão.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-01",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Recebíveis: títulos originados de faturamento devem preservar referências e valores corretos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-02",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Pagáveis: obrigações originadas de compras, despesas e outros processos suportados devem manter rastreabilidade.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-03",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Vencimentos: situações de vencimento são derivadas de datas e regras autoritativas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-04",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Recebimento: registrar liquidação parcial ou integral conforme regras disponíveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-05",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Pagamento: impedir liquidações duplicadas ou sem autorização.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-06",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Tesouraria: movimentações devem preservar origem, conta e valor.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-07",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Conciliação: conciliar movimentos com registros bancários ou financeiros conforme os contratos existentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-08",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Moedas: preservar moeda original, valores decimais e conversões quando aplicáveis, sem arredondamento inadequado.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-09",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Fluxo de caixa: distinguir previsão de movimento efetivamente realizado.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-10",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Indicadores: saldos e totais devem ser calculados no escopo adequado e reconciliar com as fontes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-11",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Exceções: divergências e títulos pendentes devem poder ser investigados até sua origem.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-12",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Segurança: aplicar segregação de funções a operações sensíveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-13",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Auditoria: pagamentos, recebimentos, conciliações e reversões devem preservar responsáveis e histórico.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FI-14",
+      "module": "FI",
+      "module_name": "Financeiro",
+      "requirement": "Contabilidade: eventos financeiros com efeito contábil devem produzir as integrações previstas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-01",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Origem: documento fiscal mantém vínculo com a operação empresarial que o originou.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-02",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Situação: estados fiscais devem ser autoritativos, inclusive quando dependerem de integração externa.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-03",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Emissão: emissão é permitida somente quando os requisitos fiscais suportados forem satisfeitos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-04",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Retornos: respostas de provedores fiscais devem ser tratadas corretamente, inclusive falhas e rejeições.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-05",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Cancelamento: cancelamentos preservam regras, situação e histórico.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-06",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Competência: documentos e apurações possuem período fiscal consistente.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-07",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Cálculo: tributos devem utilizar regras versionadas e parâmetros fundamentados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-08",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Validação: cálculos ou obrigações sem suporte normativo e implementação válida não podem ser apresentados como corretos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-09",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Apuração: totais devem reconciliar com documentos elegíveis e respectivas regras.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-10",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Contabilidade: eventos com efeito contábil devem preservar referências para integração autorizada.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-11",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Auditoria: manter evidências e histórico de eventos fiscais.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FS-12",
+      "module": "FS",
+      "module_name": "Fiscal",
+      "requirement": "Segurança: impedir operações não autorizadas sobre documentos e competências.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-01",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Plano de contas: contas possuem identidade, classificação e situação válidas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-02",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Subledger: eventos econômicos utilizam contratos públicos dos módulos de origem.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-03",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Regras versionadas: a contabilização respeita regras válidas para a competência e o evento.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-04",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Partidas dobradas: lançamentos contabilizados devem estar balanceados segundo as regras monetárias aplicáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-05",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Diário: lançamentos devem possuir identidade, data, referência e histórico.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-06",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Razão: saldos por conta devem reconciliar com lançamentos válidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-07",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Balancete: totais devem reconciliar com o razão no mesmo escopo e período.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-08",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "DRE: valores devem ser derivados de lançamentos e classificações contábeis pertinentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-09",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Balanço: saldos devem refletir as contas e competências configuradas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-10",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Competências: períodos devem possuir estados e regras explícitas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-11",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Fechamento: impedir fechamento quando bloqueadores obrigatórios não estiverem resolvidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-12",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Bloqueio: lançamentos indevidos em competências fechadas devem ser rejeitados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-13",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Reversões: correções devem preservar rastreabilidade, evitando exclusão silenciosa de lançamentos contabilizados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-14",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Idempotência: reprocessamento de eventos não deve gerar contabilização duplicada.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-15",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Origem: deve ser possível navegar do lançamento até seu fato econômico original.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "CT-16",
+      "module": "CT",
+      "module_name": "Contabilidade",
+      "requirement": "Segurança: operações de fechamento e contabilização exigem autorização específica.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-01",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Competências: períodos de Folha possuem identidade e estado persistidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-02",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Colaboradores: vínculos devem utilizar cadastros autorizados, sem duplicar pessoas desnecessariamente.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-03",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Eventos: eventos de Folha devem possuir natureza, referência, competência e valores consistentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-04",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Cálculo: somente regras trabalhistas e contratuais implementadas e fundamentadas podem gerar valores definitivos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-05",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Processamento: transições seguem o ciclo de vida definido pelo domínio.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-06",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Aprovação: decisões de aprovação e fechamento respeitam permissões e pré-condições.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-07",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Histórico: alterações, processamentos e reversões deixam rastreabilidade.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-08",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Alocação: custos podem ser vinculados às operações quando houver base e contrato econômico válidos.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-09",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Financeiro: obrigações originadas da Folha mantêm referência aos processamentos correspondentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-10",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Contabilidade: efeitos contábeis utilizam eventos autorizados e regras versionadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-11",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Confidencialidade: informações remuneratórias e pessoais somente aparecem a usuários autorizados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "FL-12",
+      "module": "FL",
+      "module_name": "Folha",
+      "requirement": "Consistência: o mesmo processamento não pode gerar obrigações duplicadas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-01",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Origem: cada KPI possui fonte, regra, escopo e semântica identificáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-02",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Consistência: os números devem reconciliar com consultas autorizadas aos domínios responsáveis.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-03",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Paginação: totais globais não podem ser derivados apenas da quantidade de linhas carregadas na página.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-04",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Filtros: filtros por período, unidade, situação e demais dimensões suportadas devem funcionar no backend.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-05",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Drilldown: indicadores navegáveis devem apresentar os registros que compõem o valor, respeitando escopo e autorização.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-06",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Gráficos: visualizações devem utilizar dados verdadeiros e unidades corretas.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-07",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Comparações: períodos precisam ser comparados segundo critérios consistentes.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-08",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Atualização: quando aplicável, mostrar data de referência ou atualização dos dados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-09",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Exportação: exportar somente os registros e campos que o usuário pode consultar.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-10",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Desempenho: consultas analíticas devem usar paginação, índices ou projeções adequadas ao volume.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-11",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Estados: ausência de dados, erro de consulta e falta de autorização devem ser diferenciados.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-12",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Visões salvas: filtros e configurações persistentes devem ser recuperáveis conforme escopo.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-13",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Rastreabilidade: relatórios financeiros e contábeis devem preservar suas origens e definições.",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "BI-14",
+      "module": "BI",
+      "module_name": "Relatórios e BI",
+      "requirement": "Responsividade: gráficos, tabelas e filtros devem permanecer operáveis em desktop e mobile.",
+      "status": "NOT_RUN",
+      "evidence": []
+    }
+  ],
+  "journeys": [
+    {
+      "id": "J01",
+      "name": "Service-to-Cash",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "J02",
+      "name": "Procure-to-Pay",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "J03",
+      "name": "Resource-to-Service",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "J04",
+      "name": "Document-to-Evidence",
+      "status": "NOT_RUN",
+      "evidence": []
+    },
+    {
+      "id": "J05",
+      "name": "Record-to-Report",
+      "status": "NOT_RUN",
+      "evidence": []
+    }
+  ]
+}
