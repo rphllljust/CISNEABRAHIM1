@@ -167,6 +167,15 @@ export class ContractsRepository {
     return result.rows;
   }
 
+  /** Exact count using the worklist's existing authorized SQL predicate. */
+  async countContracts(whereClause: string, params: unknown[]): Promise<number> {
+    const result = await this.pool().query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM com.contracts WHERE ${whereClause}`,
+      params,
+    );
+    return Number(result.rows[0]?.total ?? '0');
+  }
+
   async listItems(contractId: string): Promise<ContractItemRow[]> {
     const result = await this.pool().query<ContractItemRow>(
       `SELECT
