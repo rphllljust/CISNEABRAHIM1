@@ -204,26 +204,44 @@ export class PeopleRepository {
     status: 'ACTIVE' | 'INACTIVE',
     actorIdentityId: string,
     reason?: string,
-  ): Promise<PersonRow | 'VERSION_CONFLICT' | 'INVALID_STATE' | null> {
+  ): Promise<PersonRow | 'VERSION_CONFLICT' | 'INVALID_STATE' | 'HAS_ACTIVE_ALLOCATIONS' | null> {
     const pool = this.pool();
-    const current = await pool.query<{ status: 'ACTIVE' | 'INACTIVE'; version: number }>(
-      `SELECT status, version FROM wrk.workforce_members WHERE id = $1`,
-      [personId],
-    );
-    const currentRow = current.rows[0];
-    if (!currentRow) {
-      return null;
-    }
-    if (currentRow.version !== expectedVersion) {
-      return 'VERSION_CONFLICT';
-    }
-    if (currentRow.status === status) {
-      return 'INVALID_STATE';
-    }
-
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      // The allocation transaction locks the same workforce member before
+      // insertion. This row lock makes deactivation and allocation serializable.
+      const locked = await client.query<{ status: 'ACTIVE' | 'INACTIVE'; version: number }>(
+        `SELECT status, version FROM wrk.workforce_members WHERE id = $1 FOR UPDATE`,
+        [personId],
+      );
+      const currentRow = locked.rows[0];
+      if (!currentRow) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      if (currentRow.version !== expectedVersion) {
+        await client.query('ROLLBACK');
+        return 'VERSION_CONFLICT';
+      }
+      if (currentRow.status === status) {
+        await client.query('ROLLBACK');
+        return 'INVALID_STATE';
+      }
+      if (status === 'INACTIVE') {
+        const active = await client.query<{ hasActive: boolean }>(
+          `SELECT EXISTS (
+             SELECT 1 FROM res.resource_allocations
+             WHERE workforce_member_id = $1
+               AND status = 'ACTIVE'::res.resource_allocation_status
+           ) AS "hasActive"`,
+          [personId],
+        );
+        if (active.rows[0]?.hasActive) {
+          await client.query('ROLLBACK');
+          return 'HAS_ACTIVE_ALLOCATIONS';
+        }
+      }
       const result = await client.query<{ id: string }>(
         `UPDATE wrk.workforce_members
          SET status = $3::wrk.workforce_member_status,
