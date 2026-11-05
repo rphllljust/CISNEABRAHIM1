@@ -828,12 +828,15 @@ export async function recordCollectionPromise(
   });
 }
 
+/** Entry authorization must ask the same real list operation as the workspace.
+ * A synthetic expense/budget ID returning 404 is never proof of list authority.
+ */
 export async function probeExpenseReadAccess(signal?: AbortSignal): Promise<boolean> {
-  return probeReadAccess(`/api/v1/finance/expenses/${BACKOFFICE_PROBE_ID}`, signal);
+  return probeList('/api/v1/finance/expenses?limit=1&offset=0', signal);
 }
 
 export async function probeBudgetReadAccess(signal?: AbortSignal): Promise<boolean> {
-  return probeReadAccess(`/api/v1/finance/budgets/${BACKOFFICE_PROBE_ID}`, signal);
+  return probeList('/api/v1/finance/budgets?limit=1&offset=0', signal);
 }
 
 export async function probeForecastReadAccess(signal?: AbortSignal): Promise<boolean> {
