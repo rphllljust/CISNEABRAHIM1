@@ -6,6 +6,7 @@ import { tokenStore } from '../auth/storage/token-store';
 import { resetTokenStoreForTests } from '../auth/storage/token-store';
 import { APP_HOME_HEADING, loginAndReachApp, LOGIN_FORM_HEADING } from '../test/login-ui-helpers';
 import { createShellFetchMock } from '../test/shell-fetch-mock';
+import { isReleaseModuleEnabled } from '../release-scope/feature-flags';
 
 describe('protected application shell', () => {
   beforeEach(() => {
@@ -39,8 +40,21 @@ describe('protected application shell', () => {
     expect(within(primaryNavigation).queryByRole('link', { name: /^estoque$/i })).not.toBeInTheDocument();
     expect(within(primaryNavigation).queryByRole('link', { name: /^folha$/i })).not.toBeInTheDocument();
     expect(within(primaryNavigation).queryByRole('link', { name: /^pessoas$/i })).not.toBeInTheDocument();
-    expect(within(primaryNavigation).queryByRole('link', { name: /^locações$/i })).not.toBeInTheDocument();
-    expect(within(primaryNavigation).queryByRole('link', { name: /^transporte$/i })).not.toBeInTheDocument();
+    // These are OS-backed HML candidates. The fixture authorizes OS listing,
+    // so their visibility must agree with the build surface, not a stale stub list.
+    for (const [moduleId, label] of [
+      ['rentals', /^locações$/i],
+      ['transport', /^transporte$/i],
+    ] as const) {
+      await waitFor(() => {
+        const link = within(primaryNavigation).queryByRole('link', { name: label });
+        if (isReleaseModuleEnabled(moduleId)) {
+          expect(link).toBeInTheDocument();
+        } else {
+          expect(link).not.toBeInTheDocument();
+        }
+      });
+    }
     await waitFor(() => {
       expect(within(primaryNavigation).getByRole('link', { name: /^alertas$/i })).toBeInTheDocument();
       expect(within(primaryNavigation).getByRole('link', { name: /^relatórios$/i })).toBeInTheDocument();
@@ -74,7 +88,7 @@ describe('protected application shell', () => {
   ])(
     'resolves deep link %s to its real module page',
     async (path, moduleHeading) => {
-      vi.stubGlobal('fetch', createShellFetchMock());
+      vi.stubGlobal('fetch', createShellFetchMock({ enterpriseEntryAccess: true }));
       tokenStore.setTokens('access-token', 'refresh-token');
       window.history.pushState({}, '', path);
       render(<App />);
