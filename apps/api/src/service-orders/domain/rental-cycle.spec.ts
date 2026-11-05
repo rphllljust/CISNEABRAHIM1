@@ -84,4 +84,27 @@ describe('rental cycle (sobreposição / devolução / atraso / concorrência)',
     expect(() => assertRentalNotTerminal('CHECKED_IN')).toThrow(RENTAL_CYCLE_ERROR_CODES.RENTAL_TERMINAL);
     expect(() => assertRentalNotTerminal('ACTIVE')).not.toThrow();
   });
+
+  it('validates absolute rental windows across timezone offsets and rejects malformed input', () => {
+    expect(windowsOverlap(
+      { startsOn: '2026-09-01T07:00:00-04:00', endsOn: '2026-09-01T09:00:00-04:00' },
+      { startsOn: '2026-09-01T11:30:00Z', endsOn: '2026-09-01T12:30:00Z' },
+    )).toBe(true);
+    expect(() => assertReservationWindowLocked({ startsOn: 'bad-date', endsOn: '2026-09-02' }))
+      .toThrow(RENTAL_CYCLE_ERROR_CODES.INVALID_RENTAL_WINDOW);
+    expect(() => assertReservationWindowLocked({ startsOn: '2026-09-03', endsOn: '2026-09-01' }))
+      .toThrow(RENTAL_CYCLE_ERROR_CODES.INVALID_RENTAL_WINDOW);
+  });
+
+  it('rejects precision loss and negative or nonnumeric meter readings', () => {
+    for (const finalReading of ['1500.00001', '-1500.0', 'not-a-number']) {
+      expect(() => assertCheckInReady({
+        ...OVERLAPPING, readings: { unitCode: 'KM', initialReading: '1200', finalReading },
+      })).toThrow(RENTAL_CYCLE_ERROR_CODES.METER_BACKWARD);
+    }
+    expect(() => assertCheckInReady({
+      ...OVERLAPPING, readings: { unitCode: 'KM', initialReading: '1000.1111', finalReading: '1000.1112' },
+    })).not.toThrow();
+  });
+
 });

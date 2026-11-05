@@ -67,7 +67,7 @@ function toScaled(value: string): bigint {
   const normalized = value.trim();
   // Meter readings are nonnegative decimals, stored exactly to 4 places.
   // Never truncate a fifth digit (which could silently change a return value).
-  if (!/^\\d+(?:\\.\\d{1,4})?$/.test(normalized)) {
+  if (!/^\d+(?:\.\d{1,4})?$/.test(normalized)) {
     throw new RentalCycleError(RENTAL_CYCLE_ERROR_CODES.METER_BACKWARD);
   }
   const [whole, fraction = ''] = normalized.split('.');

@@ -52,4 +52,16 @@ describe('rental-operations', () => {
       ),
     ).toThrow('ALLOCATION_OUTSIDE_PLANNED_WINDOW');
   });
+
+  it('rejects inverted contracted periods and invalid allocation timestamps', () => {
+    expect(() => assertRentalContractedPeriodPresent({
+      operationalStart: '2026-09-02T12:00:00Z',
+      operationalEnd: '2026-09-01T12:00:00Z',
+    })).toThrow('RENTAL_CONTRACTED_PERIOD_REQUIRED');
+    expect(() => assertRentalAllocationWithinContractedPeriod(
+      new Date('invalid'), new Date('2026-09-01T12:00:00Z'),
+      new Date('2026-09-01T08:00:00Z'), new Date('2026-09-02T08:00:00Z'),
+    )).toThrow('ALLOCATION_OUTSIDE_PLANNED_WINDOW');
+  });
+
 });

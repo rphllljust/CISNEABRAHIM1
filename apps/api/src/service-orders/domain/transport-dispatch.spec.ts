@@ -142,4 +142,24 @@ describe('transport dispatch domain', () => {
     // Planejamento permanece intocado após o dispatch.
     expect(plan).toMatchObject(makePlan());
   });
+
+  it('compares actual timestamps for trips with different timezone offsets', () => {
+    expect(tripWindowsOverlap(
+      { plannedDepartureAt: '2026-09-01T07:00:00-04:00', plannedArrivalAt: '2026-09-01T09:00:00-04:00' },
+      { plannedDepartureAt: '2026-09-01T11:30:00Z', plannedArrivalAt: '2026-09-01T12:30:00Z' },
+    )).toBe(true);
+    const active = recordDeparture(dispatchTrip(makePlan()), '2026-09-01T08:00:00-04:00');
+    expect(() => recordArrival(active, '2026-09-01T11:59:00Z', 'arrival-1'))
+      .toThrow(TRANSPORT_DISPATCH_ERROR_CODES.ARRIVAL_BEFORE_DEPARTURE);
+    expect(recordArrival(active, '2026-09-01T09:00:00-04:00', 'arrival-1').status).toBe('COMPLETED');
+  });
+
+  it('rejects invalid timestamps before dispatch or departure', () => {
+    expect(() => dispatchTrip(makePlan({
+      window: { plannedDepartureAt: 'invalid', plannedArrivalAt: '2026-09-01T18:00:00Z' },
+    }))).toThrow(TRANSPORT_DISPATCH_ERROR_CODES.INVALID_DISPATCH_STEP);
+    expect(() => recordDeparture(dispatchTrip(makePlan()), 'invalid'))
+      .toThrow(TRANSPORT_DISPATCH_ERROR_CODES.INVALID_DISPATCH_STEP);
+  });
+
 });

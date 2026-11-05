@@ -78,4 +78,16 @@ describe('transport-operations', () => {
       ),
     ).toThrow('ALLOCATION_OUTSIDE_PLANNED_WINDOW');
   });
+
+  it('rejects malformed schedules and an invalid reservation interval', () => {
+    expect(() => assertTransportScheduledWindowPresent({
+      operationalStart: '2026-10-02T12:00:00Z',
+      operationalEnd: '2026-10-01T12:00:00Z',
+    })).toThrow('TRANSPORT_SCHEDULED_WINDOW_REQUIRED');
+    expect(() => assertTransportAllocationWithinScheduledWindow(
+      new Date('invalid'), new Date('2026-10-01T12:00:00Z'),
+      new Date('2026-10-01T08:00:00Z'), new Date('2026-10-02T08:00:00Z'),
+    )).toThrow('ALLOCATION_OUTSIDE_PLANNED_WINDOW');
+  });
+
 });
