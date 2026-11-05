@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { REPORT_ERROR_CODES } from '../errors/report-error-codes';
-import { REPORT_TYPES } from '../domain/report-type';
+import { REPORT_TYPES, reportFilterPolicy } from '../domain/report-type';
 import { ReportExportAccessService } from './report-export-access.service';
 
 const actor = { identityId: 'user-1', sessionId: 'session-1' };
@@ -47,6 +47,19 @@ describe('Report-to-Record export authorization after grant revocation', () => {
   it('does not publish a list of historical reports when the actor has no current report grant', async () => {
     const { service, exports } = setup();
     await expect(service.listExports(actor, {}))
+      .rejects.toMatchObject({ code: REPORT_ERROR_CODES.ACCESS_DENIED });
+    expect(exports.listForActor).not.toHaveBeenCalled();
+  });
+
+  it('rejects explicit filters for reports no longer granted and never queries their export rows', async () => {
+    const { service, exports, authz } = setup();
+    const allowedAction = reportFilterPolicy(REPORT_TYPES.ServiceOrdersByPeriod).requiredCapability;
+    authz.findActiveGrants.mockImplementation(
+      async (_identityId: string, action: string) => (
+        action === allowedAction ? [{ identity_id: actor.identityId }] : []
+      ),
+    );
+    await expect(service.listExports(actor, { reportType: REPORT_TYPES.FinancialAging }))
       .rejects.toMatchObject({ code: REPORT_ERROR_CODES.ACCESS_DENIED });
     expect(exports.listForActor).not.toHaveBeenCalled();
   });
