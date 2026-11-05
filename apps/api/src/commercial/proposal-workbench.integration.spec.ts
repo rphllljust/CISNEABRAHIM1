@@ -260,6 +260,32 @@ describe('Proposal commercial workbench — fila, revisoes, cadeia e prontidao',
       search: issued.proposal.proposalCode,
     });
     expect(byCode.items).toHaveLength(1);
+
+    // PostgreSQL-authoritative total, not page length: the Client 360 can
+    // drill from its exact count to every authorized proposal.
+    const first = await proposalsAccess.list(actor, {
+      limit: 1, offset: 0, clientId: client.id,
+    });
+    expect(first.total).toBe(2);
+    expect(first.items).toHaveLength(1);
+    expect(first.hasMore).toBe(true);
+    const last = await proposalsAccess.list(actor, {
+      limit: 1, offset: 1, clientId: client.id,
+    });
+    expect(last.total).toBe(2);
+    expect(last.items).toHaveLength(1);
+    expect(last.hasMore).toBe(false);
+    const beyond = await proposalsAccess.list(actor, {
+      limit: 1, offset: 2, clientId: client.id,
+    });
+    expect(beyond.total).toBe(2);
+    expect(beyond.items).toHaveLength(0);
+    const filtered = await proposalsAccess.list(actor, {
+      limit: 1, offset: 0, clientId: client.id,
+      status: PROPOSAL_VERSION_STATUSES.Issued,
+    });
+    expect(filtered.total).toBe(1);
+    expect(filtered.items).toHaveLength(1);
   });
 
   it('ordena por allowlist e rejeita ordenacao fora da lista', async () => {
