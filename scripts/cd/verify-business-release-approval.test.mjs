@@ -36,7 +36,8 @@ test('CD workflow checks independent business authority before Release ready and
   const ghcr = release.indexOf('  publish:');
   assert.ok(approval > 0 && ready > approval && ghcr > ready, 'business gate must run first');
   assert.match(release, /CISNE_BUSINESS_APPROVED_SHA:\s*\$\{\{ vars\.CISNE_BUSINESS_APPROVED_SHA \}\}/);
-  assert.match(release, /run: node scripts\/cd\/verify-business-release-approval\.mjs/);
+  assert.match(release, /node scripts\/cd\/verify-business-release-approval\.mjs/);
+  assert.match(release, /node scripts\/cd\/verify-owner-business-release-approval\.mjs/);
   const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.ok(ci.includes('scripts/cd/verify-business-release-approval.test.mjs'), 'CI must enforce this contract');
 });
