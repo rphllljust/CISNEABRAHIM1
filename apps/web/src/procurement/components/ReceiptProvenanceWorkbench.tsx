@@ -119,6 +119,27 @@ export function ReceiptProvenanceWorkbench({
     return () => controller.abort();
   }, [unitId, itemSearch, warehouseSearch]);
 
+  useEffect(() => {
+    if (!receiptLineId) {
+      setEvidence({ phase: 'none' });
+      return;
+    }
+    const controller = new AbortController();
+    setEvidence({ phase: 'loading' });
+    void getReceiptProvenance(receiptLineId, controller.signal).then(
+      (data) => {
+        if (!controller.signal.aborted) setEvidence({ phase: 'ready', data });
+      },
+      (reason: unknown) => {
+        if (!controller.signal.aborted) {
+          setEvidence(reason instanceof BackofficeApiError && reason.kind === 'denied'
+            ? { phase: 'denied' } : { phase: 'error' });
+        }
+      },
+    );
+    return () => controller.abort();
+  }, [receiptLineId, evidenceRevision]);
+
   const rows = receiptState.phase === 'ready' ? receiptState.page.items : [];
   const selected = rows.find((line) => line.receiptLineId === receiptLineId) ?? null;
   const eligible = rows.filter((line) => line.canCertify);
