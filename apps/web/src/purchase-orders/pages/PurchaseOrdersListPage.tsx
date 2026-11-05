@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RELATION_SCOPE_KEYS, useRelationScope } from '../../enterprise-object';
 import {
@@ -94,6 +94,7 @@ import {
   ModulePrimaryLink,
 } from '../../ui/module-layout';
 import { cn } from '../../ui/utils/cn';
+import { hasActiveWorklistFilters } from '../../ui/worklist-filter-state';
 
 const PAGE_SIZE = 20;
 
@@ -153,6 +154,7 @@ export function PurchaseOrdersListPage() {
   const [issueFrom, setIssueFrom] = useState('');
   const [issueTo, setIssueTo] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const requestGeneration = useRef(0);
 
   /*
    * CONTEXT REGION — o pedido selecionado, com o detalhe REAL.
@@ -197,6 +199,24 @@ export function PurchaseOrdersListPage() {
     () => advancedFilterFromGroup(advancedGroup, PURCHASE_ORDER_FILTER_SPECS),
     [advancedGroup],
   );
+
+  /** Zera todos os criterios, incluindo o recorte profundo e o filtro avancado. */
+  const clearFilters = useCallback(() => {
+    setClientFilter('');
+    setUnitFilter('');
+    setStatusFilter('');
+    setSearchInput('');
+    setSearch('');
+    setIssueFrom('');
+    setIssueTo('');
+    setUrlParams((previous) => {
+      const params = new URLSearchParams(previous);
+      params.delete('clientId');
+      params.delete(FILTER_PARAM);
+      params.delete('offset');
+      return params;
+    }, { replace: true });
+  }, [setUrlParams]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -260,6 +280,7 @@ export function PurchaseOrdersListPage() {
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
+      const generation = ++requestGeneration.current;
       setListState({ phase: 'loading' });
       try {
         const response = await listPurchaseOrders(
@@ -276,6 +297,7 @@ export function PurchaseOrdersListPage() {
           },
           signal,
         );
+        if (signal?.aborted || generation !== requestGeneration.current) return;
         setListState({
           phase: 'ready',
           items: response.items,
@@ -286,6 +308,7 @@ export function PurchaseOrdersListPage() {
           summary: response.summary ?? null,
         });
       } catch (error) {
+        if (signal?.aborted || generation !== requestGeneration.current) return;
         if (error instanceof PurchaseOrdersApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
@@ -352,7 +375,15 @@ export function PurchaseOrdersListPage() {
 
   const { items, offset, hasMore, summary } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
-  const hasActiveFilters = Boolean(clientFilter.trim() || unitFilter.trim());
+  const hasActiveFilters = hasActiveWorklistFilters(
+    clientFilter,
+    unitFilter,
+    statusFilter,
+    search,
+    issueFrom,
+    issueTo,
+    urlParams.get(FILTER_PARAM),
+  );
 
   /**
    * LEITURA DA CARTEIRA — derivada exclusivamente das linhas que a propria pagina recebeu.
@@ -455,7 +486,7 @@ export function PurchaseOrdersListPage() {
         ~90px que a grade pagava em toda dobra.
       */}
       <div className="cisne-query-deck mb-2">
-      <WorkspaceToolbar
+      <WorkspaceToolbar layout="stacked"
         views={
           <div data-region="saved-view-surface">
             <DynamicSavedViewsBar
@@ -526,7 +557,7 @@ export function PurchaseOrdersListPage() {
           </WorklistField>
 
           <WorklistField label="Cliente" htmlFor="po-client-search" grow>
-            <span className="min-w-[22rem] flex-1">
+            <span className="w-full min-w-0 flex-1 sm:min-w-[16rem]">
             <HumanLookupField
               variant="compact"
               label="Cliente"
@@ -549,22 +580,7 @@ export function PurchaseOrdersListPage() {
               placeholder="Filtrar por unidade"
             />
           </WorklistField>
-          <WorklistClearFilters
-            visible={hasActiveFilters}
-            onClick={() => {
-              setClientFilter('');
-              setUnitFilter('');
-              setStatusFilter('');
-              setSearchInput('');
-              setSearch('');
-              setIssueFrom('');
-              setIssueTo('');
-              const params = new URLSearchParams(urlQuery);
-              params.delete(FILTER_PARAM);
-              params.delete('offset');
-              setUrlParams(params, { replace: true });
-            }}
-          />
+          <WorklistClearFilters visible={hasActiveFilters} onClick={clearFilters} />
         </div>
       </WorkspaceToolbar>
 
@@ -610,18 +626,12 @@ export function PurchaseOrdersListPage() {
                 }
                 description={
                   hasActiveFilters
-                    ? 'Ajuste o cliente ou a unidade, ou limpe os filtros para ver a carteira completa.'
+                    ? 'Revise os critérios aplicados ou limpe os filtros para ver a carteira completa.'
                     : 'Os pedidos chegam ao CISNE registrados pelos clientes; quando o primeiro for emitido ele aparece aqui.'
                 }
                 action={
                   hasActiveFilters ? (
-                    <WorklistClearFilters
-                      visible
-                      onClick={() => {
-                        setClientFilter('');
-                        setUnitFilter('');
-                      }}
-                    />
+                    <WorklistClearFilters visible onClick={clearFilters} />
                   ) : capabilities.canCreate ? (
                     <ModulePrimaryLink to="/app/purchase-orders/new">Novo pedido</ModulePrimaryLink>
                   ) : null
