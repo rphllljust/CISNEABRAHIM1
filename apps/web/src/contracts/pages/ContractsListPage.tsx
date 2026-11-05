@@ -84,6 +84,7 @@ import {
   UnitScopeLabel,
 } from '../../ui/module-layout';
 import { cn } from '../../ui/utils/cn';
+import { hasActiveWorklistFilters } from '../../ui/worklist-filter-state';
 
 const PAGE_SIZE = 20;
 
@@ -187,6 +188,23 @@ export function ContractsListPage() {
     [advancedGroup],
   );
 
+  /** Limpa todos os recortes em uma unica atualizacao da URL, inclusive clientId. */
+  const clearFilters = useCallback(() => {
+    setUnitFilter('');
+    setStatusFilter('');
+    setSearchInput('');
+    setSearch('');
+    setEffectiveFrom('');
+    setEffectiveTo('');
+    setUrlParams((previous) => {
+      const params = new URLSearchParams(previous);
+      params.delete('clientId');
+      params.delete(FILTER_PARAM);
+      params.delete('offset');
+      return params;
+    }, { replace: true });
+  }, [setUrlParams]);
+
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
       const generation = ++requestGeneration.current;
@@ -285,7 +303,15 @@ export function ContractsListPage() {
 
   const { items, offset, hasMore, total } = listState;
   const pageNumber = Math.floor(offset / PAGE_SIZE) + 1;
-  const hasActiveFilters = Boolean(clientFilter.trim() || unitFilter.trim());
+  const hasActiveFilters = hasActiveWorklistFilters(
+    clientFilter,
+    unitFilter,
+    statusFilter,
+    search,
+    effectiveFrom,
+    effectiveTo,
+    urlParams.get(FILTER_PARAM),
+  );
   const now = new Date();
 
   /**
@@ -398,7 +424,7 @@ export function ContractsListPage() {
         sem cartao de respiro largo empurrando a grade para fora da primeira dobra.
       */}
       <div className="cisne-query-deck mb-2">
-      <WorkspaceToolbar
+      <WorkspaceToolbar layout="stacked"
         views={
             <div data-region="saved-view-surface">
               {/*
@@ -432,7 +458,7 @@ export function ContractsListPage() {
           no dono da barra: o wrapper reserva a largura minima e impede o encolhimento.
         */}
         <WorklistField label="Cliente" htmlFor="contract-client-search" grow>
-          <span className="min-w-[24rem] flex-1 [&>div>span]:shrink-0 [&>div>span]:whitespace-nowrap">
+          <span className="w-full min-w-0 flex-1 sm:min-w-[16rem]">
             <HumanLookupField
               label="Cliente"
               htmlFor="contract-client-search"
@@ -517,19 +543,7 @@ export function ContractsListPage() {
 
         <WorklistClearFilters
           visible={hasActiveFilters}
-          onClick={() => {
-            setClientFilter('');
-            setUnitFilter('');
-            setStatusFilter('');
-            setSearchInput('');
-            setSearch('');
-            setEffectiveFrom('');
-            setEffectiveTo('');
-            const params = new URLSearchParams(urlQuery);
-            params.delete(FILTER_PARAM);
-            params.delete('offset');
-            setUrlParams(params, { replace: true });
-          }}
+          onClick={clearFilters}
         />
       </WorkspaceToolbar>
 
@@ -587,18 +601,12 @@ export function ContractsListPage() {
               }
               description={
                 hasActiveFilters
-                  ? 'Ajuste o cliente ou a unidade para ver outros contratos.'
+                  ? 'Revise os critérios aplicados ou limpe os filtros para ver outros contratos.'
                   : 'Os contratos formalizam a vigência comercial com o cliente: duração, status e unidade. Quando o primeiro for registrado, ele aparece aqui.'
               }
               action={
                 hasActiveFilters ? (
-                  <WorklistClearFilters
-                    visible
-                    onClick={() => {
-                      setClientFilter('');
-                      setUnitFilter('');
-                    }}
-                  />
+                  <WorklistClearFilters visible onClick={clearFilters} />
                 ) : showCreateInEmptyState ? (
                   <ModulePrimaryLink to="/app/contracts/new">Novo contrato</ModulePrimaryLink>
                 ) : null
