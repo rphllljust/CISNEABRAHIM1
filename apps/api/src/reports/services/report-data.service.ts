@@ -194,30 +194,39 @@ export class ReportDataService {
   private buildTabularQuery(reportType: ReportType, filters: ReportFilters, scope: ScopeSqlPredicate) {
     const filterParts: string[] = [scope.clause === 'TRUE' ? 'TRUE' : scope.clause];
     const params: unknown[] = [...scope.params];
+    // Each read contract owns its SQL columns. Never rewrite the authorization
+    // predicate after it has been qualified; that previously produced
+    // invalid aliases such as so.so.unit_id under scoped grants.
+    const ownerAlias = reportType === REPORT_TYPES.Measurements ? 'm'
+      : reportType === REPORT_TYPES.Billing ? 'br'
+      : reportType === REPORT_TYPES.Receipts ? 'bd'
+      : reportType === REPORT_TYPES.AssetUtilization ? 'a'
+      : 'so';
+    const clientAlias = reportType === REPORT_TYPES.Measurements ? 'so' : ownerAlias;
 
     if (filters.from) {
       params.push(new Date(filters.from));
-      filterParts.push(`created_at >= $${params.length}`);
+      filterParts.push(`${ownerAlias}.created_at >= ${params.length}`);
     }
     if (filters.to) {
       params.push(new Date(filters.to));
-      filterParts.push(`created_at < $${params.length}`);
+      filterParts.push(`${ownerAlias}.created_at < ${params.length}`);
     }
     if (filters.unitId) {
       params.push(filters.unitId);
-      filterParts.push(`unit_id = $${params.length}`);
+      filterParts.push(`${ownerAlias}.unit_id = ${params.length}`);
     }
     if (filters.clientId) {
       params.push(filters.clientId);
-      filterParts.push(`client_id = $${params.length}::uuid`);
+      filterParts.push(`${clientAlias}.client_id = ${params.length}::uuid`);
     }
     if (filters.serviceDefinitionId) {
       params.push(filters.serviceDefinitionId);
-      filterParts.push(`service_definition_id = $${params.length}::uuid`);
+      filterParts.push(`${ownerAlias}.service_definition_id = ${params.length}::uuid`);
     }
     if (filters.status) {
       params.push(filters.status);
-      filterParts.push(`status = $${params.length}`);
+      filterParts.push(`${ownerAlias}.status = ${params.length}`);
     }
 
     const whereClause = filterParts.join(' AND ');
@@ -267,7 +276,7 @@ export class ReportDataService {
                                 a.unit_id AS "unitId",
                                 a.allocation_status::text AS "allocationStatus",
                                 COALESCE(so.order_number, '') AS "serviceOrderNumber"`,
-          whereClause: whereClause.replace(/\bunit_id\b/g, 'a.unit_id'),
+          whereClause,
           orderBy: 'a.asset_code ASC',
           params,
         };
@@ -279,7 +288,7 @@ export class ReportDataService {
                                 m.status::text AS status,
                                 m.unit_id AS "unitId",
                                 m.submitted_at AS "submittedAt"`,
-          whereClause: whereClause.replace(/\bunit_id\b/g, 'm.unit_id').replace(/\bclient_id\b/g, 'so.client_id'),
+          whereClause,
           orderBy: 'm.submitted_at DESC NULLS LAST',
           params,
         };
@@ -291,7 +300,7 @@ export class ReportDataService {
                                 br.client_legal_name_snapshot AS "clientName",
                                 br.status::text AS status,
                                 br.prepared_at AS "preparedAt"`,
-          whereClause: whereClause.replace(/\bunit_id\b/g, 'br.unit_id').replace(/\bclient_id\b/g, 'br.client_id'),
+          whereClause,
           orderBy: 'br.prepared_at DESC NULLS LAST',
           params,
         };
@@ -303,7 +312,7 @@ export class ReportDataService {
                                 bd.status::text AS status,
                                 bd.due_date AS "dueDate",
                                 bd.total_amount::text AS amount`,
-          whereClause: whereClause.replace(/\bunit_id\b/g, 'bd.unit_id').replace(/\bclient_id\b/g, 'bd.client_id'),
+          whereClause,
           orderBy: 'bd.due_date ASC NULLS LAST',
           params,
         };
@@ -327,37 +336,31 @@ export class ReportDataService {
       case REPORT_TYPES.ServiceOrdersByClient:
       case REPORT_TYPES.ServiceOrdersByService:
       case REPORT_TYPES.ServiceOrdersOverdue:
-        return this.scopeFor(actor, AUTHZ_ACTIONS.ServiceOrdersServiceOrderList, AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder);
+        return this.scopeFor(actor, AUTHZ_ACTIONS.ServiceOrdersServiceOrderList, AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder, 'so');
       case REPORT_TYPES.AssetUtilization:
-        return this.scopeFor(actor, AUTHZ_ACTIONS.ResourcesAssetList, AUTHZ_RESOURCE_TYPES.ResourcesAsset);
-      case REPORT_TYPES.Measurements:
         return prefixAlias(
-          await this.scopeFor(
-            actor,
-            AUTHZ_ACTIONS.MeasurementsMeasurementRead,
-            AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
-            'so',
-          ),
+          await this.scopeFor(actor, AUTHZ_ACTIONS.ResourcesAssetList, AUTHZ_RESOURCE_TYPES.ResourcesAsset),
+          'a',
+        );
+      case REPORT_TYPES.Measurements:
+        return this.scopeFor(
+          actor,
+          AUTHZ_ACTIONS.MeasurementsMeasurementRead,
+          AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
           'so',
         );
       case REPORT_TYPES.Billing:
-        return prefixAlias(
-          await this.scopeFor(
-            actor,
-            AUTHZ_ACTIONS.BillingBillingRecordRead,
-            AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
-            'br',
-          ),
+        return this.scopeFor(
+          actor,
+          AUTHZ_ACTIONS.BillingBillingRecordRead,
+          AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
           'br',
         );
       case REPORT_TYPES.Receipts:
-        return prefixAlias(
-          await this.scopeFor(
-            actor,
-            AUTHZ_ACTIONS.BillingBillingRecordRead,
-            AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
-            'bd',
-          ),
+        return this.scopeFor(
+          actor,
+          AUTHZ_ACTIONS.BillingBillingRecordRead,
+          AUTHZ_RESOURCE_TYPES.ServiceOrdersServiceOrder,
           'bd',
         );
       case REPORT_TYPES.OperationalProductivity:
