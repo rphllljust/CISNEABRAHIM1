@@ -88,14 +88,16 @@ describe('Procure-to-Pay receipt provenance workbench', () => {
     await user.type(screen.getByRole('textbox', { name: /Quantidade a vincular/i }), '6');
     await user.click(screen.getByRole('button', { name: 'Certificar origem no Estoque' }));
 
-    await waitFor(() => expect(bindReceiptProvenance).toHaveBeenCalledWith({
+    await waitFor(() => expect(bindReceiptProvenance).toHaveBeenCalledTimes(1));
+    const certification = vi.mocked(bindReceiptProvenance).mock.calls[0]?.[0];
+    expect(certification).toMatchObject({
       receiptLineId: receiptId,
       inventoryItemId: skuId,
       warehouseId,
       unitId: 'unit-real',
       allocatedQuantity: '6',
-      idempotencyKey: expect.any(String),
-    }));
+    });
+    expect(certification?.idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
     expect(screen.getByText(/Nenhuma movimentação de saldo foi criada/)).toBeInTheDocument();
     expect(postStockMovement).not.toHaveBeenCalled();
     await waitFor(() => expect(getReceiptProvenance).toHaveBeenCalledTimes(2));
