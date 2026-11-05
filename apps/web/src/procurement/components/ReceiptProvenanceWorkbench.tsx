@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { BackofficeApiError } from '../../financial-ui/enterprise-api';
 import {
@@ -124,7 +124,7 @@ export function ReceiptProvenanceWorkbench({
     setError(null);
   }
 
-  async function confirm(event: React.FormEvent<HTMLFormElement>) {
+  async function confirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected?.canCertify || !inventoryItemId || !warehouseId || busy ||
         !/^(?:0|[1-9]\d*)(?:\.\d{1,4})?$/.test(quantity) ||
