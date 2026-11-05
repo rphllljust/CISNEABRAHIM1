@@ -41,6 +41,7 @@ export function DynamicContextDrawer({
   children,
 }: DynamicContextDrawerProps): React.ReactElement | null {
   const panelRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const dock = useWorkspaceContextDock(open);
 
   /*
@@ -66,17 +67,48 @@ export function DynamicContextDrawer({
       if (event.key === 'Escape') {
         event.stopPropagation();
         onCloseRef.current();
+        return;
+      }
+      // Modal drawers must keep keyboard users inside their actionable context.
+      // A docked desktop region is not modal and must not trap focus.
+      if (event.key !== 'Tab' || dock) return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const candidates = Array.from(panel.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )).filter((item) => item.tabIndex >= 0);
+      if (candidates.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+      const first = candidates[0]!;
+      const last = candidates[candidates.length - 1]!;
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || active === panel || !panel.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !panel.contains(active))) {
+        event.preventDefault();
+        first.focus();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [open]);
+  }, [open, dock]);
 
-  /* FOCO ENTRA NO PAINEL ao abrir — `aria-modal` so e honesto se o foco estiver dentro dele. */
+  /* Modal: focus enters the panel, then returns to the worklist trigger on close. */
   useEffect(() => {
-    if (open && !dock) {
-      panelRef.current?.focus();
-    }
+    if (!open || dock) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    panelRef.current?.focus();
+    return () => {
+      const trigger = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (trigger?.isConnected) trigger.focus();
+    };
   }, [open, dock]);
 
   if (!open) {
