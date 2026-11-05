@@ -98,6 +98,15 @@ export class ReportExportAccessService {
 
     const contract = this.buildContract(actor, reportType, filters);
     const estimatedRows = await this.data.countRows(actor, reportType, contract.filters);
+    if (estimatedRows > REPORT_POLICY.maxRows) {
+      // Reject before scheduling: a successful artifact must contain the complete
+      // authorized result set, never a silently clipped first 50,000 rows.
+      throw new ReportHttpException(
+        400,
+        REPORT_ERROR_CODES.INVALID_REQUEST,
+        `Report exceeds the ${REPORT_POLICY.maxRows} row export limit. Narrow the filters.`,
+      );
+    }
 
     const exportRow = await this.exports.createExport({
       reportType,
