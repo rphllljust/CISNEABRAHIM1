@@ -85,14 +85,14 @@ describe('ReportGenerationService', () => {
     };
     const service = new ReportGenerationService(exports as never, data as never, objectStorage as never);
     await service.generateExport('export-xlsx', { identityId: 'a', sessionId: 's' });
-    expect(objectStorage.putObject).toHaveBeenCalledWith(
-      expect.objectContaining({
-        storageKey: expect.stringMatching(/\\.xlsx$/),
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        buffer: expect.any(Buffer),
-      }),
-    );
-    const buffer = objectStorage.putObject.mock.calls[0]![0].buffer as Buffer;
+    expect(objectStorage.putObject).toHaveBeenCalledTimes(1);
+    const stored = objectStorage.putObject.mock.calls[0]?.[0];
+    expect(stored).toBeDefined();
+    if (!stored) throw new Error('REPORT_EXPORT_STORAGE_NOT_CALLED');
+    expect(stored.storageKey).toMatch(/\.xlsx$/);
+    expect(stored.mimeType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const buffer = stored.buffer;
+    expect(Buffer.isBuffer(buffer)).toBe(true);
     expect(buffer.readUInt32LE(0)).toBe(0x04034b50);
     expect(buffer.includes(Buffer.from('999999999999.9999'))).toBe(true);
     expect(buffer.includes(Buffer.from('=cmd'))).toBe(true);
