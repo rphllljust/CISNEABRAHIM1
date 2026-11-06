@@ -160,6 +160,40 @@ describe('PeopleListPage', () => {
     });
   });
 
+  it('preserva o filtro mais recente quando uma consulta antiga termina depois', async () => {
+    const fallback = createPeopleFetchMock({
+      seed: [
+        { legalName: 'Ana Ribeiro', memberCode: 'M-001', status: 'ACTIVE' },
+        { legalName: 'Bruno Costa', memberCode: 'M-002', status: 'INACTIVE' },
+      ],
+    });
+    let releaseOld: ((value: Response) => void) | undefined;
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const url = new URL(raw, 'http://localhost');
+      if (url.pathname.includes('/people') && url.searchParams.get('status') === 'ACTIVE') {
+        return new Promise<Response>((resolve) => { releaseOld = resolve; });
+      }
+      return fallback(input, init);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const user = userEvent.setup();
+    renderWithProviders(<PeopleListPage />);
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Ana Ribeiro' })).toBeInTheDocument());
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'ACTIVE');
+    await waitFor(() => expect(releaseOld).toBeDefined());
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'INACTIVE');
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Bruno Costa' })).toBeInTheDocument());
+
+    const oldResponse = await fallback('/api/v1/people?limit=20&offset=0&status=ACTIVE');
+    releaseOld?.(oldResponse);
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Bruno Costa' })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Ana Ribeiro' })).not.toBeInTheDocument();
+    });
+  });
+
   it('declara a aptidão a alocação sem inventar disponibilidade', async () => {
     vi.stubGlobal(
       'fetch',
