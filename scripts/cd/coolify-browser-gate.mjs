@@ -340,9 +340,11 @@ export function extractMeasurementCandidateServiceOrderIds(payload, unitId) {
  *   releaseVerified = assertionsPass && runtimeVerified && releasePrerequisitesVerified
  *   businessVerified = available business evidence has a complete authoritative chain
  *
- * `NOT_APPLICABLE` nunca aprova negócio. Sem evidência empresarial, o release pode
- * ser tecnicamente validado e o resultado de produção continua explicitamente
- * `CONDITIONAL`; com evidência disponível, a cadeia empresarial completa é exigida.
+ * `NOT_APPLICABLE` nunca aprova negócio. Release técnico e evidência empresarial
+ * são observações INDEPENDENTES: ausência/incompletude de OS não bloqueia CI/CD,
+ * mas também NUNCA transforma businessVerified nem productionValidated em true.
+ * Evidência falsa, ausente ou desconhecida permanece explicitamente registrada.
+ * Falhas de runtime, autenticação e checks técnicos continuam bloqueando o release.
  */
 export function decideReleaseVerdict(input) {
   const assertionsPass = input.passed === input.total && input.total > 0;
@@ -366,8 +368,9 @@ export function decideReleaseVerdict(input) {
       : businessEvidenceAvailable === true && businessVerified
         ? true
         : false;
-  const exitCode =
-    productionRuntimeValidated && (businessEvidenceAvailable === false || businessVerified) ? 0 : 1;
+  // Deployment acceptance is TECHNICAL only. Keep business evidence independent,
+  // without turning missing/incomplete production data into a false business PASS.
+  const exitCode = productionRuntimeValidated ? 0 : 1;
   return {
     assertionsPass,
     runtimeVerified,
@@ -1234,7 +1237,9 @@ async function main() {
    * `NOT_APPLICABLE` não é `PASS`: é NÃO PROVADO. Produção só fica validada
    * empresarialmente quando todos os vínculos da cadeia estiverem comprovados.
    *
-   * A saída agora é a CONJUNÇÃO das três condições, nunca a contagem.
+   * O EXIT CODE é o gate técnico: asserções, runtime e pré-requisitos de release.
+   * Aceite empresarial é medido e registrado, mas não bloqueia a publicação.
+   * productionValidated permanece false/CONDITIONAL sem cadeia empresarial aceita.
    */
   const technicalResults = results.filter((result) => !isBusinessCheckName(result.name));
   const technicalPassed = technicalResults.filter((result) => result.passed === true).length;

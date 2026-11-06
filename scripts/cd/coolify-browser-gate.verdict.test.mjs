@@ -9,23 +9,12 @@ import { decideReleaseVerdict } from './coolify-browser-gate.mjs';
  *
  * DEFEITO REAL QUE ESTES TESTES IMPEDEM DE VOLTAR (medido em produção)
  *
- * O gate saía com `exitCode = 0` baseado apenas em `passed === total`. O bloco
- * NOT_APPLICABLE registrava `record(..., true, 'N/A')` para não pintar de vermelho
- * uma tela saudável, e o TOTAL passou a contar N/A como PASS.
+ * Política de 06/11/2026: sucesso TÉCNICO não prova aceite empresarial.
+ * O release pode ser verde sem a OS concluída, mas a evidência empresarial
+ * deve permanecer false, CONDITIONAL ou UNKNOWN, nunca PASS sintético.
+ * O exit code continua falhando com runtime/CI ou asserções técnicas inválidas.
  *
- * Resultado concreto, observado:
- *
- *   runtimeVerified  = true
- *   businessVerified = false
- *   passed === total = true
- *   exitCode         = 0        ← pipeline VERDE sem ter provado o negócio
- *
- * A suíte antiga afirmava `assert.match(source, /businessVerified/)` e ficava
- * verde o tempo todo: provava que a palavra existia no arquivo, não que ela
- * decidia alguma coisa. Teste que não falha quando a proteção é removida não
- * protege nada.
- *
- * Estes quatro casos exercitam a DECISÃO.
+ * Estes casos exercitam a decisão por comportamento, não por regex.
  */
 describe('decideReleaseVerdict — runtime, release e business independentes', () => {
   it('cadeia empresarial completa valida a produção', () => {
@@ -66,7 +55,7 @@ describe('decideReleaseVerdict — runtime, release e business independentes', (
     assert.equal(verdict.exitCode, 0);
   });
 
-  it('evidência incompleta reprova o bloco empresarial', () => {
+  it('evidência incompleta NÃO bloqueia release técnico e NÃO vira aceite empresarial', () => {
     const verdict = decideReleaseVerdict({
       passed: 20,
       total: 20,
@@ -77,9 +66,42 @@ describe('decideReleaseVerdict — runtime, release e business independentes', (
     });
 
     assert.equal(verdict.productionRuntimeValidated, true);
+    assert.equal(verdict.businessVerified, false);
     assert.equal(verdict.productionBusinessValidated, false);
     assert.equal(verdict.productionValidated, false);
-    assert.equal(verdict.exitCode, 1);
+    assert.equal(verdict.exitCode, 0);
+  });
+
+
+  it('evidência de negócio desconhecida mantém UNKNOWN sem impedir release técnico', () => {
+    const verdict = decideReleaseVerdict({
+      passed: 20,
+      total: 20,
+      runtimeVerified: true,
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: null,
+      businessVerified: false,
+    });
+    assert.equal(verdict.releaseVerified, true);
+    assert.equal(verdict.businessEvidenceAvailable, null);
+    assert.equal(verdict.businessVerified, false);
+    assert.equal(verdict.productionBusinessValidated, 'UNKNOWN');
+    assert.equal(verdict.productionValidated, false);
+    assert.equal(verdict.exitCode, 0);
+  });
+
+  it('mesmo uma rejeição empresarial explícita não cria aceite nem derruba runtime verde', () => {
+    const verdict = decideReleaseVerdict({
+      passed: 20,
+      total: 20,
+      runtimeVerified: true,
+      releasePrerequisitesVerified: true,
+      businessEvidenceAvailable: true,
+      businessVerified: false,
+    });
+    assert.equal(verdict.productionBusinessValidated, false);
+    assert.equal(verdict.productionValidated, false);
+    assert.equal(verdict.exitCode, 0);
   });
 
   it('release inválida reprova mesmo com runtime e negócio válidos', () => {
