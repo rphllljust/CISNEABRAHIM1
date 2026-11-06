@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function CisneLoginForm() {
@@ -10,8 +10,7 @@ export default function CisneLoginForm() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function submit() {
     setError('');
     setLoading(true);
     try {
@@ -39,7 +38,7 @@ export default function CisneLoginForm() {
   }
 
   return (
-    <form onSubmit={submit} className='space-y-4'>
+    <form onSubmit={event => { event.preventDefault(); void submit(); }} className='space-y-4'>
       <div className='space-y-1.5'>
         <label htmlFor='cisne-login' className='text-sm font-medium'>Usuário</label>
         <input id='cisne-login' autoComplete='username' value={login}
