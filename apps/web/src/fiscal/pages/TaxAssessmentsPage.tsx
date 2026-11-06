@@ -98,15 +98,18 @@ function ASSESSMENT_NOTICE(item: {
  * pelo servidor quando a obrigação já está cancelada. A tela não oferece botão que o backend
  * recusaria, e a seção correspondente permanece declarada — o operador vê onde agir.
  */
-function allowedAssessmentActions(status: string): {
+export function allowedAssessmentActions(status: string): {
   finalize: boolean;
   adjust: boolean;
   cancel: boolean;
 } {
+  // Os guards da API são autoritativos:
+  // assertAssessmentFinalizable(DRAFT), assertAssessmentAdjustable(FINALIZED),
+  // assertAssessmentCancellable(DRAFT | FINALIZED). Estados terminais não oferecem ação.
   return {
     finalize: status === 'DRAFT',
-    adjust: status !== 'CANCELLED',
-    cancel: status !== 'CANCELLED',
+    adjust: status === 'FINALIZED',
+    cancel: status === 'DRAFT' || status === 'FINALIZED',
   };
 }
 
