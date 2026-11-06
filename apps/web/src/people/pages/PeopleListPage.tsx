@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   PeopleApiError,
@@ -218,8 +218,11 @@ export function PeopleListPage() {
     return () => clearTimeout(timer);
   }, [searchInput, query, updateParam]);
 
+  const requestGeneration = useRef(0);
   const loadPage = useCallback(
     async (pageOffset: number, signal?: AbortSignal) => {
+      // Manual retries have no AbortSignal: a newer filter/reload must still win.
+      const generation = ++requestGeneration.current;
       // Recarga preserva o resultado anterior: trocar a tabela por "Carregando…"
       // desmontaria a propria barra de busca durante a digitacao.
       setListState((previous) => (previous.phase === 'ready' ? previous : { phase: 'loading' }));
@@ -234,7 +237,7 @@ export function PeopleListPage() {
           },
           signal,
         );
-        if (signal?.aborted) {
+        if (signal?.aborted || generation !== requestGeneration.current) {
           return;
         }
         setListState({
@@ -245,7 +248,7 @@ export function PeopleListPage() {
           total: response.total,
         });
       } catch (error) {
-        if (signal?.aborted) {
+        if (signal?.aborted || generation !== requestGeneration.current) {
           return;
         }
         if (error instanceof PeopleApiError) {
