@@ -22,6 +22,7 @@ import { DynamicList, useEntitySchema } from '../../engine';
 import {
   DynamicFilterBuilder,
   emptyFilterGroup,
+  isFilterGroupActive,
   type FilterGroup,
 } from '../../engine/DynamicFilterBuilder';
 import { advancedFilterFromGroup } from '../../engine';
@@ -50,6 +51,7 @@ import {
 import { FinanceWorklistToolbar, financeControlClass } from '../components/FinanceWorklistToolbar';
 import { RECEIVABLES_ALLOWED_FILTERS, RECEIVABLES_BUILT_IN_VIEWS } from './finance-smart-list';
 import { receivableEngineRow } from '../utils/finance-engine-rows';
+import { hasReceivablesActiveQuery } from '../utils/receivables-query-scope';
 import {
   FINANCE_DEFAULT_SORT,
   daysPastDue,
@@ -307,7 +309,10 @@ export function ReceivablesListPage() {
    * Sem filtro nenhum e zero titulos: a CARTEIRA esta vazia (fato do negocio).
    * Com filtro aplicado e zero titulos: o RECORTE nao achou nada (fato da leitura).
    */
-  const hasActiveQuery = Boolean(search || dueFrom || dueTo || statusForQuery);
+  const hasActiveQuery = hasReceivablesActiveQuery({
+    search, dueFrom, dueTo, status: statusForQuery,
+    advancedActive: isFilterGroupActive(filterGroup),
+  });
   const portfolioEmpty =
     page !== null && page.total === 0 && !smartList.isFiltered && !hasActiveQuery;
   const recorteEmpty =
@@ -477,7 +482,11 @@ export function ReceivablesListPage() {
                 <DynamicFilterBuilder
                   schema={schema}
                   value={filterGroup}
-                  onChange={setFilterGroup}
+                  onChange={(next) => {
+                    setFilterGroup(next);
+                    // Um novo recorte SQL invalida o offset de página anterior.
+                    setPageNumber(1);
+                  }}
                 />
               </div>
             ) : null}
