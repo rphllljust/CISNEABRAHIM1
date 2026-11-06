@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout existing CISNE feature branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: true
           fetch-depth: 1
@@ -28,7 +28,10 @@ jobs:
           DASHBOARD_SHA: 47da494b89e330d884a0f9b5c37a605fbabb3987
         run: |
           set -euo pipefail
-          test ! -e frontend-v2/package.json
+          if test -f frontend-v2/package.json; then
+            echo 'Pinned dashboard already imported; no re-import required.'
+            exit 0
+          fi
           mkdir -p /tmp/shadcn-template
           curl --fail --location --silent --show-error \
             --retry 3 --connect-timeout 15 \
