@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
@@ -137,10 +137,12 @@ describe('BudgetsListPage', () => {
 
     // Transporte deliberadamente ignora o signal: o resultado APPROVED atrasado
     // não pode substituir a lista vazia de DRAFT nem seu total autoritativo.
-    resolveApproved?.(new Response(
-      JSON.stringify({ items: [], limit: 20, offset: 0, total: 21 }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ));
+    await act(async () => {
+      resolveApproved?.(new Response(
+        JSON.stringify({ items: [], limit: 20, offset: 0, total: 21 }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ));
+    });
     await waitFor(() => expect(screen.getByText(/nenhum orçamento corresponde ao recorte atual/i)).toBeInTheDocument());
     expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT');
   });
