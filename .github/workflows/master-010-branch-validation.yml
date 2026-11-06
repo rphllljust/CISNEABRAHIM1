@@ -1,0 +1,62 @@
+name: MASTER 010 branch focused validation
+
+# Branch-only engineering checks. This workflow never publishes images or deploys.
+# It does not replace required CI/HML/operational acceptance of the active PR.
+on:
+  push:
+    branches:
+      - 'fix/master-010-lote-04-service-orders-execution-measurement'
+      - 'fix/master-010-lote-05-resources-fleet-people'
+      - 'fix/master-010-lote-07-finance-treasury-billing'
+      - 'fix/master-010-lote-09-accounting-ledger'
+    paths:
+      - 'apps/web/src/**'
+      - '.github/workflows/master-010-branch-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: master010-focused-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-web-regression:
+    name: MASTER 010 focused Vitest and web static checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact branch HEAD
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Run focused Vitest for branch-owned routes
+        env:
+          CI: 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF_NAME" in
+            fix/master-010-lote-04-service-orders-execution-measurement)
+              pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/service-orders/pages/OperationsMissingUnit.test.tsx src/service-orders/pages/ServiceOrderMeasurementPage.test.tsx ;;
+            fix/master-010-lote-05-resources-fleet-people)
+              pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/fleet/pages/FleetListPage.test.tsx src/people/pages/PeopleListPage.test.tsx ;;
+            fix/master-010-lote-07-finance-treasury-billing)
+              pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/finance/pages/treasury-reconciliation-absence.test.ts src/finance/pages/BudgetsListPage.test.tsx ;;
+            fix/master-010-lote-09-accounting-ledger)
+              pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/accounting/economic-retry-result.test.ts src/accounting/pages/accounting-queue-empty-copy.test.ts ;;
+            *)
+              echo "::error::Unrecognized MASTER 010 branch: $GITHUB_REF_NAME"
+              exit 1 ;;
+          esac
+      - name: Web typecheck
+        run: pnpm --filter @cisne/web typecheck
+      - name: Web lint
+        run: pnpm --filter @cisne/web lint
