@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { parseVisualFailures } from './visual-regression-parser.mjs';
 
 const [currentLogPath] = process.argv.slice(2);
 if (!currentLogPath) {
@@ -20,39 +21,6 @@ if (visualOutcome === 'success') {
   process.exit(0);
 }
 
-const stripAnsi = (value) => value.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
-
-function parseFailures(raw) {
-  const lines = stripAnsi(raw).split(/\r?\n/);
-  let summaryIndex = -1;
-  let expectedCount = null;
-
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const match = lines[index].match(/\b(\d+) failed\b/);
-    if (match) {
-      summaryIndex = index;
-      expectedCount = Number(match[1]);
-      break;
-    }
-  }
-
-  if (summaryIndex < 0 || expectedCount === null) {
-    throw new Error('Visual command failed without a parseable Playwright failure summary; failing closed.');
-  }
-
-  const failures = [];
-  for (const line of lines.slice(summaryIndex + 1)) {
-    const match = line.match(/\s+\[([^\]]+)\]\s+›\s+(.+?)\s*$/);
-    if (match) failures.push(`[${match[1]}] › ${match[2].trim()}`);
-  }
-
-  const unique = [...new Set(failures)];
-  if (unique.length !== expectedCount) {
-    throw new Error(`Parsed ${unique.length} unique failures, but Playwright reported ${expectedCount}; failing closed.`);
-  }
-
-  return unique;
-}
 
 async function github(path) {
   const response = await fetch(`https://api.github.com${path}`, {
@@ -91,7 +59,7 @@ if (!baselineSha || /^0+$/.test(baselineSha)) {
   throw new Error('Unable to resolve exact baseline SHA; failing closed.');
 }
 
-const currentFailures = parseFailures(await readFile(currentLogPath, 'utf8'));
+const currentFailures = parseVisualFailures(await readFile(currentLogPath, 'utf8'));
 const [owner, repo] = repository.split('/');
 // The full suite runs in its OWN workflow. The CI 'Build / artifacts' job
 // contains no Playwright results, so it is not a valid visual baseline.
@@ -122,7 +90,7 @@ if (!visualJob) {
 const baselineLog = await (
   await github(`/repos/${owner}/${repo}/actions/jobs/${visualJob.id}/logs`)
 ).text();
-const baselineFailures = parseFailures(baselineLog);
+const baselineFailures = parseVisualFailures(baselineLog);
 const baselineSet = new Set(baselineFailures);
 const newFailures = currentFailures.filter((failure) => !baselineSet.has(failure));
 
