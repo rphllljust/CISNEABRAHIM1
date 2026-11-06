@@ -177,15 +177,8 @@ export function FleetListPage() {
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  // Never render stale fleet rows or synthetic zero totals while a new query is pending.
-  if (listState.phase === 'loading') {
-    return (
-      <ModuleStatePage title="Frota">
-        <ModuleLoadingState message="Carregando veículos…" />
-      </ModuleStatePage>
-    );
-  }
-
+  // Keep filters interactive while a request is pending; only the worklist is loading.
+  // Never publish stale vehicles or synthetic counts as if the API had answered.
   if (listState.phase === 'denied') {
     return (
       <ModuleStatePage title="Frota">
@@ -216,12 +209,14 @@ export function FleetListPage() {
   const filtersActive = Boolean(
     lifecycleFilter || availabilityFilter || resourceTypeFilter || search.trim(),
   );
-  const isEmptyList = total === 0 && !filtersActive;
-  const isEmptyFiltered = total === 0 && filtersActive;
-  const rangeLabel = formatAssetPaginationRange(offset, PAGE_SIZE, items.length, total).replace(
-    'ativos',
-    'veículos',
-  );
+  const isEmptyList = listState.phase === 'ready' && total === 0 && !filtersActive;
+  const isEmptyFiltered = listState.phase === 'ready' && total === 0 && filtersActive;
+  const rangeLabel = listState.phase === 'loading'
+    ? 'Carregando veículos…'
+    : formatAssetPaginationRange(offset, PAGE_SIZE, items.length, total).replace(
+        'ativos',
+        'veículos',
+      );
 
   return (
     <ModulePage layout="wide">
@@ -237,7 +232,7 @@ export function FleetListPage() {
       <div data-region="operating-header">
       <WorklistHeader
         title="Frota"
-        count={total}
+        count={listState.phase === 'ready' ? total : undefined}
         context="Disponibilidade operacional dos veículos cadastrados como ativos físicos, refletindo as alocações em ordens de serviço."
         action={
           capabilities.canCreate ? (
@@ -246,7 +241,7 @@ export function FleetListPage() {
         }
         metrics={
           <AssetSummaryStrip
-            summary={summary}
+            summary={listState.phase === 'ready' ? summary : null}
             activeAvailabilityFilter={availabilityFilter}
             onSelectAvailability={setAvailabilityFilter}
           />
@@ -357,9 +352,7 @@ export function FleetListPage() {
 
       <div data-region="worklist-master">
       {listState.phase === 'loading' ? (
-        <p className="text-sm text-gray-500" aria-busy="true" aria-live="polite">
-          Atualizando listagem…
-        </p>
+        <ModuleLoadingState message="Carregando veículos…" />
       ) : null}
 
       {isEmptyList ? (
