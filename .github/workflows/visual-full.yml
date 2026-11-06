@@ -127,3 +127,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
         run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
+      - name: Enforce strict Visual Full acceptance
+        if: always()
+        shell: bash
+        env:
+          VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
+        run: |
+          # A clean ratchet only proves no NEW regressions; it does not prove a passing suite.
+          # This terminal gate intentionally fails while any existing visual debt persists.
+          if [[ "${VISUAL_OUTCOME}" != "success" ]]; then
+            echo "::error::Visual Full acceptance blocked: Playwright did not pass; existing debt is not a green suite."
+            exit 1
+          fi
