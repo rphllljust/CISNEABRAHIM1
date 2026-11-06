@@ -8,6 +8,7 @@ import {
   extractMeasurementCandidateServiceOrderIds,
   hasOnlyCommercialMeasurementUnits,
   isBusinessCheckName,
+  isMeasurementEvidenceCandidateStatus,
 } from './coolify-browser-gate.mjs';
 
 /**
@@ -49,6 +50,15 @@ describe('browser gate — cobertura da vertical de medição', () => {
       source.includes('/app/measurement'),
       'o gate precisa visitar /app/measurement para provar a capability',
     );
+  });
+
+  it('fallback histórico considera COMPLETED e CLOSED, mas bloqueia estados não terminais', () => {
+    for (const status of ['COMPLETED', 'CLOSED', 'completed', ' closed ']) {
+      assert.equal(isMeasurementEvidenceCandidateStatus(status), true, status);
+    }
+    for (const status of ['DRAFT', 'PREPARED', 'IN_PROGRESS', 'CANCELLED', null, undefined, '']) {
+      assert.equal(isMeasurementEvidenceCandidateStatus(status), false, String(status));
+    }
   });
 
   it('fallback de OS usa somente IDs reais da mesma unidade, sem duplicar', () => {
