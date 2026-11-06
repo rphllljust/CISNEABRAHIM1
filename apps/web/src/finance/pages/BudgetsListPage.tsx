@@ -215,6 +215,9 @@ export function BudgetsListPage() {
           },
           signal,
         );
+        // A API pode concluir depois que o recorte mudou e o efeito abortou.
+        // Nunca publique uma página pertencente a uma consulta obsoleta.
+        if (signal?.aborted) return;
         setListState({
           phase: 'ready',
           items: response.items,
@@ -222,6 +225,8 @@ export function BudgetsListPage() {
           total: response.total,
         });
       } catch (error) {
+        // Também descarta erros tardios de uma consulta substituída.
+        if (signal?.aborted) return;
         if (error instanceof BackofficeApiError && (error.status === 403 || error.status === 401)) {
           setListState({ phase: 'denied' });
           return;
