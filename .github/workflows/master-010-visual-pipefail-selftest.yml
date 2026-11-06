@@ -1,0 +1,22 @@
+name: MASTER 010 Visual Full exit-status regression
+
+on:
+  push:
+    branches:
+      - 'fix/master-010-visual-full-pipefail'
+
+permissions:
+  contents: read
+
+jobs:
+  visual-exit-contract:
+    name: Verify Playwright failure is never converted into success by tee
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Execute exit-status contract tests
+        run: node --test scripts/ci/visual-full-exit-status.test.mjs
