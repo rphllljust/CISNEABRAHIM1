@@ -205,6 +205,9 @@ export function ServiceOrderMeasurementPage() {
    * estado muda: o comando já commitou, e a superfície precisa refleti-lo.
    */
   const refreshWorkbench = useCallback(async () => {
+    // A decisão anterior deixa de ser válida assim que o agregado muda.
+    // Enquanto a nova leitura está pendente, nenhum comando pode ser anunciado.
+    setWorkbench(null);
     try {
       const next = await getMeasurementWorkbench(serviceOrderId);
       setWorkbench(next);
