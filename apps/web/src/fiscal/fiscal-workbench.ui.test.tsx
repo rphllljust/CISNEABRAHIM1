@@ -146,6 +146,33 @@ describe('Fiscal — bancada de documentos', () => {
     expect(screen.getByLabelText(/unidade/i)).toHaveValue('unit-9');
   });
 
+  it('preserva a unidade do deep link ao trocar ou limpar situação', async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFinanceFetchMock();
+    vi.stubGlobal('fetch', fetchMock);
+    renderFiscalDocuments('/app/fiscal/documents?status=REJECTED&unitId=unit-9');
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/unidade/i)).toHaveValue('unit-9');
+    });
+
+    await user.selectOptions(screen.getByLabelText(/situação/i), 'AUTHORIZED');
+    await waitFor(() => {
+      expect(documentListUrls(fetchMock).some(
+        (url) => url.includes('unitId=unit-9') && url.includes('status=AUTHORIZED'),
+      )).toBe(true);
+    });
+    expect(screen.getByLabelText(/unidade/i)).toHaveValue('unit-9');
+
+    await user.selectOptions(screen.getByLabelText(/situação/i), '');
+    await waitFor(() => {
+      expect(documentListUrls(fetchMock).some(
+        (url) => url.includes('unitId=unit-9') && !url.includes('status='),
+      )).toBe(true);
+    });
+    expect(screen.getByLabelText(/unidade/i)).toHaveValue('unit-9');
+  });
+
   it('mostra o total real do servidor e distingue recorte sem resultado de unidade sem documento', async () => {
     vi.stubGlobal('fetch', createFinanceFetchMock({ fiscalDocumentCount: 0 }));
     renderFiscalDocuments('/app/fiscal/documents?status=REJECTED');

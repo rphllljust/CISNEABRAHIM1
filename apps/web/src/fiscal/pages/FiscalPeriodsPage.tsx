@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Field, Input, StatusBadge } from '../../ui';
 import {
@@ -40,6 +40,7 @@ import {
   reopenFiscalPeriod,
 } from '../api/fiscal-api';
 import { mapFiscalErrorToMessage } from '../api/fiscal-error-messages';
+import { canApplyFiscalPeriodResult } from '../utils/fiscal-period-request-generation';
 import { useFiscalUnits } from '../hooks/useFiscalUnits';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import type { FiscalPeriod, FiscalPeriodListItem } from '../types/fiscal.types';
@@ -103,10 +104,12 @@ function FiscalPeriodsList() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(0);
   const [state, setState] = useState<ListState>({ phase: 'loading' });
+  const listRequestGeneration = useRef(0);
   const [newPeriodKey, setNewPeriodKey] = useState('');
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
+      const generation = ++listRequestGeneration.current;
       if (!unitId) {
         setState({ phase: 'ready', items: [], total: 0, page: 0 });
         return;
@@ -117,8 +120,10 @@ function FiscalPeriodsList() {
           { unitId, status: status || undefined, page, pageSize: PAGE_SIZE },
           signal,
         );
+        if (!canApplyFiscalPeriodResult(generation, listRequestGeneration.current, signal)) return;
         setState({ phase: 'ready', items: response.items, total: response.total, page: response.page });
       } catch (error) {
+        if (!canApplyFiscalPeriodResult(generation, listRequestGeneration.current, signal)) return;
         setState({
           phase: 'error',
           message: mapFiscalErrorToMessage(
