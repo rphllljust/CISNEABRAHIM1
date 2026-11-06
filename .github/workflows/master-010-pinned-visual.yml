@@ -101,12 +101,13 @@ jobs:
         run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
       - name: Web visual regression (full suite)
         id: web-visual
-        # `continue-on-error` NAO esconde regressao: a decisao de vermelho/verde fica no ratchet
-        # abaixo, que reprova o job em regressao real. Sair cedo aqui impediria o upload dos
-        # diagnosticos e a analise do ratchet — que e justamente o que precisa existir quando a
-        # suite falha.
-        continue-on-error: true
+        # Strict evidence for pinned MASTER 010 heads: Playwright failures MUST fail the job.
+        # 'tee' without pipefail previously returned success despite 174 failed tests.
+        # Diagnostic artifacts still upload because their step has 'if: always()'.
+        continue-on-error: false
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifacts/ci
           pnpm --filter @cisne/web test:visual 2>&1 | tee artifacts/ci/web-visual.log
         env:
