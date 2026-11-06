@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { clientsQuery, isSameOriginMutation } from './security';
+import { clientsQuery, isSameOriginMutation } from '../src/cisne/security.ts';
 
 function request(origin: string | null, site?: string) {
   const headers = new Headers();
