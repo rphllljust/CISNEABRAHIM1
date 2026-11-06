@@ -285,8 +285,8 @@ jobs:
       # navegacao por permissao, nao carrega chunk de rota preguicosa.
       #
       # Este step separa validação técnica da evidência empresarial. Runtime/release
-      # falham se a interface real não funcionar. O bloco empresarial só exige PASS
-      # quando existe operação autoritativa; ausência é CONDITIONAL, nunca business PASS.
+      # falham se a interface real não funcionar. O aceite empresarial é informativo:
+      # falha/incompletude de OS não bloqueia publicação nem vira business PASS.
       # ───────────────────────────────────────────────────────────────────────────────
       # DEPENDENCIAS DE VALIDACAO (Playwright) PARA O BROWSER GATE
       # ───────────────────────────────────────────────────────────────────────────────
@@ -330,24 +330,13 @@ jobs:
           grep -Fq '[coolify-browser-gate] productionRuntimeValidated=true' artifacts/browser-gate/verdict.log
           echo "runtimeVerified=true" >> "$GITHUB_OUTPUT"
           echo "releaseVerified=true" >> "$GITHUB_OUTPUT"
-          if grep -Fq '[coolify-browser-gate] businessEvidenceAvailable=true' artifacts/browser-gate/verdict.log; then
-            grep -Fq '[coolify-browser-gate] businessVerified=true' artifacts/browser-gate/verdict.log
-            grep -Fq '[coolify-browser-gate] productionBusinessValidated=true' artifacts/browser-gate/verdict.log
-            grep -Fq '[coolify-browser-gate] productionValidated=true' artifacts/browser-gate/verdict.log
-            echo "businessEvidenceAvailable=true" >> "$GITHUB_OUTPUT"
-            echo "businessVerified=true" >> "$GITHUB_OUTPUT"
-            echo "productionBusinessValidated=true" >> "$GITHUB_OUTPUT"
-            echo "productionValidated=true" >> "$GITHUB_OUTPUT"
-          else
-            grep -Fq '[coolify-browser-gate] businessEvidenceAvailable=false' artifacts/browser-gate/verdict.log
-            grep -Fq '[coolify-browser-gate] businessVerified=false' artifacts/browser-gate/verdict.log
-            grep -Fq '[coolify-browser-gate] productionBusinessValidated=NOT_APPLICABLE' artifacts/browser-gate/verdict.log
-            grep -Fq '[coolify-browser-gate] productionValidated=CONDITIONAL' artifacts/browser-gate/verdict.log
-            echo "businessEvidenceAvailable=false" >> "$GITHUB_OUTPUT"
-            echo "businessVerified=false" >> "$GITHUB_OUTPUT"
-            echo "productionBusinessValidated=NOT_APPLICABLE" >> "$GITHUB_OUTPUT"
-            echo "productionValidated=CONDITIONAL" >> "$GITHUB_OUTPUT"
-          fi
+          # The enterprise OS/measurement acceptance is NOT a release prerequisite.
+          # Keep real, non-success business evidence in artifacts and job summary.
+          # Never synthesize an accepted OS, never claim productionValidated=true.
+          {
+            echo "### Independent business evidence (does not gate this technical release)"
+            grep -E '^\[coolify-browser-gate\] (businessEvidenceAvailable|businessVerified|businessOutcome|productionBusinessValidated|productionValidated)=' artifacts/browser-gate/verdict.log || echo "Business verdict unavailable; NOT verified."
+          } >> "$GITHUB_STEP_SUMMARY"
           echo "productionRuntimeValidated=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload browser gate evidence

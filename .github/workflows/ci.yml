@@ -103,7 +103,7 @@ jobs:
       - name: SRC-002 business gate
         run: pnpm gate:src-002
       - name: Immutable release focused tests
-        run: node --test scripts/cd/immutable-release.test.mjs scripts/cd/provider-cutover.test.mjs scripts/cd/coolify-deploy-payload.test.mjs scripts/cd/coolify-postdeploy-smoke.test.mjs scripts/cd/production-business-attestation.test.mjs scripts/cd/release-sequence.test.mjs scripts/cd/verify-business-release-approval.test.mjs scripts/cd/verify-owner-business-release-approval.test.mjs scripts/ops/coolify-tls-audit.test.mjs scripts/ops/coolify-tls-harden.test.mjs
+        run: node --test scripts/cd/immutable-release.test.mjs scripts/cd/provider-cutover.test.mjs scripts/cd/coolify-deploy-payload.test.mjs scripts/cd/coolify-postdeploy-smoke.test.mjs scripts/cd/production-business-attestation.test.mjs scripts/cd/release-sequence.test.mjs scripts/cd/coolify-browser-gate.verdict.test.mjs scripts/cd/verify-business-release-approval.test.mjs scripts/cd/verify-owner-business-release-approval.test.mjs scripts/ops/coolify-tls-audit.test.mjs scripts/ops/coolify-tls-harden.test.mjs
       # Impede que o artefato de producao volte a ser compilado com modulos CONSTRUIDOS
       # desligados. Falhou aqui = o operador receberia produto mutilado sem gate vermelho.
       # Roda no runner oficial do web (vitest), que resolve os imports de release-scope.

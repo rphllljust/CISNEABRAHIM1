@@ -51,6 +51,19 @@ describe('CISNE production release sequence — exact SHA, fail-closed', () => {
     assert.match(release, /coolify-postdeploy-smoke\.mjs/);
   });
 
+  it('requires runtime assertions without blocking on incomplete OS acceptance', () => {
+    const release = workflow('coolify-release.yml');
+    assert.match(release, /\[coolify-browser-gate\] runtimeVerified=true/);
+    assert.match(release, /\[coolify-browser-gate\] releaseVerified=true/);
+    assert.match(release, /\[coolify-browser-gate\] productionRuntimeValidated=true/);
+    assert.doesNotMatch(release, /grep -Fq '\[coolify-browser-gate\] businessVerified=true'/);
+    assert.doesNotMatch(release, /grep -Fq '\[coolify-browser-gate\] productionValidated=true'/);
+    assert.match(release, /Independent business evidence/);
+    assert.match(release, /Upload browser gate evidence/);
+    const browser = readFileSync(new URL('./coolify-browser-gate.mjs', import.meta.url), 'utf8');
+    assert.match(browser, /const exitCode = productionRuntimeValidated \? 0 : 1/);
+  });
+
   it('promotes release through GHCR, Coolify, authenticated smoke and Chromium', () => {
     const release = workflow('coolify-release.yml');
     for (const step of [
