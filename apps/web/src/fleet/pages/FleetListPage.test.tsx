@@ -85,6 +85,19 @@ describe('FleetListPage', () => {
     );
   });
 
+  it('mantém a lista autorizada quando apenas o resumo de frota falha', async () => {
+    mockGetFleetSummary.mockRejectedValue(new Error('resumo temporariamente indisponível'));
+    render(
+      <MemoryRouter>
+        <FleetListPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('link', { name: 'TRK-001' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mostrar todos os ativos' })).toHaveTextContent('—');
+    expect(screen.queryByText('Não foi possível carregar a frota.')).not.toBeInTheDocument();
+  });
+
   it('shows empty state when the fleet has no vehicles', async () => {
     mockListFleetVehicles.mockResolvedValue({
       items: [],
