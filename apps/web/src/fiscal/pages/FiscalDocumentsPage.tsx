@@ -45,6 +45,7 @@ import {
   submitFiscalDocument,
 } from '../api/fiscal-api';
 import { mapFiscalErrorToMessage } from '../api/fiscal-error-messages';
+import { resolveFiscalDocumentUnitScope } from '../utils/fiscal-document-unit-scope';
 import { useOperationalUnits, OperationalUnitOptions } from '../../shell/hooks/useOperationalUnits';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { ActivityTimeline, SavedViewsBar, useSmartList } from '../../operator';
@@ -265,20 +266,13 @@ function FiscalDocumentsList() {
    * enviado à API. A autorização continua no servidor, por unidade.
    */
   const unitFromQuery = searchParams.get('unitId') ?? '';
-  const [unitId, setUnitId] = useState(unitFromQuery);
+  const [unitId, setUnitId] = useState(() => resolveFiscalDocumentUnitScope(unitFromQuery, defaultUnitId));
   const [page, setPage] = useState(0);
-  // Segue novos drill-downs mesmo quando a rota não desmonta entre navegações.
+  // Reconciliar a URL inclusive quando o parâmetro é removido pelo histórico do navegador.
+  // Sem isso a listagem mantinha um recorte anterior, apesar da URL indicar outra unidade.
   useEffect(() => {
-    if (unitFromQuery) setUnitId(unitFromQuery);
-  }, [unitFromQuery]);
-
-  // Link profundo sem unidade não obriga o operador a digitar nada: a primeira unidade
-  // visível para ele é selecionada, como já acontece nas demais listas de backoffice.
-  useEffect(() => {
-    if (!unitId && defaultUnitId) {
-      setUnitId(defaultUnitId);
-    }
-  }, [defaultUnitId, unitId]);
+    setUnitId(resolveFiscalDocumentUnitScope(unitFromQuery, defaultUnitId));
+  }, [unitFromQuery, defaultUnitId]);
 
   /**
    * A situação vive na URL e em visão salva (mecanismo compartilhado do operador): é o que
