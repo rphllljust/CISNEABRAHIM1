@@ -75,4 +75,26 @@ describe('MASTER 015 — authorization and upstream isolation', () => {
     expect(payload.resources[0]?.id).toBe('00000000-0000-4000-8000-0000000000a1');
     expect(payload.rls).toEqual([{ clause: "unit_id = 'CISNE-RO-PVH'" }]);
   });
+
+  it('catalog returns only dashboards whose configured scopes pass PDP', async () => {
+    const decide = vi.fn().mockResolvedValue({ result: 'ALLOW' });
+    const subject = new SupersetEmbeddedService(
+      { decide } as unknown as PolicyDecisionPointService,
+    );
+    const catalog = await subject.listDashboardCatalog(actor, 'CISNE-RO-PVH');
+    expect(catalog.items).toEqual([{ key: 'service-orders', label: 'Ordens de serviço' }]);
+    expect(decide).toHaveBeenCalledWith(actor, expect.objectContaining({
+      context: { unitId: 'CISNE-RO-PVH' },
+    }), { audit: false });
+  });
+
+  it('catalog denies a unit if it has no matching dashboard entitlement', async () => {
+    const decide = vi.fn().mockResolvedValue({ result: 'DENY' });
+    const subject = new SupersetEmbeddedService(
+      { decide } as unknown as PolicyDecisionPointService,
+    );
+    await expect(subject.listDashboardCatalog(actor, 'OTHER-UNIT'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
 });

@@ -56,6 +56,18 @@ export const SUPERSET_DASHBOARD_REQUIREMENTS = {
 } as const;
 
 export type SupersetDashboardKey = keyof typeof SUPERSET_DASHBOARD_REQUIREMENTS;
+
+export const SUPERSET_DASHBOARD_LABELS: Record<SupersetDashboardKey, string> = {
+  'service-orders': 'Ordens de serviço',
+  'fleet-assets': 'Frota e ativos',
+  'contracts-measurements': 'Contratos e medições',
+  'finance-treasury': 'Financeiro e tesouraria',
+  'operational-costs': 'Custos operacionais',
+  'transport-rentals': 'Transporte e locações',
+  'team-productivity': 'Produtividade e equipes',
+  executive: 'Indicadores executivos',
+};
+
 const DASHBOARD_KEYS: ReadonlySet<string> = new Set(Object.keys(SUPERSET_DASHBOARD_REQUIREMENTS));
 const UNIT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -77,6 +89,55 @@ type GuestTokenResponse = { token?: unknown };
 @Injectable()
 export class SupersetEmbeddedService {
   constructor(private readonly policyDecisionPoint: PolicyDecisionPointService) {}
+
+
+  /**
+   * Catalog read uses exactly the same PDP and unit scope as issuance.
+   * No dataset is advertised if its domain capability cannot be proven.
+   */
+  async listDashboardCatalog(actor: IdentityAuthzContext, unitId: unknown) {
+    buildUnitRlsClause(unitId);
+    if (process.env['SUPERSET_EMBED_ENABLED'] !== 'true') {
+      throw new ServiceUnavailableException('Embedded analytics is disabled.');
+    }
+    const internalUrl = process.env['SUPERSET_INTERNAL_URL'];
+    const publicUrl = process.env['SUPERSET_PUBLIC_URL'];
+    if (!internalUrl || !publicUrl ||
+        !process.env['SUPERSET_SERVICE_USERNAME'] ||
+        !process.env['SUPERSET_SERVICE_PASSWORD']) {
+      throw new ServiceUnavailableException('Embedded analytics is not configured.');
+    }
+
+    const items: Array<{ key: SupersetDashboardKey; label: string }> = [];
+    let configured = 0;
+    for (const key of Object.keys(SUPERSET_DASHBOARD_REQUIREMENTS) as SupersetDashboardKey[]) {
+      const envKey = 'SUPERSET_DASHBOARD_' + key.toUpperCase().replace(/-/g, '_') + '_ID';
+      const dashboardId = process.env[envKey];
+      if (!dashboardId || !UUID_PATTERN.test(dashboardId)) continue;
+      configured++;
+      // PDP authorization reads are not returned to the client; token issuance
+      // is re-authorized and audited separately on every refresh.
+      const decisions = await Promise.all(
+        SUPERSET_DASHBOARD_REQUIREMENTS[key].map((requirement) =>
+          this.policyDecisionPoint.decide(actor, {
+            action: requirement.action,
+            resourceType: requirement.resourceType,
+            context: { unitId: unitId as string },
+          }, { audit: false }),
+        ),
+      );
+      if (decisions.every((decision) => decision.result === 'ALLOW')) {
+        items.push({ key, label: SUPERSET_DASHBOARD_LABELS[key] });
+      }
+    }
+    if (configured === 0) {
+      throw new ServiceUnavailableException('Embedded analytics is not configured.');
+    }
+    if (items.length === 0) {
+      throw new ForbiddenException('No permission for this analytical scope.');
+    }
+    return { items };
+  }
 
   async issueGuestToken(actor: IdentityAuthzContext, dashboardKey: unknown, unitId: unknown) {
     if (!isSupersetDashboardKey(dashboardKey)) {
