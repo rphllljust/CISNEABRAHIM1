@@ -166,7 +166,6 @@ export class SupersetEmbeddedService {
     try {
       const response = await fetch(url, {
         ...init,
-        cache: 'no-store',
         redirect: 'error',
         signal: AbortSignal.timeout(5000),
       });
