@@ -47,6 +47,8 @@ services:
         condition: service_healthy
       superset-cache:
         condition: service_started
+      superset-init:
+        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8089:8088"
     command: ["sh", "-c", "exec gunicorn --workers 2 --bind 0.0.0.0:8088 --timeout 120 'superset.app:create_app()'"]

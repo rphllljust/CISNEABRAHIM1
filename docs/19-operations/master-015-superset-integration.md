@@ -106,3 +106,18 @@ and no default admin or guest roles are created by the CISNE integration.
 This is source integration, not proof of runtime embedding. The HML Superset service,
 allowed origins, dashboards, dataset RLS, separate DB reader and real-data E2E must
 still be verified before release/merge/deploy.
+
+## Increment 03 — HML initialization dependency and release evidence
+
+The HML web service now requires `superset-init` to exit successfully before
+starting, in addition to metadata health and cache availability. A failed
+schema upgrade or security-role initialization must not be hidden by a healthy
+web process. This is an opt-in Compose configuration, not proof of a running
+instance. Validate the image's entrypoint and Gunicorn application import in
+HML before enabling the service.
+
+Release evidence is still missing: live HML URL and credentials, a completed
+metadata backup/restore drill, approved OLTP read grants and dataset mappings,
+real multiunit RLS isolation (including cache and token refresh), Allowed
+Domains and iframe CSP, and dashboard-level reconciled counts. The 14 green
+GitHub CI jobs on the previous commit validate source-level gates only.
