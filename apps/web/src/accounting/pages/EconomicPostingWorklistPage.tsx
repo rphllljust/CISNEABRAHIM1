@@ -280,8 +280,12 @@ export function EconomicPostingWorklistPage() {
               regionLabel="Exceções de contabilização"
               count={filteredItems.length}
               description="Só entra o que exige ação."
-              emptyTitle="Nenhuma exceção de contabilização"
-              emptyDescription="Todos os fatos econômicos desta unidade estão contabilizados."
+              emptyTitle={statusFilter ? 'Nenhum caso neste filtro' : 'Nenhum caso nesta página'}
+              emptyDescription={
+                statusFilter
+                  ? 'Nenhum caso retornado corresponde ao estado selecionado. Limpe o filtro para consultar os demais casos.'
+                  : 'A página consultada não retornou casos. Isso não comprova ausência de pendências em outras páginas ou no total do servidor.'
+              }
             >
               {filteredItems.map((item) => {
                 const key = `${item.factKind}:${item.factId}`;
