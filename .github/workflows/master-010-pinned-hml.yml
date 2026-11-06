@@ -1,0 +1,164 @@
+name: MASTER 010 Pinned Isolated HML
+
+# Tests isolated HML at immutable MASTER 010 source HEADs.
+# Synthetic sandbox evidence is NOT an operational/production acceptance.
+on:
+  push:
+    branches:
+      - 'validation/master-010-hml-20261106'
+
+concurrency:
+  group: master010-pinned-hml-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  hml-e2e:
+    name: HML isolated lote ${{ matrix.lote }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lote: '04'
+            sha: '4e1309a16ae17ca44e756c88067208c550947e45'
+          - lote: '05'
+            sha: 'aaa780a0be0784cb82a2b96dffc62d8e37460fa2'
+          - lote: '07'
+            sha: '89601fa90ff048a95704fdc464b965eaf6462a3c'
+          - lote: '09'
+            sha: '9c305d52c3a411f6e3bf0891e8b8976f072f4ba8'
+    timeout-minutes: 45
+    env:
+      CI: true
+      CISNE_ENV: hml
+      NODE_ENV: production
+      HML_SYNTHETIC_SEED_CONFIRM: I_UNDERSTAND
+      BOOTSTRAP_CONFIRM: I_UNDERSTAND
+      HML_INTEGRATIONS_SANDBOX: true
+      HML_SKIP_SMOKE: false
+
+    steps:
+      - name: Checkout pinned MASTER 010 source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ matrix.sha }}
+      - name: Confirm tested HEAD
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${{ matrix.sha }}"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create isolated HML environment
+        shell: bash
+        run: |
+          cp .env.hml.example .env.hml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path(".env.hml")
+          s = p.read_text()
+          import os, secrets
+          run_id = os.environ["GITHUB_RUN_ID"]
+          s = s.replace("cisne_hml_password_change_me", "hml-gha-" + run_id + "-" + secrets.token_hex(8))
+          s = s.replace("hml-jwt-secret-with-at-least-32-characters-change-me", "hml-jwt-" + run_id + "-" + secrets.token_hex(24))
+          s = s.replace("hml-document-token-secret-change-me", "hml-doc-" + run_id + "-" + secrets.token_hex(24))
+          p.write_text(s)
+          PY
+          grep -q '^CISNE_ENV=hml$' .env.hml
+          grep -q '^HML_INTEGRATIONS_SANDBOX=true$' .env.hml
+          # Propaga o ambiente isolado sem imprimir credenciais nos logs.
+          grep -Ev '^(#|[[:space:]]*$)' .env.hml >> "$GITHUB_ENV"
+
+      - name: Resolved HML config gate
+        run: pnpm hml:config:gate
+
+      - name: Start isolated PostgreSQL, API and Web
+        run: pnpm hml:up
+
+      - name: Build database CLI dependency
+        run: pnpm --filter @cisne/database build
+
+      - name: Apply HML migrations and bootstrap
+        run: pnpm hml:deploy
+
+      - name: Grant HML pilot operator
+        run: pnpm --filter @cisne/api hml:grant-pilot-operator
+
+      - name: Execute synthetic business seed
+        run: pnpm --filter @cisne/api hml:seed-synthetic
+
+      - name: HML smoke
+        run: pnpm hml:smoke
+
+      - name: HML API and database tests
+        run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export TEST_DATABASE_URL="$DATABASE_URL"
+          pnpm --filter @cisne/api test:hml
+          pnpm --filter @cisne/api test:synthetic-seed
+
+      - name: Export ALFA/BETA Contract → OS browser origins (read only)
+        run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export CISNE_ENV=hml
+          export HML_INTEGRATIONS_SANDBOX=true
+          pnpm --filter @cisne/api exec tsx src/ops/hml/cli/export-contract-os-browser-origins.ts
+
+      - name: Chromium HML real browser gate
+        env:
+          HML_WEB_URL: http://127.0.0.1:5174
+        run: |
+          set -a
+          . .env.hml
+          set +a
+          export HML_WEB_URL=http://127.0.0.1:5174
+          test -n "$HML_SMOKE_LOGIN"
+          test -n "$HML_SMOKE_PASSWORD"
+          pnpm --filter @cisne/web exec playwright install --with-deps chromium
+          pnpm --filter @cisne/web exec playwright test --config e2e/hml/playwright.hml.config.ts e2e/hml/fiscal-hml.spec.ts e2e/hml/accounting-hml.spec.ts e2e/hml/contract-os-360.hml.spec.ts
+
+      - name: HML authoritative business verdict
+        run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export CISNE_ENV=hml
+          export HML_INTEGRATIONS_SANDBOX=true
+          pnpm --filter @cisne/api exec tsx src/synthetic-seed/cli/verify-hml-business.ts
+
+      - name: HML financial economic spine ALFA/BETA 2/2
+        run: |
+          export DATABASE_URL="postgresql://${HML_POSTGRES_USER}:${HML_POSTGRES_PASSWORD}@127.0.0.1:5433/${HML_POSTGRES_DB}"
+          export CISNE_ENV=hml
+          export HML_INTEGRATIONS_SANDBOX=true
+          pnpm --filter @cisne/api exec tsx src/synthetic-seed/cli/verify-hml-economic-spine.ts
+
+      - name: Upload HML evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hml-evidence-lote-${{ matrix.lote }}-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            .backup/hml/**
+            tmp/**
+            artifacts/**
+            test-results-hml/**
+            apps/web/test-results-hml/**
+            playwright-report/**
+            docker/hml/**
+            .env.hml.example
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose -f docker/hml/compose.yaml --env-file .env.hml logs --no-color
