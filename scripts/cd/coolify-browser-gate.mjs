@@ -285,6 +285,15 @@ export function evaluateMeasurementBusinessProof(workbench) {
   };
 }
 
+/**
+ * Browser-gate fallback must inspect the same terminal service-order states
+ * accepted by evaluateMeasurementBusinessProof (execution COMPLETED or CLOSED).
+ * A CLOSED operation may be the only persisted, accepted billing chain.
+ */
+export function isMeasurementEvidenceCandidateStatus(status) {
+  return ['COMPLETED', 'CLOSED'].includes(normalizedCode(status));
+}
+
 export function extractMeasurementCandidateServiceOrderIds(payload, unitId) {
   if (
     typeof unitId !== 'string' ||
@@ -947,6 +956,9 @@ async function main() {
       const queueAuthorization =
         measurementQueueResponse?.request().headers()['authorization'] ?? null;
       let candidateServiceOrderId = null;
+      let historicalOrdersRead = 0;
+      let candidateWorkbenchesRead = 0;
+      const missingBusinessChecks = new Set();
       let businessSourceFailure =
         queueStatus === 401 || queueStatus === 403
           ? 'BUSINESS_ACCESS_DENIED — Measurement queue'
@@ -995,6 +1007,7 @@ async function main() {
             break;
           }
           const pageItems = serviceOrdersPayload.items;
+          historicalOrdersRead += pageItems.length;
           const pageIds = extractMeasurementCandidateServiceOrderIds(
             serviceOrdersPayload,
             resolvedUnitId,
@@ -1002,7 +1015,7 @@ async function main() {
           businessEvidenceAvailable ||= pageIds.length > 0;
           for (const id of pageIds) {
             const item = pageItems.find((candidate) => candidate?.id === id);
-            if (normalizedCode(item?.status) === 'COMPLETED' && !seenCandidateIds.has(id)) {
+            if (isMeasurementEvidenceCandidateStatus(item?.status) && !seenCandidateIds.has(id)) {
               seenCandidateIds.add(id);
               candidateIds.push(id);
             }
@@ -1049,9 +1062,16 @@ async function main() {
             businessEvidenceRead = false;
             break;
           }
-          if (evaluateMeasurementBusinessProof(probePayload).verified) {
+          const candidateProof = evaluateMeasurementBusinessProof(probePayload);
+          candidateWorkbenchesRead += 1;
+          if (candidateProof.verified) {
             candidateServiceOrderId = serviceOrderId;
             break;
+          }
+          for (const [check, verified] of Object.entries(candidateProof)) {
+            if (check.endsWith('Verified') && verified === false) {
+              missingBusinessChecks.add(check);
+            }
           }
         }
       }
@@ -1128,7 +1148,7 @@ async function main() {
           : businessEvidenceRead && !businessEvidenceAvailable
             ? 'BUSINESS_EVIDENCE_NOT_AVAILABLE — fila e ordens da unidade vazias'
             : businessEvidenceAvailable
-              ? 'BUSINESS_EVIDENCE_INCOMPLETE — existe operação na unidade sem cadeia empresarial completa'
+              ? `BUSINESS_EVIDENCE_INCOMPLETE — existe operação na unidade sem cadeia empresarial completa; ordensLidas=${historicalOrdersRead}; workbenchesLidos=${candidateWorkbenchesRead}; pendencias=${[...missingBusinessChecks].join(',') || 'sem OS COMPLETED/CLOSED com workbench elegivel'}`
               : 'BUSINESS_EVIDENCE_UNKNOWN — não foi possível ler todas as fontes operacionais';
         const businessCheck = businessEvidenceRead && !businessEvidenceAvailable ? null : false;
         record('MEDIÇÃO expõe elegibilidade de faturamento', businessCheck, businessReason);
