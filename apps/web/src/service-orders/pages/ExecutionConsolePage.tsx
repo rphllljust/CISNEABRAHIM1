@@ -40,6 +40,7 @@ import { SLA_TONE, severityTone, stateLabel } from '../types/operations.types';
  */
 export function ExecutionConsolePage({ unitId }: { unitId: string | null }) {
   const [state, setState] = useState<
+    | { phase: 'unselected' }
     | { phase: 'loading' }
     | { phase: 'denied' }
     | { phase: 'error'; message: string }
@@ -50,7 +51,7 @@ export function ExecutionConsolePage({ unitId }: { unitId: string | null }) {
 
   useEffect(() => {
     if (!unitId) {
-      setState({ phase: 'ready', console: emptyConsole() });
+      setState({ phase: 'unselected' });
       return;
     }
 
@@ -105,6 +106,13 @@ export function ExecutionConsolePage({ unitId }: { unitId: string | null }) {
         </div>
 
         <div data-region="worklist-master">
+          {state.phase === 'unselected' ? (
+            <WorklistStatePanel
+              title="Nenhuma unidade selecionada"
+              description="O console opera por unidade. Selecione uma unidade no contexto do topo."
+            />
+          ) : null}
+
           {state.phase === 'loading' ? (
             <WorklistStatePanel
               title="Lendo a execução"
@@ -132,13 +140,6 @@ export function ExecutionConsolePage({ unitId }: { unitId: string | null }) {
           {data ? (
             <>
               <ConsoleSummary data={data} />
-
-              {!unitId ? (
-                <WorklistStatePanel
-                  title="Nenhuma unidade selecionada"
-                  description="O console opera por unidade. Selecione uma unidade no contexto do topo."
-                />
-              ) : null}
 
               <WorkbenchQueue
                 title="Atrasadas"
@@ -392,14 +393,6 @@ function groupConsole(data: ExecutionConsoleReadModel | null) {
   };
 }
 
-function emptyConsole(): ExecutionConsoleReadModel {
-  return {
-    context: { unitId: '', at: new Date().toISOString() },
-    summary: { inProgress: 0, paused: 0, atRisk: 0, overdue: 0, blocked: 0 },
-    items: [],
-    freshness: { readAt: new Date().toISOString(), authority: 'SERVER' },
-  };
-}
 
 function formatDateTime(value: string): string {
   const parsed = new Date(value);
