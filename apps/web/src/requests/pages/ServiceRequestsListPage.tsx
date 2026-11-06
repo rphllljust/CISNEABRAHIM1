@@ -434,6 +434,8 @@ export function ServiceRequestsListPage() {
           ),
           getServiceRequestSummary(scopedFilters, signal),
         ]);
+        // A consulta antiga pode concluir após a mudança de filtros ou saída da tela.
+        if (signal?.aborted) return;
         setSummary(summaryResponse);
         /*
          * `offset` DO SERVIDOR, COM PISO NO OFFSET QUE A TELA PEDIU.
@@ -455,6 +457,8 @@ export function ServiceRequestsListPage() {
           hasMore: response.items.length === response.limit,
         });
       } catch (error) {
+        // Abort não é erro de negócio; jamais substitua uma consulta mais recente.
+        if (signal?.aborted) return;
         if (error instanceof ServiceRequestsApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
