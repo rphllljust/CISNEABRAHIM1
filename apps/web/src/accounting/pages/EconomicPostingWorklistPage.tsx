@@ -17,6 +17,7 @@ import { WorkbenchFloorplan, ContextBlock, ContextFact } from '../../ui/workbenc
 import { StatusBadge } from '../../ui/StatusBadge';
 import { OperationalUnitOptions, useOperationalUnits } from '../../shell/hooks/useOperationalUnits';
 import { EconomicStatusStrip } from '../components/EconomicStatusStrip';
+import { accountingQueueEmptyCopy } from './accounting-queue-empty-copy';
 import {
   ECONOMIC_FINANCIAL_LABELS,
   ECONOMIC_STATE_LABELS,
@@ -280,12 +281,8 @@ export function EconomicPostingWorklistPage() {
               regionLabel="Exceções de contabilização"
               count={filteredItems.length}
               description="Só entra o que exige ação."
-              emptyTitle={statusFilter ? 'Nenhum caso neste filtro' : 'Nenhum caso nesta página'}
-              emptyDescription={
-                statusFilter
-                  ? 'Nenhum caso retornado corresponde ao estado selecionado. Limpe o filtro para consultar os demais casos.'
-                  : 'A página consultada não retornou casos. Isso não comprova ausência de pendências em outras páginas ou no total do servidor.'
-              }
+              emptyTitle={accountingQueueEmptyCopy(statusFilter !== null).title}
+              emptyDescription={accountingQueueEmptyCopy(statusFilter !== null).description}
             >
               {filteredItems.map((item) => {
                 const key = `${item.factKind}:${item.factId}`;
