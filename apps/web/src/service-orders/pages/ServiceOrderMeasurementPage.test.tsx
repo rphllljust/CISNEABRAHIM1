@@ -161,6 +161,45 @@ describe('ServiceOrderMeasurementPage', () => {
   });
 
 
+  it('não anuncia comandos da medição anterior enquanto aguarda novas capabilities', async () => {
+    const user = userEvent.setup();
+    const backend = createServiceOrdersFetchMock({
+      orderCompleted: true,
+      seedMeasurement: 'draft-aligned',
+    });
+    let reads = 0;
+    let releaseRefresh: (() => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        if (url.includes('/query/measurements/') && url.endsWith('/workbench')) {
+          reads += 1;
+          if (reads > 1) {
+            await new Promise<void>((resolve) => {
+              releaseRefresh = resolve;
+            });
+          }
+        }
+        return backend(input, init);
+      }),
+    );
+
+    renderServiceOrderRoutes(measurementPath);
+    const submit = await screen.findByRole('button', { name: /submeter medição/i });
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    try {
+      await waitFor(() => expect(releaseRefresh).toBeDefined());
+      expect(measurementStatusText()).toBe('Submetida');
+      expect(screen.queryByRole('button', { name: /submeter medição/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /iniciar análise/i })).not.toBeInTheDocument();
+    } finally {
+      releaseRefresh?.();
+    }
+  });
+
   it('falha fechada se o recarregamento das capabilities falhar após uma transição', async () => {
     const user = userEvent.setup();
     const backend = createServiceOrdersFetchMock({
