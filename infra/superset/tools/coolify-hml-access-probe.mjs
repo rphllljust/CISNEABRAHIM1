@@ -9,7 +9,9 @@ import { pathToFileURL } from 'node:url';
 
 const LIMIT = 30;
 const fingerprint = (value) => createHash('sha256').update(String(value)).digest('hex').slice(0, 12);
-const hmlName = (value) => typeof value === 'string' && /(?:^|[^a-z])(hml|homolog)(?:[^a-z]|$)/i.test(value.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+const normalizedName = (value) => typeof value === 'string' ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase() : '';
+const hmlName = (value) => /(?:^|[^a-z])(hml|homologacao|homologation|homolog)(?:[^a-z]|$)/.test(normalizedName(value));
+const stageName = (value) => /(?:^|[^a-z])(staging|stage|preprod|pre-production|test|teste|development|dev)(?:[^a-z]|$)/.test(normalizedName(value));
 
 function parseBaseUrl(raw) {
   if (!raw) return null;
@@ -30,7 +32,10 @@ export async function probe({ baseUrl, token, fetchImpl = fetch } = {}) {
     endpoints: {},
     projectCount: null,
     hmlCandidateCount: 0,
+    stagingAliasCount: 0,
+    environmentCount: 0,
     candidates: [],
+    resourceInventory: { serverCount: null, applicationCount: null, serviceCount: null, supersetNamedCount: null },
     projectInventoryTruncated: false,
     creationPermission: 'UNVERIFIED_NO_WRITE_ATTEMPT',
     requiredNextAction: null,
@@ -77,7 +82,9 @@ export async function probe({ baseUrl, token, fetchImpl = fetch } = {}) {
     if (typeof p.uuid !== 'string' || !p.uuid) continue;
     const envs = await get(`/projects/${encodeURIComponent(p.uuid)}/environments`, 'environments_' + fingerprint(p.uuid));
     if (!Array.isArray(envs)) continue;
+    result.environmentCount += envs.length;
     for (const env of envs) {
+      if (stageName(env.name)) result.stagingAliasCount += 1;
       if (!hmlName(env.name)) continue;
       result.hmlCandidateCount += 1;
       result.candidates.push({
@@ -87,6 +94,20 @@ export async function probe({ baseUrl, token, fetchImpl = fetch } = {}) {
         match: 'HML_OR_HOMOLOG_NAME',
       });
     }
+  }
+  // GET-only inventory: count resources, never print identifiers, domains or env variables.
+  const [servers, applications, services] = await Promise.all([
+    get('/servers', 'servers'),
+    get('/applications', 'applications'),
+    get('/services', 'services'),
+  ]);
+  for (const [key, entries] of [['serverCount', servers], ['applicationCount', applications], ['serviceCount', services]]) {
+    if (Array.isArray(entries)) result.resourceInventory[key] = entries.length;
+  }
+  if (Array.isArray(applications) && Array.isArray(services)) {
+    result.resourceInventory.supersetNamedCount = [...applications, ...services].filter(
+      (entry) => /superset/i.test(String(entry.name ?? '')),
+    ).length;
   }
   // Does not attempt a dangerous dry-run POST: a malformed create request could mutate state.
   result.requiredNextAction = result.hmlCandidateCount === 1 && !result.projectInventoryTruncated
