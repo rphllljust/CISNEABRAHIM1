@@ -66,3 +66,14 @@ export function movementCountOrUnknown(
 ): number | null {
   return reconciliation?.movementCount ?? null;
 }
+
+/** A falha de leitura das contas não pode aparecer como lista vazia válida. */
+export function transferDestinationPlaceholder(
+  phase: 'idle' | 'loading' | 'denied' | 'error' | 'ready',
+  destinationCount: number,
+): string {
+  if (phase === 'error') return 'Falha ao consultar contas de destino';
+  if (phase === 'denied') return 'Sem permissão para consultar contas de destino';
+  if (phase !== 'ready') return 'Carregando contas de destino…';
+  return destinationCount === 0 ? 'Nenhuma outra conta ativa disponível' : 'Selecione…';
+}
