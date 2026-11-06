@@ -577,7 +577,16 @@ function FiscalDocumentsList() {
         activeViewId={smartList.activeViewId}
         onApply={(view) => {
           smartList.applyView(view);
-          setFiscalStatus(view.config.filters.status ?? '');
+          // Preserva a identificação da visão salva: não chamar setFilter aqui,
+          // pois setFilter limparia activeViewId logo após aplicar a visão.
+          const nextStatus = view.config.filters.status ?? '';
+          const validated = (STATUS_FILTERS as readonly string[]).includes(nextStatus) ? nextStatus : '';
+          setSearchParams((current) => {
+            const next = new URLSearchParams(current);
+            if (validated) next.set('status', validated);
+            else next.delete('status');
+            return next;
+          }, { replace: true });
           setPage(0);
         }}
         onSave={smartList.savedViews.saveView}
