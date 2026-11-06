@@ -177,7 +177,8 @@ export function FleetListPage() {
     return () => window.clearTimeout(timer);
   }, [searchInput]);
 
-  if (listState.phase === 'loading' && summary === null) {
+  // Never render stale fleet rows or synthetic zero totals while a new query is pending.
+  if (listState.phase === 'loading') {
     return (
       <ModuleStatePage title="Frota">
         <ModuleLoadingState message="Carregando veículos…" />
