@@ -114,5 +114,5 @@ if (currentFailures.length > baselineFailures.length) {
 }
 
 console.log(
-  'No new visual failing test IDs relative to the exact base commit. Existing baseline debt does not block this change.',
+  'No new visual failing test IDs relative to the exact base commit. The absence of new regressions does NOT approve Visual Full; strict suite acceptance remains blocked.',
 );
