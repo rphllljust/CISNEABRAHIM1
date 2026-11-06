@@ -26,14 +26,16 @@ test('Finds only existing HML environments and prints hashes, never identifiers'
     assert.equal(init.method,'GET');
     paths.push(new URL(url).pathname);
     if(url.endsWith('/projects')) return respond([{name:'CISNE',uuid:'project-123'}]);
-    return respond([{name:'HML',uuid:'env-secret-id'}, {name:'production',uuid:'prod'}]);
+    return respond([{name:'Homologação',uuid:'env-secret-id'}, {name:'staging',uuid:'stage'}, {name:'production',uuid:'prod'}]);
   }});
   assert.equal(r.projectCount, 1);
   assert.equal(r.hmlCandidateCount, 1);
+  assert.equal(r.stagingAliasCount, 1);
+  assert.equal(r.environmentCount, 3);
   assert.equal(r.apiAccess,'PROJECT_READ_ALLOWED');
   assert.equal(r.writesAttempted,false);
   assert.equal(r.resourceCreated,false);
-  assert.deepEqual(paths,['/api/v1/projects','/api/v1/projects/project-123/environments']);
+  assert.deepEqual(paths,['/api/v1/projects','/api/v1/projects/project-123/environments', '/api/v1/servers', '/api/v1/applications', '/api/v1/services']);
   for(const secret of ['project-123','env-secret-id','mysecret','control.example.net']) assert.ok(!JSON.stringify(r).includes(secret));
 });
 test('Rejects invalid/malicious base URLs without using a bearer token', async () => {
