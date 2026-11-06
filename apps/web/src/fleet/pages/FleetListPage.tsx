@@ -126,7 +126,9 @@ export function FleetListPage() {
             },
             signal,
           ),
-          getFleetSummary(scopedFilters, signal),
+          // A contagem agregada é auxiliar: falha nela não deve ocultar veículos lidos da API.
+          // Ausência da leitura fica null (indicadores '—'), nunca contadores inventados como zero.
+          getFleetSummary(scopedFilters, signal).catch(() => null),
         ]);
         // O cancelamento do efeito não cobre a paginação manual; verificar também a geração.
         if (signal?.aborted || requestId !== latestListRequest.current) return;
