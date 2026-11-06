@@ -143,3 +143,8 @@ Run 04-verify-exact-dataset-scope.sql against the HML Superset LOGIN with psql -
 ## Increment 07 — bidirectional dataset column preflight
 
 The exact-scope SQL gate now rejects missing mandatory columns in addition to unexpected columns. This is a read-only HML check and is not proof of live execution. PostgreSQL security_barrier views are not unit RLS. Superset guest-token RLS, dataset scoping, cache isolation and real multiunit negative tests remain mandatory before enablement, merge or deployment.
+
+
+## Increment 08 — separate Coolify Compose service (configuration only)
+
+New opt-in files `infra/superset/compose.coolify.yaml` and `infra/superset/README.coolify.md` document a Coolify Git-based Compose deployment using a separate metadata PostgreSQL and Redis with persistent volumes, no exposed host ports, secret references and an init gate. This is a deployable definition **not** a deployed instance; no Coolify URL, credentials or application UUID have been verified. The current release workflow still handles the existing CISNE API/Web/Worker. Every backend/public domain and dashboard reference must be configured and validated from real Coolify runtime evidence before feature enablement.
