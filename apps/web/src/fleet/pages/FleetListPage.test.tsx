@@ -149,7 +149,7 @@ describe('FleetListPage', () => {
     await act(async () => {
       resolveFiltered?.({ items: [], limit: 20, offset: 0, total: 0 });
     });
-    expect(await screen.findByText('Nenhum veículo corresponde aos filtros aplicados.')).toBeInTheDocument();
+    expect(await screen.findByText('Nenhum veículo encontrado para os filtros selecionados.')).toBeInTheDocument();
   });
 
   it('descarta resposta antiga após troca rápida do filtro de cadastro', async () => {
