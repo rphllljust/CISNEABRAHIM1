@@ -6,6 +6,12 @@ on:
       - master
       - main
       - 'rc/**'
+      # MASTER 010: validate anticipated lots before their predecessor PR is accepted.
+      # These branch-only CI runs never authorize publication (Coolify release is main-only).
+      - 'fix/master-010-lote-04-service-orders-execution-measurement'
+      - 'fix/master-010-lote-05-resources-fleet-people'
+      - 'fix/master-010-lote-07-finance-treasury-billing'
+      - 'fix/master-010-lote-09-accounting-ledger'
   pull_request:
 
 # CONCORRENCIA DO CI — dois grupos nomeados, sem misturar CI com promocao.
@@ -49,7 +55,7 @@ on:
 # O isolamento por SHA remove a fila compartilhada entre revisoes; nao reduz
 # nenhum gate, teste, politica de release, nem altera `ci-main`.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}-{1}', github.event.pull_request.number, github.event.pull_request.head.sha) || 'ci-main' }}
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}-{1}', github.event.pull_request.number, github.event.pull_request.head.sha) || (startsWith(github.ref, 'refs/heads/fix/master-010-lote-') && format('ci-master010-{0}', github.ref_name) || 'ci-main') }}
   cancel-in-progress: true
 
 permissions:
