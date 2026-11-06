@@ -49,6 +49,7 @@ import {
 import { FinanceWorklistToolbar, financeControlClass } from '../components/FinanceWorklistToolbar';
 import { PAYABLES_ALLOWED_FILTERS, PAYABLES_BUILT_IN_VIEWS } from './finance-smart-list';
 import { payableEngineRow } from '../utils/finance-engine-rows';
+import { hasPayablesActiveQuery } from '../utils/payables-query-scope';
 import {
   FINANCE_DEFAULT_SORT,
   daysPastDue,
@@ -164,7 +165,7 @@ export function PayablesListPage() {
 
   useEffect(() => {
     setPageNumber(1);
-  }, [dueFrom, dueTo, statusForQuery]);
+  }, [dueFrom, dueTo, statusForQuery, agingFilter]);
 
   const [sort, setSort] = useState<FinanceSortState>(FINANCE_DEFAULT_SORT);
 
@@ -279,7 +280,11 @@ export function PayablesListPage() {
   const pageCount = page ? Math.max(1, page.totalPages) : 1;
   const safePageNumber = Math.min(pageNumber, pageCount);
 
-  const hasActiveQuery = Boolean(search || dueFrom || dueTo || statusForQuery || agingFilter);
+  // Uma árvore avançada isolada também representa um recorte efetivo.
+  const hasActiveQuery = hasPayablesActiveQuery({
+    search, dueFrom, dueTo, status: statusForQuery, agingBucket: agingFilter,
+    advancedActive: isFilterGroupActive(filterGroup),
+  });
   const portfolioEmpty =
     page !== null &&
     page.total === 0 &&
@@ -456,7 +461,10 @@ export function PayablesListPage() {
                 <DynamicFilterBuilder
                   schema={schema}
                   value={filterGroup}
-                  onChange={setFilterGroup}
+                  onChange={(next) => {
+                    setFilterGroup(next);
+                    setPageNumber(1);
+                  }}
                 />
               </div>
             ) : null}
