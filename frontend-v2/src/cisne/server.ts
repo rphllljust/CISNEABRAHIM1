@@ -31,15 +31,14 @@ export async function cisneFetch(
   }
   const target = new URL(path, base);
   if (query) target.search = query.toString();
+  const headers = new Headers(init.headers);
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
   return fetch(target, {
     ...init,
     cache: 'no-store',
     redirect: 'manual',
     signal: init.signal ?? AbortSignal.timeout(12000),
-    headers: {
-      Accept: 'application/json',
-      ...(init.headers ?? {})
-    }
+    headers
   });
 }
 
