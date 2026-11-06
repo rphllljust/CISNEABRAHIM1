@@ -93,32 +93,34 @@ if (!baselineSha || /^0+$/.test(baselineSha)) {
 
 const currentFailures = parseFailures(await readFile(currentLogPath, 'utf8'));
 const [owner, repo] = repository.split('/');
+// The full suite runs in its OWN workflow. The CI 'Build / artifacts' job
+// contains no Playwright results, so it is not a valid visual baseline.
 const runs = await githubJson(
-  `/repos/${owner}/${repo}/actions/runs?head_sha=${encodeURIComponent(baselineSha)}&event=push&status=completed&per_page=100`,
+  `/repos/${owner}/${repo}/actions/runs?head_sha=${encodeURIComponent(baselineSha)}&status=completed&per_page=100`,
 );
-const baselineRun = runs.workflow_runs?.find(
-  (run) => run.name === 'CI' && run.head_sha === baselineSha,
-);
+const baselineRun = runs.workflow_runs
+  ?.filter((run) => run.name === 'Visual full' && run.head_sha === baselineSha && run.status === 'completed')
+  .sort((a, b) => b.id - a.id)[0];
 
 if (!baselineRun) {
   throw new Error(
-    `No completed CI push run found for exact baseline SHA ${baselineSha}; failing closed.`,
+    `No completed Visual full run found for exact baseline SHA ${baselineSha}; failing closed.`,
   );
 }
 
 const jobs = await githubJson(
   `/repos/${owner}/${repo}/actions/runs/${baselineRun.id}/jobs?filter=latest&per_page=100`,
 );
-const buildJob = jobs.jobs?.find((job) => job.name === 'Build / artifacts');
+const visualJob = jobs.jobs?.find((job) => job.name === 'Visual full');
 
-if (!buildJob) {
+if (!visualJob) {
   throw new Error(
-    `Baseline CI run ${baselineRun.id} has no Build / artifacts job; failing closed.`,
+    `Baseline Visual full run ${baselineRun.id} has no Visual full job; failing closed.`,
   );
 }
 
 const baselineLog = await (
-  await github(`/repos/${owner}/${repo}/actions/jobs/${buildJob.id}/logs`)
+  await github(`/repos/${owner}/${repo}/actions/jobs/${visualJob.id}/logs`)
 ).text();
 const baselineFailures = parseFailures(baselineLog);
 const baselineSet = new Set(baselineFailures);
