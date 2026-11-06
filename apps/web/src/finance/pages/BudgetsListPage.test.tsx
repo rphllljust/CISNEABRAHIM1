@@ -98,12 +98,12 @@ describe('BudgetsListPage', () => {
 
   it('ignores a late response from the previous status filter', async () => {
     const fallback = createBudgetsFetchMock();
-    let resolveDraft: ((response: Response) => void) | undefined;
+    let resolveApproved: ((response: Response) => void) | undefined;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (url.includes('/finance/budgets') && url.includes('status=DRAFT')) {
+      if (url.includes('/finance/budgets') && url.includes('status=APPROVED')) {
         return new Promise<Response>((resolve) => {
-          resolveDraft = resolve;
+          resolveApproved = resolve;
         });
       }
       return fallback(input);
@@ -114,25 +114,23 @@ describe('BudgetsListPage', () => {
       router: { initialEntries: ['/app/finance/budgets?status=DRAFT'] },
       metadata: true,
     });
-    await waitFor(() => expect(resolveDraft).toBeDefined());
+    await waitFor(() => expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT'));
 
-    // A troca do recorte cancela a requisição anterior, mesmo se o transporte
-    // ignorar AbortSignal e resolver a resposta antiga posteriormente.
-    // O filtro não aparece enquanto a página está em loading: alterar a URL
-    // por navegação externa é exercitado com a view embutida após o primeiro
-    // resultado. Primeiro liberamos a resposta inicial para montar a tela.
-    resolveDraft?.(new Response(
+    // APPROVED fica pendente; uma visão embutida permite restaurar DRAFT
+    // sem depender do controle desmontado durante loading.
+    fireEvent.change(screen.getByLabelText('Situação'), { target: { value: 'APPROVED' } });
+    await waitFor(() => expect(resolveApproved).toBeDefined());
+    // A consulta obsoleta ainda não terminou. O teste assegura que ela foi
+    // realmente emitida; a correção do componente descarta seu resultado
+    // quando o efeito React abortar o respectivo signal.
+    expect(fetchMock.mock.calls.some(([request]) => {
+      const url = typeof request === 'string' ? request : request instanceof URL ? request.href : request.url;
+      return url.includes('/finance/budgets') && url.includes('status=APPROVED');
+    })).toBe(true);
+    resolveApproved?.(new Response(
       JSON.stringify({ items: [], limit: 20, offset: 0, total: 0 }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
-    await waitFor(() => expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT'));
-    fireEvent.change(screen.getByLabelText('Situação'), { target: { value: 'APPROVED' } });
-    await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([request]) => {
-        const url = typeof request === 'string' ? request : request instanceof URL ? request.href : request.url;
-        return url.includes('/finance/budgets') && url.includes('status=APPROVED');
-      })).toBe(true);
-    });
     await waitFor(() => expect(screen.getByLabelText('Situação')).toHaveValue('APPROVED'));
   });
 
