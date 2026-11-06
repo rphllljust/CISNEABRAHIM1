@@ -212,7 +212,7 @@ export function FleetListPage() {
   const isEmptyList = listState.phase === 'ready' && total === 0 && !filtersActive;
   const isEmptyFiltered = listState.phase === 'ready' && total === 0 && filtersActive;
   const rangeLabel = listState.phase === 'loading'
-    ? 'Carregando veículos…'
+    ? 'Atualizando listagem…'
     : formatAssetPaginationRange(offset, PAGE_SIZE, items.length, total).replace(
         'ativos',
         'veículos',
