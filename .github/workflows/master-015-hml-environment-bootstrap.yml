@@ -1,0 +1,44 @@
+name: MASTER 015 — guarded Coolify HML environment bootstrap
+
+on:
+  workflow_dispatch:
+  # Runs once when this workflow file is introduced on the dedicated operations branch.
+  push:
+    branches:
+      - ops/master-015-hml-access-probe
+    paths:
+      - '.github/workflows/master-015-hml-environment-bootstrap.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: master-015-coolify-hml-environment-create
+  cancel-in-progress: false
+
+jobs:
+  create-empty-hml-only:
+    name: Create HML environment only under strict verified preconditions
+    if: github.repository == 'rphllljust/CISNEABRAHIM1' && github.actor == 'rphllljust' && github.ref == 'refs/heads/ops/master-015-hml-access-probe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove no production mutation and strict guards
+        run: |
+          node --check infra/superset/tools/coolify-hml-create-environment.mjs
+          node --test infra/superset/tools/coolify-hml-create-environment.test.mjs
+      - name: Create new EMPTY HML environment only if current sole environment is production and ERP UUIDs match
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+          COOLIFY_WEB_UUID: ${{ secrets.COOLIFY_WEB_UUID }}
+          COOLIFY_WORKER_UUID: ${{ secrets.COOLIFY_WORKER_UUID }}
+          HML_ENVIRONMENT_ACTION: CREATE_IF_STRICTLY_ELIGIBLE
+        run: node infra/superset/tools/coolify-hml-create-environment.mjs
