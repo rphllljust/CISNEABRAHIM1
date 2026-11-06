@@ -8,6 +8,8 @@ on:
       - ops/master-015-hml-access-probe
     paths:
       - '.github/workflows/master-015-hml-coolify-access-probe.yml'
+      - 'infra/superset/tools/coolify-hml-access-probe.mjs'
+      - 'infra/superset/tools/coolify-hml-access-probe.test.mjs'
 
 permissions:
   contents: read
