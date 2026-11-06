@@ -445,12 +445,17 @@ export function OperationalDashboardPage() {
    * dimensao de dado declarada em `DOMAIN_DATA_DIMENSIONS`, para que o operador nunca leia OPERACAO
    * sob um chip FISCAL.
    */
+  // The API may fail before the first executive snapshot exists. Treat that as
+  // unavailable data, never dereference a non-existent snapshot or invent zeros.
   const showOperationDistribution =
-    domainReachesOperation(domain) && snapshot!.charts.serviceOrdersByStatus.items.length > 0;
+    snapshot != null &&
+    domainReachesOperation(domain) &&
+    snapshot.charts.serviceOrdersByStatus.items.length > 0;
   const showAging =
+    snapshot != null &&
     domainReachesFinance(domain) &&
-    snapshot!.charts.financialAging.available &&
-    snapshot!.charts.financialAging.buckets.length > 0;
+    snapshot.charts.financialAging.available &&
+    snapshot.charts.financialAging.buckets.length > 0;
   const dashboardKpis = showOperationDistribution ? buildDashboardKpis(snapshot!) : [];
   const workbenchKpiIds = new Set(workbenchKpis.map((kpi) => kpi.id));
   const productivitySection =
