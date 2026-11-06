@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ServiceDefinitionsListPage } from './ServiceDefinitionsListPage';
@@ -148,6 +148,79 @@ describe('ServiceDefinitionsListPage integration', () => {
     });
     expect(await screen.findByText('Nenhuma definição corresponde aos filtros aplicados.')).toBeInTheDocument();
     expect(screen.getByText('0–0 de 0')).toBeInTheDocument();
+  });
+
+  it('mantém o resultado do filtro novo após resposta atrasada da paginação antiga', async () => {
+    const fallback = createCatalogFetchMock();
+    let resolveOldPage: ((response: Response) => void) | undefined;
+    let seed: Record<string, unknown> | null = null;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const url = new URL(raw, 'http://localhost');
+      if (url.pathname !== '/api/v1/catalog/service-definitions' || (init?.method ?? 'GET') !== 'GET') {
+        return fallback(input, init);
+      }
+      const offset = Number(url.searchParams.get('offset') ?? '0');
+      // O contrato real serializa o termo como `q`, não `search`.
+      const search = url.searchParams.get('q');
+      if (offset === 20 && !search) {
+        return new Promise<Response>((resolve) => {
+          resolveOldPage = resolve;
+        });
+      }
+      if (search) return fallback(input, init);
+
+      const response = await fallback(input, init);
+      const data = (await response.json()) as { items: Array<Record<string, unknown>> };
+      seed = data.items[0] ?? null;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: Array.from({ length: 20 }, (_, index) => ({
+            ...data.items[0],
+            id: `dddddddd-dddd-4ddd-8ddd-${String(index).padStart(12, '0')}`,
+            name: `Serviço empresarial ${index + 1}`,
+            code: `SERV-${index + 1}`,
+          })),
+          limit: 20,
+          offset: 0,
+          total: 21,
+          asOf: '2026-11-04T12:00:00.000Z',
+        }),
+      } as Response;
+    });
+
+    vi.stubGlobal('fetch', fetchMock);
+    renderWithProviders(<ServiceDefinitionsListPage />);
+
+    await waitFor(() => expect(screen.getByText('1–20 de 21')).toBeInTheDocument());
+    // Busca ainda está no debounce; a navegação dispara uma leitura sem signal.
+    fireEvent.change(screen.getByLabelText(/^buscar$/i), { target: { value: 'zzz-nao-existe' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    await waitFor(() => expect(resolveOldPage).toBeDefined());
+
+    // O debounce inicia outra leitura e retorna zero para o NOVO recorte.
+    await waitFor(() => expect(screen.getByText('0–0 de 0')).toBeInTheDocument());
+
+    await act(async () => {
+      resolveOldPage?.({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          items: [seed],
+          limit: 20,
+          offset: 20,
+          total: 21,
+          asOf: '2026-11-04T12:00:00.000Z',
+        }),
+      } as Response);
+    });
+
+    expect(screen.getByText('0–0 de 0')).toBeInTheDocument();
+    expect(screen.getByText('Nenhuma definição corresponde aos filtros aplicados.')).toBeInTheDocument();
+    expect(screen.queryByText('21 definições no recorte')).not.toBeInTheDocument();
   });
 
   it('does not confuse authorization denial with an empty catalog', async () => {
