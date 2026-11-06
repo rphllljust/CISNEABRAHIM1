@@ -628,12 +628,15 @@ export function TreasuryAccountDetailPage() {
                 <Select
                   id="reverse-transfer-from"
                   value={reverseTransfer.fromAccountId}
+                  disabled={accountsQuery.state.phase !== 'ready'}
                   onChange={(event) =>
                     setReverseTransfer((current) => ({ ...current, fromAccountId: event.target.value }))
                   }
                   required
                 >
-                  <option value="">Selecione…</option>
+                  <option value="">
+                    {transferDestinationPlaceholder(accountsQuery.state.phase, accounts.length)}
+                  </option>
                   {accounts.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -645,12 +648,15 @@ export function TreasuryAccountDetailPage() {
                 <Select
                   id="reverse-transfer-to"
                   value={reverseTransfer.toAccountId}
+                  disabled={accountsQuery.state.phase !== 'ready'}
                   onChange={(event) =>
                     setReverseTransfer((current) => ({ ...current, toAccountId: event.target.value }))
                   }
                   required
                 >
-                  <option value="">Selecione…</option>
+                  <option value="">
+                    {transferDestinationPlaceholder(accountsQuery.state.phase, accounts.length)}
+                  </option>
                   {accounts.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
