@@ -194,7 +194,9 @@ describe('F1.1 — Workbench: floorplan de resolução', () => {
     mockFetchWorklist.mockResolvedValue(worklistPayload([]));
     renderWorkbench();
 
-    expect(await screen.findByText(/Nenhuma exceção de contabilização/i)).toBeInTheDocument();
+    // Página vazia não comprova que toda a fila contábil está vazia.
+    expect(await screen.findByText('Nenhum caso nesta página')).toBeInTheDocument();
+    expect(screen.getByText(/não comprova ausência de pendências em outras páginas/i)).toBeInTheDocument();
     expect(screen.getByText(/Nenhum caso selecionado/i)).toBeInTheDocument();
   });
 
