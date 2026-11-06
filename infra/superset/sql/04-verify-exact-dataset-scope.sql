@@ -67,3 +67,37 @@ BEGIN
   END IF;
   RAISE NOTICE 'BI exact-scope gate passed: five views, no extra relations or columns';
 END $gate$;
+
+
+-- Fail closed if any required column is missing, not just when columns are added.
+DO $required$
+DECLARE
+  missing text;
+BEGIN
+  WITH expected(view_name, columns) AS (
+    VALUES
+      ('service_orders', ARRAY['id','unit_id','internal_code','status','origin','created_at','started_at','completed_at']),
+      ('physical_assets', ARRAY['id','unit_id','asset_code','name','lifecycle_status','allocation_status','created_at']),
+      ('contracts', ARRAY['id','unit_id','internal_code','status','valid_from','valid_to','currency_code','created_at']),
+      ('measurements', ARRAY['id','service_order_id','unit_id','status','created_at','decided_at']),
+      ('receivables', ARRAY['id','unit_id','currency_code','principal','lifecycle','due_date','created_at'])
+  ), expected_columns AS (
+    SELECT view_name, unnest(columns) AS column_name FROM expected
+  ), actual_columns AS (
+    SELECT c.relname::text AS view_name, a.attname::text AS column_name
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_attribute a ON a.attrelid = c.oid
+    WHERE n.nspname = 'bi_superset' AND a.attnum > 0 AND NOT a.attisdropped
+  )
+  SELECT string_agg(format('%I.%I', view_name, column_name), ', ')
+  INTO missing
+  FROM (
+    SELECT view_name, column_name FROM expected_columns
+    EXCEPT
+    SELECT view_name, column_name FROM actual_columns
+  ) delta;
+  IF missing IS NOT NULL THEN
+    RAISE EXCEPTION 'BI gate: missing required analytic columns: %', missing;
+  END IF;
+  RAISE NOTICE 'BI required analytic columns verified';
+END $required$;

@@ -138,3 +138,8 @@ preflight alone.
 ## Increment 06 — exact dataset scope preflight
 
 Run 04-verify-exact-dataset-scope.sql against the HML Superset LOGIN with psql -X -v ON_ERROR_STOP=1 and reader_login supplied. The read-only gate rejects effective SELECT outside the five reviewed views, including unreviewed BI relations, and rejects unexpected columns. It does not prove Superset guest RLS; test cross-unit denial and real datasets in HML separately.
+
+
+## Increment 07 — bidirectional dataset column preflight
+
+The exact-scope SQL gate now rejects missing mandatory columns in addition to unexpected columns. This is a read-only HML check and is not proof of live execution. PostgreSQL security_barrier views are not unit RLS. Superset guest-token RLS, dataset scoping, cache isolation and real multiunit negative tests remain mandatory before enablement, merge or deployment.
