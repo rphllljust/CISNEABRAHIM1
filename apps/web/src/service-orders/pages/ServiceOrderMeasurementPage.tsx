@@ -209,8 +209,9 @@ export function ServiceOrderMeasurementPage() {
       const next = await getMeasurementWorkbench(serviceOrderId);
       setWorkbench(next);
     } catch {
-      // A superfície fica como está: os comandos anteriores continuam
-      // desabilitados se eram, e um erro de leitura não habilita nada.
+      // A decisão anterior não autoriza comandos após uma transição já persistida.
+      // Falha de refresh = capabilities desconhecidas: fail closed até nova leitura.
+      setWorkbench(null);
     }
   }, [serviceOrderId]);
 
