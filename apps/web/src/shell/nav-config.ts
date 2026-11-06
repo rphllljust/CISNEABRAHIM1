@@ -457,6 +457,14 @@ export const SHELL_NAV_GROUPS: ShellNavGroup[] = [
         accessCheck: 'request-list',
         featureFlag: 'reports',
       },
+      ...(import.meta.env.VITE_ENABLE_SUPERSET_BI === 'true' ? [{
+        id: 'embedded-bi',
+        label: 'BI e indicadores',
+        path: '/app/reports/embedded',
+        capabilityId: 'service-orders:service-order:list',
+        accessCheck: 'superset-bi-read',
+        featureFlag: 'reports',
+      } satisfies ShellNavItem] : []),
       {
         id: 'operational-profitability',
         label: 'Rentabilidade operacional',
@@ -580,6 +588,7 @@ const STATIC_ROUTE_LABELS: Record<string, string> = {
   '/app/fleet': 'Frota',
   '/app/alerts': 'Alertas',
   '/app/reports': 'Relatórios',
+  '/app/reports/embedded': 'BI e indicadores',
   '/app/operational-profitability': 'Rentabilidade operacional',
   '/app/reports/compliance': 'Conformidade fiscal e contábil',
   '/app/rentals': 'Locações',

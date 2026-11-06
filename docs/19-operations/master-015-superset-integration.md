@@ -86,3 +86,23 @@ Copy infra/superset/env.hml.example to an untracked .env.hml and replace ALL
 placeholders via a secure environment. First validate image entrypoint and config
 against Superset 6.1.0 in HML. Initialization is manual; the service is NOT running
 and no default admin or guest roles are created by the CISNE integration.
+
+
+## Increment 02 — React bridge (candidate for CI)
+
+- Added browser-only @superset-ui/embedded-sdk@0.4.0, lockfile pinned against
+  npm-registry package integrity and explicit dependency versions.
+- Route /app/reports/embedded uses existing CISNE shell, auth context and operational
+  unit loader; the native reports center remains untouched.
+- Backend GET /api/v1/analytics/embedded/catalog evaluates PDP by scope and advertises
+  only configured and permitted dashboards; POST issues guest tokens after PDP recheck.
+- Menu item is opt-in at web build: VITE_ENABLE_SUPERSET_BI=true. By default not shown.
+  Backend separately requires SUPERSET_EMBED_ENABLED=true and actual configured UUIDs.
+- Runtime guest tokens are held only in closure memory. Iframe unmounts on route, unit,
+  user or session change; SDK token refresh rechecks PDP and resource identity.
+- Error states distinguish HTTP 403, HTTP 401 and service/network failure. Empty data
+  is never fabricated on transport errors.
+
+This is source integration, not proof of runtime embedding. The HML Superset service,
+allowed origins, dashboards, dataset RLS, separate DB reader and real-data E2E must
+still be verified before release/merge/deploy.
