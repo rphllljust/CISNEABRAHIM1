@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Field, Input, Money, StatusBadge } from '../../ui';
 import { HumanLookupField } from '../../financial-ui/HumanLookupField';
@@ -112,6 +112,7 @@ function allowedAssessmentActions(status: string): {
 
 type ListState =
   | { phase: 'loading' }
+  | { phase: 'needs-unit' }
   | { phase: 'error'; message: string; retryable: boolean }
   | { phase: 'ready'; items: TaxAssessmentListItem[]; total: number; page: number };
 
@@ -131,11 +132,15 @@ function TaxAssessmentsList() {
   const [periodKey, setPeriodKey] = useState('');
   const [page, setPage] = useState(0);
   const [state, setState] = useState<ListState>({ phase: 'loading' });
+  const latestRequestId = useRef(0);
 
   const load = useCallback(
     async (signal?: AbortSignal) => {
+      // Garante que uma leitura antiga (inclusive retry sem AbortSignal) não vence um recorte novo.
+      const requestId = ++latestRequestId.current;
       if (!unitId) {
-        setState({ phase: 'ready', items: [], total: 0, page: 0 });
+        // Sem unidade autorizada selecionada, não há contagem consultada: AUSÊNCIA != ZERO.
+        setState({ phase: 'needs-unit' });
         return;
       }
       setState({ phase: 'loading' });
@@ -150,8 +155,10 @@ function TaxAssessmentsList() {
           },
           signal,
         );
+        if (signal?.aborted || requestId !== latestRequestId.current) return;
         setState({ phase: 'ready', items: response.items, total: response.total, page: response.page });
       } catch (error) {
+        if (signal?.aborted || requestId !== latestRequestId.current) return;
         setState({
           phase: 'error',
           message: mapFiscalErrorToMessage(
@@ -275,6 +282,13 @@ function TaxAssessmentsList() {
 
       {state.phase === 'loading' ? (
         <ModuleLoadingState title="Obrigações tributárias" message="Carregando apurações…" />
+      ) : null}
+
+      {state.phase === 'needs-unit' ? (
+        <WorklistStatePanel
+          title="Selecione uma unidade operacional"
+          description="Nenhuma unidade está selecionada para consultar as apurações. Ainda não existe total conhecido para esse recorte."
+        />
       ) : null}
 
       {state.phase === 'error' ? (
