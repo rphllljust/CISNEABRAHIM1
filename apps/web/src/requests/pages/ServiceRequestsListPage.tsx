@@ -263,6 +263,9 @@ export function ServiceRequestsListPage() {
   const [searchInput, setSearchInput] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  // Paginação manual e atualização de filtros podem ocorrer em paralelo.
+  // O token impede que uma leitura anterior prevaleça mesmo sem AbortSignal.
+  const listRequestGeneration = useRef(0);
   const [summary, setSummary] = useState<ServiceRequestListSummary | null>(null);
 
   /*
@@ -401,6 +404,7 @@ export function ServiceRequestsListPage() {
 
   const loadPage = useCallback(
     async (offset: number, activeFilters: QueueFilters, signal?: AbortSignal) => {
+      const requestGeneration = ++listRequestGeneration.current;
       setListState({ phase: 'loading' });
       try {
         const scopedFilters = {
@@ -435,7 +439,7 @@ export function ServiceRequestsListPage() {
           getServiceRequestSummary(scopedFilters, signal),
         ]);
         // A consulta antiga pode concluir após a mudança de filtros ou saída da tela.
-        if (signal?.aborted) return;
+        if (signal?.aborted || requestGeneration !== listRequestGeneration.current) return;
         setSummary(summaryResponse);
         /*
          * `offset` DO SERVIDOR, COM PISO NO OFFSET QUE A TELA PEDIU.
@@ -458,7 +462,7 @@ export function ServiceRequestsListPage() {
         });
       } catch (error) {
         // Abort não é erro de negócio; jamais substitua uma consulta mais recente.
-        if (signal?.aborted) return;
+        if (signal?.aborted || requestGeneration !== listRequestGeneration.current) return;
         if (error instanceof ServiceRequestsApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
