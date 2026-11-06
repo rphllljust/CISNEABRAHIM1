@@ -279,7 +279,11 @@ export function PayablesListPage() {
   const pageCount = page ? Math.max(1, page.totalPages) : 1;
   const safePageNumber = Math.min(pageNumber, pageCount);
 
-  const hasActiveQuery = Boolean(search || dueFrom || dueTo || statusForQuery || agingFilter);
+  // O filtro avançado também é um recorte ativo: sem esta condição, zero títulos
+  // filtrados não apresenta o estado vazio do recorte nem permite salvar a visão.
+  const hasActiveQuery = Boolean(
+    search || dueFrom || dueTo || statusForQuery || agingFilter || isFilterGroupActive(filterGroup),
+  );
   const portfolioEmpty =
     page !== null &&
     page.total === 0 &&
