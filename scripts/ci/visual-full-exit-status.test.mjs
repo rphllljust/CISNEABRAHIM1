@@ -27,3 +27,12 @@ test('bash pipefail preserves a successful Playwright-equivalent pipeline', () =
   });
   assert.equal(check.status, 0);
 });
+
+test('Visual ratchet uses exact-SHA standalone Visual Full baseline (not CI Build)', () => {
+  const ratchet = readFileSync('scripts/ci/visual-regression-ratchet.mjs', 'utf8');
+  assert.match(ratchet, /run\.name === 'Visual full'/);
+  assert.match(ratchet, /job\.name === 'Visual full'/);
+  assert.match(ratchet, /run\.head_sha === baselineSha/);
+  assert.doesNotMatch(ratchet, /job\.name === 'Build \/ artifacts'/);
+  assert.doesNotMatch(ratchet, /No completed CI push run found/);
+});
