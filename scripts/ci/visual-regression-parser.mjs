@@ -5,7 +5,8 @@ export function parseVisualFailures(raw) {
   let expectedCount = null;
 
   for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const match = lines[index].match(/\b(\d+) failed\b/);
+    const summaryLine = lines[index].replace(/^\d{4}-\d{2}-\d{2}T[^\s]+Z\s*/, '');
+    const match = summaryLine.match(/^\s*(\d+)\s+failed\b/);
     if (match) {
       summaryIndex = index;
       expectedCount = Number(match[1]);
@@ -13,7 +14,7 @@ export function parseVisualFailures(raw) {
     }
   }
 
-  if (summaryIndex < 0 || expectedCount === null) {
+  if (summaryIndex < 0 || expectedCount === null || expectedCount < 1) {
     throw new Error('Visual command failed without a parseable Playwright failure summary; failing closed.');
   }
 
