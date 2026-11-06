@@ -160,6 +160,40 @@ describe('ServiceOrderMeasurementPage', () => {
     expect(measurementStatusText()).toBe('Submetida');
   });
 
+
+  it('falha fechada se o recarregamento das capabilities falhar após uma transição', async () => {
+    const user = userEvent.setup();
+    const backend = createServiceOrdersFetchMock({
+      orderCompleted: true,
+      seedMeasurement: 'draft-aligned',
+    });
+    let workbenchReads = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        if (url.includes('/query/measurements/') && url.endsWith('/workbench')) {
+          workbenchReads += 1;
+          if (workbenchReads > 1) {
+            return new Response(JSON.stringify({ code: 'SERVICE_UNAVAILABLE' }), {
+              status: 503,
+              headers: { 'content-type': 'application/json' },
+            });
+          }
+        }
+        return backend(input, init);
+      }),
+    );
+
+    renderServiceOrderRoutes(measurementPath);
+    const submit = await screen.findByRole('button', { name: /submeter medição/i });
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+    await waitFor(() => expect(screen.getByText(/medição submetida para análise/i)).toBeInTheDocument());
+    await waitFor(() => expect(workbenchReads).toBeGreaterThan(1));
+    expect(screen.queryByRole('button', { name: /submeter medição/i })).not.toBeInTheDocument();
+  });
+
   it('requires acknowledgement before approving', async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
