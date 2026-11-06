@@ -17,6 +17,14 @@ describe('CISNE production release sequence — exact SHA, fail-closed', () => {
     assert.match(release, /github\.ref == 'refs\/heads\/main'/);
   });
 
+  it('runs HML on PRs that modify the release authority or its tests', () => {
+    const hml = workflow('hml-isolated-e2e.yml');
+    assert.match(hml, /'\.github\/workflows\/coolify-release\.yml'/);
+    assert.match(hml, /'scripts\/cd\/\*\*'/);
+    assert.match(hml, /push:/);
+    assert.match(hml, /- main/);
+  });
+
   it('waits a bounded time for successful HML on the same SHA and refuses failure', () => {
     const release = workflow('coolify-release.yml');
     assert.match(release, /hml-isolated-e2e\.yml\/runs\?branch=main&head_sha=\$EXPECTED_SHA/);

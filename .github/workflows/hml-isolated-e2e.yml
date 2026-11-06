@@ -14,6 +14,8 @@ on:
       - 'apps/web/src/catalog/**'
       - 'apps/web/e2e/hml/**'
       - '.github/workflows/hml-isolated-e2e.yml'
+      - '.github/workflows/coolify-release.yml'
+      - 'scripts/cd/**'
   push:
     branches:
       - 'hml/isolated-e2e-runner'
