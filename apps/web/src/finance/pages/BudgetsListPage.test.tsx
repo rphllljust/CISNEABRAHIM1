@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { renderWithProviders } from '../../test/render-with-providers';
@@ -96,7 +97,7 @@ describe('BudgetsListPage', () => {
     expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT');
   });
 
-  it('ignores a late response from the previous status filter', async () => {
+  it('ignores a late response from a superseded status filter', async () => {
     const fallback = createBudgetsFetchMock();
     let resolveApproved: ((response: Response) => void) | undefined;
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -110,28 +111,38 @@ describe('BudgetsListPage', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    renderWithProviders(<BudgetsListPage />, {
+    // O comando de navegação permanece montado durante o loading da lista.
+    function RouteHarness() {
+      const navigate = useNavigate();
+      return (
+        <>
+          <button type="button" onClick={() => void navigate('/app/finance/budgets?status=DRAFT')}>
+            Restaurar rascunhos
+          </button>
+          <BudgetsListPage />
+        </>
+      );
+    }
+
+    renderWithProviders(<RouteHarness />, {
       router: { initialEntries: ['/app/finance/budgets?status=DRAFT'] },
       metadata: true,
     });
     await waitFor(() => expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT'));
-
-    // APPROVED fica pendente; uma visão embutida permite restaurar DRAFT
-    // sem depender do controle desmontado durante loading.
     fireEvent.change(screen.getByLabelText('Situação'), { target: { value: 'APPROVED' } });
     await waitFor(() => expect(resolveApproved).toBeDefined());
-    // A consulta obsoleta ainda não terminou. O teste assegura que ela foi
-    // realmente emitida; a correção do componente descarta seu resultado
-    // quando o efeito React abortar o respectivo signal.
-    expect(fetchMock.mock.calls.some(([request]) => {
-      const url = typeof request === 'string' ? request : request instanceof URL ? request.href : request.url;
-      return url.includes('/finance/budgets') && url.includes('status=APPROVED');
-    })).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Restaurar rascunhos' }));
+    await waitFor(() => expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT'));
+
+    // Transporte deliberadamente ignora o signal: o resultado APPROVED atrasado
+    // não pode substituir a lista vazia de DRAFT nem seu total autoritativo.
     resolveApproved?.(new Response(
-      JSON.stringify({ items: [], limit: 20, offset: 0, total: 0 }),
+      JSON.stringify({ items: [], limit: 20, offset: 0, total: 21 }),
       { status: 200, headers: { 'content-type': 'application/json' } },
     ));
-    await waitFor(() => expect(screen.getByLabelText('Situação')).toHaveValue('APPROVED'));
+    await waitFor(() => expect(screen.getByText(/nenhum orçamento corresponde ao recorte atual/i)).toBeInTheDocument());
+    expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT');
   });
 
   it('shows a contextual empty state with a way out when a filter is applied', async () => {
