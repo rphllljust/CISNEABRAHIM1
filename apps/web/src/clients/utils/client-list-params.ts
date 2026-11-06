@@ -10,6 +10,7 @@ import {
 } from '../types/client.types';
 import {
   advancedFilterFromGroup,
+  FILTER_PARAM,
   type AdvancedFilterFieldSpec,
   type AdvancedFilterPayload,
   type FilterGroup,
@@ -152,6 +153,18 @@ export function buildClientListSearchParams(
     search.set('offset', String(offset));
   }
   return search;
+}
+
+/** Preserva exclusivamente a árvore avançada ao mudar filtros básicos ou página. */
+export function buildClientListSearchParamsWithAdvancedFilter(
+  params: ClientListParams,
+  currentSearchParams: URLSearchParams,
+  offset = 0,
+): URLSearchParams {
+  const next = buildClientListSearchParams(params, offset);
+  const advanced = currentSearchParams.get(FILTER_PARAM);
+  if (advanced) next.set(FILTER_PARAM, advanced);
+  return next;
 }
 
 export function buildClientsListHref(params: Partial<ClientListParams>): string {
