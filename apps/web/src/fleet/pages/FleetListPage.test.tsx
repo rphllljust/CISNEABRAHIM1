@@ -128,6 +128,30 @@ describe('FleetListPage', () => {
       screen.getByText(/A frota é a visão operacional sobre os ativos físicos de veículo/i),
     ).toBeInTheDocument();
   });
+  it('não exibe frota antiga nem zero fabricado enquanto novo filtro carrega', async () => {
+    let resolveFiltered: ((response: unknown) => void) | undefined;
+    mockListFleetVehicles.mockImplementation(({ lifecycleStatus }: { lifecycleStatus?: string }) => {
+      if (lifecycleStatus === 'INACTIVE') {
+        return new Promise((resolve) => { resolveFiltered = resolve; });
+      }
+      return Promise.resolve({ items: [vehicleItem], limit: 20, offset: 0, total: 1 });
+    });
+
+    render(<MemoryRouter><FleetListPage /></MemoryRouter>);
+    expect(await screen.findByRole('link', { name: 'TRK-001' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Cadastro'), { target: { value: 'INACTIVE' } });
+    await waitFor(() => expect(resolveFiltered).toBeDefined());
+    expect(screen.queryByRole('link', { name: 'TRK-001' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Nenhum veículo cadastrado na frota.')).not.toBeInTheDocument();
+    expect(screen.getByText('Carregando veículos…')).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFiltered?.({ items: [], limit: 20, offset: 0, total: 0 });
+    });
+    expect(await screen.findByText('Nenhum veículo corresponde aos filtros aplicados.')).toBeInTheDocument();
+  });
+
   it('descarta resposta antiga após troca rápida do filtro de cadastro', async () => {
     let resolveInactive: ((response: unknown) => void) | undefined;
     mockListFleetVehicles.mockImplementation(({ lifecycleStatus }: { lifecycleStatus?: string }) => {
