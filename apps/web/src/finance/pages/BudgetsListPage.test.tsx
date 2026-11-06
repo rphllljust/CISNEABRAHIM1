@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { renderWithProviders } from '../../test/render-with-providers';
@@ -94,6 +94,46 @@ describe('BudgetsListPage', () => {
      * "Status" aqui e "Situação" na grade, dois nomes para o mesmo fato.
      */
     expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT');
+  });
+
+  it('ignores a late response from the previous status filter', async () => {
+    const fallback = createBudgetsFetchMock();
+    let resolveDraft: ((response: Response) => void) | undefined;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/finance/budgets') && url.includes('status=DRAFT')) {
+        return new Promise<Response>((resolve) => {
+          resolveDraft = resolve;
+        });
+      }
+      return fallback(input);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWithProviders(<BudgetsListPage />, {
+      router: { initialEntries: ['/app/finance/budgets?status=DRAFT'] },
+      metadata: true,
+    });
+    await waitFor(() => expect(resolveDraft).toBeDefined());
+
+    // A troca do recorte cancela a requisição anterior, mesmo se o transporte
+    // ignorar AbortSignal e resolver a resposta antiga posteriormente.
+    // O filtro não aparece enquanto a página está em loading: alterar a URL
+    // por navegação externa é exercitado com a view embutida após o primeiro
+    // resultado. Primeiro liberamos a resposta inicial para montar a tela.
+    resolveDraft?.(new Response(
+      JSON.stringify({ items: [], limit: 20, offset: 0, total: 0 }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    await waitFor(() => expect(screen.getByLabelText('Situação')).toHaveValue('DRAFT'));
+    fireEvent.change(screen.getByLabelText('Situação'), { target: { value: 'APPROVED' } });
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([request]) => {
+        const url = typeof request === 'string' ? request : request instanceof URL ? request.href : request.url;
+        return url.includes('/finance/budgets') && url.includes('status=APPROVED');
+      })).toBe(true);
+    });
+    await waitFor(() => expect(screen.getByLabelText('Situação')).toHaveValue('APPROVED'));
   });
 
   it('shows a contextual empty state with a way out when a filter is applied', async () => {
