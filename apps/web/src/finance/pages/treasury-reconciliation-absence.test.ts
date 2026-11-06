@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { movementCountOrUnknown } from './treasury-engine-rows';
+import { movementCountOrUnknown, transferDestinationPlaceholder } from './treasury-engine-rows';
 
 describe('tesouraria: ausência não é zero', () => {
   it('mantém desconhecido quando a reconciliação não foi lida', () => {
@@ -12,5 +12,22 @@ describe('tesouraria: ausência não é zero', () => {
 
   it('transporta contagem positiva do servidor', () => {
     expect(movementCountOrUnknown({ movementCount: 7 })).toBe(7);
+  });
+});
+
+
+describe('tesouraria: estados da consulta de destinos', () => {
+  it('não interpreta erro de API como ausência de contas', () => {
+    expect(transferDestinationPlaceholder('error', 0)).toBe('Falha ao consultar contas de destino');
+  });
+
+  it('distingue carregamento e acesso negado', () => {
+    expect(transferDestinationPlaceholder('loading', 0)).toBe('Carregando contas de destino…');
+    expect(transferDestinationPlaceholder('denied', 0)).toBe('Sem permissão para consultar contas de destino');
+  });
+
+  it('só mostra lista vazia após resposta válida da API', () => {
+    expect(transferDestinationPlaceholder('ready', 0)).toBe('Nenhuma outra conta ativa disponível');
+    expect(transferDestinationPlaceholder('ready', 2)).toBe('Selecione…');
   });
 });
