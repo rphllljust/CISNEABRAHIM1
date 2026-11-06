@@ -25,6 +25,7 @@ import {
   ServiceRequestsApiError,
 } from '../api/service-requests-api';
 import { mapRequestErrorToMessage } from '../api/request-error-messages';
+import { canApplyServiceRequestListResult } from '../utils/service-request-list-generation';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
 import { Button } from '../../ui/Button';
 import { Skeleton } from '../../ui/Skeleton';
@@ -439,7 +440,7 @@ export function ServiceRequestsListPage() {
           getServiceRequestSummary(scopedFilters, signal),
         ]);
         // A consulta antiga pode concluir após a mudança de filtros ou saída da tela.
-        if (signal?.aborted || requestGeneration !== listRequestGeneration.current) return;
+        if (!canApplyServiceRequestListResult(requestGeneration, listRequestGeneration.current, signal)) return;
         setSummary(summaryResponse);
         /*
          * `offset` DO SERVIDOR, COM PISO NO OFFSET QUE A TELA PEDIU.
@@ -462,7 +463,7 @@ export function ServiceRequestsListPage() {
         });
       } catch (error) {
         // Abort não é erro de negócio; jamais substitua uma consulta mais recente.
-        if (signal?.aborted || requestGeneration !== listRequestGeneration.current) return;
+        if (!canApplyServiceRequestListResult(requestGeneration, listRequestGeneration.current, signal)) return;
         if (error instanceof ServiceRequestsApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
