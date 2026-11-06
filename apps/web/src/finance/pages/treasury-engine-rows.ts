@@ -59,3 +59,10 @@ export function treasuryReconciliationRows(
     movementCount: entry.reconciliation.movementCount,
   }));
 }
+
+/** AUSÊNCIA de reconciliação não equivale a zero movimentos. */
+export function movementCountOrUnknown(
+  reconciliation: Pick<TreasuryReconciliation, 'movementCount'> | null,
+): number | null {
+  return reconciliation?.movementCount ?? null;
+}
