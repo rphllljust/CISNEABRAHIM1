@@ -164,7 +164,7 @@ export function PayablesListPage() {
 
   useEffect(() => {
     setPageNumber(1);
-  }, [dueFrom, dueTo, statusForQuery]);
+  }, [dueFrom, dueTo, statusForQuery, agingFilter]);
 
   const [sort, setSort] = useState<FinanceSortState>(FINANCE_DEFAULT_SORT);
 
@@ -456,7 +456,10 @@ export function PayablesListPage() {
                 <DynamicFilterBuilder
                   schema={schema}
                   value={filterGroup}
-                  onChange={setFilterGroup}
+                  onChange={(next) => {
+                    setFilterGroup(next);
+                    setPageNumber(1);
+                  }}
                 />
               </div>
             ) : null}
