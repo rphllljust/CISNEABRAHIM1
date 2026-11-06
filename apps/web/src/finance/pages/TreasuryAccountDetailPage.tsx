@@ -28,7 +28,7 @@ import {
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { treasuryFormValues } from '../utils/finance-engine-rows';
-import { movementCountOrUnknown } from './treasury-engine-rows';
+import { movementCountOrUnknown, transferDestinationPlaceholder } from './treasury-engine-rows';
 import type { FinancialAccount, TreasuryReconciliation } from '../types/finance.types';
 import {
   buildPostMovementPayload,
@@ -467,12 +467,10 @@ export function TreasuryAccountDetailPage() {
                     setTransferDraft((current) => ({ ...current, toAccountId: event.target.value }))
                   }
                   required
-                  disabled={transferDestinations.length === 0}
+                  disabled={accountsQuery.state.phase !== 'ready' || transferDestinations.length === 0}
                 >
                   <option value="">
-                    {transferDestinations.length === 0
-                      ? 'Nenhuma outra conta ativa disponível'
-                      : 'Selecione…'}
+                    {transferDestinationPlaceholder(accountsQuery.state.phase, transferDestinations.length)}
                   </option>
                   {transferDestinations.map((destination) => (
                     <option key={destination.id} value={destination.id}>
