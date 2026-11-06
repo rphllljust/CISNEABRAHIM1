@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { clientsQuery, isSameOriginMutation } from '../src/cisne/security.ts';
 
-function request(origin: string | null, site?: string) {
+function request(origin, site) {
   const headers = new Headers();
   if (origin) headers.set('origin', origin);
   if (site) headers.set('sec-fetch-site', site);
