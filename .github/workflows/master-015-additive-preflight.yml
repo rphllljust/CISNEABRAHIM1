@@ -1,0 +1,40 @@
+name: MASTER 015 Additive Preflight
+
+on:
+  pull_request:
+    paths:
+      - 'infra/superset/**'
+      - 'docs/19-operations/master-015-additive-recovery-plan.md'
+      - '.github/workflows/master-015-additive-preflight.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/superset/**'
+      - '.github/workflows/master-015-additive-preflight.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  static-superset-preflight:
+    name: Static Superset preflight contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Parse static preflight (does not imply live HML readiness)
+        run: node --check infra/superset/tools/check-config-readiness.mjs
+      - name: Verify no false-green static configuration claims
+        run: node --test infra/superset/tools/check-config-readiness.test.mjs
+      - name: Verify source schema preflight is read-only
+        run: |
+          set -euo pipefail
+          test -s infra/superset/sql/00-preflight-source-schema.sql
+          if grep -Eiq '^[[:space:]]*(create|alter|drop|truncate|insert|update|delete|grant|revoke)[[:space:]]' infra/superset/sql/00-preflight-source-schema.sql; then
+            echo "::error::source-schema preflight must remain read-only"
+            exit 1
+          fi
+          echo "STATIC_ONLY: no PostgreSQL/HML or runtime acceptance claimed"
