@@ -108,6 +108,14 @@ function isClientListDirection(value: string): value is ClientListDirection {
   return value === CLIENT_LIST_DIRECTIONS.Asc || value === CLIENT_LIST_DIRECTIONS.Desc;
 }
 
+/** Offset de URL em decimal canônico; descarta notações e inteiros inseguros. */
+export function parseClientListOffset(searchParams: URLSearchParams): number {
+  const raw = searchParams.get('offset');
+  if (!raw || !/^(0|[1-9][0-9]*)$/.test(raw)) return 0;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
 export function parseClientListParams(searchParams: URLSearchParams): ClientListParams {
   const status = searchParams.get('status') ?? '';
   const requirement = searchParams.get('purchaseOrderRequirement') ?? '';
