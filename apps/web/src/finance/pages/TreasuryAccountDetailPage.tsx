@@ -28,6 +28,7 @@ import {
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { treasuryFormValues } from '../utils/finance-engine-rows';
+import { movementCountOrUnknown } from './treasury-engine-rows';
 import type { FinancialAccount, TreasuryReconciliation } from '../types/finance.types';
 import {
   buildPostMovementPayload,
@@ -181,6 +182,7 @@ export function TreasuryAccountDetailPage() {
   }
 
   const { account, reconciliation, reconciliationError, reconciliationRetryable } = state.data;
+  const movementCount = movementCountOrUnknown(reconciliation);
   const accounts = accountsQuery.state.phase === 'ready' ? accountsQuery.state.data : [];
   const accountActive = account.lifecycle === 'ACTIVE';
   const transferDestinations = accounts.filter(
@@ -235,7 +237,7 @@ export function TreasuryAccountDetailPage() {
             metadata={[
               { label: 'Unidade', value: account.unitId },
               { label: 'Saldo', value: account.balance },
-              { label: 'Movimentos', value: reconciliation?.movementCount ?? 0 },
+              { label: 'Movimentos', value: movementCount ?? '—' },
             ]}
           />
         }
@@ -280,8 +282,8 @@ export function TreasuryAccountDetailPage() {
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-gray-500">Movimentos</dt>
-            <dd className="mt-0.5 text-sm text-gray-900" data-movement-count={reconciliation?.movementCount ?? 0}>
-              {reconciliation ? String(reconciliation.movementCount) : '—'}
+            <dd className="mt-0.5 text-sm text-gray-900" data-movement-count={movementCount ?? undefined}>
+              {movementCount === null ? '—' : String(movementCount)}
             </dd>
           </div>
         </dl>
