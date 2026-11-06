@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   DynamicContextDrawer,
@@ -104,9 +104,11 @@ export function FleetListPage() {
   const [searchInput, setSearchInput] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [summary, setSummary] = useState<PhysicalAssetListSummary | null>(null);
+  const latestListRequest = useRef(0);
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
+      const requestId = ++latestListRequest.current;
       setListState({ phase: 'loading' });
       try {
         const scopedFilters = {
@@ -126,6 +128,8 @@ export function FleetListPage() {
           ),
           getFleetSummary(scopedFilters, signal),
         ]);
+        // O cancelamento do efeito não cobre a paginação manual; verificar também a geração.
+        if (signal?.aborted || requestId !== latestListRequest.current) return;
         setSummary(summaryResponse);
         setListState({
           phase: 'ready',
@@ -135,6 +139,7 @@ export function FleetListPage() {
           hasMore: response.offset + response.items.length < response.total,
         });
       } catch (error) {
+        if (signal?.aborted || requestId !== latestListRequest.current) return;
         if (error instanceof AssetsApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
