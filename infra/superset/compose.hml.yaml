@@ -1,0 +1,57 @@
+# MASTER 015 — isolated HML-only scaffold. Never use unreviewed in production.
+# Supply untracked infra/superset/.env.hml with all listed environment variables.
+services:
+  superset-metadata:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    env_file: ./.env.hml
+    environment:
+      POSTGRES_DB: superset
+    volumes:
+      - superset_hml_metadata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  superset-cache:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    volumes:
+      - superset_hml_redis:/data
+  superset-init:
+    image: apache/superset:6.1.0
+    restart: "no"
+    env_file: ./.env.hml
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+    volumes:
+      - ./superset_config.py:/app/pythonpath/superset_config.py:ro
+    depends_on:
+      superset-metadata:
+        condition: service_healthy
+      superset-cache:
+        condition: service_started
+    command: ["sh", "-c", "superset db upgrade && superset init"]
+  superset-web:
+    image: apache/superset:6.1.0
+    restart: unless-stopped
+    env_file: ./.env.hml
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+    volumes:
+      - ./superset_config.py:/app/pythonpath/superset_config.py:ro
+    depends_on:
+      superset-metadata:
+        condition: service_healthy
+      superset-cache:
+        condition: service_started
+      superset-init:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8089:8088"
+    command: ["sh", "-c", "exec gunicorn --workers 2 --bind 0.0.0.0:8088 --timeout 120 'superset.app:create_app()'"]
+volumes:
+  superset_hml_metadata:
+  superset_hml_redis:
