@@ -234,7 +234,7 @@ describe('o gate executa — código útil não pode estar comentado', () => {
     );
   });
 
-  it('fila vazia inspeciona todas as OS read-only e só abre workbench para COMPLETED', () => {
+  it('fila vazia inspeciona OS read-only e só abre workbench para COMPLETED/CLOSED', () => {
     const code = executableSource(readGate());
     assert.match(code, /serviceOrdersUrl\.searchParams\.set\('unitId', resolvedUnitId\)/);
     assert.match(code, /context\.request\s*\.get\(serviceOrdersUrl\.toString\(\)/);
@@ -242,7 +242,7 @@ describe('o gate executa — código útil não pode estar comentado', () => {
     assert.match(code, /while \(serviceOrdersHasMore\)/);
     assert.match(code, /serviceOrdersPayload\?\.hasMore === true/);
     assert.match(code, /serviceOrdersOffset \+= pageItems\.length/);
-    assert.match(code, /normalizedCode\(item\?\.status\) === 'COMPLETED'/);
+    assert.match(code, /isMeasurementEvidenceCandidateStatus\(item\?\.status\)/);
     assert.doesNotMatch(
       code,
       /extractMeasurementCandidateServiceOrderIds\([\s\S]*?resolvedUnitId,\s*25\s*,?\s*\)/,
