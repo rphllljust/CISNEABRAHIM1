@@ -2,12 +2,6 @@ name: MASTER 015 — Coolify Superset HML Compose scaffold
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - ops/master-015-hml-access-probe
-    paths:
-      - '.github/workflows/master-015-hml-compose-scaffold.yml'
-
 permissions:
   contents: read
 

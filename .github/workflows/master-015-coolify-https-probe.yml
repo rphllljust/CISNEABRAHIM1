@@ -2,12 +2,6 @@ name: MASTER 015 — Coolify HTTPS upgrade probe
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - ops/master-015-hml-access-probe
-    paths:
-      - '.github/workflows/master-015-coolify-https-probe.yml'
-
 permissions:
   contents: read
 

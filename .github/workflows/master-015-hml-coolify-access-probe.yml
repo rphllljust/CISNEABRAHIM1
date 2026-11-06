@@ -3,14 +3,6 @@ name: MASTER 015 — Coolify HML access probe
 on:
   workflow_dispatch:
   # One-time branch probe; no main deployment, CI build or production release is triggered.
-  push:
-    branches:
-      - ops/master-015-hml-access-probe
-    paths:
-      - '.github/workflows/master-015-hml-coolify-access-probe.yml'
-      - 'infra/superset/tools/coolify-hml-access-probe.mjs'
-      - 'infra/superset/tools/coolify-hml-access-probe.test.mjs'
-
 permissions:
   contents: read
 

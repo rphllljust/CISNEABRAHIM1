@@ -2,12 +2,6 @@ name: MASTER 015 — HML Superset configuration audit
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - ops/master-015-hml-access-probe
-    paths:
-      - '.github/workflows/master-015-hml-superset-config-audit.yml'
-
 permissions:
   contents: read
 
