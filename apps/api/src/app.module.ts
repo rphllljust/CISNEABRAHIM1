@@ -9,6 +9,7 @@ import { BackgroundJobsModule } from './platform/background-jobs/background-jobs
 import { OutboxModule } from './platform/outbox/outbox.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { SupersetEmbeddedModule } from './analytics/embedded/superset-embedded.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AuthModule } from './auth/auth.module';
 import { AuditModule } from './audit/audit.module';
@@ -43,7 +44,7 @@ import { ReleaseScopeGuard } from './platform/release-scope/release-scope.guard'
 import { ModuleRegistryModule } from './platform/module-registry/module-registry.module';
 
 @Module({
-  imports: [MetaModule, ModuleRegistryModule, FaultInjectionModule, SecurityModule, ObservabilityModule, HealthModule, AuditModule, AuthModule, AuthorizationModule, ClientsModule, SuppliersModule, PeopleModule, IssuerRegistryModule, CatalogModule, CommercialModule, ProcurementModule, RequestsModule, ServiceOrdersModule, MeasurementsModule, BillingModule, FinanceModule, AccountingModule, FiscalModule, InventoryModule, PayrollModule, ResourcesModule, DocumentsModule, EventsModule, NotificationsModule, DashboardModule, AnalyticsModule, AlertsModule, WorkInboxModule, BusinessChainModule, SearchModule, ReportsModule, BackgroundJobsModule, OutboxModule, IntegrationsAclModule, IntegrationsInboxModule],
+  imports: [MetaModule, ModuleRegistryModule, FaultInjectionModule, SecurityModule, ObservabilityModule, HealthModule, AuditModule, AuthModule, AuthorizationModule, ClientsModule, SuppliersModule, PeopleModule, IssuerRegistryModule, CatalogModule, CommercialModule, ProcurementModule, RequestsModule, ServiceOrdersModule, MeasurementsModule, BillingModule, FinanceModule, AccountingModule, FiscalModule, InventoryModule, PayrollModule, ResourcesModule, DocumentsModule, EventsModule, NotificationsModule, DashboardModule, AnalyticsModule, SupersetEmbeddedModule, AlertsModule, WorkInboxModule, BusinessChainModule, SearchModule, ReportsModule, BackgroundJobsModule, OutboxModule, IntegrationsAclModule, IntegrationsInboxModule],
   providers: [{ provide: APP_GUARD, useClass: ReleaseScopeGuard }],
 })
 export class AppModule {}
