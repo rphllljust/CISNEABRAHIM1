@@ -67,6 +67,13 @@ export function movementCountOrUnknown(
   return reconciliation?.movementCount ?? null;
 }
 
+/** Seletores de contas só são operáveis após uma consulta autoritativa válida. */
+export function canSelectTreasuryAccounts(
+  phase: 'idle' | 'loading' | 'denied' | 'error' | 'ready',
+): boolean {
+  return phase === 'ready';
+}
+
 /** A falha de leitura das contas não pode aparecer como lista vazia válida. */
 export function transferDestinationPlaceholder(
   phase: 'idle' | 'loading' | 'denied' | 'error' | 'ready',
