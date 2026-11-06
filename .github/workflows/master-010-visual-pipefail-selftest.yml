@@ -19,4 +19,4 @@ jobs:
         with:
           node-version-file: .node-version
       - name: Execute exit-status contract tests
-        run: node --test scripts/ci/visual-full-exit-status.test.mjs
+        run: node --test scripts/ci/visual-full-exit-status.test.mjs scripts/ci/visual-regression-parser.test.mjs
