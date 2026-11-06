@@ -28,7 +28,7 @@ import {
 } from '../api/finance-api';
 import { mapFinanceErrorToMessage } from '../api/finance-error-messages';
 import { treasuryFormValues } from '../utils/finance-engine-rows';
-import { movementCountOrUnknown, transferDestinationPlaceholder } from './treasury-engine-rows';
+import { canSelectTreasuryAccounts, movementCountOrUnknown, transferDestinationPlaceholder } from './treasury-engine-rows';
 import type { FinancialAccount, TreasuryReconciliation } from '../types/finance.types';
 import {
   buildPostMovementPayload,
@@ -467,7 +467,7 @@ export function TreasuryAccountDetailPage() {
                     setTransferDraft((current) => ({ ...current, toAccountId: event.target.value }))
                   }
                   required
-                  disabled={accountsQuery.state.phase !== 'ready' || transferDestinations.length === 0}
+                  disabled={!canSelectTreasuryAccounts(accountsQuery.state.phase) || transferDestinations.length === 0}
                 >
                   <option value="">
                     {transferDestinationPlaceholder(accountsQuery.state.phase, transferDestinations.length)}
@@ -628,7 +628,7 @@ export function TreasuryAccountDetailPage() {
                 <Select
                   id="reverse-transfer-from"
                   value={reverseTransfer.fromAccountId}
-                  disabled={accountsQuery.state.phase !== 'ready'}
+                  disabled={!canSelectTreasuryAccounts(accountsQuery.state.phase)}
                   onChange={(event) =>
                     setReverseTransfer((current) => ({ ...current, fromAccountId: event.target.value }))
                   }
@@ -648,7 +648,7 @@ export function TreasuryAccountDetailPage() {
                 <Select
                   id="reverse-transfer-to"
                   value={reverseTransfer.toAccountId}
-                  disabled={accountsQuery.state.phase !== 'ready'}
+                  disabled={!canSelectTreasuryAccounts(accountsQuery.state.phase)}
                   onChange={(event) =>
                     setReverseTransfer((current) => ({ ...current, toAccountId: event.target.value }))
                   }
