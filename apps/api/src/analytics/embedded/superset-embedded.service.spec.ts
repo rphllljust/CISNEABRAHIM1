@@ -97,4 +97,66 @@ describe('MASTER 015 — authorization and upstream isolation', () => {
       .rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('rejects cross-unit access even if the requested dashboard exists', async () => {
+    const decide = vi.fn().mockImplementation(
+      (_actor: unknown, request: { context: { unitId: string } }) =>
+        Promise.resolve({ result: request.context.unitId === 'CISNE-RO-PVH' ? 'ALLOW' : 'DENY' }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const sut = new SupersetEmbeddedService({ decide } as unknown as PolicyDecisionPointService);
+    await expect(sut.issueGuestToken(actor, 'service-orders', 'OTHER-UNIT'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(sut.listDashboardCatalog(actor, 'OTHER-UNIT'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('denies multi-domain dashboards if any required capability is missing', async () => {
+    vi.stubEnv('SUPERSET_DASHBOARD_EXECUTIVE_ID', '00000000-0000-4000-8000-0000000000a2');
+    const decide = vi.fn()
+      .mockResolvedValueOnce({ result: 'ALLOW' })
+      .mockResolvedValueOnce({ result: 'DENY' });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const sut = new SupersetEmbeddedService({ decide } as unknown as PolicyDecisionPointService);
+    await expect(sut.issueGuestToken(actor, 'executive', 'CISNE-RO-PVH'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the upstream login fails and does not call guest issuance', async () => {
+    const decide = vi.fn().mockResolvedValue({ result: 'ALLOW' });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+    vi.stubGlobal('fetch', fetchMock);
+    const sut = new SupersetEmbeddedService({ decide } as unknown as PolicyDecisionPointService);
+    await expect(sut.issueGuestToken(actor, 'service-orders', 'CISNE-RO-PVH'))
+      .rejects.toMatchObject({ status: 502 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an invalid upstream guest response instead of forwarding it', async () => {
+    const decide = vi.fn().mockResolvedValue({ result: 'ALLOW' });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 'service-access-token-12345' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ token: 'bad' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const sut = new SupersetEmbeddedService({ decide } as unknown as PolicyDecisionPointService);
+    await expect(sut.issueGuestToken(actor, 'service-orders', 'CISNE-RO-PVH'))
+      .rejects.toMatchObject({ status: 502 });
+  });
+
+  it('rejects an insecure public Superset origin in production', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('SUPERSET_PUBLIC_URL', 'http://bi.cisne-hml.example.invalid/');
+    const decide = vi.fn();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const sut = new SupersetEmbeddedService({ decide } as unknown as PolicyDecisionPointService);
+    await expect(sut.issueGuestToken(actor, 'service-orders', 'CISNE-RO-PVH'))
+      .rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(decide).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
 });
