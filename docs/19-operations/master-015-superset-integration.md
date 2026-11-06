@@ -133,3 +133,8 @@ establish that the eventual LOGIN role has no direct grants, that Superset's gue
 role is restricted, or that row-level filtering actually works. Those require
 separate live HML checks and evidence. Do not enable embedding based on this
 preflight alone.
+
+
+## Increment 06 — exact dataset scope preflight
+
+Run 04-verify-exact-dataset-scope.sql against the HML Superset LOGIN with psql -X -v ON_ERROR_STOP=1 and reader_login supplied. The read-only gate rejects effective SELECT outside the five reviewed views, including unreviewed BI relations, and rejects unexpected columns. It does not prove Superset guest RLS; test cross-unit denial and real datasets in HML separately.
