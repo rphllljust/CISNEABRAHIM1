@@ -520,7 +520,12 @@ export function WorklistField({
   grow?: boolean;
 }) {
   return (
-    <div className={cn('flex min-w-0 items-center gap-1.5', grow && 'min-w-52 flex-1')}>
+    <div
+      className={cn(
+        'flex w-full min-w-0 flex-wrap items-center gap-1.5 sm:w-auto sm:flex-nowrap [&>:not(label)]:min-w-0 [&>:not(label)]:flex-1',
+        grow && 'sm:min-w-52 sm:flex-1',
+      )}
+    >
       <label
         htmlFor={htmlFor}
         className="shrink-0 text-[10px] font-semibold tracking-wide text-gray-500 uppercase"

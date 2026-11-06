@@ -1671,7 +1671,8 @@
 }
 
 .cisne-query-deck {
-  overflow: hidden;
+  /* Permite que mensagens e popovers de lookup sejam visiveis alem da faixa de filtros. */
+  overflow: visible;
   border: 1px solid #ece8df;
   border-radius: 10px;
   background: #fbfaf7;
