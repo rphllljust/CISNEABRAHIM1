@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { PolicyDecisionPointService } from '../../authorization/services/policy-decision-point.service';
+import { SupersetEmbeddedService } from './superset-embedded.service';
 import { buildUnitRlsClause, isSupersetDashboardKey } from './superset-embedded.service';
 
 describe('MASTER 015 — Superset RLS validation', () => {
@@ -15,5 +18,61 @@ describe('MASTER 015 — Superset RLS validation', () => {
     expect(() => buildUnitRlsClause('')).toThrow();
     expect(() => buildUnitRlsClause('unit with space')).toThrow();
     expect(() => buildUnitRlsClause(null)).toThrow();
+  });
+});
+
+describe('MASTER 015 — authorization and upstream isolation', () => {
+  const actor = { identityId: '00000000-0000-4000-8000-000000000001', sessionId: 'test-session' };
+
+  beforeEach(() => {
+    vi.stubEnv('SUPERSET_EMBED_ENABLED', 'true');
+    vi.stubEnv('SUPERSET_INTERNAL_URL', 'http://superset:8088/');
+    vi.stubEnv('SUPERSET_PUBLIC_URL', 'https://bi.cisne-hml.example.invalid/');
+    vi.stubEnv('SUPERSET_SERVICE_USERNAME', 'integration');
+    vi.stubEnv('SUPERSET_SERVICE_PASSWORD', 'test-only-secret');
+    vi.stubEnv('SUPERSET_DASHBOARD_SERVICE_ORDERS_ID', '00000000-0000-4000-8000-0000000000a1');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('never calls Superset after a unit-scope denial', async () => {
+    const decide = vi.fn().mockResolvedValue({ result: 'DENY' });
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const sut = new SupersetEmbeddedService({ decide } as unknown as PolicyDecisionPointService);
+    await expect(sut.issueGuestToken(actor, 'service-orders', 'OTHER-UNIT'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(decide).toHaveBeenCalledWith(actor, expect.objectContaining({
+      context: { unitId: 'OTHER-UNIT' },
+    }));
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('treats disabled integration as 503, not as an empty dashboard', async () => {
+    vi.stubEnv('SUPERSET_EMBED_ENABLED', 'false');
+    const decide = vi.fn();
+    const sut = new SupersetEmbeddedService({ decide } as unknown as PolicyDecisionPointService);
+    await expect(sut.issueGuestToken(actor, 'service-orders', 'CISNE-RO-PVH'))
+      .rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(decide).not.toHaveBeenCalled();
+  });
+
+  it('issues a server-approved single-unit RLS token after PDP ALLOW', async () => {
+    const decide = vi.fn().mockResolvedValue({ result: 'ALLOW' });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ access_token: 'service-access-token-12345' }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ token: 'guest-access-token-123456' }) });
+    vi.stubGlobal('fetch', fetchMock);
+    const sut = new SupersetEmbeddedService({ decide } as unknown as PolicyDecisionPointService);
+    const actual = await sut.issueGuestToken(actor, 'service-orders', 'CISNE-RO-PVH');
+    expect(actual.token).toBe('guest-access-token-123456');
+    expect(actual.supersetDomain).toBe('https://bi.cisne-hml.example.invalid');
+    const init = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    const payload = JSON.parse(init.body as string) as { resources: Array<{ id: string }>; rls: Array<{ clause: string }> };
+    expect(payload.resources[0]?.id).toBe('00000000-0000-4000-8000-0000000000a1');
+    expect(payload.rls).toEqual([{ clause: "unit_id = 'CISNE-RO-PVH'" }]);
   });
 });

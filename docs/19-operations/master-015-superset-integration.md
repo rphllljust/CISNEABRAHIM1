@@ -76,3 +76,13 @@ guest role and all security checks have concrete HML evidence. A token already i
 is not instantly revoked if CISNE permissions change: respect short TTL and re-issue
 through the authoritative PDP on refresh; for strict instant revocation add a
 revocation-aware broker before release.
+
+
+## Separate HML service scaffold (increment 01)
+
+An opt-in HML Docker Compose stack is supplied in infra/superset/compose.hml.yaml
+with Apache Superset 6.1.0, isolated Postgres metadata, Redis and its Python config.
+Copy infra/superset/env.hml.example to an untracked .env.hml and replace ALL
+placeholders via a secure environment. First validate image entrypoint and config
+against Superset 6.1.0 in HML. Initialization is manual; the service is NOT running
+and no default admin or guest roles are created by the CISNE integration.
