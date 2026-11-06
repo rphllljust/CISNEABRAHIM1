@@ -34,6 +34,8 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Install Chromium
         run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
+      - name: Regression - executive snapshot absent on first API failure
+        run: pnpm --filter @cisne/web exec vitest run --config vite.config.ts src/dashboard/dashboard-no-snapshot-error.test.tsx
       - name: Run focused synthetic-auth diagnosis (fail closed)
         shell: bash
         run: |
