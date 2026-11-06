@@ -84,6 +84,17 @@ function failureCopy(reason: unknown): { message: string; denied: boolean } {
   return { message: 'Não foi possível ler as exceções de contabilização.', denied: false };
 }
 
+/** Não apresentar lançamento inexistente como se tivesse sido gerado. */
+export function formatEconomicRetryResult(result: {
+  outcome: string;
+  journalEntryId?: string | null;
+}): string {
+  const journal = result.journalEntryId?.trim();
+  return journal
+    ? `Contabilização reprocessada: ${result.outcome}. Lançamento ${journal}.`
+    : `Reprocessamento retornou: ${result.outcome}. Nenhum lançamento identificado na resposta.`;
+}
+
 export function EconomicPostingWorklistPage() {
   const { options: unitOptions, unitId, setUnitId } = useOperationalUnits();
   const [state, setState] = useState<State>({ phase: 'loading' });
@@ -186,7 +197,7 @@ export function EconomicPostingWorklistPage() {
         }
         const result = await retryEconomicPosting(outboxEventId);
         setLastResult(
-          `Contabilização reprocessada: ${result.outcome}. Lançamento ${result.journalEntryId}.`,
+          formatEconomicRetryResult(result),
         );
         reload();
       } catch (reason) {
