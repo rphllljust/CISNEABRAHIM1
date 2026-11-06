@@ -162,7 +162,8 @@ describe('ServiceDefinitionsListPage integration', () => {
         return fallback(input, init);
       }
       const offset = Number(url.searchParams.get('offset') ?? '0');
-      const search = url.searchParams.get('search');
+      // O contrato real serializa o termo como `q`, não `search`.
+      const search = url.searchParams.get('q');
       if (offset === 20 && !search) {
         return new Promise<Response>((resolve) => {
           resolveOldPage = resolve;
