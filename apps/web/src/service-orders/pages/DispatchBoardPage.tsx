@@ -46,6 +46,7 @@ import type { DispatchBoardItem, DispatchBoardReadModel } from '../types/operati
  */
 export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
   const [state, setState] = useState<
+    | { phase: 'unselected' }
     | { phase: 'loading' }
     | { phase: 'denied' }
     | { phase: 'error'; message: string }
@@ -60,7 +61,7 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
 
   useEffect(() => {
     if (!unitId) {
-      setState({ phase: 'ready', board: emptyBoard() });
+      setState({ phase: 'unselected' });
       return;
     }
 
@@ -171,6 +172,13 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
         ) : null}
 
         <div data-region="worklist-master">
+          {state.phase === 'unselected' ? (
+            <WorklistStatePanel
+              title="Nenhuma unidade selecionada"
+              description="O painel de despacho opera por unidade. Selecione uma unidade no contexto do topo."
+            />
+          ) : null}
+
           {state.phase === 'loading' ? (
             <WorklistStatePanel
               title="Lendo o painel de despacho"
@@ -198,13 +206,6 @@ export function DispatchBoardPage({ unitId }: { unitId: string | null }) {
           {board ? (
             <>
               <BoardCounters board={board} />
-
-              {!unitId ? (
-                <WorklistStatePanel
-                  title="Nenhuma unidade selecionada"
-                  description="O painel de despacho opera por unidade. Selecione uma unidade no contexto do topo."
-                />
-              ) : null}
 
               <WorkbenchQueue
                 title="Bloqueadas"
@@ -454,17 +455,6 @@ function groupBoard(board: DispatchBoardReadModel | null) {
   };
 }
 
-function emptyBoard(): DispatchBoardReadModel {
-  return {
-    context: { unitId: '', at: new Date().toISOString() },
-    readyCount: 0,
-    blockedCount: 0,
-    riskCount: 0,
-    dispatchedCount: 0,
-    items: [],
-    freshness: { readAt: new Date().toISOString(), authority: 'SERVER' },
-  };
-}
 
 function formatDateTime(value: string): string {
   const parsed = new Date(value);
