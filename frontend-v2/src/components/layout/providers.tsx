@@ -1,6 +1,7 @@
 'use client';
 import { ClerkProvider } from '@clerk/nextjs';
 import React from 'react';
+import { usePathname } from 'next/navigation';
 import { ActiveThemeProvider } from '../themes/active-theme';
 import QueryProvider from './query-provider';
 
@@ -11,6 +12,13 @@ export default function Providers({
   activeThemeValue: string;
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isCisne = pathname === '/cisne-v2' || pathname.startsWith('/cisne-v2/');
+  if (isCisne) {
+    return <ActiveThemeProvider initialTheme={activeThemeValue}>
+      <QueryProvider>{children}</QueryProvider>
+    </ActiveThemeProvider>;
+  }
   return (
     <>
       <ActiveThemeProvider initialTheme={activeThemeValue}>
