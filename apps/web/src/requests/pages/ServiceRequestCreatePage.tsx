@@ -44,6 +44,7 @@ export function ServiceRequestCreatePage() {
     const controller = new AbortController();
     void listClients({ limit: 100, offset: 0 }, controller.signal)
       .then((response) => {
+        if (controller.signal.aborted) return;
         setClients(
           response.items.map((client) => ({
             id: client.id,
@@ -52,7 +53,7 @@ export function ServiceRequestCreatePage() {
         );
       })
       .catch(() => {
-        setClients([]);
+        if (!controller.signal.aborted) setClients([]);
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -60,8 +61,12 @@ export function ServiceRequestCreatePage() {
         }
       });
     void listOperationalUnits(controller.signal)
-      .then((response) => setUnits(response.items))
-      .catch(() => setUnits([]));
+      .then((response) => {
+        if (!controller.signal.aborted) setUnits(response.items);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setUnits([]);
+      });
     void listServiceDefinitions({ limit: 100, offset: 0, status: 'ACTIVE' }, controller.signal)
       .then(async (response) => {
         const published = response.items.filter((item) => item.latestPublishedVersion !== null);
