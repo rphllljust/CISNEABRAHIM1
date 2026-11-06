@@ -49,6 +49,7 @@ import {
 import { FinanceWorklistToolbar, financeControlClass } from '../components/FinanceWorklistToolbar';
 import { PAYABLES_ALLOWED_FILTERS, PAYABLES_BUILT_IN_VIEWS } from './finance-smart-list';
 import { payableEngineRow } from '../utils/finance-engine-rows';
+import { hasPayablesActiveQuery } from '../utils/payables-query-scope';
 import {
   FINANCE_DEFAULT_SORT,
   daysPastDue,
@@ -279,11 +280,11 @@ export function PayablesListPage() {
   const pageCount = page ? Math.max(1, page.totalPages) : 1;
   const safePageNumber = Math.min(pageNumber, pageCount);
 
-  // O filtro avançado também é um recorte ativo: sem esta condição, zero títulos
-  // filtrados não apresenta o estado vazio do recorte nem permite salvar a visão.
-  const hasActiveQuery = Boolean(
-    search || dueFrom || dueTo || statusForQuery || agingFilter || isFilterGroupActive(filterGroup),
-  );
+  // Uma árvore avançada isolada também representa um recorte efetivo.
+  const hasActiveQuery = hasPayablesActiveQuery({
+    search, dueFrom, dueTo, status: statusForQuery, agingBucket: agingFilter,
+    advancedActive: isFilterGroupActive(filterGroup),
+  });
   const portfolioEmpty =
     page !== null &&
     page.total === 0 &&
