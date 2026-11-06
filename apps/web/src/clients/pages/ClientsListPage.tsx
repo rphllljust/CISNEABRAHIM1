@@ -30,10 +30,12 @@ import {
 import { formatCnpjDisplay } from '../utils/format-cnpj';
 import {
   buildClientListSearchParams,
+  buildClientListSearchParamsWithAdvancedFilter,
   CLIENT_SEARCH_MIN_LENGTH,
   EMPTY_CLIENT_LIST_PARAMS,
   hasActiveClientListFilters,
   isApplicableClientSearchTerm,
+  parseClientListOffset,
   parseClientListParams,
   toggleClientListSort,
   type ClientListParams,
@@ -178,10 +180,12 @@ export function ClientsListPage() {
   // Busca, filtros, ordenação e página vivem na URL: recarregar não perde contexto, o botão
   // voltar funciona e o endereço é compartilhável.
   const filters = useMemo(() => parseClientListParams(searchParams), [searchParams]);
-  const offset = useMemo(() => {
-    const raw = Number(searchParams.get('offset') ?? '0');
-    return Number.isInteger(raw) && raw > 0 ? raw : 0;
-  }, [searchParams]);
+  const scopedSearchParams = useCallback(
+    (nextFilters: ClientListParams, pageOffset = 0) =>
+      buildClientListSearchParamsWithAdvancedFilter(nextFilters, searchParams, pageOffset),
+    [searchParams],
+  );
+  const offset = useMemo(() => parseClientListOffset(searchParams), [searchParams]);
 
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -317,9 +321,9 @@ export function ClientsListPage() {
   const applyFilters = useCallback(
     (next: Partial<ClientListParams>) => {
       const merged = { ...filters, ...next };
-      setSearchParams(buildClientListSearchParams(merged, 0), { replace: true });
+      setSearchParams(scopedSearchParams(merged, 0), { replace: true });
     },
-    [filters, setSearchParams],
+    [filters, scopedSearchParams, setSearchParams],
   );
 
   const clearFilters = useCallback(() => {
@@ -1136,7 +1140,7 @@ export function ClientsListPage() {
                 <button
                   type="button"
                   className="cisne-type-action inline-flex min-h-[var(--control-height)] items-center rounded-[4px] border border-[color:var(--color-border-default)] bg-white px-2.5 text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-hover)]"
-                  onClick={() => setSearchParams(buildClientListSearchParams(filters, 0))}
+                  onClick={() => setSearchParams(scopedSearchParams(filters, 0))}
                 >
                   Ir para a primeira página
                 </button>
@@ -1442,11 +1446,11 @@ export function ClientsListPage() {
                     nextDisabled={offset + items.length >= total}
                     onPrevious={() =>
                       setSearchParams(
-                        buildClientListSearchParams(filters, Math.max(0, offset - PAGE_SIZE)),
+                        scopedSearchParams(filters, Math.max(0, offset - PAGE_SIZE)),
                       )
                     }
                     onNext={() =>
-                      setSearchParams(buildClientListSearchParams(filters, offset + PAGE_SIZE))
+                      setSearchParams(scopedSearchParams(filters, offset + PAGE_SIZE))
                     }
                   />
                 </div>
