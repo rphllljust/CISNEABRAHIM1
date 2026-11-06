@@ -17,6 +17,14 @@ describe('CISNE production release sequence — exact SHA, fail-closed', () => {
     assert.match(release, /github\.ref == 'refs\/heads\/main'/);
   });
 
+  it('runs HML on PRs that modify the release authority or its tests', () => {
+    const hml = workflow('hml-isolated-e2e.yml');
+    assert.match(hml, /'\.github\/workflows\/coolify-release\.yml'/);
+    assert.match(hml, /'scripts\/cd\/\*\*'/);
+    assert.match(hml, /push:/);
+    assert.match(hml, /- main/);
+  });
+
   it('waits a bounded time for successful HML on the same SHA and refuses failure', () => {
     const release = workflow('coolify-release.yml');
     assert.match(release, /hml-isolated-e2e\.yml\/runs\?branch=main&head_sha=\$EXPECTED_SHA/);
@@ -29,6 +37,18 @@ describe('CISNE production release sequence — exact SHA, fail-closed', () => {
     assert.match(release, /CURRENT_MAIN_SHA" != "\$EXPECTED_SHA"/);
     assert.match(release, /select-authorizing-run\.mjs/);
     assert.match(release, /ready" != "success"/);
+  });
+
+  it('uses automated exact-SHA technical release checks without a manual business gate', () => {
+    const release = workflow('coolify-release.yml');
+    assert.doesNotMatch(release, /Require explicit business release approval/);
+    assert.doesNotMatch(release, /CISNE_BUSINESS_APPROVED_SHA/);
+    assert.match(release, /github\.event\.workflow_run\.conclusion == 'success'/);
+    assert.match(release, /hml-isolated-e2e\.yml\/runs\?branch=main&head_sha=\$EXPECTED_SHA/);
+    assert.match(release, /CURRENT_MAIN_SHA" != "\$EXPECTED_SHA"/);
+    assert.match(release, /ready" != "success"/);
+    assert.match(release, /PROVENANCE_EXPECTED_SHA/);
+    assert.match(release, /coolify-postdeploy-smoke\.mjs/);
   });
 
   it('promotes release through GHCR, Coolify, authenticated smoke and Chromium', () => {

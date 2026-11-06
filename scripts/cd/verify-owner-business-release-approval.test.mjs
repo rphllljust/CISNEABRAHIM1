@@ -51,16 +51,14 @@ test('fetch request is scoped to exact repository and issue with read-only API',
   assert.equal(calls[0].opts.headers.Authorization,'Bearer token');
 });
 
-test('CD preserves existing variable and fails closed if owner issue approval absent', () => {
+test('official Coolify release does not depend on legacy issue approval', () => {
   const workflow = readFileSync(new URL('../../.github/workflows/coolify-release.yml',import.meta.url),'utf8');
-  const start = workflow.indexOf('name: Require explicit business release approval (exact SHA)');
-  const next = workflow.indexOf('- id: authority',start);
-  assert.ok(start>0 && next>start);
-  const gate=workflow.slice(start,next);
-  assert.ok(gate.includes('node scripts/cd/verify-business-release-approval.mjs'));
-  assert.ok(gate.includes('node scripts/cd/verify-owner-business-release-approval.mjs'));
-  assert.match(workflow,/issues: read/);
-  assert.match(gate,/GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.doesNotMatch(workflow, /name: Require explicit business release approval \(exact SHA\)/);
+  assert.doesNotMatch(workflow, /node scripts\/cd\/verify-owner-business-release-approval\.mjs/);
+  assert.doesNotMatch(workflow, /CISNE_BUSINESS_APPROVED_SHA:/);
+  assert.doesNotMatch(workflow, /issues: read/);
+  assert.match(workflow, /actions: read/);
+  assert.match(workflow, /name: Require Release Ready/);
   const ci=readFileSync(new URL('../../.github/workflows/ci.yml',import.meta.url),'utf8');
   assert.ok(ci.includes('scripts/cd/verify-owner-business-release-approval.test.mjs'));
 });
