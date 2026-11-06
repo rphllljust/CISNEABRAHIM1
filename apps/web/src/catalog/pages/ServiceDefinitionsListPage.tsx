@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   activateServiceDefinition,
@@ -133,6 +133,7 @@ export function ServiceDefinitionsListPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  const latestListRequest = useRef(0);
   /*
    * CONTEXTO AUTORITATIVO — a LINHA é projeção da listagem; agir sobre ela é agir sobre estado
    * possivelmente velho. O painel re-lê a linhaça (`getServiceDefinition`) e as versões
@@ -164,6 +165,8 @@ export function ServiceDefinitionsListPage() {
 
   const loadPage = useCallback(
     async (offset: number, signal?: AbortSignal) => {
+      // Paginação e retry podem não ter AbortSignal: somente a última consulta aplica estado.
+      const requestId = ++latestListRequest.current;
       setListState({ phase: 'loading' });
       try {
         const response = await listServiceDefinitions(
@@ -177,7 +180,7 @@ export function ServiceDefinitionsListPage() {
           signal,
         );
         // Filtro/recorte substituido: uma resposta atrasada nao pode substituir a fila atual.
-        if (signal?.aborted) return;
+        if (signal?.aborted || requestId !== latestListRequest.current) return;
         setListState({
           phase: 'ready',
           items: response.items,
@@ -187,7 +190,7 @@ export function ServiceDefinitionsListPage() {
           asOf: response.asOf,
         });
       } catch (error) {
-        if (signal?.aborted) return;
+        if (signal?.aborted || requestId !== latestListRequest.current) return;
         if (error instanceof CatalogApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
