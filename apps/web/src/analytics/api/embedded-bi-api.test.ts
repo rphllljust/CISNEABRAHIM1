@@ -27,16 +27,11 @@ describe('MASTER 015 — frontend embedded BI HTTP contract', () => {
 
     const actual = await getEmbeddedBiCatalog('CISNE-RO-PVH');
     expect(actual.items[0]?.key).toBe('service-orders');
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.cisne.test/api/v1/analytics/embedded/catalog?unitId=CISNE-RO-PVH',
-      expect.objectContaining({
-        cache: 'no-store',
-        method: 'GET',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer cisne-access-test-only',
-        }),
-      }),
-    );
+    const [url, request] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.cisne.test/api/v1/analytics/embedded/catalog?unitId=CISNE-RO-PVH');
+    expect(request.cache).toBe('no-store');
+    expect(request.method).toBe('GET');
+    expect(new Headers(request.headers).get('Authorization')).toBe('Bearer cisne-access-test-only');
   });
 
   it('sends the unit and a catalog key, not an arbitrary browser dashboard UUID', async () => {
