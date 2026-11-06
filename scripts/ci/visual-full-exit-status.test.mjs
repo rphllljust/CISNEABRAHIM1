@@ -36,3 +36,29 @@ test('Visual ratchet uses exact-SHA standalone Visual Full baseline (not CI Buil
   assert.doesNotMatch(ratchet, /job\.name === 'Build \/ artifacts'/);
   assert.doesNotMatch(ratchet, /No completed CI push run found/);
 });
+
+
+test('strict Visual Full acceptance gate is independent of the regression ratchet', () => {
+  assert.match(workflow, /- name: Enforce strict Visual Full acceptance/);
+  const gate = workflow.split('- name: Enforce strict Visual Full acceptance')[1];
+  assert.match(gate, /if: always\(\)/);
+  assert.match(gate, /VISUAL_OUTCOME: \$\{\{ steps\.web-visual\.outcome \}\}/);
+  assert.match(gate, /VISUAL_OUTCOME.*!=.*success/);
+  assert.match(gate, /exit 1/);
+});
+
+test('strict Visual Full acceptance fails for failed, skipped or missing outcomes', () => {
+  const script = 'if [[ "${VISUAL_OUTCOME}" != "success" ]]; then exit 1; fi';
+  for (const outcome of ['failure', 'skipped', '']) {
+    const check = spawnSync('bash', ['-c', script], {
+      encoding: 'utf8',
+      env: { ...process.env, VISUAL_OUTCOME: outcome },
+    });
+    assert.equal(check.status, 1, `outcome=${outcome || '(missing)'}`);
+  }
+  const passing = spawnSync('bash', ['-c', script], {
+    encoding: 'utf8',
+    env: { ...process.env, VISUAL_OUTCOME: 'success' },
+  });
+  assert.equal(passing.status, 0);
+});
