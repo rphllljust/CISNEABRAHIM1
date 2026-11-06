@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FleetListPage } from './FleetListPage';
@@ -115,4 +115,41 @@ describe('FleetListPage', () => {
       screen.getByText(/A frota é a visão operacional sobre os ativos físicos de veículo/i),
     ).toBeInTheDocument();
   });
+  it('descarta resposta antiga após troca rápida do filtro de cadastro', async () => {
+    let resolveInactive: ((response: unknown) => void) | undefined;
+    mockListFleetVehicles.mockImplementation(({ lifecycleStatus }: { lifecycleStatus?: string }) => {
+      if (lifecycleStatus === 'INACTIVE') {
+        return new Promise((resolve) => {
+          resolveInactive = resolve;
+        });
+      }
+      if (lifecycleStatus === 'ACTIVE') {
+        return Promise.resolve({
+          items: [{ ...vehicleItem, id: 'asset-2', assetCode: 'TRK-002' }],
+          limit: 20, offset: 0, total: 1,
+        });
+      }
+      return Promise.resolve({ items: [vehicleItem], limit: 20, offset: 0, total: 1 });
+    });
+
+    render(<MemoryRouter><FleetListPage /></MemoryRouter>);
+    expect(await screen.findByRole('link', { name: 'TRK-001' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Cadastro'), { target: { value: 'INACTIVE' } });
+    await waitFor(() => expect(resolveInactive).toBeDefined());
+
+    fireEvent.change(screen.getByLabelText('Cadastro'), { target: { value: 'ACTIVE' } });
+    expect(await screen.findByRole('link', { name: 'TRK-002' })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveInactive?.({
+        items: [{ ...vehicleItem, id: 'asset-old', assetCode: 'TRK-OLD' }],
+        limit: 20, offset: 0, total: 1,
+      });
+    });
+
+    expect(screen.getByRole('link', { name: 'TRK-002' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'TRK-OLD' })).not.toBeInTheDocument();
+  });
+
 });
