@@ -1,0 +1,62 @@
+name: MASTER 015 — HML Superset configuration audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ops/master-015-hml-access-probe
+    paths:
+      - '.github/workflows/master-015-hml-superset-config-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: Inspect only new HML app, never print values
+    if: github.repository == 'rphllljust/CISNEABRAHIM1' && github.actor == 'rphllljust' && github.ref == 'refs/heads/ops/master-015-hml-access-probe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Read Coolify HML app state and secret-key PRESENCE ONLY
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          const base = process.env.COOLIFY_BASE_URL;
+          const token = process.env.COOLIFY_TOKEN;
+          const result = {kind:'MASTER015_HML_CONFIG_AUDIT',appFound:false,http:{},hmlScopeVerified:false,
+            composePathVerified:false,sourceShaVerified:false,autoDeployDisabled:false,statusCategory:'UNKNOWN',
+            secretKeyPresence:{},secretValuesReadOrLogged:false,writesAttempted:false};
+          if (!base || !token) {result.http.auth='MISSING';console.log(JSON.stringify(result));process.exit(0);}
+          const root = base.replace(/\/$/,'');
+          const get=async(path,key)=>{try{const res=await fetch(root+path,{method:'GET',redirect:'error',
+             headers:{authorization:'Bearer '+token,accept:'application/json'},signal:AbortSignal.timeout(10000)});
+             result.http[key]=res.status;return res.ok?await res.json():null;}catch{result.http[key]='UNAVAILABLE';return null;}};
+          const applications=await get('/applications','applications');
+          const match=Array.isArray(applications)?applications.filter(a=>a.name==='cisne-master-015-superset-hml'):[];
+          if(match.length!==1){console.log('MASTER015_HML_CONFIG='+JSON.stringify(result));process.exit(0);}
+          const uuid=match[0].uuid;
+          const app=await get('/applications/'+encodeURIComponent(uuid),'application');
+          const envs=await get('/applications/'+encodeURIComponent(uuid)+'/envs','envKeys');
+          const projects=await get('/projects','projects');
+          if (!app || !Array.isArray(envs) || !Array.isArray(projects)) {console.log('MASTER015_HML_CONFIG='+JSON.stringify(result));process.exit(0);}
+          result.appFound=true;
+          result.composePathVerified=app.base_directory==='/infra/superset' && app.docker_compose_location==='/compose.coolify.yaml';
+          result.sourceShaVerified=app.git_commit_sha==='5e573277e03015928c3c69e42d86fb7b95da7a14';
+          result.autoDeployDisabled=app.settings?.is_auto_deploy_enabled===false || app.is_auto_deploy_enabled===false;
+          result.statusCategory=/running/i.test(app.status??'')?'RUNNING':/exited/i.test(app.status??'')?'EXITED':'NOT_RUNNING_OR_UNKNOWN';
+          for (const p of projects) {
+            if (typeof p.uuid!=='string')continue;
+            const environments=await get('/projects/'+encodeURIComponent(p.uuid)+'/environments','environmentScope');
+            if (!Array.isArray(environments))continue;
+            const hml=environments.filter(e=>e.name==='hml-master-015');
+            if(hml.length===1 && String(hml[0].id)===String(app.environment_id))result.hmlScopeVerified=true;
+          }
+          for (const key of ['SUPERSET_METADATA_USER','SUPERSET_METADATA_PASSWORD','SUPERSET_SECRET_KEY','SUPERSET_GUEST_TOKEN_JWT_SECRET']) {
+            const matches=envs.filter(e=>e.key===key && e.is_preview!==true);
+            result.secretKeyPresence[key]=matches.length===0?'ABSENT':matches.length===1?'PRESENT':'DUPLICATE';
+          }
+          console.log('MASTER015_HML_CONFIG='+JSON.stringify(result));
+          NODE
