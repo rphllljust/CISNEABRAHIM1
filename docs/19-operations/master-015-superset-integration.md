@@ -121,3 +121,15 @@ metadata backup/restore drill, approved OLTP read grants and dataset mappings,
 real multiunit RLS isolation (including cache and token refresh), Allowed
 Domains and iframe CSP, and dashboard-level reconciled counts. The 14 green
 GitHub CI jobs on the previous commit validate source-level gates only.
+
+## Increment 04 — fail-closed HML database privilege preflight
+
+Run `psql -X -v ON_ERROR_STOP=1 -f infra/superset/sql/02-verify-reader-privileges.sql`
+using a privileged HML database connection **after** reviewing/applying the views.
+The preflight is read-only and fails if any expected view lacks `unit_id`,
+`security_barrier=true`, or SELECT for the NOLOGIN reader group; it also rejects
+SELECT access to OLTP or unrelated non-BI relations for that group. It does not
+establish that the eventual LOGIN role has no direct grants, that Superset's guest
+role is restricted, or that row-level filtering actually works. Those require
+separate live HML checks and evidence. Do not enable embedding based on this
+preflight alone.
