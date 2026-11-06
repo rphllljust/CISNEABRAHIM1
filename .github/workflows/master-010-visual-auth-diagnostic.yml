@@ -1,0 +1,53 @@
+name: MASTER 010 Visual fixture auth diagnostic
+
+on:
+  push:
+    branches:
+      - 'validation/master-010-visual-login-diagnostic-20261106'
+
+concurrency:
+  group: master010-visual-auth-diagnostic
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  visual-session-diagnostic:
+    name: Authenticate visual fixtures and report actual UI state
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      VITE_CISNE_SURFACE: dev
+    steps:
+      - name: Checkout isolated diagnostic (main source unchanged)
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Install Chromium
+        run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
+      - name: Run focused synthetic-auth diagnosis (fail closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci
+          pnpm --filter @cisne/web exec playwright test e2e/visual/master010-session-diagnostic.visual.spec.ts --project=desktop --workers=1 --retries=0 2>&1 | tee artifacts/ci/master010-visual-session.log
+      - name: Upload synthetic-only diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: master010-visual-auth-diagnostic-${{ github.run_id }}
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            artifacts/ci/master010-visual-session.log
+            apps/web/test-results
+            apps/web/playwright-report
