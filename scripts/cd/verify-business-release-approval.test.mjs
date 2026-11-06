@@ -29,15 +29,19 @@ test('MASTER 002: explicit approval accepts only the exact 40-character SHA', ()
   assert.deepEqual(authorizeBusinessRelease(sha, sha.toUpperCase()), { sourceSha: sha, authorized: true });
 });
 
-test('CD workflow checks independent business authority before Release ready and GHCR', () => {
+test('CD release no longer requires SHA-bound business approval or issue comments', () => {
   const release = readFileSync(new URL('../../.github/workflows/coolify-release.yml', import.meta.url), 'utf8');
-  const approval = release.indexOf('name: Require explicit business release approval (exact SHA)');
+  assert.doesNotMatch(release, /name: Require explicit business release approval \(exact SHA\)/);
+  assert.doesNotMatch(release, /CISNE_BUSINESS_APPROVED_SHA:/);
+  assert.doesNotMatch(release, /node scripts\/cd\/verify-business-release-approval\.mjs/);
+  assert.doesNotMatch(release, /node scripts\/cd\/verify-owner-business-release-approval\.mjs/);
   const ready = release.indexOf('- id: authority');
   const ghcr = release.indexOf('  publish:');
-  assert.ok(approval > 0 && ready > approval && ghcr > ready, 'business gate must run first');
-  assert.match(release, /CISNE_BUSINESS_APPROVED_SHA:\s*\$\{\{ vars\.CISNE_BUSINESS_APPROVED_SHA \}\}/);
-  assert.match(release, /node scripts\/cd\/verify-business-release-approval\.mjs/);
-  assert.match(release, /node scripts\/cd\/verify-owner-business-release-approval\.mjs/);
+  assert.ok(ready > 0 && ghcr > ready, 'CI/HML gate must execute before publication');
+  assert.match(release, /hml-isolated-e2e\.yml\/runs\?branch=main&head_sha=\$EXPECTED_SHA/);
+  assert.match(release, /select-authorizing-run\.mjs/);
+  assert.match(release, /ready" != "success"/);
+  assert.match(release, /CURRENT_MAIN_SHA" != "\$EXPECTED_SHA"/);
   const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.ok(ci.includes('scripts/cd/verify-business-release-approval.test.mjs'), 'CI must enforce this contract');
 });

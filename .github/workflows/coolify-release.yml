@@ -18,7 +18,6 @@ concurrency:
 permissions:
   contents: read
   actions: read
-  issues: read
   packages: write
 
 jobs:
@@ -41,26 +40,9 @@ jobs:
         with:
           fetch-depth: 1
 
-      # This release gate is separate from code CI and business acceptance.
-      # A merge must never implicitly authorize GHCR publication or Coolify deploy.
-      # Settings > Secrets and variables > Actions > Variables: approve exact main SHA.
-      # Explicit owner authorization may also be provided as a SHA-bound, unedited
-      # decision in the release issue. A stale variable is not an approval for
-      # a new SHA; fall back ONLY to independently authenticated owner approval.
-      # If neither authority approves this exact SHA, publication fails closed.
-      - name: Require explicit business release approval (exact SHA)
-        env:
-          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-          CISNE_BUSINESS_APPROVED_SHA: ${{ vars.CISNE_BUSINESS_APPROVED_SHA }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ "${CISNE_BUSINESS_APPROVED_SHA}" = "${EXPECTED_SHA}" ]; then
-            node scripts/cd/verify-business-release-approval.mjs
-          else
-            echo "[business-release-approval] variable absent/stale; requiring verified owner approval for exact SHA"
-            node scripts/cd/verify-owner-business-release-approval.mjs
-          fi
+      # Automatic release authority: CI + isolated HML must both succeed for the
+      # exact current main SHA. No manual business-approval variable or issue
+      # comment is required. Runtime/provenance/Coolify gates remain fail-closed.
       - id: authority
         env:
           GH_TOKEN: ${{ github.token }}
