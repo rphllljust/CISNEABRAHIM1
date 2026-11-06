@@ -35,6 +35,7 @@ import {
   EMPTY_CLIENT_LIST_PARAMS,
   hasActiveClientListFilters,
   isApplicableClientSearchTerm,
+  parseClientListOffset,
   parseClientListParams,
   toggleClientListSort,
   type ClientListParams,
@@ -184,10 +185,7 @@ export function ClientsListPage() {
       buildClientListSearchParamsWithAdvancedFilter(nextFilters, searchParams, pageOffset),
     [searchParams],
   );
-  const offset = useMemo(() => {
-    const raw = Number(searchParams.get('offset') ?? '0');
-    return Number.isInteger(raw) && raw > 0 ? raw : 0;
-  }, [searchParams]);
+  const offset = useMemo(() => parseClientListOffset(searchParams), [searchParams]);
 
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
   const [isRefreshing, setIsRefreshing] = useState(false);
