@@ -254,7 +254,7 @@ function FiscalDocumentsList() {
    * fiscal, contabilidade e folha. Nenhum campo livre e nenhum identificador digitado.
    */
   const { units, options: unitOptions, unitId: defaultUnitId } = useOperationalUnits();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   /**
    * Drill-down da Mesa de Fechamento: `/app/fiscal/documents?status=REJECTED&unitId=...`.
@@ -267,6 +267,10 @@ function FiscalDocumentsList() {
   const unitFromQuery = searchParams.get('unitId') ?? '';
   const [unitId, setUnitId] = useState(unitFromQuery);
   const [page, setPage] = useState(0);
+  // Segue novos drill-downs mesmo quando a rota não desmonta entre navegações.
+  useEffect(() => {
+    if (unitFromQuery) setUnitId(unitFromQuery);
+  }, [unitFromQuery]);
 
   // Link profundo sem unidade não obriga o operador a digitar nada: a primeira unidade
   // visível para ele é selecionada, como já acontece nas demais listas de backoffice.
@@ -358,8 +362,10 @@ function FiscalDocumentsList() {
           },
           signal,
         );
+        if (signal?.aborted) return;
         setState({ phase: 'ready', items: response.items, total: response.total, page: response.page });
       } catch (error) {
+        if (signal?.aborted) return;
         setState({
           phase: 'error',
           message:
@@ -464,7 +470,14 @@ function FiscalDocumentsList() {
             className={worklistSelectClass}
             value={unitId}
             onChange={(event) => {
-              setUnitId(event.target.value);
+              const nextUnitId = event.target.value;
+              setUnitId(nextUnitId);
+              setSearchParams((current) => {
+                const next = new URLSearchParams(current);
+                if (nextUnitId) next.set('unitId', nextUnitId);
+                else next.delete('unitId');
+                return next;
+              }, { replace: true });
               setPage(0);
             }}
           >
