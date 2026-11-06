@@ -279,11 +279,18 @@ function FiscalDocumentsList() {
    * faz o Ctrl+K, a visão embutida e o drill-down abrirem a fila já recortada. Somente
    * valores enumerados entram — nenhum identificador de registro vai para a URL.
    */
+  // A sincronização genérica de SmartList remove parâmetros fora da allow-list,
+  // inclusive unitId. Nesta tela, situação e unidade são recortes independentes:
+  // ambos precisam sobreviver ao deep-link e à navegação do operador.
+  const statusFromQuery = searchParams.get('status') ?? '';
+  const validStatusFromQuery =
+    (STATUS_FILTERS as readonly string[]).includes(statusFromQuery) ? statusFromQuery : '';
   const smartList = useSmartList({
     scope: SCOPE,
     builtInViews: FISCAL_DOCUMENTS_BUILT_IN_VIEWS,
     allowedFilters: FISCAL_DOCUMENTS_ALLOWED_FILTERS,
-    urlSync: true,
+    initialFilters: validStatusFromQuery ? { status: validStatusFromQuery } : {},
+    urlSync: false,
   });
   const statusFilter = smartList.filters.status ?? '';
   // Só valor que é uma opção real do domínio vira filtro: token desconhecido no URL não é
@@ -291,11 +298,24 @@ function FiscalDocumentsList() {
   const status = (STATUS_FILTERS as readonly string[]).includes(statusFilter) ? statusFilter : '';
   const { setFilter } = smartList;
 
+  // Uma nova navegação na mesma rota também pode alterar o recorte de situação.
   useEffect(() => {
-    if (statusFilter !== status) {
-      setFilter('status', '');
+    if (statusFilter !== validStatusFromQuery) {
+      setFilter('status', validStatusFromQuery);
     }
-  }, [setFilter, status, statusFilter]);
+  }, [setFilter, statusFilter, validStatusFromQuery]);
+
+  // Atualiza somente o parâmetro gerenciado, mantendo unitId e o restante da URL.
+  const setFiscalStatus = useCallback((nextStatus: string) => {
+    const validated = (STATUS_FILTERS as readonly string[]).includes(nextStatus) ? nextStatus : '';
+    setFilter('status', validated);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (validated) next.set('status', validated);
+      else next.delete('status');
+      return next;
+    }, { replace: true });
+  }, [setFilter, setSearchParams]);
 
   /**
    * Competência: escolha humana alimentada pela lista REAL de períodos fiscais da unidade
@@ -401,10 +421,10 @@ function FiscalDocumentsList() {
   const activePeriod = periods.find((period) => period.periodKey === competence) ?? null;
 
   const clearFilters = useCallback(() => {
-    setFilter('status', '');
+    setFiscalStatus('');
     setCompetence('');
     setPage(0);
-  }, [setFilter]);
+  }, [setFiscalStatus]);
 
   return (
     <ModulePage layout="wide">
@@ -536,7 +556,7 @@ function FiscalDocumentsList() {
             className={worklistSelectClass}
             value={status}
             onChange={(event) => {
-              setFilter('status', event.target.value);
+              setFiscalStatus(event.target.value);
               setPage(0);
             }}
           >
@@ -557,6 +577,7 @@ function FiscalDocumentsList() {
         activeViewId={smartList.activeViewId}
         onApply={(view) => {
           smartList.applyView(view);
+          setFiscalStatus(view.config.filters.status ?? '');
           setPage(0);
         }}
         onSave={smartList.savedViews.saveView}
