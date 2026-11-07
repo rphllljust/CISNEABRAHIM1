@@ -64,6 +64,7 @@ const SAMPLE_EXECUTION_REQUIREMENTS = [
 const ADMIN_ACTIONS = [
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderCreate,
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderRead,
+  AUTHZ_ACTIONS.ServiceOrdersServiceOrderUpdate,
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderPrepare,
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderRelease,
   AUTHZ_ACTIONS.ServiceOrdersServiceOrderCancel,
