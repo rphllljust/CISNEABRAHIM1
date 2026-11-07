@@ -88,3 +88,27 @@ test('CI always runs the Visual Full exit-status contract even when the visual j
   assert.ok(staticQuality);
   assert.match(staticQuality[1], /node --test scripts\/ci\/visual-full-exit-status\.test\.mjs/);
 });
+
+test('CI detects visual harness edits and fails closed when git diff errors', () => {
+  const detector = ciWorkflow.match(/  detect-change-scope:\n([\s\S]*?)\n  visual-critical:/);
+  assert.ok(detector, 'CI change scope classifier must exist');
+
+  const visualPattern = detector[1].match(/visual='([^']+)'/);
+  assert.ok(visualPattern, 'CI classifier visual regex must exist');
+  const isVisualRisk = new RegExp(visualPattern[1]);
+  for (const path of [
+    '.github/workflows/ci.yml',
+    '.github/workflows/visual-full.yml',
+    'scripts/ci/visual-full-exit-status.test.mjs',
+    'apps/web/src/AppRoutes.tsx',
+  ]) {
+    assert.equal(isVisualRisk.test(path), true, path);
+  }
+  assert.equal(isVisualRisk.test('docs/README.md'), false);
+  assert.ok(
+    detector[1].includes('if ! files="$(git diff --name-only "$range")"; then'),
+    'failed git diff must not be interpreted as an empty diff',
+  );
+  assert.match(detector[1], /Unable to calculate changed paths/);
+  assert.match(detector[1], /exit 1/);
+});
