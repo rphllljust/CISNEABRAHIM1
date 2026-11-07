@@ -636,8 +636,19 @@ export async function prepareAccountingSession(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/^usuário/i).fill(TEST_LOGIN);
   await page.getByLabel(/^senha/i).fill(TEST_PASSWORD);
-  await page.getByRole('button', { name: /^entrar/i }).click();
-  await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible();
+  // Esta fixture é de domínio: não vincular o aceite de autenticação ao
+  // dashboard, cujo endpoint não é servido por esta fixture. Validar o
+  // contrato real de sessão (200) e o acesso à rota protegida; os testes
+  // seguintes validam a worklist/objeto de Contabilidade ou Fiscal.
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes('/api/v1/auth/session') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
+    ),
+    page.getByRole('button', { name: /^entrar/i }).click(),
+  ]);
+  await expect(page).toHaveURL(/\/app(?:\/|$)/);
 }
 
 export async function stabilizeAccountingPage(page: Page): Promise<void> {
