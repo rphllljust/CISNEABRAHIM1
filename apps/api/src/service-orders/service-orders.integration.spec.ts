@@ -492,6 +492,83 @@ describe('Service orders PostgreSQL integration', () => {
     return { client, publishedService, created };
   }
 
+  it('recovers an existing DRAFT without service through authorized update, lock, audit and release', async () => {
+    const { actor } = await seedActor();
+    const client = await seedClient(actor);
+    const publishedService = await seedPublishedService(actor);
+    const created = await serviceOrdersAccess.create(actor, {
+      origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+      unitId: UNIT_A,
+      clientId: client.id,
+    });
+
+    expect(created.status).toBe(SERVICE_ORDER_STATUSES.Draft);
+    expect(created.serviceDefinitionId).toBeNull();
+    expect(created.serviceDefinitionVersionId).toBeNull();
+    const blocked = await serviceOrdersAccess.getById(actor, created.id);
+    expect(blocked.controlCenter?.nextAction.blockers).toContain('SERVICE_DEFINITION_REQUIRED');
+    expect(blocked.controlCenter?.nextAction.availableTransitions).not.toContain('prepare');
+    await expect(serviceOrdersAccess.prepare(actor, created.id, {
+      rowVersion: created.rowVersion,
+    })).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.SERVICE_REQUIRED });
+
+    // The same authorized PATCH as the frontend: no second order or direct status edit.
+    const updated = await serviceOrdersAccess.update(actor, created.id, {
+      rowVersion: created.rowVersion,
+      serviceDefinitionId: publishedService.serviceDefinitionId,
+    });
+    expect(updated.status).toBe(SERVICE_ORDER_STATUSES.Draft);
+    expect(updated.rowVersion).toBeGreaterThan(created.rowVersion);
+    expect(updated.serviceDefinitionId).toBe(publishedService.serviceDefinitionId);
+    expect(updated.serviceDefinitionVersionId).toBe(publishedService.id);
+    expect(updated.serviceSnapshot?.['serviceCode']).toBe(publishedService.code);
+
+    await expect(serviceOrdersAccess.update(actor, created.id, {
+      rowVersion: created.rowVersion,
+      serviceDefinitionId: publishedService.serviceDefinitionId,
+    })).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.VERSION_CONFLICT });
+
+    const reread = await serviceOrdersAccess.getById(actor, created.id);
+    expect(reread.controlCenter?.nextAction.blockers).not.toContain('SERVICE_DEFINITION_REQUIRED');
+    expect(reread.controlCenter?.nextAction.availableTransitions).toContain('prepare');
+
+    const prepared = await serviceOrdersAccess.prepare(actor, created.id, {
+      rowVersion: reread.rowVersion,
+    });
+    const released = await serviceOrdersAccess.release(actor, created.id, {
+      rowVersion: prepared.rowVersion,
+    });
+    expect(released.status).toBe(SERVICE_ORDER_STATUSES.Released);
+    expect(released.historyEvents.map(event => event.eventType)).toEqual(
+      expect.arrayContaining(['CREATED', 'PREPARED', 'RELEASED']),
+    );
+
+    const persisted = await pool.query<{
+      status: string;
+      service_definition_id: string;
+      service_definition_version_id: string;
+    }>(
+      'SELECT status::text AS status, service_definition_id, service_definition_version_id FROM so.service_orders WHERE id = $1',
+      [created.id],
+    );
+    expect(persisted.rows[0]).toMatchObject({
+      status: SERVICE_ORDER_STATUSES.Released,
+      service_definition_id: publishedService.serviceDefinitionId,
+      service_definition_version_id: publishedService.id,
+    });
+    const audit = await pool.query<{ action: string }>(
+      'SELECT action FROM audit.security_audit_events WHERE resource_id = $1',
+      [created.id],
+    );
+    for (const action of [
+      SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderUpdate,
+      SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderPrepare,
+      SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderRelease,
+    ]) {
+      expect(audit.rows.map(row => row.action)).toContain(action);
+    }
+  });
+
   it('denies release from DRAFT without client after prepare', async () => {
     const { actor } = await seedActor();
     const publishedService = await seedPublishedService(actor);
