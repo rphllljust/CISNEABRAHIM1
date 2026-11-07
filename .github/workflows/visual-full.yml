@@ -46,16 +46,10 @@ on:
     # 04:17 UTC — fora de qualquer janela de release típica.
     - cron: '17 4 * * *'
   workflow_dispatch:
+  # Full baseline for every new main SHA and exact-head proof for EVERY PR.
+  push:
+    branches: [main]
   pull_request:
-    paths:
-      - 'apps/web/src/**'
-      - 'apps/web/e2e/visual/**'
-      - 'apps/web/index.html'
-      - 'apps/web/vite.config.ts'
-      - 'apps/web/tailwind.config**'
-      - 'packages/ui/**'
-      - 'packages/design-**'
-      - '**/*.css'
 
 concurrency:
   # Grupo proprio, jamais compartilhado com `CI` ou `CD`. Cancelar uma run visual superseded nao
