@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetApiBaseUrlCacheForTests } from '../../auth/api/auth-api';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
-import { linkPublishedServiceToDraftOrder } from './service-orders-api';
+import { linkClientToDraftOrder, linkPublishedServiceToDraftOrder } from './service-orders-api';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const DEFINITION_ID = '22222222-2222-4222-8222-222222222222';
@@ -30,6 +30,22 @@ describe('DRAFT OS — contrato HTTP de PATCH de serviço publicado', () => {
     expect(init.method).toBe('PATCH');
     if (typeof init.body !== 'string') throw new Error('PATCH body must be a JSON string');
     expect(JSON.parse(init.body)).toEqual({ rowVersion: 4, serviceDefinitionId: DEFINITION_ID });
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer test-access' });
+  });
+
+  it('vincula cliente ativo por PATCH com controle de versão e sem status no payload', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      id: ORDER_ID, clientId: DEFINITION_ID, status: 'DRAFT', rowVersion: 5,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await linkClientToDraftOrder(ORDER_ID, 4, DEFINITION_ID);
+    expect(result.clientId).toBe(DEFINITION_ID);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('/api/v1/service-orders/' + ORDER_ID);
+    expect(init.method).toBe('PATCH');
+    if (typeof init.body !== 'string') throw new Error('PATCH body must be a JSON string');
+    expect(JSON.parse(init.body)).toEqual({ rowVersion: 4, clientId: DEFINITION_ID });
     expect(init.headers).toMatchObject({ Authorization: 'Bearer test-access' });
   });
 
