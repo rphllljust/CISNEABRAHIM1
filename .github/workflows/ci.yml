@@ -648,7 +648,7 @@ jobs:
           printf '%s\n' "$files" | head -50
 
           # Superficie visual = tudo que pode mudar pixel renderizado.
-          visual='^(\.github/workflows/(ci|visual-full)\.yml$|scripts/ci/visual-|apps/web/src/|apps/web/e2e/visual/|apps/web/index\.html|apps/web/vite\.config\.ts|apps/web/tailwind\.config|packages/ui/|packages/design-|.*\.css$)'
+          visual='^(\.github/workflows/(ci|visual-full)\.yml$|scripts/ci/visual-|apps/web/src/|apps/web/e2e/visual/|apps/web/e2e/fixtures/|apps/web/index\.html|apps/web/vite\.config\.ts|apps/web/tailwind\.config|packages/ui/|packages/design-|.*\.css$)'
 
           if printf '%s\n' "$files" | grep -Eq "$visual"; then
             echo "visual_risk=true" >> "$GITHUB_OUTPUT"

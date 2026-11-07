@@ -100,6 +100,7 @@ test('CI detects visual harness edits and fails closed when git diff errors', ()
     '.github/workflows/ci.yml',
     '.github/workflows/visual-full.yml',
     'scripts/ci/visual-full-exit-status.test.mjs',
+    'apps/web/e2e/fixtures/accounting-api-routes.ts',
     'apps/web/src/AppRoutes.tsx',
   ]) {
     assert.equal(isVisualRisk.test(path), true, path);
