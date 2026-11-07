@@ -28,7 +28,8 @@ describe('DRAFT OS — contrato HTTP de PATCH de serviço publicado', () => {
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain('/api/v1/service-orders/' + ORDER_ID);
     expect(init.method).toBe('PATCH');
-    expect(JSON.parse(String(init.body))).toEqual({ rowVersion: 4, serviceDefinitionId: DEFINITION_ID });
+    if (typeof init.body !== 'string') throw new Error('PATCH body must be a JSON string');
+    expect(JSON.parse(init.body)).toEqual({ rowVersion: 4, serviceDefinitionId: DEFINITION_ID });
     expect(init.headers).toMatchObject({ Authorization: 'Bearer test-access' });
   });
 
