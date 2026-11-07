@@ -162,11 +162,31 @@ async function authorize(prSummary) {
   if (latest.head.sha !== sha || latest.base.sha !== currentMain.sha) {
     return 'head/base changed before enabling auto-merge';
   }
-  await graphql(
-    'mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{id autoMergeRequest{enabledAt}}}}',
-    {id: latest.node_id},
-  );
-  return 'AUTO_MERGE_ENABLED on head ' + sha + ' (GH branch protections remain authoritative)';
+  try {
+    await graphql(
+      'mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{id autoMergeRequest{enabledAt}}}}',
+      {id: latest.node_id},
+    );
+    return 'AUTO_MERGE_ENABLED on head ' + sha + ' (GH branch protections remain authoritative)';
+  } catch (error) {
+    // GitHub refuses enabling auto-merge if all protections are already met:
+    // merge immediately, still enforcing rulesets and expectedHeadOid.
+    const message = String(error);
+    if (!/clean state|already satisfied|already fulfilled|no pending requirements/i.test(message)) {
+      throw error;
+    }
+    const checked = await github(prefix + '/pulls/' + number);
+    const checkedMain = await github(prefix + '/commits/main');
+    if (checked.draft || checked.head.sha !== sha ||
+        checked.base.sha !== checkedMain.sha || checked.mergeable !== true) {
+      return 'head/base changed before direct merge fallback';
+    }
+    await graphql(
+      'mutation($id:ID!,$sha:GitObjectID!){mergePullRequest(input:{pullRequestId:$id,mergeMethod:SQUASH,expectedHeadOid:$sha}){pullRequest{merged}}}',
+      {id: checked.node_id, sha},
+    );
+    return 'MERGED after strict validation: head ' + sha;
+  }
 }
 
 async function ensureMainCi() {
