@@ -48,7 +48,7 @@ describe('DRAFT OS — recuperar vínculo autoritativo do serviço', () => {
     vi.mocked(linkPublishedServiceToDraftOrder).mockResolvedValue({} as Awaited<ReturnType<typeof linkPublishedServiceToDraftOrder>>);
     const { user, onUpdated } = setup();
     await selectPublishedService(user);
-    await user.click(screen.getByRole('button', { name: 'Vincular serviço', exact: true }));
+    await user.click(screen.getByRole('button', { name: /^Vincular serviço$/ }));
     await waitFor(() => expect(linkPublishedServiceToDraftOrder).toHaveBeenCalledWith(
       ORDER_ID, 4, DEFINITION_ID,
     ));
@@ -61,7 +61,7 @@ describe('DRAFT OS — recuperar vínculo autoritativo do serviço', () => {
     );
     const { user, onUpdated } = setup();
     await selectPublishedService(user);
-    await user.click(screen.getByRole('button', { name: 'Vincular serviço', exact: true }));
+    await user.click(screen.getByRole('button', { name: /^Vincular serviço$/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('HTTP 409');
     expect(onUpdated).not.toHaveBeenCalled();
     expect(linkPublishedServiceToDraftOrder).toHaveBeenCalledTimes(1);
@@ -73,7 +73,7 @@ describe('DRAFT OS — recuperar vínculo autoritativo do serviço', () => {
     );
     const { user, onUpdated } = setup();
     await selectPublishedService(user);
-    await user.click(screen.getByRole('button', { name: 'Vincular serviço', exact: true }));
+    await user.click(screen.getByRole('button', { name: /^Vincular serviço$/ }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Você não tem permissão');
     expect(onUpdated).not.toHaveBeenCalled();
   });
