@@ -66,7 +66,7 @@ const enc = encodeURIComponent;
  * `probeEntry` (o que autoriza, o que nega) EXIGE incrementar esta revisão. Mapa persistido com
  * revisão diferente é DESCARTADO e o menu é resolvido de novo pela rede.
  */
-export const SURFACE_ACCESS_CONTRACT_VERSION = 9;
+export const SURFACE_ACCESS_CONTRACT_VERSION = 10;
 
 /** Operação de leitura que representa entrar no módulo. `null` = superfície sem leitura própria. */
 export type SurfaceEntryRead = (unitId: string) => string | null;
@@ -80,6 +80,8 @@ export type SurfaceEntryRead = (unitId: string) => string | null;
 export const SURFACE_ENTRY_READS: Record<string, SurfaceEntryRead> = {
   /* ---------------------------------------------------------------- COMERCIAL / OPERAÇÕES */
   'request-list': () => '/api/v1/requests/service-requests?limit=1&offset=0',
+  'superset-bi-read': (unitId) =>
+    unitId ? '/api/v1/analytics/embedded/catalog?unitId=' + enc(unitId) : null,
   'client-list': () => '/api/v1/clients?limit=1&offset=0',
   'proposal-list': () => '/api/v1/commercial/proposals?limit=1&offset=0',
   'purchase-order-list': () => '/api/v1/commercial/purchase-orders?limit=1&offset=0',

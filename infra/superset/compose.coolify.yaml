@@ -1,0 +1,84 @@
+# MASTER 015 — isolated Apache Superset service for Coolify.
+# Deploy as a separate Git-based Docker Compose application in an HML environment first.
+# NO host-published ports: Coolify routes superset-web:8088 through its TLS proxy.
+# Keep SUPERSET_EMBED_ENABLED=false in CISNE API until security/HML acceptance.
+services:
+  superset-metadata:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${SUPERSET_METADATA_USER:?}
+      POSTGRES_PASSWORD: ${SUPERSET_METADATA_PASSWORD:?}
+      POSTGRES_DB: superset
+    volumes:
+      - superset_metadata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  superset-cache:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes"]
+    volumes:
+      - superset_cache:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  superset-init:
+    image: apache/superset:6.1.0
+    restart: "no"
+    exclude_from_hc: true
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+      SUPERSET_METADATA_USER: ${SUPERSET_METADATA_USER:?}
+      SUPERSET_METADATA_PASSWORD: ${SUPERSET_METADATA_PASSWORD:?}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?}
+      SUPERSET_GUEST_TOKEN_JWT_SECRET: ${SUPERSET_GUEST_TOKEN_JWT_SECRET:?}
+    volumes:
+      - ./superset_config.py:/app/pythonpath/superset_config.py:ro
+    depends_on:
+      superset-metadata:
+        condition: service_healthy
+      superset-cache:
+        condition: service_healthy
+    command: ["sh", "-c", "superset db upgrade && superset init"]
+
+  superset-web:
+    image: apache/superset:6.1.0
+    restart: unless-stopped
+    environment:
+      SUPERSET_CONFIG_PATH: /app/pythonpath/superset_config.py
+      SUPERSET_METADATA_USER: ${SUPERSET_METADATA_USER:?}
+      SUPERSET_METADATA_PASSWORD: ${SUPERSET_METADATA_PASSWORD:?}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?}
+      SUPERSET_GUEST_TOKEN_JWT_SECRET: ${SUPERSET_GUEST_TOKEN_JWT_SECRET:?}
+      # Coolify maps the domain to this container's internal port, not host port 8088.
+      SERVICE_URL_SUPERSET_WEB_8088: /
+    volumes:
+      - ./superset_config.py:/app/pythonpath/superset_config.py:ro
+    depends_on:
+      superset-metadata:
+        condition: service_healthy
+      superset-cache:
+        condition: service_healthy
+      superset-init:
+        condition: service_completed_successfully
+    expose:
+      - "8088"
+    command: ["sh", "-c", "exec gunicorn --workers 2 --bind 0.0.0.0:8088 --timeout 120 'superset.app:create_app()'"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8088/health',timeout=5)"]
+      interval: 30s
+      timeout: 8s
+      start_period: 45s
+      retries: 5
+
+volumes:
+  superset_metadata:
+  superset_cache:

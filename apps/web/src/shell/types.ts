@@ -11,6 +11,7 @@ export type ShellNavAccessCheck =
   | 'contract-list'
   | 'billing-list'
   | 'document-list'
+  | 'superset-bi-read'
   | 'service-order-list'
   | 'people-list'
   | 'finance-overview'

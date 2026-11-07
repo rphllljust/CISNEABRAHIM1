@@ -75,6 +75,7 @@ const MyInboxPage = lazy(() => import('./work-inbox/pages/MyInboxPage').then((mo
 const OperationsDispatchWorkspacePage = lazy(() => import('./service-orders/pages/OperationsDispatchWorkspacePage').then((module) => ({ default: module.OperationsDispatchWorkspacePage })));
 const SearchResultsPage = lazy(() => import('./search/pages/SearchResultsPage').then((module) => ({ default: module.SearchResultsPage })));
 const ReportsPage = lazy(() => import('./reports/pages/ReportsPage').then((module) => ({ default: module.ReportsPage })));
+const EmbeddedBiPage = lazy(() => import('./analytics/pages/EmbeddedBiPage').then((module) => ({ default: module.EmbeddedBiPage })));
 const OperationalProfitabilityPage = lazy(() => import('./analytics/pages/OperationalProfitabilityPage').then((module) => ({ default: module.OperationalProfitabilityPage })));
 const ComplianceBiPage = lazy(() => import('./analytics/pages/ComplianceBiPage').then((module) => ({ default: module.ComplianceBiPage })));
 const LoginPage = lazy(() => import('./pages/LoginPage').then((module) => ({ default: module.LoginPage })));
@@ -210,6 +211,7 @@ export function AppRoutes() {
               />
               <Route path="/app/search" element={<SearchResultsPage />} />
               <Route path="/app/reports" element={<ReportsPage />} />
+              <Route path="/app/reports/embedded" element={<EmbeddedBiPage />} />
               <Route
                 path="/app/operational-profitability"
                 element={<OperationalProfitabilityPage />}
