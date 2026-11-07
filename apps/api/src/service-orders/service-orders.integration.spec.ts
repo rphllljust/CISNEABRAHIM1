@@ -639,6 +639,11 @@ describe('Service orders PostgreSQL integration', () => {
     const prepared = await serviceOrdersAccess.prepare(actor, created.id, {
       rowVersion: created.rowVersion,
     });
+    const detail = await serviceOrdersAccess.getById(actor, prepared.id);
+    expect(detail.controlCenter?.nextAction.step).toBe('WAITING');
+    expect(detail.controlCenter?.nextAction.transition).toBeNull();
+    expect(detail.controlCenter?.nextAction.availableTransitions).not.toContain('release');
+    expect(detail.controlCenter?.nextAction.blockers).toContain('CLIENT_REQUIRED');
     await expect(
       serviceOrdersAccess.release(actor, prepared.id, { rowVersion: prepared.rowVersion }),
     ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.CLIENT_REQUIRED });
@@ -679,6 +684,9 @@ describe('Service orders PostgreSQL integration', () => {
       rowVersion: created.rowVersion,
     });
     await clientAccess.deactivate(actor, client.id, client.version, 'Inativo');
+    const detail = await serviceOrdersAccess.getById(actor, prepared.id);
+    expect(detail.controlCenter?.nextAction.availableTransitions).not.toContain('release');
+    expect(detail.controlCenter?.nextAction.blockers).toContain('CLIENT_INACTIVE');
     await expect(
       serviceOrdersAccess.release(actor, prepared.id, { rowVersion: prepared.rowVersion }),
     ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.CLIENT_INACTIVE });
@@ -690,6 +698,11 @@ describe('Service orders PostgreSQL integration', () => {
     const prepared = await serviceOrdersAccess.prepare(actor, created.id, {
       rowVersion: created.rowVersion,
     });
+    const detail = await serviceOrdersAccess.getById(actor, prepared.id);
+    expect(detail.controlCenter?.nextAction.transition).toBe('release');
+    expect(detail.controlCenter?.nextAction.availableTransitions).toContain('release');
+    expect(detail.controlCenter?.nextAction.blockers).not.toContain('CLIENT_REQUIRED');
+    expect(detail.controlCenter?.nextAction.blockers).not.toContain('CLIENT_INACTIVE');
     const released = await serviceOrdersAccess.release(actor, prepared.id, {
       rowVersion: prepared.rowVersion,
     });
