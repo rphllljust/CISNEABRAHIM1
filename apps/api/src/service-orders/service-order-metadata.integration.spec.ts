@@ -466,7 +466,7 @@ describe('B4 — service order metadata HTTP contract', () => {
     expect(detailJson.controlCenter?.nextAction).toMatchObject({
       step: 'WAITING',
       transition: null,
-      blockers: expect.arrayContaining(['CLIENT_REQUIRED']),
+      blockers: ['CLIENT_REQUIRED'],
     });
 
     // Domain still owns the command: direct invocation is rejected with 409,
