@@ -638,13 +638,17 @@ jobs:
             exit 0
           fi
 
-          files="$(git diff --name-only "$range" || true)"
+          # Git errors must not be treated as an empty, no-visual-risk diff.
+          if ! files="$(git diff --name-only "$range")"; then
+            echo "::error::Unable to calculate changed paths; refusing to classify a failed diff as no visual risk."
+            exit 1
+          fi
           count="$(printf '%s' "$files" | grep -c . || true)"
           echo "Arquivos alterados: $count"
           printf '%s\n' "$files" | head -50
 
           # Superficie visual = tudo que pode mudar pixel renderizado.
-          visual='^(apps/web/src/|apps/web/e2e/visual/|apps/web/index\.html|apps/web/vite\.config\.ts|apps/web/tailwind\.config|packages/ui/|packages/design-|.*\.css$)'
+          visual='^(\.github/workflows/(ci|visual-full)\.yml$|scripts/ci/visual-|apps/web/src/|apps/web/e2e/visual/|apps/web/index\.html|apps/web/vite\.config\.ts|apps/web/tailwind\.config|packages/ui/|packages/design-|.*\.css$)'
 
           if printf '%s\n' "$files" | grep -Eq "$visual"; then
             echo "visual_risk=true" >> "$GITHUB_OUTPUT"
