@@ -3,6 +3,7 @@ import {
   requiredJobsPassed,
   verifiedPlaywrightLog,
   isProtectedAutomationPath,
+  requiresIsolatedHml,
 } from './auto-merge-contract.mjs';
 
 const repository = process.env.GITHUB_REPOSITORY;
@@ -125,6 +126,20 @@ async function authorize(prSummary) {
   const ci = latestExactRun(runs, 'CI', sha);
   const standalone = latestExactRun(runs, 'Visual full', sha);
   if (!ci || !standalone) return 'missing CI or standalone Visual full on exact SHA';
+  const hml = latestExactRun(runs, 'HML isolated end-to-end', sha);
+  if (requiresIsolatedHml(files) && !hml) {
+    return 'HML-required PR has no isolated HML run on exact SHA';
+  }
+  if (hml) {
+    if (hml.head_branch !== pr.head.ref || hml.head_repository?.full_name !== repository ||
+        hml.status !== 'completed' || hml.conclusion !== 'success') {
+      return 'isolated HML not approved for exact HEAD';
+    }
+    const hmlJobs = await getRunJobs(hml.id);
+    if (!requiredJobsPassed(hmlJobs, ['HML Docker + synthetic business E2E'])) {
+      return 'isolated HML authoritative job failed/skipped/missing';
+    }
+  }
   for (const run of [ci, standalone]) {
     if (run.head_branch !== pr.head.ref || run.head_repository?.full_name !== repository) {
       return 'workflow source branch/repository mismatch';
