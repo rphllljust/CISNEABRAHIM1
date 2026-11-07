@@ -90,8 +90,12 @@ test.describe('clients composition metrics', () => {
       return { listWidth: Math.round(lw), contextWidth: Math.round(cw), ratio: lw + cw ? Math.round((lw / (lw + cw)) * 100) : 0 };
     });
     console.log('SPLIT ' + JSON.stringify(split));
-    expect(split.ratio).toBeGreaterThanOrEqual(70);
-    expect(split.ratio).toBeLessThanOrEqual(78);
+    // O drawer contextual e sobreposto, nao uma coluna fixa que encolhe a lista.
+    // A selecao deve preservar integralmente a largura da fila (100%) enquanto
+    // o contexto do cliente permanece visivel e acessivel.
+    expect(split.listWidth).toBeGreaterThan(0);
+    expect(split.contextWidth).toBe(0);
+    expect(split.ratio).toBe(100);
 
     await page.screenshot({ path: 'test-results/geometry/workspace-selected.png', fullPage: false });
     expect(before.rows).toBeGreaterThan(0);
