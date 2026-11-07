@@ -7,6 +7,10 @@ import {
   PROBE_SERVICE_ORDER_ID,
 } from './constants';
 import { handleCommercialApiRoute } from './commercial-api-routes';
+import {
+  COMMERCIAL_PROPOSALS_LIST_SNAPSHOT,
+  COMMERCIAL_PURCHASE_ORDERS_LIST_SNAPSHOT,
+} from './commercial-snapshots';
 import { handleClientsApiRoute } from './clients-api-routes';
 import { handleDocumentsApiRoute } from './documents-api-routes';
 import { handleFinanceApiRoute } from './finance-api-routes';
@@ -402,6 +406,23 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
 
   if (pathname === '/api/v1/resources/physical-assets' && method === 'GET') {
     await fulfillJson(route, { error: { code: 'ASSET_DENIED', message: 'Forbidden.' } }, 403);
+    return;
+  }
+
+  // Commercial visual flows must use the operational units already present in their
+  // deterministic proposal/PO snapshots. The generic service-request fallback below
+  // returned { items: [] } for this route, falsely rendering "Nenhuma unidade autorizada"
+  // in both creation forms even though their objects belong to known units.
+  if (
+    context.profile === 'commercial' &&
+    pathname === '/api/v1/requests/service-requests/operational-units' &&
+    method === 'GET'
+  ) {
+    const ids = [
+      ...COMMERCIAL_PROPOSALS_LIST_SNAPSHOT.items.map((item) => item.unitId),
+      ...COMMERCIAL_PURCHASE_ORDERS_LIST_SNAPSHOT.items.map((item) => item.unitId),
+    ];
+    await fulfillJson(route, { items: [...new Set(ids)] });
     return;
   }
 
