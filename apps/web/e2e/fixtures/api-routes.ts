@@ -49,6 +49,14 @@ const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string
     'billing:billing-record:prepare',
     'billing:billing-document:read',
   ],
+  // O perfil Documents precisa exatamente das grants de leitura usadas pelo hook
+  // useDocumentCapabilities. Sem elas o backend simulado devolve /me sem acesso
+  // e a tela exibe estado negado corretamente, impedindo os 3 testes de lista.
+  documents: [
+    'documents:document:list',
+    'documents:document:read',
+    'documents:document:download',
+  ],
   clients: [
     'client:client:list',
     'client:client:create',
