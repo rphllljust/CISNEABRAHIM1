@@ -35,6 +35,8 @@ describe('SuppliersEngineListPage', () => {
     });
 
     expect(screen.getByRole('table', { name: 'Lista de fornecedores' })).toBeInTheDocument();
+    // A mesma barra não pode aparecer novamente abaixo dos filtros fixos.
+    expect(screen.getAllByTestId('dynamic-saved-views')).toHaveLength(1);
     // `total` do contrato é a contagem do conjunto filtrado: a faixa situa o operador no todo.
     expect(screen.getByText(/1–2 de 2/)).toBeInTheDocument();
     // A referência humana aparece; o UUID não.
