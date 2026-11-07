@@ -32,7 +32,7 @@ import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
 } from './service-order-engine-rows';
-import { OperationsControlCenter } from '../components/OperationsControlCenter';
+import { OperationsControlCenter, formatControlCenterBlocker } from '../components/OperationsControlCenter';
 import { ServiceOrderCostToServePanel } from '../components/ServiceOrderCostToServePanel';
 import type { ServiceOrderControlCenter, ServiceOrderDetail } from '../types/service-order.types';
 
@@ -639,7 +639,7 @@ function nextActionFromControlCenter(
     return {
       kind: 'waiting',
       label: nextAction.step,
-      description: nextAction.blockers.join(' · '),
+      description: nextAction.blockers.map(formatControlCenterBlocker).join(' · '),
       waitingOn: 'Operação',
     };
   }

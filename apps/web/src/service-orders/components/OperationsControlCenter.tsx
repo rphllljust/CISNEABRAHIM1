@@ -55,9 +55,21 @@ const NEXT_STEP_LABELS: Record<string, string> = {
 
 const BLOCKER_LABELS: Record<string, string> = {
   SERVICE_DEFINITION_REQUIRED: 'Defina um serviço antes de preparar a ordem.',
+  SERVICE_REQUIRED: 'Definição de serviço obrigatória antes da liberação.',
+  SERVICE_SNAPSHOT_REQUIRED: 'O serviço vinculado não possui snapshot operacional válido.',
+  CLIENT_REQUIRED: 'Esta OS não possui cliente vinculado; a liberação exige cliente ativo.',
+  CLIENT_NOT_FOUND: 'Cliente vinculado não foi encontrado; liberação bloqueada.',
+  CLIENT_INACTIVE: 'Cliente vinculado está inativo; liberação bloqueada.',
+  PURCHASE_ORDER_REQUIRED: 'A liberação exige pedido de compra registrado e vinculado à OS.',
+
   NO_ACTIVE_ALLOCATION: 'Nenhum recurso ativo alocado para a execução.',
   EXECUTION_OCCURRENCES_REGISTERED: 'Há ocorrências registradas na execução.',
 };
+
+/** Labels only: the codes and their eligibility remain authoritative in the API. */
+export function formatControlCenterBlocker(code: string): string {
+  return BLOCKER_LABELS[code] ?? code;
+}
 
 const DIVERGENCE_LABELS: Record<string, string> = {
   PLANNED_WITHOUT_ACTIVE_ALLOCATION: 'Planejado com recursos, mas sem alocação ativa.',
@@ -136,7 +148,7 @@ export function OperationsControlCenter({
                   key={blocker}
                   className="inline-flex items-center rounded bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-600/25 ring-inset"
                 >
-                  {BLOCKER_LABELS[blocker] ?? blocker}
+                  {formatControlCenterBlocker(blocker)}
                 </span>
               ))
             ) : (
