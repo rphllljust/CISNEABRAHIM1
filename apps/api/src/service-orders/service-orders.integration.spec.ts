@@ -688,6 +688,74 @@ describe('Service orders PostgreSQL integration', () => {
     expect(persisted.rows[0]).toEqual({ status: SERVICE_ORDER_STATUSES.Prepared, released_at: null });
   });
 
+  it('binds registered customer PO to existing DRAFT and releases when catalog requires it', async () => {
+    const { actor } = await seedActor();
+    const client = await seedClient(actor);
+    const service = await seedPublishedService(actor, { requiresPurchaseOrder: true });
+    const created = await serviceOrdersAccess.create(actor, {
+      origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+      unitId: UNIT_A,
+      clientId: client.id,
+      serviceDefinitionId: service.serviceDefinitionId,
+      serviceDefinitionVersionId: service.id,
+    });
+    expect(created.purchaseOrderId).toBeNull();
+
+    // Real commercial command sequence: create then register before linking.
+    const purchaseOrder = await purchaseOrdersAccess.create(actor, {
+      clientId: client.id,
+      unitId: UNIT_A,
+      poNumber: 'PO-OS-REL-' + crypto.randomUUID().slice(0, 8),
+      pricingStructure: PURCHASE_ORDER_PRICING_STRUCTURES.HeaderTotal,
+      totalAmount: '3000.0000',
+    });
+    const registered = await purchaseOrdersAccess.register(actor, purchaseOrder.purchaseOrder.id, {
+      rowVersion: purchaseOrder.purchaseOrder.rowVersion,
+    });
+    const linked = await serviceOrdersAccess.update(actor, created.id, {
+      rowVersion: created.rowVersion,
+      purchaseOrderId: registered.purchaseOrder.id,
+    });
+    expect(linked.status).toBe(SERVICE_ORDER_STATUSES.Draft);
+    expect(linked.purchaseOrderId).toBe(registered.purchaseOrder.id);
+    expect(linked.purchaseOrderSnapshot?.['purchaseOrderId']).toBe(registered.purchaseOrder.id);
+    await expect(serviceOrdersAccess.update(actor, created.id, {
+      rowVersion: created.rowVersion,
+      purchaseOrderId: registered.purchaseOrder.id,
+    })).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.VERSION_CONFLICT });
+
+    const prepared = await serviceOrdersAccess.prepare(actor, created.id, {
+      rowVersion: linked.rowVersion,
+    });
+    const detail = await serviceOrdersAccess.getById(actor, created.id);
+    expect(detail.controlCenter?.nextAction.transition).toBe('release');
+    expect(detail.controlCenter?.nextAction.blockers).not.toContain('PURCHASE_ORDER_REQUIRED');
+    const released = await serviceOrdersAccess.release(actor, created.id, {
+      rowVersion: prepared.rowVersion,
+    });
+    expect(released.status).toBe(SERVICE_ORDER_STATUSES.Released);
+
+    const persisted = await pool.query<{ purchase_order_id: string; status: string }>(
+      'SELECT purchase_order_id, status::text AS status FROM so.service_orders WHERE id = $1',
+      [created.id],
+    );
+    expect(persisted.rows[0]).toEqual({
+      purchase_order_id: registered.purchaseOrder.id,
+      status: SERVICE_ORDER_STATUSES.Released,
+    });
+    const audit = await pool.query<{ action: string }>(
+      'SELECT action FROM audit.security_audit_events WHERE resource_id = $1',
+      [created.id],
+    );
+    expect(audit.rows.map(row => row.action)).toEqual(
+      expect.arrayContaining([
+        SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderUpdate,
+        SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderPrepare,
+        SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderRelease,
+      ]),
+    );
+  });
+
   it('denies update with nonexistent client', async () => {
     const { actor } = await seedActor();
     const { created } = await createDraftWithService(actor);
