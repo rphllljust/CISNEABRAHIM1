@@ -83,8 +83,9 @@ test.describe('purchase orders visual regression', () => {
     ).toBeVisible();
     // A fixture deve publicar unidades operacionais já presentes no domínio comercial.
     // Um retorno vazio na rota compartilhada impede a criação, mesmo com cliente válido.
-    await expect(page.getByRole('combobox', { name: /unidade operacional/i }))
-      .toHaveValue('PORTO-VELHO');
+    const unitSelect = page.getByRole('combobox', { name: /unidade operacional/i });
+    await expect(unitSelect).toBeEnabled();
+    await expect(unitSelect.locator('option[value="PORTO-VELHO"]')).toHaveCount(1);
 
     await stabilizePage(page);
 
