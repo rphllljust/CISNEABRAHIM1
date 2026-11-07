@@ -1,0 +1,32 @@
+name: MASTER 015 — Coolify HML access probe
+
+on:
+  workflow_dispatch:
+  # One-time branch probe; no main deployment, CI build or production release is triggered.
+permissions:
+  contents: read
+
+concurrency:
+  group: master-015-hml-read-only-access-probe
+  cancel-in-progress: false
+
+jobs:
+  read-only-probe:
+    name: Coolify HML — GET-only capability discovery
+    if: github.repository == 'rphllljust/CISNEABRAHIM1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Validate GET-only audit contract without secrets
+        run: |
+          node --check infra/superset/tools/coolify-hml-access-probe.mjs
+          node --test infra/superset/tools/coolify-hml-access-probe.test.mjs
+      - name: Probe existing Coolify API access without mutations
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: node infra/superset/tools/coolify-hml-access-probe.mjs
