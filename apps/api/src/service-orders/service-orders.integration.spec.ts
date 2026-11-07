@@ -195,7 +195,10 @@ describe('Service orders PostgreSQL integration', () => {
     });
   }
 
-  async function seedPublishedService(actor: { identityId: string; sessionId: string }) {
+  async function seedPublishedService(
+    actor: { identityId: string; sessionId: string },
+    options: { requiresPurchaseOrder?: boolean } = {},
+  ) {
     const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
     const category = await insertCatalogCategory(pool, {
       code: `CAT-${suffix}`,
@@ -215,6 +218,7 @@ describe('Service orders PostgreSQL integration', () => {
       resourceRequirements: [],
       laborRequirements: [],
       executionRequirements: [],
+      requiresPurchaseOrder: options.requiresPurchaseOrder ?? false,
     });
     const definition = await catalogAccess.getDefinition(actor, draft.serviceDefinitionId);
     return catalogAccess.publishVersion(actor, draft.serviceDefinitionId, 1, definition.version);
@@ -647,6 +651,41 @@ describe('Service orders PostgreSQL integration', () => {
     await expect(
       serviceOrdersAccess.release(actor, prepared.id, { rowVersion: prepared.rowVersion }),
     ).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.CLIENT_REQUIRED });
+  });
+
+  it('omits RELEASE when catalog requires a customer PO that the prepared order lacks', async () => {
+    const { actor } = await seedActor();
+    const client = await seedClient(actor);
+    const publishedService = await seedPublishedService(actor, { requiresPurchaseOrder: true });
+    const created = await serviceOrdersAccess.create(actor, {
+      origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+      unitId: UNIT_A,
+      clientId: client.id,
+      serviceDefinitionId: publishedService.serviceDefinitionId,
+      serviceDefinitionVersionId: publishedService.id,
+    });
+    expect(created.serviceSnapshot?.['requiresPurchaseOrder']).toBe(true);
+    expect(created.purchaseOrderId).toBeNull();
+
+    const prepared = await serviceOrdersAccess.prepare(actor, created.id, {
+      rowVersion: created.rowVersion,
+    });
+    const detail = await serviceOrdersAccess.getById(actor, prepared.id);
+    expect(detail.controlCenter?.nextAction.step).toBe('WAITING');
+    expect(detail.controlCenter?.nextAction.transition).toBeNull();
+    expect(detail.controlCenter?.nextAction.availableTransitions).not.toContain('release');
+    expect(detail.controlCenter?.nextAction.blockers).toContain('PURCHASE_ORDER_REQUIRED');
+
+    await expect(serviceOrdersAccess.release(actor, prepared.id, {
+      rowVersion: prepared.rowVersion,
+    })).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.PURCHASE_ORDER_REQUIRED });
+
+    // A failed business command must not invent a release timestamp or status.
+    const persisted = await pool.query<{ status: string; released_at: string | null }>(
+      'SELECT status::text AS status, released_at::text AS released_at FROM so.service_orders WHERE id = $1',
+      [created.id],
+    );
+    expect(persisted.rows[0]).toEqual({ status: SERVICE_ORDER_STATUSES.Prepared, released_at: null });
   });
 
   it('denies update with nonexistent client', async () => {
