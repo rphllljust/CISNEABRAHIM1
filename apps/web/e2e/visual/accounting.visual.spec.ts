@@ -116,13 +116,53 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await page.getByRole('link', { name: 'Abrir' }).first().click();
     await expect(page.getByRole('heading', { level: 1, name: 'Lançamento' })).toBeVisible();
     await expect(page.getByRole('table', { name: /linhas do lançamento/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Estornar' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Postar' })).toBeVisible();
+    await expect(page.locator('#journal-reverse-command').getByRole('button', { name: 'Estornar', exact: true })).toBeVisible();
+    await expect(page.locator('#journal-post-command').getByRole('button', { name: 'Postar', exact: true })).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
     await stabilizeAccountingPage(page);
     await expect(page.locator('#main-content')).toHaveScreenshot('accounting-journals.png');
     expect(errors, `erros de JS: ${errors.join(' | ')}`).toEqual([]);
+  });
+
+  test('02b lançamento postado — autorização, justificativa obrigatória e cancelamento sem mutação', async ({ page }) => {
+    const accountingMutations: string[] = [];
+    page.on('request', (request) => {
+      const pathname = new URL(request.url()).pathname;
+      if (pathname.startsWith('/api/v1/accounting/') && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
+        accountingMutations.push(request.method() + ' ' + pathname);
+      }
+    });
+
+    await page.goto('/app/accounting/journals');
+    await expect(page.getByRole('heading', { level: 1, name: 'Lançamentos' })).toBeVisible();
+    await page.getByLabel(/^plano de contas$/i).selectOption(ACCOUNTING_CHART_ID);
+    await page.getByLabel(/período contábil/i).selectOption(ACCOUNTING_PERIOD_ID);
+    await expect(page.getByRole('table', { name: /lançamentos do período/i })).toBeVisible();
+    await page.getByRole('link', { name: 'Abrir' }).first().click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Lançamento' })).toBeVisible();
+
+    // O fixture devolve um lançamento POSTED: pode iniciar estorno, nunca repostar.
+    const post = page.locator('#journal-post-command').getByRole('button', { name: 'Postar', exact: true });
+    const reverse = page.locator('#journal-reverse-command').getByRole('button', { name: 'Estornar', exact: true });
+    const confirmation = page.getByRole('dialog', { name: 'Estornar lançamento' });
+    await expect(post).toBeDisabled();
+    await expect(reverse).toBeEnabled();
+
+    // A justificativa HTML requerida impede abertura da confirmação quando vazia.
+    await reverse.click();
+    await expect(confirmation).toBeHidden();
+    await page.getByRole('textbox', { name: 'Justificativa' }).fill('Conferência cancelada pelo operador');
+    await reverse.click();
+    await expect(confirmation).toBeVisible();
+    await expect(confirmation.getByRole('button', { name: 'Estornar', exact: true })).toBeEnabled();
+    await confirmation.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(confirmation).toBeHidden();
+
+    // Cancelar não envia POST/PATCH/DELETE, mesmo com a ação habilitada no backend.
+    expect(accountingMutations).toEqual([]);
+    await expect(post).toBeDisabled();
+    await expect(reverse).toBeEnabled();
   });
 
   test('03 diário: relatório de postados com paginação do servidor', async ({ page }) => {
