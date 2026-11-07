@@ -48,7 +48,7 @@ test.describe('proposals visual regression', () => {
     // 5) relacao real do objeto (revisoes) presente e navegavel;
     await expect(page.getByRole('link', { name: /Revisões/ })).toBeVisible();
     // 6) conteudo principal do objeto: a composicao comercial.
-    await expect(page.getByRole('table', { name: 'Itens da proposta' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Composição comercial da proposta' })).toBeVisible();
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
