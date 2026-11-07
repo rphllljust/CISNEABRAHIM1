@@ -90,6 +90,8 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
         run: pnpm build
+      - name: Verify Visual Full exit-status contract
+        run: node --test scripts/ci/visual-full-exit-status.test.mjs
       - name: Install Playwright Chromium (web visual regression)
         run: pnpm --filter @cisne/web exec playwright install chromium --with-deps
       - name: Web visual regression (full suite)
@@ -99,7 +101,11 @@ jobs:
         # diagnosticos e a analise do ratchet — que e justamente o que precisa existir quando a
         # suite falha.
         continue-on-error: true
+        shell: bash
         run: |
+          # Keep Playwright's exit status authoritative instead of tee's status.
+          # Otherwise a failing full suite is recorded as success by the ratchet.
+          set -euo pipefail
           mkdir -p artifacts/ci
           pnpm --filter @cisne/web test:visual 2>&1 | tee artifacts/ci/web-visual.log
         env:
@@ -121,3 +127,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
         run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
+      - name: Enforce strict Visual Full acceptance
+        if: always()
+        shell: bash
+        env:
+          VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
+        run: |
+          # A clean ratchet only proves no NEW regressions; it does not prove a passing suite.
+          # This terminal gate intentionally fails while any existing visual debt persists.
+          if [[ "${VISUAL_OUTCOME}" != "success" ]]; then
+            echo "::error::Visual Full acceptance blocked: Playwright did not pass; existing debt is not a green suite."
+            exit 1
+          fi
