@@ -70,6 +70,11 @@ import { formatCnpjDisplay } from '../../clients/utils/format-cnpj';
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** O contrato atual persiste statusFilter; visões anteriores usam filterStatus. */
+export function savedSupplierStatusFilter(filters: Record<string, string>): string {
+  return filters['statusFilter'] ?? filters['filterStatus'] ?? '';
+}
+
 /** Estados que o domínio usa para terceiro fora de operação. */
 const INACTIVE_STATUSES = new Set(['INACTIVE', 'SUSPENDED']);
 const ARCHIVED_STATUSES = new Set(['ARCHIVED']);
@@ -450,7 +455,7 @@ export function SuppliersEngineListPage() {
             onApply={(view) => {
               setSearchInput(view.filters['search'] ?? '');
               setSearch(view.filters['search'] ?? '');
-              setStatusFilter(view.filters['filterStatus'] ?? '');
+              setStatusFilter(savedSupplierStatusFilter(view.filters));
               setOffset(0);
             }}
           />
@@ -460,8 +465,12 @@ export function SuppliersEngineListPage() {
           <WorklistFilterBar
             meta={
               total !== null
-                ? `${offset + 1}–${offset + items.length} de ${total}`
-                : `${offset + 1}–${offset + items.length} nesta página`
+                ? items.length === 0
+                  ? '0 de 0'
+                  : `${offset + 1}–${offset + items.length} de ${total}`
+                : items.length === 0
+                  ? '0 nesta página'
+                  : `${offset + 1}–${offset + items.length} nesta página`
             }
           >
             <WorklistField label="Buscar" htmlFor="suppliers-search" grow>
@@ -504,21 +513,6 @@ export function SuppliersEngineListPage() {
           </WorklistFilterBar>
         </div>
       </div>
-
-      {/* VISÕES SALVAS — o recorte que o operador remonta todo dia. `persistedLocally` e
-          declarado pela engine: sem endpoint de visoes salvas o armazenamento e local. */}
-      <DynamicSavedViewsBar
-        views={savedViews.views}
-        persistedLocally={savedViews.persistedLocally}
-        onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
-        onDelete={savedViews.remove}
-        onApply={(view) => {
-          setSearchInput(view.filters['search'] ?? '');
-          setSearch(view.filters['search'] ?? '');
-          setStatusFilter(view.filters['filterStatus'] ?? '');
-          setOffset(0);
-        }}
-      />
 
       {status === 'error' ? (
         <p className="cisne-type-helper m-0 mb-1 text-amber-800" role="alert">
