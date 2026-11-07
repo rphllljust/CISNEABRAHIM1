@@ -639,12 +639,12 @@ jobs:
           files="$(git diff --name-only "$range" || true)"
           count="$(printf '%s' "$files" | grep -c . || true)"
           echo "Arquivos alterados: $count"
-          printf '%s\n' "$files" | head -50
+          printf '%s\n' "$files" | sed -n '1,50p'
 
           # Superficie visual = tudo que pode mudar pixel renderizado.
           visual='^(apps/web/src/|apps/web/e2e/visual/|apps/web/index\.html|apps/web/vite\.config\.ts|apps/web/tailwind\.config|packages/ui/|packages/design-|.*\.css$)'
 
-          if printf '%s\n' "$files" | grep -Eq "$visual"; then
+          if grep -Eq "$visual" <<< "$files"; then
             echo "visual_risk=true" >> "$GITHUB_OUTPUT"
             echo "Superficie visual tocada -> visual-full OBRIGATORIO."
           else
