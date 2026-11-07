@@ -106,6 +106,8 @@ describe('SuppliersEngineListPage', () => {
         screen.getByText('Nenhum fornecedor corresponde aos filtros aplicados.'),
       ).toBeInTheDocument();
     });
+    // A faixa de paginação não pode apresentar o intervalo impossível "1–0 de 0".
+    expect(screen.getByText('0 de 0')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Limpar filtros' })).toHaveLength(2);
   });
 
