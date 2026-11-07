@@ -411,6 +411,78 @@ describe('B4 — service order metadata HTTP contract', () => {
     });
   });
 
+  it('Caso 3C: API não anuncia RELEASE quando PREPARED não tem cliente, preservando HTTP 409', async () => {
+    const { token } = await loginAdmin();
+    const serviceOrderId = await seedServiceOrder(token);
+    const headers = { authorization: 'Bearer ' + token };
+
+    // A OS foi criada legitimamente com serviço publicado e cliente. O cliente
+    // é desassociado pelo PATCH autorizado enquanto o agregado ainda é DRAFT.
+    const before = await app.inject({
+      method: 'GET',
+      url: '/api/v1/service-orders/' + serviceOrderId,
+      headers,
+    });
+    expect(before.statusCode).toBe(200);
+    const current = JSON.parse(before.body) as { rowVersion: number };
+    const unlinked = await app.inject({
+      method: 'PATCH',
+      url: '/api/v1/service-orders/' + serviceOrderId,
+      headers,
+      payload: { rowVersion: current.rowVersion, clientId: null },
+    });
+    expect(unlinked.statusCode).toBe(200);
+    const draft = JSON.parse(unlinked.body) as { rowVersion: number; clientId: string | null };
+    expect(draft.clientId).toBeNull();
+
+    const prepared = await app.inject({
+      method: 'POST',
+      url: '/api/v1/service-orders/' + serviceOrderId + '/prepare',
+      headers,
+      payload: { rowVersion: draft.rowVersion },
+    });
+    expect(prepared.statusCode).toBe(200);
+    const preparedOrder = JSON.parse(prepared.body) as { rowVersion: number; status: string };
+    expect(preparedOrder.status).toBe(SERVICE_ORDER_STATUSES.Prepared);
+
+    const available = await getJson<AvailableActionsResponse>(
+      '/api/v1/service-orders/' + serviceOrderId + '/available-actions', token,
+    );
+    expect(available.status).toBe(200);
+    expect(available.body?.status_atual).toBe(SERVICE_ORDER_STATUSES.Prepared);
+    expect(available.body?.comandos_validos.map(action => action.comando)).not.toContain('release');
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: '/api/v1/service-orders/' + serviceOrderId,
+      headers,
+    });
+    expect(detail.statusCode).toBe(200);
+    const detailJson = JSON.parse(detail.body) as {
+      controlCenter?: {
+        nextAction: { step: string; transition: string | null; blockers: string[] };
+      };
+    };
+    expect(detailJson.controlCenter?.nextAction).toMatchObject({
+      step: 'WAITING',
+      transition: null,
+      blockers: expect.arrayContaining(['CLIENT_REQUIRED']),
+    });
+
+    // Domain still owns the command: direct invocation is rejected with 409,
+    // and no optimistic UI state is recorded in its place.
+    const release = await app.inject({
+      method: 'POST',
+      url: '/api/v1/service-orders/' + serviceOrderId + '/release',
+      headers,
+      payload: { rowVersion: preparedOrder.rowVersion },
+    });
+    expect(release.statusCode).toBe(409);
+    expect(JSON.parse(release.body)).toMatchObject({
+      error: { code: 'SERVICE_ORDERS_CLIENT_REQUIRED' },
+    });
+  });
+
   it('Caso 3B: usuário sem permissão de prepare não recebe prepare mesmo com DRAFT pronto', async () => {
     const { token: adminToken } = await loginAdmin();
     const orderId = await seedServiceOrder(adminToken);
