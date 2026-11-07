@@ -504,21 +504,6 @@ export function SuppliersEngineListPage() {
         </div>
       </div>
 
-      {/* VISÕES SALVAS — o recorte que o operador remonta todo dia. `persistedLocally` e
-          declarado pela engine: sem endpoint de visoes salvas o armazenamento e local. */}
-      <DynamicSavedViewsBar
-        views={savedViews.views}
-        persistedLocally={savedViews.persistedLocally}
-        onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
-        onDelete={savedViews.remove}
-        onApply={(view) => {
-          setSearchInput(view.filters['search'] ?? '');
-          setSearch(view.filters['search'] ?? '');
-          setStatusFilter(view.filters['filterStatus'] ?? '');
-          setOffset(0);
-        }}
-      />
-
       {status === 'error' ? (
         <p className="cisne-type-helper m-0 mb-1 text-amber-800" role="alert">
           Colunas indisponíveis no momento: exibindo a grade padrão.
