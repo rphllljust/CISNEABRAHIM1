@@ -569,6 +569,64 @@ describe('Service orders PostgreSQL integration', () => {
     }
   });
 
+  it('binds an active client to existing DRAFT before PREPARE and rejects late immutable edits', async () => {
+    const { actor } = await seedActor();
+    const publishedService = await seedPublishedService(actor);
+    const client = await seedClient(actor);
+    const created = await serviceOrdersAccess.create(actor, {
+      origin: SERVICE_ORDER_ORIGINS.AuthorizedDirect,
+      unitId: UNIT_A,
+      serviceDefinitionId: publishedService.serviceDefinitionId,
+      serviceDefinitionVersionId: publishedService.id,
+    });
+    expect(created.clientId).toBeNull();
+
+    // Client becomes mandatory at RELEASE but cannot be edited after PREPARE.
+    const linked = await serviceOrdersAccess.update(actor, created.id, {
+      rowVersion: created.rowVersion,
+      clientId: client.id,
+    });
+    expect(linked.status).toBe(SERVICE_ORDER_STATUSES.Draft);
+    expect(linked.clientId).toBe(client.id);
+    expect(linked.clientSnapshot?.['clientId']).toBe(client.id);
+    await expect(serviceOrdersAccess.update(actor, created.id, {
+      rowVersion: created.rowVersion,
+      clientId: client.id,
+    })).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.VERSION_CONFLICT });
+
+    const prepared = await serviceOrdersAccess.prepare(actor, created.id, {
+      rowVersion: linked.rowVersion,
+    });
+    await expect(serviceOrdersAccess.update(actor, prepared.id, {
+      rowVersion: prepared.rowVersion,
+      clientId: client.id,
+    })).rejects.toMatchObject({ code: SERVICE_ORDERS_ERROR_CODES.IMMUTABLE_CRITICAL_FIELD });
+
+    const released = await serviceOrdersAccess.release(actor, created.id, {
+      rowVersion: prepared.rowVersion,
+    });
+    expect(released.status).toBe(SERVICE_ORDER_STATUSES.Released);
+    const persisted = await pool.query<{ client_id: string; status: string }>(
+      'SELECT client_id, status::text AS status FROM so.service_orders WHERE id = $1',
+      [created.id],
+    );
+    expect(persisted.rows[0]).toMatchObject({
+      client_id: client.id,
+      status: SERVICE_ORDER_STATUSES.Released,
+    });
+    const audit = await pool.query<{ action: string }>(
+      'SELECT action FROM audit.security_audit_events WHERE resource_id = $1',
+      [created.id],
+    );
+    for (const action of [
+      SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderUpdate,
+      SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderPrepare,
+      SECURITY_AUDIT_ACTIONS.ServiceOrdersServiceOrderRelease,
+    ]) {
+      expect(audit.rows.map(row => row.action)).toContain(action);
+    }
+  });
+
   it('denies release from DRAFT without client after prepare', async () => {
     const { actor } = await seedActor();
     const publishedService = await seedPublishedService(actor);
