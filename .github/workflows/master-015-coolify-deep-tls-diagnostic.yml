@@ -1,9 +1,6 @@
 name: MASTER 015 — Coolify TLS deep diagnostic
 on:
   workflow_dispatch:
-  push:
-    branches: [ops/master-015-hml-access-probe]
-    paths: [.github/workflows/master-015-coolify-deep-tls-diagnostic.yml]
 permissions:
   contents: read
 concurrency:
