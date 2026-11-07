@@ -116,6 +116,22 @@ jobs:
             apps/web/test-results
             apps/web/playwright-report
             artifacts/ci/web-visual.log
+      # Evidencia visual pequena e inspecionavel: o pacote geral tambem inclui traces
+      # e playwright-report, ultrapassando o limite de download do conector (512 MiB).
+      # Este artifact somente com PNGs permite revisar cada diff ANTES de aprovar baseline.
+      # Nao modifica cobertura, assertions, snapshots nem exit code do Playwright.
+      - name: Upload inspectable visual images
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-visual-images-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
+          path: |
+            apps/web/test-results/**/*-actual.png
+            apps/web/test-results/**/*-expected.png
+            apps/web/test-results/**/*-diff.png
       - name: Visual regression debt ratchet
         env:
           GITHUB_TOKEN: ${{ github.token }}
