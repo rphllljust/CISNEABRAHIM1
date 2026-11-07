@@ -28,10 +28,10 @@ on:
 #
 # POLITICA ATUAL (declarada, nao inferida)
 #
-#   PR     -> grupo `ci-pr-<numero>-<headSHA>`; repeticoes do MESMO SHA sao canceladas.
-#             Um PR antigo com job travado nao bloqueia a verificacao do novo SHA.
-#             Branch protection e release-ready continuam exigindo gates no HEAD atual.
-#             Runs obsoletos devem ser cancelados na interface para nao desperdicarem runners.
+#   PR     -> grupo `ci-pr-<numero>`: um novo HEAD cancela o CI obsoleto do
+#             MESMO PR; impede consumir runners com commits que nunca podem ser
+#             integrados. Outros PRs e `ci-main` permanecem isolados.
+#             Branch protection continua exigindo gates do HEAD atualizado.
 #   MAIN   -> grupo `ci-main`; runs superseded TAMBEM sao cancelados.
 #   RELEASE -> grupo proprio em `coolify-release.yml`. NUNCA compartilha grupo com o CI.
 #
@@ -48,10 +48,11 @@ on:
 #
 # CORRECAO DE INCIDENTE (PR #238): um run antigo mantinha `Visual full` ativo apos
 # a falha dos testes, e impedia que o CI do HEAD corrigido sequer criasse jobs.
-# O isolamento por SHA remove a fila compartilhada entre revisoes; nao reduz
-# nenhum gate, teste, politica de release, nem altera `ci-main`.
+# O cancelamento por numero do PR impede reter jobs obsoletos apos novos commits.
+# `cancel-in-progress: true` preserva isolamento entre PRs e `ci-main`, sem
+# diminuir gates, testes ou politica de release.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}-{1}', github.event.pull_request.number, github.event.pull_request.head.sha) || 'ci-main' }}
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || 'ci-main' }}
   cancel-in-progress: true
 
 permissions:
