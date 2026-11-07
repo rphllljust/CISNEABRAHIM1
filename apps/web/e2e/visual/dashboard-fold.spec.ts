@@ -95,7 +95,12 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await expect(processFlow.getByText('Ordem de serviço', { exact: true })).toBeVisible();
     await expect(processFlow.getByText('Recebimento', { exact: true })).toBeVisible();
 
-    // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
+    // 6. ANALYTICS COM DRILLDOWN REAL: a área secundária usa <details> fechado
+    // por padrão. Abrir pelo controle nativo antes de exigir a visibilidade dos gráficos.
+    const operationalInsight = page.locator('details[data-layout="operational-insight"]');
+    await expect(operationalInsight).toBeVisible();
+    await operationalInsight.locator('summary').click();
+    await expect(operationalInsight).toHaveAttribute('open', '');
     await expect(page.getByRole('heading', { name: /ordens por situação/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /atraso por faixa/i })).toBeVisible();
     // Cada segmento abre a lista filtrada que produziu o numero.
