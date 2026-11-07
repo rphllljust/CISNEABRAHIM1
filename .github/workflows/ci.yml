@@ -7,6 +7,8 @@ on:
       - main
       - 'rc/**'
   pull_request:
+  # Recovery for CI initiated by GITHUB_TOKEN-driven Auto-Merge on main.
+  workflow_dispatch:
 
 # CONCORRENCIA DO CI — dois grupos nomeados, sem misturar CI com promocao.
 #
@@ -769,10 +771,9 @@ jobs:
     # `completed` do CI nao autoriza promocao alguma (PR nao promove). Em `push` para `main` —
     # o evento que dispara o CD — o visual completo NAO roda aqui: ele roda no `visual-full.yml`.
     needs: detect-change-scope
-    if: >-
-      always() &&
-      github.event_name == 'pull_request' &&
-      needs.detect-change-scope.outputs.visual_risk == 'true'
+    # Every PR requires full Playwright. The risk classifier is still checked
+    # by Release ready, but can no longer turn an unchanged-UI PR into a skip.
+    if: github.event_name == 'pull_request'
     timeout-minutes: 35
     steps:
       - name: Checkout
@@ -809,7 +810,9 @@ jobs:
       - name: Web visual regression (full suite)
         id: web-visual
         continue-on-error: true
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifacts/ci
           pnpm --filter @cisne/web test:visual 2>&1 | tee artifacts/ci/web-visual.log
         env:
@@ -831,6 +834,16 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
         run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
+      - name: Require actual full Playwright success
+        if: always()
+        shell: bash
+        env:
+          VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
+        run: |
+          if [[ "$VISUAL_OUTCOME" != "success" ]]; then
+            echo "::error::Visual Full failed or did not run. Strict PR acceptance refused."
+            exit 1
+          fi
 
   release-ready:
     name: Release ready
@@ -945,8 +958,9 @@ jobs:
             if [ "$VISUAL_RISK" != "true" ] && [ "$VISUAL_RISK" != "false" ]; then
               echo "::error::visual risk classifier did not publish true/false ($VISUAL_RISK)"
               failed=1
-            elif [ "$VISUAL_RISK" = "true" ] && [ "$VISUAL_FULL" != "success" ]; then
-              echo "::error::UI-risk PR requires full visual regression success ($VISUAL_FULL)"
+            fi
+            if [ "$VISUAL_FULL" != "success" ]; then
+              echo "::error::all PRs require successful Visual Full ($VISUAL_FULL)"
               failed=1
             fi
           fi
