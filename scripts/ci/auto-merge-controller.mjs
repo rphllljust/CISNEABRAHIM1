@@ -205,6 +205,19 @@ async function ensureMainCi() {
     });
     console.log('[auto-merge] Dispatched main CI for SHA ' + main.sha);
   }
+  // The existing Coolify release also requires the isolated HML gate on the
+  // exact main SHA. GITHUB_TOKEN merges may suppress the usual push event,
+  // so recover this prerequisite explicitly with workflow_dispatch.
+  const hmlExists = (response.workflow_runs ?? []).some((run) =>
+    run.name === 'HML isolated end-to-end' &&
+    run.head_sha === main.sha && run.head_branch === 'main' &&
+    (run.event === 'push' || run.event === 'workflow_dispatch'));
+  if (!hmlExists) {
+    await github(prefix + '/actions/workflows/hml-isolated-e2e.yml/dispatches', {
+      method: 'POST', body: {ref: 'main'},
+    });
+    console.log('[auto-merge] Dispatched isolated HML for main SHA ' + main.sha);
+  }
   // PR verification and main release each require the genuine full suite.
   // The dispatch is an explicit Actions event even after a GITHUB_TOKEN merge.
   const visualExists = (response.workflow_runs ?? []).some((run) =>
