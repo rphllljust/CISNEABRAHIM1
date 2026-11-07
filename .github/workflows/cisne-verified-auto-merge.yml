@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   actions: write
   pull-requests: write
 
@@ -41,4 +41,6 @@ jobs:
       - name: Approve only proven CI plus real Playwright on exact PR HEAD
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Optional one-time bot token: branch refresh must emit real PR CI events.
+          CISNE_AUTOMERGE_BOT_TOKEN: ${{ secrets.CISNE_AUTOMERGE_BOT_TOKEN }}
         run: node scripts/ci/auto-merge-controller.mjs
