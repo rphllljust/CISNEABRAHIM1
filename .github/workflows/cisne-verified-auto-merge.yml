@@ -1,0 +1,44 @@
+name: CISNE Verified Auto-Merge
+
+# Runs only trusted main-branch code. Never checks out or executes PR code
+# in this write-token workflow.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_run:
+    workflows: [CI, Visual full]
+    types: [completed]
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: cisne-verified-auto-merge
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+  pull-requests: write
+
+jobs:
+  authorize:
+    name: Verify exact SHA and enable GitHub Auto-Merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - name: Prove fail-closed auto-merge contracts
+        run: node --test scripts/ci/auto-merge-contract.test.mjs
+      - name: Approve only proven CI plus real Playwright on exact PR HEAD
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/ci/auto-merge-controller.mjs
