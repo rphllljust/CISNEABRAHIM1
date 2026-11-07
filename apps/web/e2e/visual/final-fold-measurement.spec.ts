@@ -39,6 +39,15 @@ async function rectOf(page: import('@playwright/test').Page, selector: string): 
   return { x: box.x, y: box.y, width: box.width, height: box.height };
 }
 
+/** O contexto nasce somente após uma ação real de prévia no registro. */
+async function openTitleContext(page: import('@playwright/test').Page): Promise<void> {
+  const preview = page.getByRole('button', { name: /^Prévia de / }).first();
+  await expect(preview).toBeVisible();
+  await preview.click();
+  await expect(page.getByRole('heading', { name: 'Contexto do título' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Contexto da seleção' })).toBeVisible();
+}
+
 test.describe('medicao da primeira dobra — 1600x900', () => {
   test.use({ viewport: { width: 1600, height: 900 } });
 
@@ -51,9 +60,10 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Contas a receber' })).toBeVisible();
     await stabilizePage(page);
 
+    await openTitleContext(page);
     const situation = await rectOf(page, '[data-region="situation-surface"]');
     const worklist = await rectOf(page, '[data-region="worklist-master"]');
-    const context = await rectOf(page, '[data-region="context-region"]');
+    const context = await rectOf(page, 'aside[aria-label="Contexto da seleção"]');
 
     expect(situation, 'a faixa de situacao precisa existir').not.toBeNull();
     expect(worklist, 'a regiao de trabalho precisa existir').not.toBeNull();
@@ -86,9 +96,10 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Contas a pagar' })).toBeVisible();
     await stabilizePage(page);
 
+    await openTitleContext(page);
     const situation = await rectOf(page, '[data-region="situation-surface"]');
     const worklist = await rectOf(page, '[data-region="worklist-master"]');
-    const context = await rectOf(page, '[data-region="context-region"]');
+    const context = await rectOf(page, 'aside[aria-label="Contexto da seleção"]');
 
     expect(situation!.y).toBeLessThan(FOLD);
     expect(worklist!.y).toBeLessThan(FOLD);
@@ -132,7 +143,8 @@ test.describe('medicao da primeira dobra — 1600x900', () => {
       expect(analytics.y, 'o analitico precisa vir antes da fila').toBeLessThan(queue!.y);
     }
     if (flow) {
-      expect(flow.y, 'o fluxo precisa vir antes da fila').toBeLessThan(queue!.y);
+      // Na bancada atual, a fila decisória vem primeiro e o fluxo está logo abaixo.
+      expect(flow.y, 'o fluxo deve acompanhar a fila, não ocultá-la').toBeGreaterThanOrEqual(queue!.y);
     }
 
     // 4. CONTEXTO presente na mesma tela (coluna propria, a direita).

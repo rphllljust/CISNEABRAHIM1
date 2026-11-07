@@ -90,8 +90,11 @@ test.describe('aceite visual final — 1600x900', () => {
     await expect(page.getByLabel(/vencimento a partir de/i)).toBeVisible();
     await expect(page.getByLabel(/ordenar por/i)).toBeVisible();
 
-    // A COLUNA DE CONTEXTO existe mesmo SEM selecao — nao ha oceano branco a direita.
-    await expect(page.getByLabel('Contexto do título')).toBeVisible();
+    // O contexto foi migrado para um painel sob demanda. Abrir uma prévia real
+    // deve mostrar os fatos recebidos e preservar o trabalho e a consulta.
+    await page.getByRole('button', { name: /^Prévia de / }).first().click();
+    await expect(page.getByRole('complementary', { name: 'Contexto da seleção' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Contexto do título' })).toBeVisible();
 
     await assertWorkSurfaceAboveFold(page);
     await assertNoHorizontalOverflow(page);
@@ -114,7 +117,9 @@ test.describe('aceite visual final — 1600x900', () => {
       /agingBucket=90_PLUS/,
     );
     await expect(page.getByLabel(/buscar títulos no domínio/i)).toBeVisible();
-    await expect(page.getByLabel('Contexto do título')).toBeVisible();
+    await page.getByRole('button', { name: /^Prévia de / }).first().click();
+    await expect(page.getByRole('complementary', { name: 'Contexto da seleção' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Contexto do título' })).toBeVisible();
 
     await assertWorkSurfaceAboveFold(page);
     await assertNoHorizontalOverflow(page);
@@ -132,6 +137,8 @@ test.describe('aceite visual final — 1600x900', () => {
 
     // A SITUACAO abre a central; a fila de excecoes vem logo depois.
     await expect(page.getByLabel(/situação financeira do recorte/i)).toBeVisible();
+    // A coluna de suporte é disclosure, sem reservar espaço ocioso na entrada.
+    await page.getByRole('button', { name: 'Contexto do processo' }).click();
     await expect(page.getByRole('heading', { name: /exceções financeiras/i })).toBeVisible();
 
     // A regiao de trabalho existe e a tela nao tem overflow.
