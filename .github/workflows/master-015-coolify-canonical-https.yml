@@ -1,0 +1,63 @@
+name: MASTER 015 — anonymous Coolify canonical HTTPS discovery
+on:
+  workflow_dispatch:
+  push:
+    branches: [ops/master-015-hml-access-probe]
+    paths: [.github/workflows/master-015-coolify-canonical-https.yml]
+permissions: {}
+jobs:
+  discover:
+    name: Read anonymous root redirects only, no token or mutation
+    if: github.repository == 'rphllljust/CISNEABRAHIM1' && github.actor == 'rphllljust' && github.ref == 'refs/heads/ops/master-015-hml-access-probe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Inspect unauthenticated redirect and trust without exposing hostnames
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          import http from 'node:http';
+          import https from 'node:https';
+          import tls from 'node:tls';
+          import net from 'node:net';
+          const out={kind:'MASTER015_CANONICAL_HTTPS',anonymous:true,tokenPresent:false,secretsSent:false,changed:false,results:[],validCanonicalCandidateCount:0};
+          let base;
+          try {
+            base=new URL(process.env.COOLIFY_BASE_URL);
+            if(base.protocol!=='http:'||base.pathname.replace(/\/$/,'')!=='/api/v1'||base.username||base.password||base.search||base.hash)throw Error();
+          }catch{out.error='BASE_NOT_PLAIN_HTTP_OR_INVALID';console.log('MASTER015_CANONICAL='+JSON.stringify(out));process.exit(0);}
+          const query=(path)=>new Promise(resolve=>{
+            const u=new URL(base.origin+path);
+            const client=u.protocol==='https:'?https:http;
+            const r=client.get(u,{timeout:4000},res=>{
+              res.resume();
+              const redir=res.headers.location;
+              if(res.statusCode<300||res.statusCode>=400||typeof redir!=='string'){resolve({status:res.statusCode??null,scheme:'NONE'});return;}
+              let dest;try{dest=new URL(redir,u);}catch{resolve({status:res.statusCode,scheme:'INVALID'});return;}
+              if(dest.username||dest.password){resolve({status:res.statusCode,scheme:'INVALID_USERINFO'});return;}
+              resolve({status:res.statusCode,scheme:dest.protocol.replace(':',''),target:dest});
+            });
+            r.once('timeout',()=>r.destroy(Object.assign(new Error(),{code:'ETIMEDOUT'})));
+            r.once('error',e=>resolve({status:'HTTP_NETWORK_ERROR',scheme:'NONE'}));
+          });
+          const trust=(dest)=>new Promise(resolve=>{
+            const port=Number(dest.port||443);
+            const s=tls.connect({host:dest.hostname,port,servername:net.isIP(dest.hostname)?undefined:dest.hostname,rejectUnauthorized:true,timeout:4500,minVersion:'TLSv1.2'});
+            let finished=false;
+            function done(result){if(finished)return;finished=true;s.destroy();resolve(result);}
+            s.once('secureConnect',()=>done(s.authorized===true?'CERTIFICATE_TRUSTED':'CERTIFICATE_UNTRUSTED'));
+            s.once('timeout',()=>done('TLS_TIMEOUT'));
+            s.once('error',e=>done(['DEPTH_ZERO_SELF_SIGNED_CERT','UNABLE_TO_VERIFY_LEAF_SIGNATURE','ERR_TLS_CERT_ALTNAME_INVALID','CERT_HAS_EXPIRED'].includes(e.code)?e.code:'TLS_OR_NETWORK_ERROR'));
+          });
+          for(const path of ['/','/login','/api/v1']) {
+            const q=await query(path);
+            const entry={path,anonymousHttpStatus:q.status,redirectScheme:q.scheme};
+            if(q.target?.protocol==='https:') {
+              entry.tls=await trust(q.target);
+              if(entry.tls==='CERTIFICATE_TRUSTED') out.validCanonicalCandidateCount++;
+            }
+            out.results.push(entry);
+          }
+          console.log('MASTER015_CANONICAL='+JSON.stringify(out));
+          NODE
