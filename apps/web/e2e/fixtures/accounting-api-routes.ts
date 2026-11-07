@@ -637,7 +637,12 @@ export async function prepareAccountingSession(page: Page): Promise<void> {
   await page.getByLabel(/^usuário/i).fill(TEST_LOGIN);
   await page.getByLabel(/^senha/i).fill(TEST_PASSWORD);
   await page.getByRole('button', { name: /^entrar/i }).click();
-  await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible();
+  // Login redireciona para /app: não exigir o h1 do dashboard neste fixture
+  // contábil. A leitura executiva é independente e pode estar indisponível,
+  // enquanto o shell autenticado e as rotas de Contabilidade seguem válidos.
+  // A validação empresarial continua em cada uma das 11 páginas do spec.
+  await expect(page).toHaveURL(/\/app\/?$/);
+  await expect(page.locator('#main-content')).toBeAttached();
 }
 
 export async function stabilizeAccountingPage(page: Page): Promise<void> {
