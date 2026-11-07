@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { createSuppliersFetchMock } from '../../test/suppliers-fetch-mock';
 import { renderWithProviders } from '../../test/render-with-providers';
-import { SuppliersEngineListPage } from './SuppliersEngineListPage';
+import { savedSupplierStatusFilter, SuppliersEngineListPage } from './SuppliersEngineListPage';
 
 /**
  * WORKLIST DE FORNECEDORES — o que esta suíte protege.
@@ -18,6 +18,15 @@ import { SuppliersEngineListPage } from './SuppliersEngineListPage';
  *   4. a exceção e a próxima ação aparecem em linguagem humana, sem enum cru;
  *   5. os comandos REAIS do backend ficam disponíveis na linha.
  */
+describe('Visões salvas de Fornecedores', () => {
+  it('restaura o estado persistido com a chave atual e a antiga', () => {
+    expect(savedSupplierStatusFilter({ statusFilter: 'INACTIVE' })).toBe('INACTIVE');
+    expect(savedSupplierStatusFilter({ filterStatus: 'ACTIVE' })).toBe('ACTIVE');
+    expect(savedSupplierStatusFilter({ statusFilter: 'INACTIVE', filterStatus: 'ACTIVE' })).toBe('INACTIVE');
+    expect(savedSupplierStatusFilter({})).toBe('');
+  });
+});
+
 describe('SuppliersEngineListPage', () => {
   beforeEach(() => {
     resetTokenStoreForTests();
