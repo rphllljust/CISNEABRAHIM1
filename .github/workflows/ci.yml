@@ -86,6 +86,8 @@ jobs:
           cache: pnpm
       - name: GitHub Actions runtime audit
         run: node scripts/ci/github-actions-runtime-audit.mjs
+      - name: Prove strict Visual Full and verified auto-merge contracts
+        run: node --test scripts/ci/auto-merge-contract.test.mjs
       - name: Toolchain version audit
         run: node scripts/ci/toolchain-version-audit.mjs
       # Checks all 16 module owners and five MASTER 002 journeys are represented.
