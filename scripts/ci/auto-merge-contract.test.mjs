@@ -59,3 +59,12 @@ test('Coolify release must verify exact main Visual Full and refuse stale SHA', 
   assert.match(release, /verifiedPlaywrightLog/);
   assert.match(release, /Refuse obsolete SHA before touching Coolify/);
 });
+
+test('recovery includes CI, Visual Full and isolated HML on exact main SHA', () => {
+  const controller = readFileSync('scripts/ci/auto-merge-controller.mjs', 'utf8');
+  assert.match(controller, /actions\/workflows\/ci\.yml\/dispatches/);
+  assert.match(controller, /actions\/workflows\/visual-full\.yml\/dispatches/);
+  assert.match(controller, /actions\/workflows\/hml-isolated-e2e\.yml\/dispatches/);
+  assert.match(controller, /main\.sha/);
+  assert.match(controller, /Serialized promotion: next candidates wait/);
+});
