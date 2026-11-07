@@ -125,19 +125,28 @@ test.describe('visao geral — fila decisoria exercitada', () => {
 
     await page.screenshot({ path: 'tmp-dashboard-1440.png', fullPage: false });
 
-    // ESTADO B: clicar no item da fila ABRE o drawer com o contexto, sem perder a fila.
-    await page
-      .getByRole('button', { name: /OS-2026-0184.*Execução de manutenção preventiva/i })
-      .click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('OS-2026-0184')).toBeVisible();
+    // ESTADO B: a ação de seleção tem nome acessível igual à referência humana,
+    // enquanto o título da OS é texto adjacente. O contexto é uma coluna inline,
+    // não um diálogo modal (que bloquearia a worklist).
+    await overdueRow.getByRole('button', { name: 'OS-2026-0184', exact: true }).click();
+    const selectedContext = page.getByRole('complementary', {
+      name: 'Contexto do item selecionado',
+    });
+    await expect(selectedContext).toBeVisible();
+    await expect(selectedContext.getByText('OS-2026-0184', { exact: true })).toBeVisible();
+    await expect(selectedContext.getByText('Execução de manutenção preventiva')).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(queueVisible).toBeVisible();
     await page.screenshot({ path: 'tmp-dashboard-drawer-1440.png', fullPage: false });
 
-    // ESTADO C: fechar LIMPA a selecao — o drawer nao permanece visivel sem objeto.
-    await dialog.getByRole('button', { name: /fechar/i }).first().click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    // ESTADO C: fechar restaura o rail de apoio sem perder a fila.
+    await selectedContext.getByRole('button', { name: 'Fechar contexto' }).click();
+    await expect(page.getByRole('complementary', {
+      name: 'Apoio à decisão operacional',
+    })).toBeVisible();
+    await expect(page.getByRole('complementary', {
+      name: 'Contexto do item selecionado',
+    })).toHaveCount(0);
     await expect(queueVisible).toBeVisible();
   });
 });
