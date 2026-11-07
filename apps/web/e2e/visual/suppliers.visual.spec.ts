@@ -46,7 +46,7 @@ test.describe('suppliers visual', () => {
     await expect(page.getByRole('combobox', { name: 'Estado' })).toBeVisible();
 
     // A linha identifica o fornecedor por referência humana: nome fantasia, razão social e CNPJ.
-    await expect(page.getByRole('columnheader', { name: /fornecedor/i })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Razão social', exact: true })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /cnpj/i })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Alfa Insumos LTDA' })).toBeVisible();
     await expect(page.getByText('11.222.333/0001-81')).toBeVisible();
