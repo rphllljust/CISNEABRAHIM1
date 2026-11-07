@@ -57,7 +57,8 @@ test.describe('purchase orders visual regression', () => {
     await expect(page.getByRole('button', { name: 'Mais ações' })).toBeVisible();
     // 5) conteudo principal e continuidade: itens + cadeia relacionada do pedido.
     await expect(page.getByRole('table', { name: 'Itens do pedido' })).toBeVisible();
-    await expect(page.getByText('21/08/2026')).toBeVisible();
+    // Match the date-only business field, not the separate timestamp shown on the page.
+    await expect(page.getByText('21/08/2026', { exact: true })).toBeVisible();
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
