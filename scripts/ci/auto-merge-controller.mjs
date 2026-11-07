@@ -239,7 +239,13 @@ async function main() {
     try {
       const result = await authorize(pr);
       console.log('[auto-merge] #' + pr.number + ': ' + result);
-      if (result.startsWith('AUTO_MERGE_ENABLED')) enabled++;
+      if (result.startsWith('AUTO_MERGE_ENABLED') || result.startsWith('MERGED')) {
+        enabled++;
+        // One authorizing merge per scan: re-read the new main before the next
+        // candidate, avoiding simultaneous stale-base promotions.
+        console.log('[auto-merge] Serialized promotion: next candidates wait for the next workflow scan');
+        break;
+      }
     } catch (error) {
       console.error('[auto-merge] #' + pr.number + ': ' + String(error));
     }
