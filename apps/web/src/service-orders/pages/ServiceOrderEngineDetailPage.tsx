@@ -1,5 +1,6 @@
 import { ServiceOrderDraftServiceBinding } from '../components/ServiceOrderDraftServiceBinding';
 import { ServiceOrderDraftClientBinding } from '../components/ServiceOrderDraftClientBinding';
+import { ServiceOrderDraftPurchaseOrderBinding } from '../components/ServiceOrderDraftPurchaseOrderBinding';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -349,6 +350,14 @@ export function ServiceOrderEngineDetailPage() {
               <ServiceOrderDraftClientBinding
                 serviceOrderId={detail.id}
                 rowVersion={detail.rowVersion}
+                onUpdated={() => load()}
+              />
+            ) : null}
+            {detail?.status === 'DRAFT' && detail.clientId && !detail.purchaseOrderId ? (
+              <ServiceOrderDraftPurchaseOrderBinding
+                serviceOrderId={detail.id}
+                rowVersion={detail.rowVersion}
+                requiredByCatalog={detail.serviceSnapshot?.requiresPurchaseOrder === true}
                 onUpdated={() => load()}
               />
             ) : null}

@@ -352,6 +352,24 @@ export function linkClientToDraftOrder(
   });
 }
 
+/** Attach a real registered purchase order to an existing DRAFT order.
+ * The backend verifies client and unit compatibility, optimistic locking,
+ * immutable lifecycle rules, and security audit before persisting a snapshot.
+ */
+export function linkPurchaseOrderToDraftOrder(
+  serviceOrderId: string,
+  rowVersion: number,
+  purchaseOrderId: string,
+  signal?: AbortSignal,
+): Promise<ServiceOrderDetail> {
+  return requestJson<ServiceOrderDetail>('/api/v1/service-orders/' + encodeURIComponent(serviceOrderId), {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ rowVersion, purchaseOrderId }),
+    signal,
+  });
+}
+
 export function prepareServiceOrder(
   serviceOrderId: string,
   rowVersion: number,
