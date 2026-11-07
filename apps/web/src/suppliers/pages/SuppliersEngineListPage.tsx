@@ -69,6 +69,11 @@ import type { SupplierDetail, SupplierSummary } from '../types/supplier.types';
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
+/** Restores the key written by this worklist; retain compatibility with older views. */
+export function savedSupplierStatusFilter(filters: Record<string, string>): string {
+  return filters['statusFilter'] ?? filters['filterStatus'] ?? '';
+}
+
 /** Estados que o domínio usa para terceiro fora de operação. */
 const INACTIVE_STATUSES = new Set(['INACTIVE', 'SUSPENDED']);
 const ARCHIVED_STATUSES = new Set(['ARCHIVED']);
@@ -449,7 +454,7 @@ export function SuppliersEngineListPage() {
             onApply={(view) => {
               setSearchInput(view.filters['search'] ?? '');
               setSearch(view.filters['search'] ?? '');
-              setStatusFilter(view.filters['filterStatus'] ?? '');
+              setStatusFilter(savedSupplierStatusFilter(view.filters));
               setOffset(0);
             }}
           />
