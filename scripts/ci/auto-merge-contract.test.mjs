@@ -47,6 +47,8 @@ test('workflow topology requires real full Playwright for every PR', () => {
   const controller = readFileSync('.github/workflows/cisne-verified-auto-merge.yml', 'utf8');
   assert.match(ci, /if: github\.event_name == 'pull_request'/);
   assert.match(ci, /all PRs require successful Visual Full/);
+  assert.match(ci, /format\('ci-pr-\{0\}', github\.event\.pull_request\.number\)/);
+  assert.doesNotMatch(ci, /format\('ci-pr-\{0\}-\{1\}'/);
   assert.match(ci, /Require actual full Playwright success/);
   assert.match(visual, /pull_request:\s*\n\s*\nconcurrency:/);
   assert.match(visual, /push:\s*\n\s*branches: \[main\]/);
