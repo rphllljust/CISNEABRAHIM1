@@ -7,6 +7,7 @@ import {
   requiredJobsPassed,
   verifiedPlaywrightLog,
   isProtectedAutomationPath,
+  requiresIsolatedHml,
 } from './auto-merge-contract.mjs';
 
 test('false-green Visual Full with 174 failed / 115 passed is rejected', () => {
@@ -67,4 +68,13 @@ test('recovery includes CI, Visual Full and isolated HML on exact main SHA', () 
   assert.match(controller, /actions\/workflows\/hml-isolated-e2e\.yml\/dispatches/);
   assert.match(controller, /main\.sha/);
   assert.match(controller, /Serialized promotion: next candidates wait/);
+});
+
+test('isolated HML is mandatory only for its real business and CD scope', () => {
+  assert.equal(requiresIsolatedHml(['apps/api/src/catalog/service-definitions.ts']), true);
+  assert.equal(requiresIsolatedHml(['apps/web/src/people/PeoplePage.tsx']), true);
+  assert.equal(requiresIsolatedHml(['.github/workflows/coolify-release.yml']), true);
+  assert.equal(requiresIsolatedHml(['scripts/cd/coolify-deploy.mjs']), true);
+  assert.equal(requiresIsolatedHml(['apps/web/src/finance/PayablesListPage.tsx']), false);
+  assert.equal(requiresIsolatedHml(['apps/web/e2e/visual/accounting.visual.spec.ts']), false);
 });
