@@ -116,8 +116,8 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
     await page.getByRole('link', { name: 'Abrir' }).first().click();
     await expect(page.getByRole('heading', { level: 1, name: 'Lançamento' })).toBeVisible();
     await expect(page.getByRole('table', { name: /linhas do lançamento/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Estornar' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Postar' })).toBeVisible();
+    await expect(page.locator('#journal-reverse-command').getByRole('button', { name: 'Estornar', exact: true })).toBeVisible();
+    await expect(page.locator('#journal-post-command').getByRole('button', { name: 'Postar', exact: true })).toBeVisible();
 
     await assertNoPageLevelHorizontalOverflow(page);
     await stabilizeAccountingPage(page);
