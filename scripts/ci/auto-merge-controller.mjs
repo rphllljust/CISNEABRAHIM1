@@ -7,6 +7,7 @@ import {
 
 const repository = process.env.GITHUB_REPOSITORY;
 const token = process.env.GITHUB_TOKEN;
+const branchUpdateToken = process.env.CISNE_AUTOMERGE_BOT_TOKEN || null;
 if (!repository || !token || !/^[\w.-]+\/[\w.-]+$/.test(repository)) {
   throw new Error('Missing trusted GitHub Actions repository/token context');
 }
@@ -19,10 +20,11 @@ const headers = {
   'User-Agent': 'cisne-verified-automerge',
 };
 
-async function github(path, { method = 'GET', body } = {}) {
+async function github(path, { method = 'GET', body, useBranchToken = false } = {}) {
   const response = await fetch('https://api.github.com' + path, {
     method, headers: {
       ...headers,
+      ...(useBranchToken && branchUpdateToken ? { Authorization: 'Bearer ' + branchUpdateToken } : {}),
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -101,9 +103,15 @@ async function authorize(prSummary) {
   }
   const main = await github(prefix + '/commits/main');
   if (pr.base.sha !== main.sha || pr.mergeable_state === 'behind') {
-    // Strict branch protections require a fresh merge base. Do not update a branch
-    // with GITHUB_TOKEN: that push can suppress the new PR checks.
-    return 'branch is behind main; fresh checks are required after branch update';
+    // A GitHub App/PAT bot must be used for branch updates: pushing with the
+    // workflow's GITHUB_TOKEN can suppress subsequent PR CI/Visual Full events.
+    if (!branchUpdateToken) {
+      return 'behind main; configure CISNE_AUTOMERGE_BOT_TOKEN once for event-producing branch updates';
+    }
+    await github(prefix + '/pulls/' + number + '/update-branch', {
+      method: 'PUT', body: {expected_head_sha: sha}, useBranchToken: true,
+    });
+    return 'branch updated from main; awaiting new HEAD checks before auto-merge';
   }
   if (pr.mergeable !== true || pr.mergeable_state === 'dirty') return 'merge conflict or mergeability pending';
 
@@ -181,7 +189,7 @@ async function ensureMainCi() {
   // The dispatch is an explicit Actions event even after a GITHUB_TOKEN merge.
   const visualExists = (response.workflow_runs ?? []).some((run) =>
     run.name === 'Visual full' && run.head_sha === main.sha && run.head_branch === 'main' &&
-    (run.event === 'push' || run.event === 'workflow_dispatch'));
+    (run.event === 'push' || run.event === 'workflow_dispatch' || run.event === 'schedule'));
   if (!visualExists) {
     await github(prefix + '/actions/workflows/visual-full.yml/dispatches', {
       method: 'POST',
