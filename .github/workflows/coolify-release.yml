@@ -29,7 +29,7 @@ jobs:
        (github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_sha == github.sha))
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 105
     outputs:
       ci_run_id: ${{ steps.authority.outputs.ci_run_id }}
       source_sha: ${{ steps.authority.outputs.source_sha }}
@@ -99,6 +99,54 @@ jobs:
             exit 1
           fi
           echo "HML_VALIDATED=true sha=$EXPECTED_SHA run=$HML_RUN_ID"
+          # Main Visual Full must pass on the exact SHA before promotion.
+          VISUAL_RUN_ID=""
+          for attempt in $(seq 1 80); do
+            visual_runs_json=$(gh api "repos/${{ github.repository }}/actions/workflows/visual-full.yml/runs?branch=main&head_sha=$EXPECTED_SHA&per_page=100")
+            visual_state=$(printf '%s' "$visual_runs_json" | EXPECTED_SHA="$EXPECTED_SHA" node --input-type=module -e '
+              let s=""; for await (const c of process.stdin) s+=c;
+              const sha=process.env.EXPECTED_SHA;
+              const runs=JSON.parse(s).workflow_runs ?? [];
+              const latest=runs.filter((entry) => entry.head_sha===sha && entry.head_branch==="main")
+                .sort((a,b)=>b.id-a.id)[0];
+              if (!latest || latest.status!=="completed") process.stdout.write("PENDING");
+              else if (latest.conclusion==="success") process.stdout.write("SUCCESS:"+latest.id);
+              else process.stdout.write("FAILED:"+(latest.conclusion ?? "UNKNOWN"));
+            ')
+            case "$visual_state" in
+              SUCCESS:*) VISUAL_RUN_ID="${visual_state#SUCCESS:}"; break ;;
+              FAILED:*) echo "::error::publication refused: main Visual Full=$visual_state sha=$EXPECTED_SHA"; exit 1 ;;
+              PENDING) echo "main Visual Full pending for sha=$EXPECTED_SHA ($attempt/80)" ;;
+              *) echo "::error::invalid main Visual Full result: $visual_state"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          if [ -z "$VISUAL_RUN_ID" ]; then
+            echo "::error::publication refused: exact main Visual Full missing or unfinished"
+            exit 1
+          fi
+          visual_jobs_json=$(gh api "repos/${{ github.repository }}/actions/runs/$VISUAL_RUN_ID/jobs?per_page=100")
+          visual_job_id=$(printf '%s' "$visual_jobs_json" | node --input-type=module -e '
+            let s=""; for await (const c of process.stdin) s+=c;
+            const jobs=JSON.parse(s).jobs ?? [];
+            const full=jobs.filter((job)=>job.name==="Visual full");
+            process.stdout.write(full.length===1 && full[0].status==="completed" &&
+              full[0].conclusion==="success" ? String(full[0].id) : "");
+          ')
+          if [ -z "$visual_job_id" ]; then
+            echo "::error::publication refused: main Visual Full job not successful"
+            exit 1
+          fi
+          gh api "repos/${{ github.repository }}/actions/jobs/$visual_job_id/logs" > /tmp/main-visual-authority.log
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            import { verifiedPlaywrightLog } from "./scripts/ci/auto-merge-contract.mjs";
+            if (!verifiedPlaywrightLog(readFileSync("/tmp/main-visual-authority.log","utf8"))) {
+              console.error("publication refused: false-green or incomplete main Playwright evidence");
+              process.exit(1);
+            }
+          '
+          echo "MAIN_VISUAL_VALIDATED=true sha=$EXPECTED_SHA run=$VISUAL_RUN_ID"
 
           # Contrato do seletor (fail-closed): workflow=CI, branch=main, sha=EXPECTED_SHA,
           # status=completed, conclusion=success; havendo varios, vale o success de maior
@@ -246,6 +294,18 @@ jobs:
       # Fail-closed: sem COOLIFY_TOKEN/UUIDs o step falha (o secret e obrigatorio
       # para o deploy ser real). O deploy recusa tag mutavel e recusa worker com
       # digest diferente da API.
+      - name: Refuse obsolete SHA before touching Coolify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ needs.release-authority.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT_SHA=$(gh api "repos/${{ github.repository }}/commits/main" --jq '.sha')
+          if [ "$CURRENT_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::Coolify promotion refused: main advanced from $EXPECTED_SHA to $CURRENT_SHA"
+            exit 1
+          fi
       - name: Deploy authorized digests to Coolify
         env:
           COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
