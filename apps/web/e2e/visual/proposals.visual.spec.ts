@@ -65,6 +65,11 @@ test.describe('proposals visual regression', () => {
     await expect(
       page.getByRole('button', { name: 'Registrar proposta' }),
     ).toBeVisible();
+    // A fixture deve publicar unidades operacionais já presentes no domínio comercial.
+    // Um retorno vazio na rota compartilhada impede a criação, mesmo com cliente válido.
+    await expect(page.getByRole('combobox', { name: /unidade operacional/i }))
+      .toHaveValue('PORTO-VELHO');
+
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
