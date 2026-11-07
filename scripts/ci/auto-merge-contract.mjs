@@ -42,6 +42,17 @@ export function verifiedPlaywrightLog(input) {
   return /\b[1-9][0-9]*\s+passed\b/i.test(log);
 }
 
+// Keep the same risk surface as hml-isolated-e2e.yml, so HML-required
+// changes can never be merged with a missing, skipped or failed HML check.
+export function requiresIsolatedHml(files) {
+  const paths = files.map((file) => typeof file === 'string' ? file : file.filename);
+  return paths.some((path) =>
+    /^(apps\/api\/src\/(people|catalog)|apps\/web\/src\/(people|catalog)|apps\/web\/e2e\/hml)\//.test(path) ||
+    path === '.github/workflows/hml-isolated-e2e.yml' ||
+    path === '.github/workflows/coolify-release.yml' ||
+    path.startsWith('scripts/cd/'));
+}
+
 export function isProtectedAutomationPath(path) {
   return /^\.github\/workflows\//.test(path) ||
     /^scripts\/(ci|cd)\//.test(path) ||
