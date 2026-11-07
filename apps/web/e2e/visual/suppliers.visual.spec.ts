@@ -43,10 +43,10 @@ test.describe('suppliers visual', () => {
 
     // Busca e filtro de status ficam junto da lista.
     await expect(page.getByRole('searchbox', { name: 'Buscar' })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Status' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Estado' })).toBeVisible();
 
     // A linha identifica o fornecedor por referência humana: nome fantasia, razão social e CNPJ.
-    await expect(page.getByRole('columnheader', { name: /fornecedor/i })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Razão social', exact: true })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /cnpj/i })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Alfa Insumos' })).toBeVisible();
     await expect(page.getByText('11.222.333/0001-81')).toBeVisible();
@@ -70,10 +70,9 @@ test.describe('suppliers visual', () => {
     await openSuppliersList(page);
 
     await page.getByRole('searchbox', { name: 'Buscar' }).fill('Zinco Inexistente');
-    await page.getByRole('button', { name: 'Buscar' }).click();
 
     await expect(
-      page.getByText('Nenhum fornecedor encontrado para os filtros selecionados.'),
+      page.getByText('Nenhum fornecedor corresponde aos filtros aplicados.'),
     ).toBeVisible();
     await assertNoPageLevelHorizontalOverflow(page);
 
