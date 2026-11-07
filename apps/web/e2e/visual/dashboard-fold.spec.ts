@@ -95,7 +95,9 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await expect(processFlow.getByText('Ordem de serviço', { exact: true })).toBeVisible();
     await expect(processFlow.getByText('Recebimento', { exact: true })).toBeVisible();
 
-    // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
+    // 6. A análise fica em disclosure para preservar a primeira dobra da fila.
+    // Abrir o contexto permite provar as duas visões e seus links de drilldown.
+    await page.getByText('Contexto do recorte e análise operacional').click();
     await expect(page.getByRole('heading', { name: /ordens por situação/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /atraso por faixa/i })).toBeVisible();
     // Cada segmento abre a lista filtrada que produziu o numero.
