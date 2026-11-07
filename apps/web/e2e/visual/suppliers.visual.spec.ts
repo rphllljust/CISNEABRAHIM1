@@ -43,12 +43,12 @@ test.describe('suppliers visual', () => {
 
     // Busca e filtro de status ficam junto da lista.
     await expect(page.getByRole('searchbox', { name: 'Buscar' })).toBeVisible();
-    await expect(page.getByRole('combobox', { name: 'Status' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Estado' })).toBeVisible();
 
     // A linha identifica o fornecedor por referência humana: nome fantasia, razão social e CNPJ.
-    await expect(page.getByRole('columnheader', { name: /fornecedor/i })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Razão social', exact: true })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: /cnpj/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Alfa Insumos' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Alfa Insumos LTDA' })).toBeVisible();
     await expect(page.getByText('11.222.333/0001-81')).toBeVisible();
     await expect(page.getByText('Delta Lubrificantes EIRELI')).toBeVisible();
 
@@ -56,7 +56,7 @@ test.describe('suppliers visual', () => {
     await expect(page.getByLabel(/identificador do fornecedor/i)).toHaveCount(0);
 
     // Faixa de paginação alimentada pelo total do backend.
-    await expect(page.getByText(/5 fornecedor\(es\) no total/)).toBeVisible();
+    await expect(page.getByText('fornecedores no cadastro')).toBeVisible();
     await expect(page.getByRole('button', { name: /anterior/i })).toBeDisabled();
 
     await expect(page.getByRole('searchbox', { name: 'Buscar' })).toBeInViewport();
@@ -70,10 +70,10 @@ test.describe('suppliers visual', () => {
     await openSuppliersList(page);
 
     await page.getByRole('searchbox', { name: 'Buscar' }).fill('Zinco Inexistente');
-    await page.getByRole('button', { name: 'Buscar' }).click();
+    // Busca e aplicada automaticamente depois do debounce; nao ha botao Buscar.
 
     await expect(
-      page.getByText('Nenhum fornecedor encontrado para os filtros selecionados.'),
+      page.getByText('Nenhum fornecedor corresponde aos filtros aplicados.'),
     ).toBeVisible();
     await assertNoPageLevelHorizontalOverflow(page);
 

@@ -58,12 +58,61 @@ export async function handleSuppliersApiRoute(route: Route): Promise<boolean> {
   const { pathname, searchParams } = new URL(request.url());
   const method = request.method();
 
-  if (!pathname.startsWith('/api/v1/suppliers')) {
+  // O DynamicList consome a projeção existente de meta.supplier; o helper unitário
+  // createSuppliersFetchMock publica o mesmo contrato para suas telas.
+  // Sem esta rota a prova visual mede "Carregando…" em vez da grade.
+  if (pathname !== '/api/v1/meta/suppliers' && !pathname.startsWith('/api/v1/suppliers')) {
     return false;
   }
 
   if (!hasBearerToken(route)) {
     await fulfillJson(route, { error: { code: 'SUPPLIER_DENIED', message: 'Unauthorized.' } }, 401);
+    return true;
+  }
+
+  if (pathname === '/api/v1/meta/suppliers' && method === 'GET') {
+    const field = (name: string, label: string, type: string, inList = true, listOrder = 0, extra: Record<string, unknown> = {}) => ({
+      name, label, type, required: false, readOnly: false, inList, inForm: true,
+      inFilter: false, listOrder, fieldOrder: 0, permLevel: 0, options: null, ...extra,
+    });
+    // Espelha a view "list" já usada em src/test/suppliers-fetch-mock.ts.
+    // Este é somente o contrato da fixture Playwright, não um endpoint novo.
+    await fulfillJson(route, {
+      name: 'suppliers',
+      label: 'Fornecedores',
+      description: null,
+      dataSchema: 'pty',
+      dataTable: 'suppliers',
+      labelField: 'legal_name',
+      fields: [
+        field('legal_name', 'Razão social', 'text', true, 10),
+        field('trade_name', 'Nome fantasia', 'text', true, 20),
+        field('normalized_tax_id', 'CNPJ', 'text', true, 30),
+        field('payment_terms', 'Condição de pagamento', 'text', true, 40),
+        field('currency_code', 'Moeda', 'text', false, 50),
+        field('status', 'Estado', 'select', true, 60, {
+          inFilter: true,
+          options: { options: [
+            { value: 'ACTIVE', label: 'Ativo' },
+            { value: 'INACTIVE', label: 'Inativo' },
+            { value: 'ARCHIVED', label: 'Arquivado' },
+          ] },
+        }),
+        field('created_at', 'Atualizado em', 'datetime', true, 70, { readOnly: true }),
+      ],
+      views: [{
+        viewType: 'list',
+        label: 'Lista de fornecedores',
+        layout: { columns: [
+          'legal_name', 'trade_name', 'normalized_tax_id',
+          'payment_terms', 'status', 'created_at',
+        ] },
+        isDefault: true,
+      }],
+      workflow: null,
+      permissions: [{ action: 'read', permLevel: 0, requiredPermission: null, allowed: true }],
+      allowedPermLevels: [0],
+    });
     return true;
   }
 

@@ -60,8 +60,11 @@ test.describe('documents visual', () => {
     await expect(downloadButton).toBeVisible();
     await expect(page.getByRole('link', { name: /^baixar/i })).toHaveCount(0);
 
-    // O identificador de unidade e exibido como codigo (nao existe nome humano no contrato).
-    await expect(page.getByText('unit-synthetic-homolog').first()).toBeVisible();
+    // A superfície não revela o identificador técnico da unidade: o contrato
+    // apresenta o escopo autorizado no registro vinculado a uma unidade.
+    const documentRow = page.getByRole('row').filter({ hasText: UAT_TITLE }).first();
+    await expect(documentRow.getByText('No seu escopo autorizado', { exact: true })).toBeVisible();
+    await expect(page.getByText('unit-synthetic-homolog', { exact: true })).toHaveCount(0);
 
     // Documentos distintos com o MESMO titulo continuam sendo dois, e sao distinguiveis pelos
     // segundos — por isso o compromisso de tempo desta tela tem precisao de segundo.

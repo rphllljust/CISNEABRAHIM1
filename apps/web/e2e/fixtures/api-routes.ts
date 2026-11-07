@@ -33,6 +33,13 @@ type RouteContext = {
 };
 
 const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string[]>> = {
+  // The Documents worklist requires explicit grants from GET /me. Without these,
+  // the real capability hook correctly denies the list and hides download actions,
+  // so the visual suite never reaches the table it intends to verify.
+  documents: [
+    'documents:document:list',
+    'documents:document:download',
+  ],
   /*
    * BILLING — a suíte visual de faturamento usa o perfil `billing-empty`, mas ele não publicava
    * capability nenhuma. Sem `billing:billing-record:read` a página de Faturamento interno nega

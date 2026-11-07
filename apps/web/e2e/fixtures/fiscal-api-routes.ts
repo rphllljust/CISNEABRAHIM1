@@ -325,7 +325,7 @@ export async function installFiscalMocks(page: Page): Promise<void> {
           refreshToken: 'visual-refresh-token',
           tokenType: 'Bearer',
           expiresIn: 900,
-          session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+          session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
         });
         return;
       }
@@ -341,7 +341,7 @@ export async function installFiscalMocks(page: Page): Promise<void> {
       if (hasBearerToken(route)) {
         await fulfillJson(route, {
           identityId: MOCK_IDENTITY_ID,
-          session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+          session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
         });
         return;
       }
@@ -374,7 +374,7 @@ export async function installFiscalMocks(page: Page): Promise<void> {
         refreshToken: 'visual-refresh-token-2',
         tokenType: 'Bearer',
         expiresIn: 900,
-        session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+        session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
       });
       return;
     }
@@ -423,7 +423,10 @@ export async function prepareFiscalSession(page: Page): Promise<void> {
   await page.getByLabel(/^usuário/i).fill(TEST_LOGIN);
   await page.getByLabel(/^senha/i).fill(TEST_PASSWORD);
   await page.getByRole('button', { name: /^entrar/i }).click();
-  await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible();
+  // A prova fiscal não depende do dashboard: o sucesso do login é o shell
+  // autenticado montado em /app, antes de visitar cada rota fiscal.
+  await expect(page).toHaveURL(/\/app\/?$/);
+  await expect(page.locator('#main-content')).toBeAttached();
 }
 
 export async function stabilizeFiscalPage(page: Page): Promise<void> {
