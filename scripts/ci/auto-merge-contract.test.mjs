@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   REQUIRED_CI_JOBS,
@@ -37,4 +38,24 @@ test('workflow and gate changes require separate review', () => {
   assert.equal(isProtectedAutomationPath('scripts/ci/visual-regression-ratchet.mjs'), true);
   assert.equal(isProtectedAutomationPath('scripts/cd/coolify-deploy.mjs'), true);
   assert.equal(isProtectedAutomationPath('apps/web/src/finance/PayablesListPage.tsx'), false);
+});
+
+test('workflow topology requires real full Playwright for every PR', () => {
+  const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+  const visual = readFileSync('.github/workflows/visual-full.yml', 'utf8');
+  const controller = readFileSync('.github/workflows/cisne-verified-auto-merge.yml', 'utf8');
+  assert.match(ci, /if: github\.event_name == 'pull_request'/);
+  assert.match(ci, /all PRs require successful Visual Full/);
+  assert.match(ci, /Require actual full Playwright success/);
+  assert.match(visual, /pull_request:\s*\n\s*\nconcurrency:/);
+  assert.match(visual, /push:\s*\n\s*branches: \[main\]/);
+  assert.match(controller, /pull_request_target:/);
+  assert.match(controller, /node scripts\/ci\/auto-merge-controller\.mjs/);
+});
+
+test('Coolify release must verify exact main Visual Full and refuse stale SHA', () => {
+  const release = readFileSync('.github/workflows/coolify-release.yml', 'utf8');
+  assert.match(release, /MAIN_VISUAL_VALIDATED=true/);
+  assert.match(release, /verifiedPlaywrightLog/);
+  assert.match(release, /Refuse obsolete SHA before touching Coolify/);
 });
