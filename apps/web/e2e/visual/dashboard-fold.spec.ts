@@ -141,9 +141,15 @@ test.describe('visao geral — fila decisoria exercitada', () => {
 
     // ESTADO C: fechar restaura o rail de apoio sem perder a fila.
     await selectedContext.getByRole('button', { name: 'Fechar contexto' }).click();
-    await expect(page.getByRole('complementary', {
-      name: 'Apoio à decisão operacional',
-    })).toBeVisible();
+    // O rail de apoio é visível somente a partir de 1280px (dashboard.css);
+    // em mobile/tablet o encerramento do drawer não deve deixar contexto aberto.
+    const supportRail = page.locator('aside[aria-label="Apoio à decisão operacional"]');
+    await expect(supportRail).toHaveCount(1);
+    if ((page.viewportSize()?.width ?? 0) >= 1280) {
+      await expect(supportRail).toBeVisible();
+    } else {
+      await expect(supportRail).toBeHidden();
+    }
     await expect(page.getByRole('complementary', {
       name: 'Contexto do item selecionado',
     })).toHaveCount(0);
