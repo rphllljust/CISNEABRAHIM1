@@ -459,8 +459,12 @@ export function SuppliersEngineListPage() {
           <WorklistFilterBar
             meta={
               total !== null
-                ? `${offset + 1}–${offset + items.length} de ${total}`
-                : `${offset + 1}–${offset + items.length} nesta página`
+                ? items.length === 0
+                  ? `0 de ${total}`
+                  : `${offset + 1}–${offset + items.length} de ${total}`
+                : items.length === 0
+                  ? '0 nesta página'
+                  : `${offset + 1}–${offset + items.length} nesta página`
             }
           >
             <WorklistField label="Buscar" htmlFor="suppliers-search" grow>
