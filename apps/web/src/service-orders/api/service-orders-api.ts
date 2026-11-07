@@ -316,6 +316,24 @@ export type ReopenServiceOrderPayload = {
   reopenReason: string;
 };
 
+/** Bind an actual published catalog definition to an existing DRAFT OS.
+ * The backend resolves the published version, enforces record-scoped UPDATE
+ * authorization, optimistic row version and an audit event. No local status changes.
+ */
+export function linkPublishedServiceToDraftOrder(
+  serviceOrderId: string,
+  rowVersion: number,
+  serviceDefinitionId: string,
+  signal?: AbortSignal,
+): Promise<ServiceOrderDetail> {
+  return requestJson<ServiceOrderDetail>('/api/v1/service-orders/' + encodeURIComponent(serviceOrderId), {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ rowVersion, serviceDefinitionId }),
+    signal,
+  });
+}
+
 export function prepareServiceOrder(
   serviceOrderId: string,
   rowVersion: number,

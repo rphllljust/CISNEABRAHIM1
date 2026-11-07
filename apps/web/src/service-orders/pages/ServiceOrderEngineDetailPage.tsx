@@ -1,3 +1,4 @@
+import { ServiceOrderDraftServiceBinding } from '../components/ServiceOrderDraftServiceBinding';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -335,6 +336,14 @@ export function ServiceOrderEngineDetailPage() {
                 command === 'cancel' ? setCancelOpen(true) : void runCommand(command)
               }
             />
+            {detail?.status === 'DRAFT' &&
+            controlCenter?.nextAction.blockers.includes('SERVICE_DEFINITION_REQUIRED') ? (
+              <ServiceOrderDraftServiceBinding
+                serviceOrderId={detail.id}
+                rowVersion={detail.rowVersion}
+                onUpdated={() => load()}
+              />
+            ) : null}
             {commandError ? (
               <p className="mt-2 text-sm text-red-700" role="alert">
                 {commandError}
