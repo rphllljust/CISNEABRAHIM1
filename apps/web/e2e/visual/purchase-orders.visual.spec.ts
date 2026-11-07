@@ -60,7 +60,7 @@ test.describe('purchase orders visual regression', () => {
     // Verifica a data do campo de negócio «Emissão», sem confundir com datas de registro.
     await expect(
       page.locator('[data-layout="object-identity"] dl > div')
-        .filter({ has: page.locator('dt').getByText('Emissão', { exact: true }) })
+        .filter({ has: page.locator('dt', { hasText: /^Emissão$/ }) })
         .locator('dd'),
     ).toHaveText('21/08/2026');
     await stabilizePage(page);
