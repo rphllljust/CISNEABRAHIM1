@@ -334,6 +334,24 @@ export function linkPublishedServiceToDraftOrder(
   });
 }
 
+/** Attach a real active client to an existing DRAFT order before PREPARE.
+ * The backend checks record UPDATE authorization, client active status,
+ * rowVersion and writes the persisted client snapshot plus security audit.
+ */
+export function linkClientToDraftOrder(
+  serviceOrderId: string,
+  rowVersion: number,
+  clientId: string,
+  signal?: AbortSignal,
+): Promise<ServiceOrderDetail> {
+  return requestJson<ServiceOrderDetail>('/api/v1/service-orders/' + encodeURIComponent(serviceOrderId), {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ rowVersion, clientId }),
+    signal,
+  });
+}
+
 export function prepareServiceOrder(
   serviceOrderId: string,
   rowVersion: number,

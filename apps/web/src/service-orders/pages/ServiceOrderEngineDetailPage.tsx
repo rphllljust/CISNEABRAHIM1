@@ -1,4 +1,5 @@
 import { ServiceOrderDraftServiceBinding } from '../components/ServiceOrderDraftServiceBinding';
+import { ServiceOrderDraftClientBinding } from '../components/ServiceOrderDraftClientBinding';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -339,6 +340,13 @@ export function ServiceOrderEngineDetailPage() {
             {detail?.status === 'DRAFT' &&
             controlCenter?.nextAction.blockers.includes('SERVICE_DEFINITION_REQUIRED') ? (
               <ServiceOrderDraftServiceBinding
+                serviceOrderId={detail.id}
+                rowVersion={detail.rowVersion}
+                onUpdated={() => load()}
+              />
+            ) : null}
+            {detail?.status === 'DRAFT' && !detail.clientId ? (
+              <ServiceOrderDraftClientBinding
                 serviceOrderId={detail.id}
                 rowVersion={detail.rowVersion}
                 onUpdated={() => load()}
