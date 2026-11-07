@@ -6,6 +6,12 @@ import { test } from 'node:test';
 const workflow = readFileSync('.github/workflows/visual-full.yml', 'utf8');
 const ciWorkflow = readFileSync('.github/workflows/ci.yml', 'utf8');
 
+test('standalone Visual Full is triggered by changes to Playwright fixtures', () => {
+  const pullRequestPaths = workflow.match(/  pull_request:\n    paths:\n([\\s\\S]*?)\nconcurrency:/);
+  assert.ok(pullRequestPaths, 'Visual Full PR path filters must exist');
+  assert.match(pullRequestPaths[1], /apps\\/web\\/e2e\\/fixtures\\/\\*\\*/);
+});
+
 test('Visual Full preserves Playwright exit status through tee', () => {
   const job = workflow.match(/- name: Web visual regression \(full suite\)([\s\S]*?)- name: Upload visual regression diagnostics/);
   assert.ok(job, 'Visual Full job must exist');
