@@ -84,6 +84,8 @@ jobs:
           cache: pnpm
       - name: GitHub Actions runtime audit
         run: node scripts/ci/github-actions-runtime-audit.mjs
+      - name: Verify Visual Full exit-status contract in CI and standalone workflows
+        run: node --test scripts/ci/visual-full-exit-status.test.mjs
       - name: Toolchain version audit
         run: node scripts/ci/toolchain-version-audit.mjs
       # Checks all 16 module owners and five MASTER 002 journeys are represented.
@@ -809,7 +811,10 @@ jobs:
       - name: Web visual regression (full suite)
         id: web-visual
         continue-on-error: true
+        shell: bash
         run: |
+          # The exit code of Playwright, not tee, must determine web-visual.outcome.
+          set -euo pipefail
           mkdir -p artifacts/ci
           pnpm --filter @cisne/web test:visual 2>&1 | tee artifacts/ci/web-visual.log
         env:
@@ -831,6 +836,17 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
         run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
+      - name: Enforce strict Visual Full acceptance
+        if: always()
+        shell: bash
+        env:
+          VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
+        run: |
+          # No-new-regression debt ratchet is not equivalent to a passing Playwright suite.
+          if [[ "${VISUAL_OUTCOME}" != "success" ]]; then
+            echo "::error::CI PR Visual Full failed or did not execute; blocking acceptance."
+            exit 1
+          fi
 
   release-ready:
     name: Release ready
