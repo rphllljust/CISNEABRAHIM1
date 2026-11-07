@@ -177,6 +177,18 @@ async function ensureMainCi() {
     });
     console.log('[auto-merge] Dispatched main CI for SHA ' + main.sha);
   }
+  // PR verification and main release each require the genuine full suite.
+  // The dispatch is an explicit Actions event even after a GITHUB_TOKEN merge.
+  const visualExists = (response.workflow_runs ?? []).some((run) =>
+    run.name === 'Visual full' && run.head_sha === main.sha && run.head_branch === 'main' &&
+    (run.event === 'push' || run.event === 'workflow_dispatch'));
+  if (!visualExists) {
+    await github(prefix + '/actions/workflows/visual-full.yml/dispatches', {
+      method: 'POST',
+      body: {ref: 'main'},
+    });
+    console.log('[auto-merge] Dispatched full visual baseline for main SHA ' + main.sha);
+  }
 }
 
 async function main() {
