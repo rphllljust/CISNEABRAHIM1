@@ -1,9 +1,6 @@
 name: MASTER 015 — authenticated SSH loopback tunnel capability probe
 on:
   workflow_dispatch:
-  push:
-    branches: [ops/master-015-hml-access-probe]
-    paths: [.github/workflows/master-015-coolify-private-ssh-probe.yml]
 permissions: {}
 jobs:
   secure-tunnel:

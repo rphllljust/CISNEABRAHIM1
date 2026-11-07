@@ -1,9 +1,6 @@
 name: MASTER 015 — anonymous Coolify canonical HTTPS discovery
 on:
   workflow_dispatch:
-  push:
-    branches: [ops/master-015-hml-access-probe]
-    paths: [.github/workflows/master-015-coolify-canonical-https.yml]
 permissions: {}
 jobs:
   discover:
