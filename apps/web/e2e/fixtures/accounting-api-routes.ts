@@ -597,7 +597,18 @@ export async function installAccountingMocks(page: Page): Promise<void> {
           email: null,
           identity_id: MOCK_IDENTITY_ID,
         },
-        permissoes_efetivas: [],
+        // Capabilities que a navegacao e as rotas da Contabilidade exigem (nav-config.ts:310-398,
+        // AccountingRoute.tsx:18-22). Com `[]` as telas de fechamento (period:close) e de ativo
+        // imobilizado (fixed-asset:read) renderizam negadas — mesma dimensao repetida (992x624).
+        // TODO: confirmar no CI do PR que 01-07 e 09 nao mudam de aparencia.
+        permissoes_efetivas: [
+          'accounting:journal:read',
+          'accounting:journal:list',
+          'accounting:journal:post',
+          'accounting:period:close',
+          'accounting:fixed-asset:read',
+          'accounting:posting-request',
+        ],
         escopo_ativo: null,
         escopos_disponiveis: [{ tipo: 'GLOBAL', resource_id: null, label: 'Global' }],
       });
