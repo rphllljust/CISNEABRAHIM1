@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { loadAuthConfig } from './auth/config/auth.config';
 import { SecurityHeadersInterceptor } from './infrastructure/http/security-headers.interceptor';
 import { isCorsOriginAllowed } from './infrastructure/http/cors-origin-policy';
+import { resolveJsonBodyLimit } from './infrastructure/http/json-body-limit';
 import { collectRuntimeConfigErrors } from './platform/runtime-config/runtime-config';
 import { ApiExceptionFilter } from './infrastructure/http/api-exception.filter';
 import { InvalidUuidFilter } from './infrastructure/http/invalid-uuid.filter';
@@ -25,10 +26,11 @@ async function bootstrap(): Promise<void> {
   const host = process.env['API_HOST'] ?? '0.0.0.0';
   const port = Number(process.env['PORT'] ?? 3000);
   const authConfig = loadAuthConfig();
+  const bodyLimit = resolveJsonBodyLimit(process.env['API_JSON_BODY_LIMIT_BYTES']);
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ bodyLimit: 8_192 }),
+    new FastifyAdapter({ bodyLimit }),
   );
 
   app.setGlobalPrefix('api/v1');
