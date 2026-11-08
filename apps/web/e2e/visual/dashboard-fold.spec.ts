@@ -123,9 +123,12 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await page.screenshot({ path: 'tmp-dashboard-1440.png', fullPage: false });
 
     // ESTADO B: clicar no item da fila ABRE o drawer com o contexto, sem perder a fila.
-    await page
-      .getByRole('button', { name: /OS-2026-0184.*Execução de manutenção preventiva/i })
-      .click();
+    // The current queue renders the business reference as the selection button
+    // and the title as a sibling cell; concatenating both into one accessible
+    // button name matched the superseded layout, not the live queue contract.
+    const selectedRow = page.getByRole('row').filter({ hasText: 'OS-2026-0184' });
+    await expect(selectedRow).toContainText('Execução de manutenção preventiva');
+    await selectedRow.getByRole('button', { name: 'OS-2026-0184' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText('OS-2026-0184')).toBeVisible();
