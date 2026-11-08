@@ -123,7 +123,16 @@ test.describe('fiscal (Família 5) — rotas do escopo', () => {
 
   test('05 regra tributária: detalhe com identidade e situação humana', async ({ page }) => {
     const errors = collectPageErrors(page);
-    await page.goto(`/app/fiscal/tributos/${FISCAL_RULE_ID}`);
+    // A navegação lazy termina antes da leitura do detalhe. Aguardar o GET 200
+    // do objeto concreto impede medir o DOM durante autenticação/hidratação.
+    await Promise.all([
+      page.waitForResponse((response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes(`/api/v1/fiscal/tax/rules/${FISCAL_RULE_ID}`) &&
+        response.status() === 200,
+      ),
+      page.goto(`/app/fiscal/tributos/${FISCAL_RULE_ID}`),
+    ]);
     await expect(page.getByRole('heading', { level: 1, name: 'Regra tributária' })).toBeVisible();
     await expect(
       page.getByRole('region', { name: 'Identificação da regra tributária' }),

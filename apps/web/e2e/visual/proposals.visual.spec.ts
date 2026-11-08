@@ -44,11 +44,11 @@ test.describe('proposals visual regression', () => {
     // 3) estado real do processo visivel no cabecalho;
     await expect(page.getByLabel('Status: Emitida').first()).toBeVisible();
     // 4) acao primaria permitida para o estado EMTITIDA;
-    await expect(page.getByRole('button', { name: 'Aceitar' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Registrar aceite', exact: true })).toBeVisible();
     // 5) relacao real do objeto (revisoes) presente e navegavel;
     await expect(page.getByRole('link', { name: /Revisões/ })).toBeVisible();
     // 6) conteudo principal do objeto: a composicao comercial.
-    await expect(page.getByRole('table', { name: 'Itens da proposta' })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Composição comercial da proposta' })).toBeVisible();
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
@@ -65,6 +65,21 @@ test.describe('proposals visual regression', () => {
     await expect(
       page.getByRole('button', { name: 'Registrar proposta' }),
     ).toBeVisible();
+    // A fixture deve publicar unidades operacionais já presentes no domínio comercial.
+    // Um retorno vazio na rota compartilhada impede a criação, mesmo com cliente válido.
+    const unitSelect = page.getByRole('combobox', { name: /unidade operacional/i });
+    await expect(unitSelect).toBeEnabled();
+    await expect(unitSelect.locator('option[value="PORTO-VELHO"]')).toHaveCount(1);
+
+    // The secondary Cancelar link must remain legible on its white background.
+    const cancelLink = page.getByRole('link', { name: 'Cancelar' });
+    await expect(cancelLink).toBeVisible();
+    const { color, backgroundColor } = await cancelLink.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { color: style.color, backgroundColor: style.backgroundColor };
+    });
+    expect(color, 'Cancelar deve contrastar com o fundo do botão secundário').not.toBe(backgroundColor);
+
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
