@@ -553,6 +553,34 @@ export async function installAccountingMocks(page: Page): Promise<void> {
       return;
     }
 
+    if (pathname.startsWith('/api/v1/dashboard/executive') && method === 'GET') {
+      await fulfillJson(route, {
+        generatedAt: '2099-12-31T23:59:59.000Z',
+        businessTimezone: 'America/Porto_Velho',
+        period: { preset: 'week', from: '2026-08-23', to: '2026-08-29' },
+        visibility: {
+          serviceRequests: false,
+          serviceOrders: false,
+          measurements: false,
+          billing: false,
+          documents: false,
+          resources: false,
+          productivity: false,
+          financialAging: false,
+        },
+        attention: [],
+        charts: {
+          serviceOrdersByStatus: { title: '', description: '', items: [], summary: '' },
+          throughputTrend: { title: '', description: '', points: [], summary: '' },
+          sla: { title: '', description: '', points: [], summary: '' },
+          financialAging: { available: false, title: '', description: '', buckets: [], summary: '' },
+        },
+        productivity: null,
+        shortcuts: [],
+      });
+      return;
+    }
+
     if (pathname === '/api/v1/me' && method === 'GET') {
       if (!hasBearerToken(route)) {
         await fulfillJson(
