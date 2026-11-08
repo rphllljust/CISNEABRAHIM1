@@ -1,6 +1,6 @@
 # ADR-001 — Arquitetura de CI: o que bloqueia PR, o que roda async
 
-- Status: **Proposto** (2026-11-08). Decisor: @rphllljust. Prazo: 2026-11-09.
+- Status: **Aceito** (2026-11-08). Decisor: @rphllljust (decisões fechadas por instrução do owner na sessão de 2026-11-08; revisão em 2026-11-22).
 - Evidência de origem: Visual full do #284 (run 42502657505): 163 falhas, 126 ok; run do #278 (42488676000): 84 únicos. Os "174" iniciais contavam retries; a maioria era mock drift, seletor e baseline defasado, não regressão de produto.
 
 ## Contexto
@@ -11,11 +11,15 @@
 5. PRs grandes travam: #278 tem 102 arquivos (67 PNG), e remove o filtro `paths` do Visual full.
 
 ## Decisão
-1. **Visual full não gateia PR de código.** Roda nightly e em `push: main`, abre issue automática se falhar. Gate de PR visual = `Visual critical` (3 specs, 1 viewport). [DECISÃO PENDENTE: @rphllljust, 2026-11-09 — contraria o contrato atual em que `Release ready` exige Visual full em PR de risco visual; muda o README/AGENTS.]
+1. **Visual full não gateia PR de código.** Roda nightly e em `push: main`, abre issue automática se falhar. Gate de PR visual = `Visual critical` (3 specs, 1 viewport).
+   **Decidido:** `Visual critical` bloqueia PR; `Visual full` é async (nightly + `push: main`). **Porque:** o run real do #284 teve 163 falhas sem bug de produto novo, e o gate já operava assim na prática (merges com `Release ready` verde e Visual full vermelho, ex.: #284 `9915a8e1`). **Consequência:** `ci.yml` deixa de exigir `visual-full` no `Release ready` e README/AGENTS precisam refletir isso (PR de implementação; até lá o contrato atual vale).
 2. **Baseline só via bot, em container pinado** `mcr.microsoft.com/playwright:v1.62.1-noble` (versão de `@playwright/test@1.62.1`, `pnpm-lock.yaml:1223`), por `workflow_dispatch` (`visual-baseline.yml`, #290), sempre em PR **draft** revisado tela a tela. Nunca local.
-3. **E2E completo async; smoke no PR.** [DECISÃO PENDENTE: @rphllljust, 2026-11-09 — definir quais specs formam o smoke; hoje `API E2E` e `Integration` (~12 min) estão no caminho crítico.]
-4. **Mock coberto por teste de contrato.** Curto prazo: teste de ratchet que falha em NOVO 404 de `/api/v1` na primeira renderização de cada rota visual. Longo prazo: mocks gerados de contrato OpenAPI. [DECISÃO PENDENTE: @rphllljust, 2026-11-14 — `apps/api` não exporta OpenAPI no CI hoje; não verificado se o Nest já gera o documento.]
-5. **Branch protection mínima:** `Release ready` agregando lint+typecheck+audit, unit, integration, API E2E, build, migration gate e `Visual critical`. [DECISÃO PENDENTE: @rphllljust — a API de proteção de branch retorna 403 para o token da sessão; a lista real não foi lida.]
+3. **E2E completo async; smoke no PR.**
+   **Decidido:** smoke no PR (`API E2E` + `Visual critical`), E2E completo nightly. **Porque:** `Integration` (~12–15 min) já é o caminho crítico e o resto do E2E só soma tempo. **Consequência:** a lista exata de specs do smoke é a de `test:visual:critical` + `API E2E`; mover o restante para agendado fica para a ADR-002.
+4. **Mock coberto por teste de contrato.** Curto prazo: teste de ratchet que falha em NOVO 404 de `/api/v1` na primeira renderização de cada rota visual. Longo prazo: mocks gerados de contrato OpenAPI.
+   **Decidido:** mock gerado de contrato OpenAPI no próximo trimestre (alvo: 2027-02-28); **débito registrado**. **Porque:** `apps/api` não publica OpenAPI no CI hoje (não verificado se o Nest já gera o documento) e o ratchet do #292 cobre o risco no intervalo. **Consequência:** até lá, todo mock novo entra com a rota coberta pelo ratchet e o baseline só encolhe (issue #294 lista as 6 rotas restantes, prazo 2026-11-15).
+5. **Branch protection mínima:** `Release ready` agregando lint+typecheck+audit, unit, integration, API E2E, build, migration gate e `Visual critical`.
+   **Decidido:** configuração proposta — checks obrigatórios: `Release ready` (agrega lint/typecheck/audit, unit, integration, API E2E, build, migration gate, `Visual critical`), branch atualizada (`strict`), sem `Visual full`. **Porque:** a API de proteção devolve 403 ao token da sessão (a lista real não foi lida), então só o admin do repositório pode aplicar. **Consequência:** aplicar manualmente em Settings → Branches até **2026-11-10**; até lá a proteção vigente é a que existe hoje.
 6. **PR com mais de 20 arquivos não mergeia** (PNG de baseline e lockfile não contam). Dividir é obrigatório; vale para #278.
 7. **Production Business Evidence é job de ambiente**, nunca check de PR. Permanece como está; esta ADR só registra a regra.
 
