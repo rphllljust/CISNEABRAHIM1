@@ -1,4 +1,5 @@
 import { assertQuantityDecimalScale } from '../../catalog/domain/measured-quantity';
+import { multiplyDecimalStrings } from '../../platform/kernel/decimal-math';
 import { MeasurementError } from './measurement';
 
 export const MEASURED_QUANTITY_SCALE = 6;
@@ -93,6 +94,10 @@ export function computeLineAmount(input: {
   if (!input.unitPrice) {
     return null;
   }
-  const amount = parseMeasuredQuantityDecimal(input.measuredQuantity) * Number(input.unitPrice);
-  return amount.toFixed(4);
+  // Aritmética decimal exata (BigInt): quantidade (até 6 casas) × preço, arredondado half-up a 4 casas.
+  return multiplyDecimalStrings(
+    normalizeMeasuredQuantity(input.measuredQuantity),
+    input.unitPrice,
+    4,
+  );
 }
