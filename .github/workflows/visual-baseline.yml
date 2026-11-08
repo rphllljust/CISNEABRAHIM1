@@ -1,0 +1,76 @@
+# Baseline visual SOMENTE no container pinado, SOMENTE por dispatch, SEMPRE em PR draft.
+# Nunca roda em PR/push; nunca grava na main. O PNG so existe depois de revisao humana do PR.
+name: Visual baseline (dispatch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch/SHA cujo codigo e mocks definem o baseline (deve conter os mocks corretos)'
+        required: true
+      specs:
+        description: 'Specs separados por espaco (ex.: accounting.visual finance.visual login.visual)'
+        required: true
+        default: 'accounting.visual finance.visual login.visual'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: visual-baseline
+  cancel-in-progress: false
+
+jobs:
+  baseline:
+    name: Gerar baseline no container
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Build
+        run: pnpm build
+      - name: Verify Playwright runtime and fonts
+        run: node scripts/ci/visual-runtime-verify.mjs
+      - name: Update snapshots (apenas os specs informados)
+        env:
+          SPECS: ${{ inputs.specs }}
+        run: |
+          set -euo pipefail
+          files=""
+          for s in $SPECS; do files="$files e2e/visual/$s.spec.ts"; done
+          cd apps/web
+          pnpm exec playwright test $files --update-snapshots --retries=0
+      - name: Abrir PR draft com os PNGs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ inputs.ref }}
+          SPECS: ${{ inputs.specs }}
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- 'apps/web/e2e/**/*.png'; then echo "Sem diff de baseline."; exit 0; fi
+          branch="bot/visual-baseline-${GITHUB_RUN_ID}"
+          git switch -c "$branch"
+          git add 'apps/web/e2e/**/*.png'
+          git commit -m "test(visual): baseline regerado no container playwright:v1.62.1-noble (${SPECS}) a partir de ${REF}"
+          git push origin "$branch"
+          gh pr create --draft --base main --head "$branch" \
+            --title "test(visual): baseline (${SPECS}) — DRAFT, revisar tela a tela" \
+            --body "Gerado por workflow_dispatch no container pinado a partir de \`${REF}\`. Revisar cada PNG antes de marcar ready. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
