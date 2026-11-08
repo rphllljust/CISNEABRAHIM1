@@ -87,6 +87,15 @@ test.describe('purchase orders visual regression', () => {
     await expect(unitSelect).toBeEnabled();
     await expect(unitSelect.locator('option[value="PORTO-VELHO"]')).toHaveCount(1);
 
+    // The secondary Cancelar link must remain legible on its white background.
+    const cancelLink = page.getByRole('link', { name: 'Cancelar' });
+    await expect(cancelLink).toBeVisible();
+    const { color, backgroundColor } = await cancelLink.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { color: style.color, backgroundColor: style.backgroundColor };
+    });
+    expect(color, 'Cancelar deve contrastar com o fundo do botão secundário').not.toBe(backgroundColor);
+
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
