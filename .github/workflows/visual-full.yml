@@ -46,6 +46,10 @@ on:
     # 04:17 UTC — fora de qualquer janela de release típica.
     - cron: '17 4 * * *'
   workflow_dispatch:
+  # Diagnostic run at exact main source tree; only this workflow trigger differs.
+  push:
+    branches:
+      - ci/visual-base-8eee639e-20261108
   pull_request:
     paths:
       - 'apps/web/src/**'
