@@ -21,17 +21,17 @@ import type { ApiMockProfile } from '../fixtures/api-routes';
 const FORBIDDEN_UNIT_SLUG = /unit-synthetic|UN-DEV-\d+/i;
 const FORBIDDEN_RAW_ENUMS = /\b(COMPLETED|CANCELLED|RELEASED|PREPARED|IN_EXECUTION|PAUSED)\b/;
 
-type Route = { path: string; profile: ApiMockProfile; label: string };
+type Route = { path: string; profile: ApiMockProfile; label: string; filters?: true };
 
 /** Uma rota por dominio do sidebar, exatamente como pedido no aceite. */
 const ROUTES: Route[] = [
   { path: '/app/clients', profile: 'clients', label: 'Comercial · Clientes' },
-  { path: '/app/documents', profile: 'documents', label: 'Operacional · Documentos' },
-  { path: '/app/finance/expenses', profile: 'finance', label: 'Financeira · Despesas' },
-  { path: '/app/reports', profile: 'dashboard', label: 'Relatórios' },
-  { path: '/app/alerts', profile: 'dashboard', label: 'Alertas' },
-  { path: '/app/billing', profile: 'billing-empty', label: 'Faturamento' },
-  { path: '/app/suppliers', profile: 'suppliers', label: 'Suprimentos · Fornecedores' },
+  { path: '/app/documents', profile: 'documents', label: 'Operacional · Documentos', filters: true },
+  { path: '/app/finance/expenses', profile: 'finance', label: 'Financeira · Despesas', filters: true },
+  { path: '/app/reports', profile: 'dashboard', label: 'Relatórios', filters: true },
+  { path: '/app/alerts', profile: 'dashboard', label: 'Alertas', filters: true },
+  { path: '/app/billing', profile: 'billing-empty', label: 'Faturamento', filters: true },
+  { path: '/app/suppliers', profile: 'suppliers', label: 'Suprimentos · Fornecedores', filters: true },
   { path: '/app/inventory', profile: 'inventory', label: 'Estoque' },
   { path: '/app/proposals', profile: 'commercial', label: 'Comercial · Propostas' },
   { path: '/app/work-inbox', profile: 'dashboard', label: 'WORKBENCH · Central de trabalho' },
@@ -54,6 +54,7 @@ async function measure(page: Page) {
     const table = document.querySelector('table');
     const rows = Array.from(document.querySelectorAll('tbody tr'));
     const filtersBar =
+      document.querySelector('[data-testid="filters-bar"]') ??
       document.querySelector('[aria-label="Filtros da lista"]') ??
       document.querySelector('[aria-label="Filtros do relatório"]') ??
       document.querySelector('[aria-label="Filtros de alertas"]') ??
@@ -166,6 +167,9 @@ test.describe('evidencia visual medida por dominio', () => {
       expect(m.bodyText, `${route.label}: sem enum cru conhecido`).not.toMatch(FORBIDDEN_RAW_ENUMS);
 
       // --- filtros compactos (nao o card gigante) -----------------------------------
+      if (route.filters) {
+        expect(m.filtersHeight, `${route.label}: a barra de filtros precisa existir`).not.toBeNull();
+      }
       if (m.filtersHeight !== null) {
         expect(
           m.filtersHeight,

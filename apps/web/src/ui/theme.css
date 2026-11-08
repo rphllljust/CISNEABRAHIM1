@@ -1670,6 +1670,31 @@
   padding: 0.5rem 0.75rem;
 }
 
+/*
+ * FILTROS EM UMA LINHA ATE 1023px. No mobile (358px) cada campo rotulado (>= 280px) ocupa a largura
+ * inteira e a barra quebrava em 2-4 linhas (108-154px); no tablet (768px) Relatorios quebrava em 2
+ * (78px). A barra mantem UMA linha e rola na horizontal quando nao cabe; o contrato de
+ * densidade (<= 72px) vale em todos os viewports.
+ */
+@media (max-width: 1023px) {
+  .cisne-filter-scroll {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .cisne-filter-scroll > *,
+  .cisne-filter-scroll > form > * {
+    flex: 0 0 auto;
+  }
+
+  /* Paginas que embrulham os campos em <form> (ex.: Despesas) mantem a mesma linha unica. */
+  .cisne-filter-scroll > form {
+    flex-wrap: nowrap;
+  }
+}
+
 .cisne-query-deck {
   /* Permite que mensagens e popovers de lookup sejam visiveis alem da faixa de filtros. */
   overflow: visible;

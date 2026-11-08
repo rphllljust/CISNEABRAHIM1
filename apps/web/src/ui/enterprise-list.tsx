@@ -492,8 +492,8 @@ export function WorklistFilterBar({
   notice?: ReactNode;
 }) {
   return (
-    <section aria-label="Filtros da lista">
-      <div className="cisne-filter-surface cisne-worklist-filterbar">
+    <section aria-label="Filtros da lista" data-testid="filters-bar">
+      <div className="cisne-filter-surface cisne-worklist-filterbar cisne-filter-scroll">
         {children}
         <span className="hidden min-w-6 flex-1 sm:block" aria-hidden="true" />
         {meta ? <span className="cisne-type-helper ml-auto tabular-nums">{meta}</span> : null}
