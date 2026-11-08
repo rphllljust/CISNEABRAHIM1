@@ -1,0 +1,50 @@
+name: Visual Login Baseline Candidate (pinned, isolated)
+on:
+  push:
+    branches:
+      - ci/visual-baseline-login-20261108
+permissions:
+  contents: write
+jobs:
+  login-baseline:
+    if: github.event.head_commit.message != 'ci(visual-login): candidate baseline generated in pinned image'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/ci/visual-runtime-verify.mjs
+      - name: Preserve old login baselines for side-by-side inspection
+        run: mkdir -p artifacts/visual-login/before && cp apps/web/e2e/visual/login.visual.spec.ts-snapshots/*.png artifacts/visual-login/before/
+      - name: Generate ONLY login baselines (one spec, all declared viewports)
+        run: pnpm --filter @cisne/web exec playwright test login.visual.spec.ts --workers=1 --retries=0 --update-snapshots
+        env:
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+      - name: Preserve proposed login baselines for visual review
+        run: mkdir -p artifacts/visual-login/after && cp apps/web/e2e/visual/login.visual.spec.ts-snapshots/*.png artifacts/visual-login/after/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: visual-login-before-after-${{ github.run_id }}
+          path: artifacts/visual-login
+          retention-days: 7
+      - name: Commit baseline candidate to ISOLATED branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/web/e2e/visual/login.visual.spec.ts-snapshots/
+          test -n "$(git diff --cached --name-only)"
+          git diff --cached --name-only | grep -Ev '^apps/web/e2e/visual/login.visual.spec.ts-snapshots/.*\.png$' && exit 1 || true
+          git commit -m 'ci(visual-login): candidate baseline generated in pinned image'
+          git push origin HEAD:ci/visual-baseline-login-20261108
