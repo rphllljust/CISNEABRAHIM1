@@ -26,7 +26,7 @@ type Route = { path: string; profile: ApiMockProfile; label: string; filters?: t
 /** Uma rota por dominio do sidebar, exatamente como pedido no aceite. */
 const ROUTES: Route[] = [
   { path: '/app/clients', profile: 'clients', label: 'Comercial · Clientes' },
-  { path: '/app/documents', profile: 'documents', label: 'Operacional · Documentos', filters: true },
+  { path: '/app/documents', profile: 'documents', label: 'Operacional · Documentos' },
   { path: '/app/finance/expenses', profile: 'finance', label: 'Financeira · Despesas', filters: true },
   { path: '/app/reports', profile: 'dashboard', label: 'Relatórios', filters: true },
   { path: '/app/alerts', profile: 'dashboard', label: 'Alertas', filters: true },
@@ -169,6 +169,28 @@ test.describe('evidencia visual medida por dominio', () => {
       // --- filtros compactos (nao o card gigante) -----------------------------------
       if (route.filters) {
         expect(m.filtersHeight, `${route.label}: a barra de filtros precisa existir`).not.toBeNull();
+
+        // Barra em linha unica que rola: TODO controle precisa continuar ALCANCAVEL (rolar ate ele
+        // o traz para o viewport) e nenhum popover/listbox posicionado pode viver dentro da barra,
+        // porque `overflow-x:auto` o recortaria.
+        const bar = page.locator('[data-testid="filters-bar"]').first();
+        const controls = bar.locator('input:visible, select:visible, button:visible');
+        for (let i = 0; i < (await controls.count()); i += 1) {
+          await controls.nth(i).scrollIntoViewIfNeeded();
+          await expect(controls.nth(i), `${route.label}: controle ${i} da barra alcançável`).toBeInViewport();
+        }
+        const clippable = await bar.evaluate(
+          (el) =>
+            Array.from(el.querySelectorAll('*')).filter((n) => {
+              const position = getComputedStyle(n).position;
+              return (
+                position === 'absolute' ||
+                position === 'fixed' ||
+                n.matches('[role="listbox"], [role="menu"], [data-popover]')
+              );
+            }).length,
+        );
+        expect(clippable, `${route.label}: sem popover posicionado dentro da barra (seria recortado)`).toBe(0);
       }
       if (m.filtersHeight !== null) {
         expect(
