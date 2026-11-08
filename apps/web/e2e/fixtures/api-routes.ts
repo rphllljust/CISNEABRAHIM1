@@ -14,6 +14,10 @@ import { handleInventoryApiRoute } from './inventory-api-routes';
 import { handleMeasurementApiRoute } from './measurement-api-routes';
 import { handleProcurementApiRoute } from './procurement-api-routes';
 import { handleSuppliersApiRoute } from './suppliers-api-routes';
+import {
+  COMMERCIAL_PROPOSALS_LIST_SNAPSHOT,
+  COMMERCIAL_PURCHASE_ORDERS_LIST_SNAPSHOT,
+} from './commercial-snapshots';
 
 export type ApiMockProfile =
   | 'shell'
@@ -333,6 +337,22 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
       completedAt: '2099-12-31T23:59:59.000Z',
       downloadReady: false,
     });
+    return;
+  }
+
+  // Commercial visual flows must use the operational units already present in their
+  // deterministic proposal/PO snapshots. The generic service-request fallback returned
+  // { items: [] } for this route, falsely rendering "Nenhuma unidade autorizada".
+  if (
+    context.profile === 'commercial' &&
+    pathname === '/api/v1/requests/service-requests/operational-units' &&
+    method === 'GET'
+  ) {
+    const ids = [
+      ...COMMERCIAL_PROPOSALS_LIST_SNAPSHOT.items.map((item) => item.unitId),
+      ...COMMERCIAL_PURCHASE_ORDERS_LIST_SNAPSHOT.items.map((item) => item.unitId),
+    ];
+    await fulfillJson(route, { items: [...new Set(ids)] });
     return;
   }
 

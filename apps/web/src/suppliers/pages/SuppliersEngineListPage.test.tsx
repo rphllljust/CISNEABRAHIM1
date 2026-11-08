@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { createSuppliersFetchMock } from '../../test/suppliers-fetch-mock';
 import { renderWithProviders } from '../../test/render-with-providers';
-import { SuppliersEngineListPage } from './SuppliersEngineListPage';
+import { savedSupplierStatusFilter, SuppliersEngineListPage } from './SuppliersEngineListPage';
 
 /**
  * WORKLIST DE FORNECEDORES — o que esta suíte protege.
@@ -35,6 +35,7 @@ describe('SuppliersEngineListPage', () => {
     });
 
     expect(screen.getByRole('table', { name: 'Lista de fornecedores' })).toBeInTheDocument();
+    expect(screen.getAllByText('Nenhuma visão salva.')).toHaveLength(1);
     // `total` do contrato é a contagem do conjunto filtrado: a faixa situa o operador no todo.
     expect(screen.getByText(/1–2 de 2/)).toBeInTheDocument();
     // A referência humana aparece; o UUID não.
@@ -105,6 +106,7 @@ describe('SuppliersEngineListPage', () => {
       ).toBeInTheDocument();
     });
     expect(screen.getAllByRole('button', { name: 'Limpar filtros' })).toHaveLength(2);
+    expect(screen.getByText('0 de 0')).toBeInTheDocument();
   });
 
   it('shows the exception and the next action in human language, never the raw enum', async () => {
@@ -186,5 +188,15 @@ describe('SuppliersEngineListPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/não tem permissão/i);
     });
+  });
+});
+
+
+describe('Compatibilidade de filtros salvos de Fornecedores', () => {
+  it('restaura a chave atual, a legada e prioriza a atual', () => {
+    expect(savedSupplierStatusFilter({statusFilter:'INACTIVE'})).toBe('INACTIVE');
+    expect(savedSupplierStatusFilter({filterStatus:'ACTIVE'})).toBe('ACTIVE');
+    expect(savedSupplierStatusFilter({statusFilter:'INACTIVE',filterStatus:'ACTIVE'})).toBe('INACTIVE');
+    expect(savedSupplierStatusFilter({})).toBe('');
   });
 });
