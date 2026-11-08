@@ -1,4 +1,5 @@
 import type { Route } from '@playwright/test';
+import { COMMERCIAL_CONTRACTS_VISUAL_SNAPSHOT } from './commercial-contracts-snapshots';
 import {
   COMMERCIAL_CLIENTS_SNAPSHOT,
   COMMERCIAL_PROPOSAL_DETAIL_SNAPSHOT,
@@ -60,6 +61,36 @@ export async function handleCommercialApiRoute(route: Route): Promise<boolean> {
 
   if (isClientRoute) {
     await fulfillJson(route, { code: 'CLIENT_NOT_FOUND', message: 'Not found.' }, 404);
+    return true;
+  }
+
+  // A worklist Contratos também faz parte do perfil comercial.
+  // Sem a rota de lista, a fixture respondia 404 e a prova de filtros
+  // media somente o estado de erro, não a interface da carteira.
+  if (pathname === '/api/v1/commercial/contracts' && method === 'GET') {
+    const limit = Math.max(1, Number(url.searchParams.get('limit') ?? '20'));
+    const offset = Math.max(0, Number(url.searchParams.get('offset') ?? '0'));
+    const clientId = url.searchParams.get('clientId');
+    const unitId = url.searchParams.get('unitId');
+    const status = url.searchParams.get('status');
+    const q = url.searchParams.get('q')?.trim().toLowerCase();
+    const effectiveFrom = url.searchParams.get('effectiveFrom');
+    const effectiveTo = url.searchParams.get('effectiveTo');
+    const items = COMMERCIAL_CONTRACTS_VISUAL_SNAPSHOT.filter((item) =>
+      (!clientId || item.clientId === clientId) &&
+      (!unitId || item.unitId === unitId) &&
+      (!status || item.status === status) &&
+      (!q || [item.contractNumber, item.internalCode, item.title].some((value) => value.toLowerCase().includes(q))) &&
+      (!effectiveFrom || !item.validTo || item.validTo >= effectiveFrom) &&
+      (!effectiveTo || item.validFrom <= effectiveTo)
+    );
+    await fulfillJson(route, {
+      items: items.slice(offset, offset + limit),
+      limit,
+      offset,
+      total: items.length,
+      hasMore: offset + limit < items.length,
+    });
     return true;
   }
 

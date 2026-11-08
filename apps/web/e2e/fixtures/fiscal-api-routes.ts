@@ -76,6 +76,38 @@ function taxRule() {
   };
 }
 
+/** The list and detail endpoints have distinct authoritative response schemas.
+ * The old fixture returned a list item to GET /rules/:id, without `versions`.
+ * TaxRuleDetail therefore threw on `state.data.versions.length` and never drew
+ * its heading in mobile, tablet or desktop. Use the already declared published
+ * version; do not fabricate an unpublished historical version. */
+function taxRuleDetail() {
+  const item = taxRule();
+  const published = item.publishedVersion;
+  return {
+    id: item.id,
+    unitId: item.unitId,
+    code: item.code,
+    name: item.name,
+    status: item.status,
+    versions: published
+      ? [{
+          id: published.id,
+          taxRuleId: item.id,
+          versionNumber: published.versionNumber,
+          status: 'PUBLISHED',
+          calculationMethod: published.calculationMethod,
+          roundingMode: 'HALF_UP',
+          rate: published.rate,
+          fixedAmount: published.fixedAmount,
+          sourceReference: published.sourceReference,
+          effectiveFrom: published.effectiveFrom,
+          effectiveTo: published.effectiveTo,
+        }]
+      : [],
+  };
+}
+
 function taxAssessment() {
   return {
     id: ASSESSMENT_ID,
@@ -225,7 +257,7 @@ export async function handleFiscalApiRoute(route: Route): Promise<boolean> {
     return true;
   }
   if (pathname === `/api/v1/fiscal/tax/rules/${RULE_ID}` && method === 'GET') {
-    await fulfillJson(route, taxRule());
+    await fulfillJson(route, taxRuleDetail());
     return true;
   }
 
@@ -325,7 +357,7 @@ export async function installFiscalMocks(page: Page): Promise<void> {
           refreshToken: 'visual-refresh-token',
           tokenType: 'Bearer',
           expiresIn: 900,
-          session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+          session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
         });
         return;
       }
@@ -341,7 +373,7 @@ export async function installFiscalMocks(page: Page): Promise<void> {
       if (hasBearerToken(route)) {
         await fulfillJson(route, {
           identityId: MOCK_IDENTITY_ID,
-          session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+          session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
         });
         return;
       }
@@ -374,7 +406,7 @@ export async function installFiscalMocks(page: Page): Promise<void> {
         refreshToken: 'visual-refresh-token-2',
         tokenType: 'Bearer',
         expiresIn: 900,
-        session: { id: MOCK_SESSION_ID, expiresAt: '2026-08-29T12:00:00.000Z', status: 'active' },
+        session: { id: MOCK_SESSION_ID, expiresAt: '2099-12-31T23:59:59.000Z', status: 'active' },
       });
       return;
     }
@@ -422,8 +454,19 @@ export async function prepareFiscalSession(page: Page): Promise<void> {
   await page.goto('/login');
   await page.getByLabel(/^usuário/i).fill(TEST_LOGIN);
   await page.getByLabel(/^senha/i).fill(TEST_PASSWORD);
-  await page.getByRole('button', { name: /^entrar/i }).click();
-  await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible();
+  // Esta fixture é de domínio: não vincular o aceite de autenticação ao
+  // dashboard, cujo endpoint não é servido por esta fixture. Validar o
+  // contrato real de sessão (200) e o acesso à rota protegida; os testes
+  // seguintes validam a worklist/objeto de Contabilidade ou Fiscal.
+  await Promise.all([
+    page.waitForResponse((response) =>
+      response.url().includes('/api/v1/auth/session') &&
+      response.request().method() === 'GET' &&
+      response.status() === 200,
+    ),
+    page.getByRole('button', { name: /^entrar/i }).click(),
+  ]);
+  await expect(page).toHaveURL(/\/app(?:\/|$)/);
 }
 
 export async function stabilizeFiscalPage(page: Page): Promise<void> {
