@@ -23,6 +23,8 @@ export default defineConfig({
     timezoneId: 'America/Porto_Velho',
     trace: 'on-first-retry',
     colorScheme: 'light',
+    deviceScaleFactor: 1,
+    headless: true,
   },
   projects: [
     {
