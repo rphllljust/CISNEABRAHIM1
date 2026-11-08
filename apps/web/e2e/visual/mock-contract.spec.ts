@@ -27,10 +27,8 @@ const ENTRIES: Entry[] = [
   { key: 'inventory', profile: 'inventory', path: '/app/inventory' },
   { key: 'proposals', profile: 'commercial', path: '/app/proposals' },
   { key: 'work-inbox', profile: 'dashboard', path: '/app/work-inbox' },
-  // TODO(#284): adicionar { profile: 'accounting', path: '/app/accounting/journals' } e
-  // '/app/accounting/closing' quando o mock de /dashboard/executive da Contabilidade estiver na main.
-  // Sem ele o login da Contabilidade cai em "Erro inesperado" e `prepareAccountingSession` falha:
-  // e exatamente o 404 que este teste existe para pegar.
+  { key: 'accounting-journals', profile: 'accounting', path: '/app/accounting/journals' },
+  { key: 'accounting-closing', profile: 'accounting', path: '/app/accounting/closing' },
 ];
 
 /**
