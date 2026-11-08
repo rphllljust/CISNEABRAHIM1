@@ -57,7 +57,12 @@ test.describe('purchase orders visual regression', () => {
     await expect(page.getByRole('button', { name: 'Mais ações' })).toBeVisible();
     // 5) conteudo principal e continuidade: itens + cadeia relacionada do pedido.
     await expect(page.getByRole('table', { name: 'Itens do pedido' })).toBeVisible();
-    await expect(page.getByText('21/08/2026')).toBeVisible();
+    // Data de Emissão é campo de negócio específico; a mesma data pode reaparecer no histórico.
+    await expect(
+      page.locator('[data-layout="object-identity"] dl > div')
+        .filter({ has: page.locator('dt', { hasText: /^Emissão$/ }) })
+        .locator('dd'),
+    ).toHaveText('21/08/2026');
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
@@ -76,6 +81,21 @@ test.describe('purchase orders visual regression', () => {
     await expect(
       page.getByRole('button', { name: 'Registrar pedido' }),
     ).toBeVisible();
+    // A fixture deve publicar unidades operacionais já presentes no domínio comercial.
+    // Um retorno vazio na rota compartilhada impede a criação, mesmo com cliente válido.
+    const unitSelect = page.getByRole('combobox', { name: /unidade operacional/i });
+    await expect(unitSelect).toBeEnabled();
+    await expect(unitSelect.locator('option[value="PORTO-VELHO"]')).toHaveCount(1);
+
+    // The secondary Cancelar link must remain legible on its white background.
+    const cancelLink = page.getByRole('link', { name: 'Cancelar' });
+    await expect(cancelLink).toBeVisible();
+    const { color, backgroundColor } = await cancelLink.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { color: style.color, backgroundColor: style.backgroundColor };
+    });
+    expect(color, 'Cancelar deve contrastar com o fundo do botão secundário').not.toBe(backgroundColor);
+
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
