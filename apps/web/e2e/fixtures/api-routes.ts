@@ -100,6 +100,17 @@ const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string
    * OFERECE. Nenhuma permissão de escrita além das que a própria tela publica: o
    * perfil retrata o operador que pode conferir e decidir, não um administrador.
    */
+  /**
+   * DOCUMENTOS — perfil do operador que consulta e baixa evidencias. Sem nenhuma permissao,
+   * `session.can('documents:document:list')` e falso e a tela exibe "Voce nao tem permissao para
+   * listar documentos." em vez da tabela: a suite visual media o estado NEGADO, nao a lista.
+   * Somente leitura + download; criar/versionar nao sao oferecidos por este perfil.
+   */
+  documents: [
+    'documents:document:list',
+    'documents:document:read',
+    'documents:document:download',
+  ],
   measurement: [
     'measurements:measurement:create',
     'measurements:measurement:read',
