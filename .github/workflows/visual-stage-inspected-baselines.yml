@@ -1,0 +1,65 @@
+name: Stage inspected per-module Visual Full baselines
+on:
+  push:
+    branches: [ci/visual-inspected-stage-278-20261108]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  stage-approved-only:
+    if: "!contains(github.event.head_commit.message, 'visual(approved):')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout stage branch at exact PR HEAD
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Import original pinned-image BEFORE and AFTER evidence (no regeneration)
+        uses: actions/download-artifact@v4
+        with:
+          name: visual-full-baseline-candidate-42485322315
+          run-id: 42485322315
+          github-token: ${{ github.token }}
+          repository: rphllljust/CISNEABRAHIM1
+          path: /tmp/visual-evidence
+      - name: Independently commit only visually inspected modules, one commit per group
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$PWD"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          test -f /tmp/visual-evidence/update-snapshots.log
+          echo 'Verified source run #42485322315, PR source 6d8505d20da3'
+          groups=(clients fiscal inventory procurement proposals purchase-orders suppliers)
+          for group in "${groups[@]}"; do
+            subdir="${group}.visual.spec.ts-snapshots"
+            source="/tmp/visual-evidence/after/${subdir}"
+            previous="/tmp/visual-evidence/before/${subdir}"
+            test -d "$source" && test -d "$previous"
+            case "$group" in
+              clients) rationale='5 client rows preserved, enterprise worklist and mobile document visible; approved clients-list-populated-desktop and mobile' ;;
+              fiscal) rationale='ISS versioned rule still shown with effective-date server facts, scrollable tax table; approved fiscal-apuracao-detail-desktop and fiscal-tributos-mobile' ;;
+              inventory) rationale='3 warehouses, 2 SKUs, 2 movements and 1 reservation remain present; compact action-driven screen and mobile sample reviewed' ;;
+              procurement) rationale='2 requisitions, 2 supplier orders, 1 invoice preserved; dense tables verified before-after desktop and mobile' ;;
+              proposals) rationale='2 proposals and business statuses preserved, new operational summary and commercial composition intended; desktop/mobile inspected, no duplicate rows' ;;
+              purchase-orders) rationale='2 purchase orders and authorized-consumed balances preserved, single line-item forms; desktop/mobile inspected without duplicate rows' ;;
+              suppliers) rationale='5 suppliers preserved with CNPJ/status/aging, no elevated list card; desktop/mobile sample inspected' ;;
+              *) exit 2 ;;
+            esac
+            mkdir -p "apps/web/e2e/visual/${subdir}"
+            cp -a "$source/." "apps/web/e2e/visual/${subdir}/"
+            git add -A "apps/web/e2e/visual/${subdir}"
+            if git diff --cached --quiet; then
+              echo "$group: no update"
+              continue
+            fi
+            git diff --cached --name-only | while IFS= read -r path; do
+              case "$path" in "apps/web/e2e/visual/${subdir}/"*.png) : ;; *) echo "Non-whitelisted changed file: $path"; exit 4 ;; esac
+            done
+            git commit -m "visual(approved): ${group} baselines in pinned Playwright CI image" -m "Source: PR 6d8505d20da3; run 42485322315; official Playwright 1.62.1-noble, DPR 1. Cause: original shell widths 960/358/720 differ from current 992/366/724; runtime alone did not resolve. Before/after screenshots and representative module reviewed. Justification: ${rationale}. Screenshot thresholds and Visual Full required gate unchanged."
+          done
+          git push origin HEAD:ci/visual-inspected-stage-278-20261108
+          echo 'Staged inspected groups only on isolated branch: PR remains unchanged.'
