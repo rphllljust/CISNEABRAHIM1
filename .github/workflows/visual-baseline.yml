@@ -58,14 +58,14 @@ jobs:
           set -euo pipefail
           files=""
           for s in $SPECS; do files="$files e2e/visual/$s.spec.ts"; done
-          # exclude_specs "spec:08,10,11" -> --grep-invert '^(08|10|11) ' (titulos comecam com NN)
+          # exclude_specs "spec:08,10,11" -> --grep-invert " (08|10|11) (?!rotas)" (titulos comecam com NN)
           ids=""
           for entry in $EXCLUDE; do
             list="${entry#*:}"
             ids="${ids:+$ids|}${list//,/|}"
           done
           grep_args=()
-          if [ -n "$ids" ]; then grep_args=(--grep-invert "^($ids) "); fi
+          if [ -n "$ids" ]; then grep_args=(--grep-invert " ($ids) (?!rotas)"); fi
           cd apps/web
           pnpm exec playwright test $files "${grep_args[@]}" --update-snapshots --retries=0
       - name: Abrir PR draft com os PNGs
