@@ -1,5 +1,6 @@
 import type { Route } from '@playwright/test';
 import { SUPPLIERS_LIST_VISUAL_SNAPSHOT } from './suppliers-snapshots';
+import { SUPPLIERS_META } from '../../src/test/suppliers-meta';
 
 type JsonResponse = {
   status: number;
@@ -57,6 +58,17 @@ export async function handleSuppliersApiRoute(route: Route): Promise<boolean> {
   const request = route.request();
   const { pathname, searchParams } = new URL(request.url());
   const method = request.method();
+
+  // DynamicList consumes the same real metadata shape as the unit tests.
+  // Missing this endpoint made all three viewports stay at "Carregando…".
+  if (pathname === '/api/v1/meta/suppliers' && method === 'GET') {
+    if (!hasBearerToken(route)) {
+      await fulfillJson(route, { error: { code: 'META_UNAUTHORIZED' } }, 401);
+    } else {
+      await fulfillJson(route, SUPPLIERS_META);
+    }
+    return true;
+  }
 
   if (!pathname.startsWith('/api/v1/suppliers')) {
     return false;

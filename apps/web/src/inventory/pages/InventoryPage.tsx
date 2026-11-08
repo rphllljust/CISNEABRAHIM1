@@ -289,7 +289,7 @@ export function InventoryPage() {
       >
         <WorklistField label="Buscar" htmlFor="inventory-search" grow>
           <form
-            className="flex gap-2"
+            className="flex w-full min-w-0 items-center gap-2"
             onSubmit={(event) => {
               event.preventDefault();
               setAppliedTerm(term.trim());
@@ -298,12 +298,12 @@ export function InventoryPage() {
             <input
               id="inventory-search"
               type="search"
-              className={worklistSelectClass}
+              className={`${worklistSelectClass} min-w-0 flex-1`}
               value={term}
               onChange={(event) => setTerm(event.target.value)}
               placeholder="Código, nome, SKU ou descrição"
             />
-            <button type="submit" className="button-secondary">
+            <button type="submit" className="button-secondary shrink-0">
               Buscar
             </button>
           </form>
