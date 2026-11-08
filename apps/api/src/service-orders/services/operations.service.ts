@@ -91,6 +91,7 @@ import {
 } from './service-orders-access.errors';
 import { ServiceOrderMetadataService } from './service-order-metadata.service';
 import { assertValidServiceOrderId } from './service-orders-input-resolution';
+import { multiplyDecimalStrings } from '../../platform/kernel/decimal-math';
 import {
   buildCompletionFacts,
   buildDispatchFacts,
@@ -1737,14 +1738,9 @@ function findResourceLabel(
   return null;
 }
 
-/** Multiplicação decimal em string, sem ponto flutuante. */
+/** Multiplicação decimal exata em string (BigInt), 4 casas, half-up. `null` se inválida. */
 function multiplyDecimal(left: string, right: string): string | null {
-  const a = Number(left);
-  const b = Number(right);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) {
-    return null;
-  }
-  return (Math.round(a * b * 10_000) / 10_000).toFixed(4);
+  return multiplyDecimalStrings(left, right, 4);
 }
 
 function readTimelineDetail(detail: Record<string, unknown>): string | null {
