@@ -1,0 +1,78 @@
+name: Visual Full — manual baseline candidate (no commits)
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/visual-full-baseline-candidate-278-20261108]
+permissions:
+  contents: read
+jobs:
+  capture-candidate:
+    name: Full Playwright snapshot candidate — pinned image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - name: Checkout exact diagnostic branch
+        uses: actions/checkout@v7
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install locked packages
+        run: pnpm install --frozen-lockfile --prefer-offline
+      - name: Verify identical runtime
+        run: node scripts/ci/visual-runtime-verify.mjs
+      - name: Keep a copy of EVERY committed baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/visual-candidate/before
+          find apps/web/e2e/visual -maxdepth 1 -type d -name '*-snapshots' -exec cp -a {} artifacts/visual-candidate/before/ \;
+      - name: Generate visual baselines only in runner workspace (DO NOT COMMIT)
+        id: capture
+        continue-on-error: true
+        shell: bash
+        env:
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+        run: |
+          set -o pipefail
+          pnpm --filter @cisne/web exec playwright test --update-snapshots --workers=4 --retries=0 2>&1 | tee artifacts/visual-candidate/update-snapshots.log
+      - name: Capture generated candidates without modifying repository history
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/visual-candidate/after
+          find apps/web/e2e/visual -maxdepth 1 -type d -name '*-snapshots' -exec cp -a {} artifacts/visual-candidate/after/ \;
+          git status --porcelain > artifacts/visual-candidate/changes.txt
+          find artifacts/visual-candidate/before artifacts/visual-candidate/after -name '*.png' -print | sort > artifacts/visual-candidate/snapshot-manifest.txt
+          printf 'captured_sha=%s\nimage=mcr.microsoft.com/playwright:v1.62.1-noble\n' "$GITHUB_SHA" > artifacts/visual-candidate/environment.txt
+          echo "Changed baseline files:"
+          cat artifacts/visual-candidate/changes.txt
+          echo "No git add, commit or push is executed by this workflow."
+      - name: Upload BEFORE and AFTER baseline images and Playwright log
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-full-baseline-candidate-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 4
+          path: |
+            artifacts/visual-candidate
+      - name: Explicitly publish Playwright outcome
+        if: always()
+        shell: bash
+        env:
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+        run: |
+          echo "Playwright snapshot generation: $CAPTURE_OUTCOME"
+          if [[ "$CAPTURE_OUTCOME" != success ]]; then
+            echo "::error::Some non-image tests failed; candidates are for review only."
+            exit 1
+          fi
