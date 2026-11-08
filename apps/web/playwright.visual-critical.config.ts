@@ -56,6 +56,8 @@ export default defineConfig({
     timezoneId: 'America/Porto_Velho',
     trace: 'on-first-retry',
     colorScheme: 'light',
+    deviceScaleFactor: 1,
+    headless: true,
   },
   /*
    * UM viewport apenas (desktop, 1280x720).
