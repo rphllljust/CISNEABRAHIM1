@@ -76,6 +76,38 @@ function taxRule() {
   };
 }
 
+/** The list and detail endpoints have distinct authoritative response schemas.
+ * The old fixture returned a list item to GET /rules/:id, without `versions`.
+ * TaxRuleDetail therefore threw on `state.data.versions.length` and never drew
+ * its heading in mobile, tablet or desktop. Use the already declared published
+ * version; do not fabricate an unpublished historical version. */
+function taxRuleDetail() {
+  const item = taxRule();
+  const published = item.publishedVersion;
+  return {
+    id: item.id,
+    unitId: item.unitId,
+    code: item.code,
+    name: item.name,
+    status: item.status,
+    versions: published
+      ? [{
+          id: published.id,
+          taxRuleId: item.id,
+          versionNumber: published.versionNumber,
+          status: 'PUBLISHED',
+          calculationMethod: published.calculationMethod,
+          roundingMode: 'HALF_UP',
+          rate: published.rate,
+          fixedAmount: published.fixedAmount,
+          sourceReference: published.sourceReference,
+          effectiveFrom: published.effectiveFrom,
+          effectiveTo: published.effectiveTo,
+        }]
+      : [],
+  };
+}
+
 function taxAssessment() {
   return {
     id: ASSESSMENT_ID,
@@ -225,7 +257,7 @@ export async function handleFiscalApiRoute(route: Route): Promise<boolean> {
     return true;
   }
   if (pathname === `/api/v1/fiscal/tax/rules/${RULE_ID}` && method === 'GET') {
-    await fulfillJson(route, taxRule());
+    await fulfillJson(route, taxRuleDetail());
     return true;
   }
 
