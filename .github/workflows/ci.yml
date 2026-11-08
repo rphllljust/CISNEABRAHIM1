@@ -241,6 +241,8 @@ jobs:
   # Nenhum `continue-on-error`, nenhum `|| true`, nenhum retry, nenhum timeout inflado.
   integration-executor:
     name: Integration
+    needs: detect-change-scope
+    if: ${{ !cancelled() && needs.detect-change-scope.outputs.docs_only != 'true' }}
     # ─────────────────────────────────────────────────────────────────────────────────────────
     # EXECUTION PLANE = GITHUB-HOSTED (decisao explicita, nao fallback)
     # ─────────────────────────────────────────────────────────────────────────────────────────
@@ -441,6 +443,8 @@ jobs:
 
   api-e2e:
     name: API E2E
+    needs: detect-change-scope
+    if: ${{ !cancelled() && needs.detect-change-scope.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     # PAR DO `database-and-integration`, com BANCO PROPRIO. Nenhum dos dois espera o outro.
     #
@@ -492,6 +496,8 @@ jobs:
 
   build-release:
     name: Build / artifacts
+    needs: detect-change-scope
+    if: ${{ !cancelled() && needs.detect-change-scope.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     # SEM `needs`. O pacote imutavel (artefato + manifest + digest) NAO depende do resultado de
     # integracao ou de unidade — ele empacota o MESMO commit, e a promocao so acontece se
@@ -591,6 +597,7 @@ jobs:
     # errado como "com risco" apenas custa tempo.
     outputs:
       visual_risk: ${{ steps.scope.outputs.visual_risk }}
+      docs_only: ${{ steps.scope.outputs.docs_only }}
       changed_files: ${{ steps.scope.outputs.changed_files }}
     steps:
       - name: Checkout
@@ -632,6 +639,7 @@ jobs:
           if [ "$range" = "__UNKNOWN__" ]; then
             echo "Nao foi possivel determinar o diff (evento=$EVENT_NAME). Tratando como risco visual."
             echo "visual_risk=true" >> "$GITHUB_OUTPUT"
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
             echo "changed_files=unknown" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -651,10 +659,28 @@ jobs:
             echo "visual_risk=false" >> "$GITHUB_OUTPUT"
             echo "Nenhuma superficie visual tocada -> visual-full roda em modo informativo."
           fi
+
+          # SOMENTE-DOCUMENTACAO (so em pull_request; push na main SEMPRE roda tudo).
+          # Allowlist CONSERVADORA: README/AGENTS na raiz e markdown de pastas de docs que NENHUM
+          # codigo ou teste le. Pastas lidas por codigo (docs/19-operations, 16-testing,
+          # 01-foundation, 13-data-model, 00-governance, ...) NAO entram: mexer nelas continua
+          # rodando a suite completa. Qualquer arquivo fora da allowlist => docs_only=false.
+          docs_only=false
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$count" -gt 0 ]; then
+            doc_allow='^(README\.md|AGENTS\.md|docs/(03-requirements|04-quality-attributes|06-domain-boundaries|07-domain-behavior|08-state-machines|11-technology|12-domain-model|14-transaction-design|15-security|17-bootstrap|18-database-foundation|templates|inputs)/.*\.md)$'
+            non_doc="$(printf '%s\n' "$files" | grep -Ev "$doc_allow" || true)"
+            if [ -z "$non_doc" ]; then
+              docs_only=true
+              echo "PR somente de documentacao -> Integration, API E2E, Build e Visual critical nao rodam."
+            fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
           echo "changed_files=$count" >> "$GITHUB_OUTPUT"
 
   visual-critical:
     name: Visual critical
+    needs: detect-change-scope
+    if: ${{ !cancelled() && needs.detect-change-scope.outputs.docs_only != 'true' }}
     runs-on: ubuntu-latest
     # GATE OBRIGATORIO E CURTO — entra no `release-ready`.
     #
@@ -905,6 +931,7 @@ jobs:
           VISUAL_CRITICAL: ${{ needs.visual-critical.result }}
           CHANGE_SCOPE: ${{ needs.detect-change-scope.result }}
           VISUAL_RISK: ${{ needs.detect-change-scope.outputs.visual_risk }}
+          DOCS_ONLY: ${{ needs.detect-change-scope.outputs.docs_only }}
           VISUAL_FULL: ${{ needs.visual-full.result }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
@@ -929,6 +956,15 @@ jobs:
             result="${pair##*:}"
             # FAIL-CLOSED: apenas `success` produz verde. `skipped`, `cancelled`, vazio e
             # `failure` reprovam todos.
+            # `skipped` so e aceito em PR validado como somente-documentacao, e so nestes 4 gates.
+            if [ "$result" = "skipped" ] && [ "$EVENT_NAME" = "pull_request" ] && [ "$DOCS_ONLY" = "true" ]; then
+              case "$name" in
+                integration-executor|api-e2e|build-release|visual-critical)
+                  echo "gate '$name' dispensado (PR somente de documentacao)"
+                  continue
+                  ;;
+              esac
+            fi
             if [ "$result" != "success" ]; then
               echo "::error::required gate '$name' concluded '$result' — release is NOT ready"
               failed=1
@@ -940,6 +976,10 @@ jobs:
           if [ "$EVENT_NAME" = "pull_request" ]; then
             if [ "$CHANGE_SCOPE" != "success" ]; then
               echo "::error::change-scope detector did not succeed ($CHANGE_SCOPE)"
+              failed=1
+            fi
+            if [ "$DOCS_ONLY" != "true" ] && [ "$DOCS_ONLY" != "false" ]; then
+              echo "::error::docs-only classifier did not publish true/false ($DOCS_ONLY)"
               failed=1
             fi
             if [ "$VISUAL_RISK" != "true" ] && [ "$VISUAL_RISK" != "false" ]; then
