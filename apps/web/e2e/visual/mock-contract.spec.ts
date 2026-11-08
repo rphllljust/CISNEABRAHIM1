@@ -33,14 +33,38 @@ const ENTRIES: Entry[] = [
   // e exatamente o 404 que este teste existe para pegar.
 ];
 
+/**
+ * SONDAS DO SHELL (declaradas, nao divida). `SURFACE_ENTRY_READS` (src/shell/surface-access.ts,
+ * contrato v10) e o mecanismo de AUTORIZACAO do menu: cada item pergunta ao backend REAL se a
+ * leitura de entrada da superficie e permitida. Essas rotas existem no backend; o 404 vem do mock e
+ * o shell le como "superficie indisponivel" (item oculto). Mudar o mock para 200 mostraria o menu
+ * inteiro em todos os screenshots; remover a sonda apagaria a regra de acesso. Por isso elas sao
+ * derivadas da FONTE e excluidas do ratchet — o que sobra no baseline e dado de pagina.
+ */
+const SHELL_PROBE_PATHS: ReadonlySet<string> = new Set(
+  [
+    ...readFileSync(
+      fileURLToPath(new URL('../../src/shell/surface-access.ts', import.meta.url)),
+      'utf8',
+    ).matchAll(/['`}](\/api\/v1\/[a-z0-9/_-]+)(?:[?'`$]|\/\$)/gi),
+  ].map((match) => match[1] as string),
+);
+
+const BACKOFFICE_PROBE_ID = '00000000-0000-4000-8000-000000000099';
 const BASELINE_PATH = fileURLToPath(new URL('../contracts/mock-404-baseline.json', import.meta.url));
 const normalize = (url: string): string =>
   new URL(url).pathname.replace(/[0-9a-f]{8}-[0-9a-f-]{27}/gi, ':id');
+const isShellProbe = (path: string): boolean => SHELL_PROBE_PATHS.has(path);
 
 async function collect404(page: Page, entry: Entry): Promise<string[]> {
   const missing = new Set<string>();
   page.on('response', (response) => {
-    if (response.status() === 404 && response.url().includes('/api/v1/')) {
+    // BACKOFFICE_PROBE_ID (src/financial-ui/enterprise-api.ts:176) = sonda de capability por 404/403.
+    if (
+      response.status() === 404 &&
+      response.url().includes('/api/v1/') &&
+      !response.url().includes(BACKOFFICE_PROBE_ID)
+    ) {
       missing.add(normalize(response.url()));
     }
   });
@@ -57,7 +81,7 @@ async function collect404(page: Page, entry: Entry): Promise<string[]> {
 test.describe('contrato de cobertura do mock (ratchet de 404)', () => {
   for (const entry of ENTRIES) {
     test(`${entry.key}: nenhum 404 novo em /api/v1`, async ({ page }) => {
-      const observed = await collect404(page, entry);
+      const observed = (await collect404(page, entry)).filter((path) => !isShellProbe(path));
       const allowed: Record<string, string[]> = JSON.parse(readFileSync(BASELINE_PATH, 'utf8'));
       if (process.env['UPDATE_MOCK_CONTRACT'] === '1') {
         // Cada teste regrava a SUA chave (workers reiniciam apos falha; nao ha estado compartilhado).
