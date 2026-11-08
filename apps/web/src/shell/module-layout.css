@@ -116,6 +116,13 @@
     cursor: pointer;
   }
 
+  /* An <a> using both button-link and button-secondary inherited white !important
+     from button-link, making "Cancelar" invisible against the white secondary surface.
+     Restore the secondary control's readable foreground without altering primary links. */
+  .cisne-app a.button-link.button-secondary {
+    color: var(--color-text-secondary) !important;
+  }
+
   .cisne-app .button-secondary:hover {
     background: var(--color-surface-sunken);
   }
