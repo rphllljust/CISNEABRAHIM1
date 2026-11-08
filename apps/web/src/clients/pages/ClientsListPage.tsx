@@ -1308,7 +1308,7 @@ export function ClientsListPage() {
                                 className="absolute top-1 bottom-1 left-0 w-[3px] bg-red-500"
                               />
                             ) : null}
-                            <span className="flex min-w-0 items-baseline gap-x-2">
+                            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                               {href ? (
                                 <Link
                                   to={href}
@@ -1334,7 +1334,7 @@ export function ClientsListPage() {
                                   {client.tradeName}
                                 </span>
                               ) : null}
-                              <span className="cisne-type-helper hidden shrink-0 font-mono tabular-nums lg:inline">
+                              <span className="cisne-type-helper shrink-0 font-mono tabular-nums">
                                 {formatCnpjDisplay(client.taxId)}
                               </span>
                             </span>
