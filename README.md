@@ -8,13 +8,11 @@ Repositório de governança e engenharia do **SISTEMA CISNE RONDÔNIA**, sistema
 PROJECT PHASE: IMPLEMENTATION (pré-produção / engenharia)
 FUNCTIONAL CODE: STARTED — domínio operacional implementado (API + web)
 ENGINEERING READINESS: READY (suítes automatizadas, UAT vertical, backup/DR, readiness gate)
-PRODUCTION READINESS: NO-GO — único blocker oficial: PILOT_OBSERVATION_WINDOW_NOT_COMPLETED
-GO-LIVE / HYPERCARE: BLOCKED (Prompts 93 e 94) até EXIT_READY do piloto (janela 14d; saída 13 set 2026)
 ```
 
 O monorepo contém backend NestJS (`@cisne/api`) e frontend React (`@cisne/web`) com módulos empresariais reais: clientes, solicitações, propostas, pedidos de compra, ordens de serviço, execução, medições, faturamento, documentos, autorização, auditoria e notificações. O SISTEMA CISNE RONDÔNIA é o sistema empresarial centralizado (SRC-004 / BR-042): não haverá conexão com ERP; ACL de ERP permanece desligada. Rastreio e demais canais não-ERP seguem desligados até confirmação.
 
-**Não** equivale a go-live em produção. Sign-off empresarial, RPO/RTO (DDP-016) e UAT humano (dois administradores) estão registrados em `readiness-evidence.json`. O gate de produção permanece **NO-GO** enquanto o piloto não completar a janela de observação e não houver autorização de exit.
+**Não** equivale a go-live em produção. Sign-off empresarial, RPO/RTO (DDP-016) e UAT humano (dois administradores) estão registrados em `readiness-evidence.json`.
 
 Documentação de execução local: [`docs/17-bootstrap/local-development.md`](docs/17-bootstrap/local-development.md).
 
@@ -30,7 +28,7 @@ O contexto empresarial preliminar inclui atividades como representação comerci
 
 ## Aviso
 
-Este repositório contém código funcional de domínio em desenvolvimento e validação de engenharia. **Produção/go-live permanece NO-GO** até blockers de governança resolvidos (ver `readiness-evidence.json`). Afirmar que o sistema está “em produção” ou “pronto para operação real” sem evidência autorizada é incorreto.
+Este repositório contém código funcional de domínio em desenvolvimento e validação de engenharia. Afirmar que o sistema está “em produção” ou “pronto para operação real” sem evidência autorizada é incorreto.
 
 O processo de prompts incrementais **não promete ausência total de erros**. Ele reduz risco por validação, rastreabilidade, classificação explícita de incerteza, testes futuros proporcionais ao risco e quality gates. Erros, omissões e conflitos devem permanecer visíveis.
 
