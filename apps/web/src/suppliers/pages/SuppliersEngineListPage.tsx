@@ -42,6 +42,7 @@ import { supplierEngineRows, type SupplierEngineRow } from './supplier-engine-ro
 import { useSupplierAvailableActions } from '../hooks/useSupplierAvailableActions';
 import { mapSupplierErrorToMessage } from '../api/supplier-error-messages';
 import type { SupplierDetail, SupplierSummary } from '../types/supplier.types';
+import { formatCnpjDisplay } from '../../clients/utils/format-cnpj';
 
 /**
  * WORKLIST DE FORNECEDORES — cadastro de terceiros como fila de trabalho.
@@ -68,6 +69,11 @@ import type { SupplierDetail, SupplierSummary } from '../types/supplier.types';
 
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** O contrato atual persiste statusFilter; visões anteriores usam filterStatus. */
+export function savedSupplierStatusFilter(filters: Record<string, string>): string {
+  return filters['statusFilter'] ?? filters['filterStatus'] ?? '';
+}
 
 /** Estados que o domínio usa para terceiro fora de operação. */
 const INACTIVE_STATUSES = new Set(['INACTIVE', 'SUSPENDED']);
@@ -449,7 +455,7 @@ export function SuppliersEngineListPage() {
             onApply={(view) => {
               setSearchInput(view.filters['search'] ?? '');
               setSearch(view.filters['search'] ?? '');
-              setStatusFilter(view.filters['filterStatus'] ?? '');
+              setStatusFilter(savedSupplierStatusFilter(view.filters));
               setOffset(0);
             }}
           />
@@ -459,8 +465,12 @@ export function SuppliersEngineListPage() {
           <WorklistFilterBar
             meta={
               total !== null
-                ? `${offset + 1}–${offset + items.length} de ${total}`
-                : `${offset + 1}–${offset + items.length} nesta página`
+                ? items.length === 0
+                  ? '0 de 0'
+                  : `${offset + 1}–${offset + items.length} de ${total}`
+                : items.length === 0
+                  ? '0 nesta página'
+                  : `${offset + 1}–${offset + items.length} nesta página`
             }
           >
             <WorklistField label="Buscar" htmlFor="suppliers-search" grow>
@@ -503,21 +513,6 @@ export function SuppliersEngineListPage() {
           </WorklistFilterBar>
         </div>
       </div>
-
-      {/* VISÕES SALVAS — o recorte que o operador remonta todo dia. `persistedLocally` e
-          declarado pela engine: sem endpoint de visoes salvas o armazenamento e local. */}
-      <DynamicSavedViewsBar
-        views={savedViews.views}
-        persistedLocally={savedViews.persistedLocally}
-        onSave={(name) => savedViews.save(name, { search, statusFilter }, 'list')}
-        onDelete={savedViews.remove}
-        onApply={(view) => {
-          setSearchInput(view.filters['search'] ?? '');
-          setSearch(view.filters['search'] ?? '');
-          setStatusFilter(view.filters['filterStatus'] ?? '');
-          setOffset(0);
-        }}
-      />
 
       {status === 'error' ? (
         <p className="cisne-type-helper m-0 mb-1 text-amber-800" role="alert">
@@ -607,6 +602,11 @@ export function SuppliersEngineListPage() {
             // DENSIDADE: a celula empilhava TRES linhas (estado, excecao e proxima acao), o que
             // dobrava a altura de TODA a grade — medido, a pagina tinha 1675px para 18 linhas e
             // apenas 5 registros cabiam na primeira dobra. Estado e excecao cabem na MESMA linha.
+            if (field.name === 'normalized_tax_id') {
+              // The API keeps CNPJ normalized for comparisons. Its visual rendering
+              // uses the already shared display formatter without altering business data.
+              return <span data-field="normalized_tax_id">{formatCnpjDisplay(item.taxId)}</span>;
+            }
             if (field.name === 'status') {
               const exception = supplierException(item.status);
               const nextAction = nextActionLabel(item.status);
