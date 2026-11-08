@@ -1,0 +1,31 @@
+name: Diagnostic Dispatch Main Visual Full
+on:
+  push:
+    branches:
+      - ci/dispatch-main-visual-8eee639e-20261108
+permissions:
+  contents: read
+  actions: write
+jobs:
+  dispatch-exact-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify main is still the exact base SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/${REPO}/branches/main" --jq '.commit.sha')"
+          test "$main_sha" = '8eee639e1a39ba6c4a766f54a1ea1e7998b823b3'
+      - name: Dispatch Visual full at main (exact base)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${REPO}/actions/workflows/visual-full.yml/dispatches" --field ref=main
+          echo 'Triggered exact-base Visual Full without altering production source or screenshots.'
