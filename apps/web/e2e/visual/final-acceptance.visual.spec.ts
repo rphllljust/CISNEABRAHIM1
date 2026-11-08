@@ -138,7 +138,17 @@ test.describe('aceite visual final — 1600x900', () => {
     // A SITUACAO abre a central; a fila de excecoes vem logo depois.
     await expect(page.getByLabel(/situação financeira do recorte/i)).toBeVisible();
     // A coluna de suporte é disclosure, sem reservar espaço ocioso na entrada.
-    await page.getByRole('button', { name: 'Contexto do processo' }).click();
+    // A Central pode renderizar outras bancadas com o mesmo texto de disclosure.
+    // Escolher a ação da bancada FINANCEIRA, não uma correspondência global ambígua.
+    const financeWorkspace = page.locator(
+      '[data-region="work-surface"] > section[aria-label="Área de trabalho e contexto"]',
+    );
+    await expect(financeWorkspace).toHaveCount(1);
+    const financeContextToggle = financeWorkspace.locator(
+      ':scope > div > button[aria-expanded]',
+    );
+    await expect(financeContextToggle).toHaveCount(1);
+    await financeContextToggle.click();
     await expect(page.getByRole('heading', { name: /exceções financeiras/i })).toBeVisible();
 
     // A regiao de trabalho existe e a tela nao tem overflow.
