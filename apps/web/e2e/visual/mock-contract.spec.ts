@@ -80,7 +80,7 @@ test.describe('contrato de cobertura do mock (ratchet de 404)', () => {
   for (const entry of ENTRIES) {
     test(`${entry.key}: nenhum 404 novo em /api/v1`, async ({ page }) => {
       const observed = (await collect404(page, entry)).filter((path) => !isShellProbe(path));
-      const allowed: Record<string, string[]> = JSON.parse(readFileSync(BASELINE_PATH, 'utf8'));
+      const allowed = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as Record<string, string[]>;
       if (process.env['UPDATE_MOCK_CONTRACT'] === '1') {
         // Cada teste regrava a SUA chave (workers reiniciam apos falha; nao ha estado compartilhado).
         allowed[entry.key] = observed;
