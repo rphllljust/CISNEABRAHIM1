@@ -29,7 +29,11 @@ function getBrowserHostname(): string | null {
 
 function sanitizeAbsoluteBaseUrl(baseUrl: string): string | null {
   try {
-    return new URL(baseUrl).origin;
+    const parsed = new URL(baseUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    return parsed.origin;
   } catch {
     return null;
   }
@@ -95,7 +99,8 @@ export function buildApiBaseUrlCandidates(
   }
 
   if (candidates.length === 0) {
-    candidates.push('http://localhost:3000');
+    // Production must never target the browser operator's localhost.
+    candidates.push(options.isDev ? 'http://localhost:3000' : '');
   }
 
   return dedupe(candidates);
@@ -122,10 +127,10 @@ function getApiBaseUrlCandidatesFromRuntime(): string[] {
 }
 
 export function getApiBaseUrl(): string {
-  if (preferredApiBaseUrl) {
+  if (preferredApiBaseUrl !== null) {
     return preferredApiBaseUrl;
   }
-  return getApiBaseUrlCandidatesFromRuntime()[0] ?? 'http://localhost:3000';
+  return getApiBaseUrlCandidatesFromRuntime()[0] ?? '';
 }
 
 export function resetApiBaseUrlCacheForTests(): void {
@@ -149,7 +154,7 @@ function shouldRetryWithNextCandidate(
 
 async function fetchApi(path: string, init: RequestInit): Promise<Response> {
   const candidates = getApiBaseUrlCandidatesFromRuntime();
-  const orderedCandidates = preferredApiBaseUrl
+  const orderedCandidates = preferredApiBaseUrl !== null
     ? [preferredApiBaseUrl, ...candidates.filter((candidate) => candidate !== preferredApiBaseUrl)]
     : candidates;
 
