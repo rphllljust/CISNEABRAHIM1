@@ -21,17 +21,17 @@ import type { ApiMockProfile } from '../fixtures/api-routes';
 const FORBIDDEN_UNIT_SLUG = /unit-synthetic|UN-DEV-\d+/i;
 const FORBIDDEN_RAW_ENUMS = /\b(COMPLETED|CANCELLED|RELEASED|PREPARED|IN_EXECUTION|PAUSED)\b/;
 
-type Route = { path: string; profile: ApiMockProfile; label: string };
+type Route = { path: string; profile: ApiMockProfile; label: string; filters?: true };
 
 /** Uma rota por dominio do sidebar, exatamente como pedido no aceite. */
 const ROUTES: Route[] = [
   { path: '/app/clients', profile: 'clients', label: 'Comercial · Clientes' },
   { path: '/app/documents', profile: 'documents', label: 'Operacional · Documentos' },
-  { path: '/app/finance/expenses', profile: 'finance', label: 'Financeira · Despesas' },
-  { path: '/app/reports', profile: 'dashboard', label: 'Relatórios' },
-  { path: '/app/alerts', profile: 'dashboard', label: 'Alertas' },
-  { path: '/app/billing', profile: 'billing-empty', label: 'Faturamento' },
-  { path: '/app/suppliers', profile: 'suppliers', label: 'Suprimentos · Fornecedores' },
+  { path: '/app/finance/expenses', profile: 'finance', label: 'Financeira · Despesas', filters: true },
+  { path: '/app/reports', profile: 'dashboard', label: 'Relatórios', filters: true },
+  { path: '/app/alerts', profile: 'dashboard', label: 'Alertas', filters: true },
+  { path: '/app/billing', profile: 'billing-empty', label: 'Faturamento', filters: true },
+  { path: '/app/suppliers', profile: 'suppliers', label: 'Suprimentos · Fornecedores', filters: true },
   { path: '/app/inventory', profile: 'inventory', label: 'Estoque' },
   { path: '/app/proposals', profile: 'commercial', label: 'Comercial · Propostas' },
   { path: '/app/work-inbox', profile: 'dashboard', label: 'WORKBENCH · Central de trabalho' },
@@ -54,6 +54,7 @@ async function measure(page: Page) {
     const table = document.querySelector('table');
     const rows = Array.from(document.querySelectorAll('tbody tr'));
     const filtersBar =
+      document.querySelector('[data-testid="filters-bar"]') ??
       document.querySelector('[aria-label="Filtros da lista"]') ??
       document.querySelector('[aria-label="Filtros do relatório"]') ??
       document.querySelector('[aria-label="Filtros de alertas"]') ??
@@ -166,6 +167,31 @@ test.describe('evidencia visual medida por dominio', () => {
       expect(m.bodyText, `${route.label}: sem enum cru conhecido`).not.toMatch(FORBIDDEN_RAW_ENUMS);
 
       // --- filtros compactos (nao o card gigante) -----------------------------------
+      if (route.filters) {
+        expect(m.filtersHeight, `${route.label}: a barra de filtros precisa existir`).not.toBeNull();
+
+        // Barra em linha unica que rola: TODO controle precisa continuar ALCANCAVEL (rolar ate ele
+        // o traz para o viewport) e nenhum popover/listbox posicionado pode viver dentro da barra,
+        // porque `overflow-x:auto` o recortaria.
+        const bar = page.locator('[data-testid="filters-bar"]').first();
+        const controls = bar.locator('input:visible, select:visible, button:visible');
+        for (let i = 0; i < (await controls.count()); i += 1) {
+          await controls.nth(i).scrollIntoViewIfNeeded();
+          await expect(controls.nth(i), `${route.label}: controle ${i} da barra alcançável`).toBeInViewport();
+        }
+        const clippable = await bar.evaluate(
+          (el) =>
+            Array.from(el.querySelectorAll('*')).filter((n) => {
+              const position = getComputedStyle(n).position;
+              return (
+                position === 'absolute' ||
+                position === 'fixed' ||
+                n.matches('[role="listbox"], [role="menu"], [data-popover]')
+              );
+            }).length,
+        );
+        expect(clippable, `${route.label}: sem popover posicionado dentro da barra (seria recortado)`).toBe(0);
+      }
       if (m.filtersHeight !== null) {
         expect(
           m.filtersHeight,

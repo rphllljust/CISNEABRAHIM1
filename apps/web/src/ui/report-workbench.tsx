@@ -49,7 +49,8 @@ export function ReportToolbar({
   return (
     <section
       aria-label="Filtros do relatório"
-      className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1.5"
+      data-testid="filters-bar"
+      className="cisne-filter-scroll mb-2 flex flex-wrap items-center gap-2 rounded-md border border-gray-200 bg-white px-2 py-1.5"
     >
       {children}
       {meta ? (
