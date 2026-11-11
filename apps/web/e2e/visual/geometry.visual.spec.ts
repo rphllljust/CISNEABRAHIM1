@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { prepareAuthenticatedSession } from '../fixtures/visual-helpers';
+import { prepareAccountingSession } from '../fixtures/accounting-api-routes';
 import type { ApiMockProfile } from '../fixtures/api-routes';
 
 /**
@@ -21,7 +22,7 @@ import type { ApiMockProfile } from '../fixtures/api-routes';
 const FORBIDDEN_UNIT_SLUG = /unit-synthetic|UN-DEV-\d+/i;
 const FORBIDDEN_RAW_ENUMS = /\b(COMPLETED|CANCELLED|RELEASED|PREPARED|IN_EXECUTION|PAUSED)\b/;
 
-type Route = { path: string; profile: ApiMockProfile; label: string; filters?: true };
+type Route = { path: string; profile: ApiMockProfile | 'accounting'; label: string; filters?: true };
 
 /** Uma rota por dominio do sidebar, exatamente como pedido no aceite. */
 const ROUTES: Route[] = [
@@ -35,7 +36,9 @@ const ROUTES: Route[] = [
   { path: '/app/inventory', profile: 'inventory', label: 'Estoque' },
   { path: '/app/proposals', profile: 'commercial', label: 'Comercial · Propostas' },
   { path: '/app/work-inbox', profile: 'dashboard', label: 'WORKBENCH · Central de trabalho' },
-  { path: '/app/closing', profile: 'dashboard', label: 'WORKBENCH · Central de fechamento' },
+  // Closing is an accounting capability. The dashboard profile has no period:close grant
+  // or /closing/readiness handler: testing its denied screen is not a geometry proof.
+  { path: '/app/closing', profile: 'accounting', label: 'WORKBENCH · Central de fechamento' },
   /*
     PARK_FIXTURE_GAP: Conciliacao exige `finance:reconciliation`, que o perfil `finance` do harness
     NAO mocka — a tela responde "Acesso negado", que e o comportamento CORRETO do backend
@@ -145,8 +148,22 @@ async function measure(page: Page) {
 test.describe('evidencia visual medida por dominio', () => {
   for (const route of ROUTES) {
     test(`${route.label} — superficie convergente e visivel na primeira dobra`, async ({ page }) => {
-      await prepareAuthenticatedSession(page, route.profile);
+      if (route.profile === 'accounting') {
+        // Reuse the independently exercised accounting fixture: real authorized
+        // read contracts for /accounting/periods and /closing/readiness, no invented
+        // capability and no relaxed geometry checks.
+        await prepareAccountingSession(page);
+      } else {
+        await prepareAuthenticatedSession(page, route.profile);
+      }
       await page.goto(route.path);
+      if (route.profile === 'accounting') {
+        // Wait for the workbench itself, not for a fixed 600ms delay to happen to
+        // cover permission hydration. If it renders the denied state, fail here.
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Central de fechamento' }),
+        ).toBeVisible();
+      }
       await page.waitForLoadState('load');
       await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(600);
