@@ -1,0 +1,76 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetApiBaseUrlCacheForTests } from '../../auth/api/auth-api';
+import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
+import { linkClientToDraftOrder, linkPublishedServiceToDraftOrder, linkPurchaseOrderToDraftOrder } from './service-orders-api';
+
+const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const DEFINITION_ID = '22222222-2222-4222-8222-222222222222';
+
+beforeEach(() => {
+  resetTokenStoreForTests();
+  tokenStore.setTokens('test-access', 'test-refresh');
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetTokenStoreForTests();
+  resetApiBaseUrlCacheForTests();
+});
+
+describe('DRAFT OS — contrato HTTP de PATCH de serviço publicado', () => {
+  it('envia somente campos aceitos com versão otimista e token existente', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      id: ORDER_ID, status: 'DRAFT', rowVersion: 5,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const response = await linkPublishedServiceToDraftOrder(ORDER_ID, 4, DEFINITION_ID);
+    expect(response.rowVersion).toBe(5);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('/api/v1/service-orders/' + ORDER_ID);
+    expect(init.method).toBe('PATCH');
+    if (typeof init.body !== 'string') throw new Error('PATCH body must be a JSON string');
+    expect(JSON.parse(init.body)).toEqual({ rowVersion: 4, serviceDefinitionId: DEFINITION_ID });
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer test-access' });
+  });
+
+  it('vincula cliente ativo por PATCH com controle de versão e sem status no payload', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      id: ORDER_ID, clientId: DEFINITION_ID, status: 'DRAFT', rowVersion: 5,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await linkClientToDraftOrder(ORDER_ID, 4, DEFINITION_ID);
+    expect(result.clientId).toBe(DEFINITION_ID);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('/api/v1/service-orders/' + ORDER_ID);
+    expect(init.method).toBe('PATCH');
+    if (typeof init.body !== 'string') throw new Error('PATCH body must be a JSON string');
+    expect(JSON.parse(init.body)).toEqual({ rowVersion: 4, clientId: DEFINITION_ID });
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer test-access' });
+  });
+
+  it('vincula pedido real por PATCH, não envia status nem versão arbitrária do catálogo', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      id: ORDER_ID, purchaseOrderId: DEFINITION_ID, status: 'DRAFT', rowVersion: 5,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await linkPurchaseOrderToDraftOrder(ORDER_ID, 4, DEFINITION_ID);
+    expect(result.purchaseOrderId).toBe(DEFINITION_ID);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain('/api/v1/service-orders/' + ORDER_ID);
+    expect(init.method).toBe('PATCH');
+    if (typeof init.body !== 'string') throw new Error('PATCH body must be JSON string');
+    expect(JSON.parse(init.body)).toEqual({ rowVersion: 4, purchaseOrderId: DEFINITION_ID });
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer test-access' });
+  });
+
+  it('propaga VERSION_CONFLICT 409 sem declarar PATCH como sucesso', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      error: { code: 'SERVICE_ORDERS_VERSION_CONFLICT' },
+    }), { status: 409, headers: { 'Content-Type': 'application/json' } })));
+    await expect(linkPublishedServiceToDraftOrder(ORDER_ID, 4, DEFINITION_ID)).rejects.toMatchObject({
+      status: 409, code: 'SERVICE_ORDERS_VERSION_CONFLICT', kind: 'version_conflict',
+    });
+  });
+});

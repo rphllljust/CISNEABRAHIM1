@@ -27,7 +27,7 @@ import {
   buildServiceOrderContractSnapshot,
 } from '../../requests/domain/service-request-contract';
 import { ContractsOperationalValidationService } from '../../commercial/services/contracts-operational-validation.service';
-import { SERVICE_ORDER_HISTORY_EVENTS, SERVICE_ORDER_ORIGINS } from '../domain/service-order';
+import { SERVICE_ORDER_HISTORY_EVENTS, SERVICE_ORDER_ORIGINS, SERVICE_ORDER_STATUSES } from '../domain/service-order';
 import {
   assertServiceOrderPreparePreconditions,
   assertServiceOrderReleasePreconditions,
@@ -273,9 +273,40 @@ export class ServiceOrdersAccessService {
       serviceDefinitionId: row.service_definition_id,
       serviceDefinitionVersionId: row.service_definition_version_id,
     });
+    /**
+     * Release must not be offered when the exact domain command will reject its
+     * persisted prerequisites. Reuse both validators invoked by release(), rather
+     * than declaring an optimistic status-only capability that ends in HTTP 409.
+     * Only PREPARED orders need the client lookup.
+     */
+    const releaseBlockers: string[] = [];
+    if (status === SERVICE_ORDER_STATUSES.Prepared) {
+      const client = row.client_id ? await this.repository.findClientById(row.client_id) : null;
+      try {
+        assertServiceOrderReleasePreconditions(
+          row,
+          client ? { id: client.id, status: client.status as ClientStatus } : null,
+        );
+        assertPurchaseOrderRequirement({
+          requirement: client?.purchase_order_requirement,
+          phase: 'EXECUTION',
+          purchaseOrderId: row.purchase_order_id,
+          catalogRequiresPurchaseOrder: row.service_snapshot?.['requiresPurchaseOrder'] === true,
+        });
+      } catch (error) {
+        if (error instanceof ServiceOrderReleaseError) {
+          releaseBlockers.push(error.code);
+        } else if (error instanceof BillingEntitlementError && error.code === 'PURCHASE_ORDER_REQUIRED') {
+          releaseBlockers.push(error.code);
+        } else {
+          throw error;
+        }
+      }
+    }
     const candidates = CONTROL_CENTER_TRANSITION_ORDER
       .filter((transition) => canTransition(status, transition))
-      .filter((transition) => transition !== 'prepare' || preparePrecondition === null);
+      .filter((transition) => transition !== 'prepare' || preparePrecondition === null)
+      .filter((transition) => transition !== 'release' || releaseBlockers.length === 0);
     const [availableTransitions, measurement, billing] = await Promise.all([
       this.controlCenterAuthz.availableTransitions(actor, row, candidates),
       this.controlCenterAuthz.canReadMeasurement(actor, row),
@@ -303,10 +334,10 @@ export class ServiceOrdersAccessService {
       serviceRequestId: row.service_request_id,
       facts: visible,
       availableTransitions,
-      readinessBlockers:
-        preparePrecondition === 'SERVICE_REQUIRED'
-          ? ['SERVICE_DEFINITION_REQUIRED']
-          : [],
+      readinessBlockers: [
+        ...(preparePrecondition === 'SERVICE_REQUIRED' ? ['SERVICE_DEFINITION_REQUIRED'] : []),
+        ...releaseBlockers,
+      ],
     });
   }
 

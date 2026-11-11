@@ -316,6 +316,60 @@ export type ReopenServiceOrderPayload = {
   reopenReason: string;
 };
 
+/** Bind an actual published catalog definition to an existing DRAFT OS.
+ * The backend resolves the published version, enforces record-scoped UPDATE
+ * authorization, optimistic row version and an audit event. No local status changes.
+ */
+export function linkPublishedServiceToDraftOrder(
+  serviceOrderId: string,
+  rowVersion: number,
+  serviceDefinitionId: string,
+  signal?: AbortSignal,
+): Promise<ServiceOrderDetail> {
+  return requestJson<ServiceOrderDetail>('/api/v1/service-orders/' + encodeURIComponent(serviceOrderId), {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ rowVersion, serviceDefinitionId }),
+    signal,
+  });
+}
+
+/** Attach a real active client to an existing DRAFT order before PREPARE.
+ * The backend checks record UPDATE authorization, client active status,
+ * rowVersion and writes the persisted client snapshot plus security audit.
+ */
+export function linkClientToDraftOrder(
+  serviceOrderId: string,
+  rowVersion: number,
+  clientId: string,
+  signal?: AbortSignal,
+): Promise<ServiceOrderDetail> {
+  return requestJson<ServiceOrderDetail>('/api/v1/service-orders/' + encodeURIComponent(serviceOrderId), {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ rowVersion, clientId }),
+    signal,
+  });
+}
+
+/** Attach a real registered purchase order to an existing DRAFT order.
+ * The backend verifies client and unit compatibility, optimistic locking,
+ * immutable lifecycle rules, and security audit before persisting a snapshot.
+ */
+export function linkPurchaseOrderToDraftOrder(
+  serviceOrderId: string,
+  rowVersion: number,
+  purchaseOrderId: string,
+  signal?: AbortSignal,
+): Promise<ServiceOrderDetail> {
+  return requestJson<ServiceOrderDetail>('/api/v1/service-orders/' + encodeURIComponent(serviceOrderId), {
+    method: 'PATCH',
+    headers: jsonHeaders(),
+    body: JSON.stringify({ rowVersion, purchaseOrderId }),
+    signal,
+  });
+}
+
 export function prepareServiceOrder(
   serviceOrderId: string,
   rowVersion: number,

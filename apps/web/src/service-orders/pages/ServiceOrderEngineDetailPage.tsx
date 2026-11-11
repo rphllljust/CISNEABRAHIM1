@@ -1,3 +1,6 @@
+import { ServiceOrderDraftServiceBinding } from '../components/ServiceOrderDraftServiceBinding';
+import { ServiceOrderDraftClientBinding } from '../components/ServiceOrderDraftClientBinding';
+import { ServiceOrderDraftPurchaseOrderBinding } from '../components/ServiceOrderDraftPurchaseOrderBinding';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
@@ -29,7 +32,7 @@ import {
   serviceOrderEngineRow,
   type ServiceOrderEngineRow,
 } from './service-order-engine-rows';
-import { OperationsControlCenter } from '../components/OperationsControlCenter';
+import { OperationsControlCenter, formatControlCenterBlocker } from '../components/OperationsControlCenter';
 import { ServiceOrderCostToServePanel } from '../components/ServiceOrderCostToServePanel';
 import type { ServiceOrderControlCenter, ServiceOrderDetail } from '../types/service-order.types';
 
@@ -335,6 +338,29 @@ export function ServiceOrderEngineDetailPage() {
                 command === 'cancel' ? setCancelOpen(true) : void runCommand(command)
               }
             />
+            {detail?.status === 'DRAFT' &&
+            controlCenter?.nextAction.blockers.includes('SERVICE_DEFINITION_REQUIRED') ? (
+              <ServiceOrderDraftServiceBinding
+                serviceOrderId={detail.id}
+                rowVersion={detail.rowVersion}
+                onUpdated={() => load()}
+              />
+            ) : null}
+            {detail?.status === 'DRAFT' && !detail.clientId ? (
+              <ServiceOrderDraftClientBinding
+                serviceOrderId={detail.id}
+                rowVersion={detail.rowVersion}
+                onUpdated={() => load()}
+              />
+            ) : null}
+            {detail?.status === 'DRAFT' && detail.clientId && !detail.purchaseOrderId ? (
+              <ServiceOrderDraftPurchaseOrderBinding
+                serviceOrderId={detail.id}
+                rowVersion={detail.rowVersion}
+                requiredByCatalog={detail.serviceSnapshot?.requiresPurchaseOrder === true}
+                onUpdated={() => load()}
+              />
+            ) : null}
             {commandError ? (
               <p className="mt-2 text-sm text-red-700" role="alert">
                 {commandError}
@@ -613,7 +639,7 @@ function nextActionFromControlCenter(
     return {
       kind: 'waiting',
       label: nextAction.step,
-      description: nextAction.blockers.join(' · '),
+      description: nextAction.blockers.map(formatControlCenterBlocker).join(' · '),
       waitingOn: 'Operação',
     };
   }
