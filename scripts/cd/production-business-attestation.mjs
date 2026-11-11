@@ -78,6 +78,69 @@ export function attestProductionBusiness(verdictLog) {
   throw new Error('Incomplete, inconsistent, or failed business evidence: NOT ACCEPTED');
 }
 
+
+/**
+ * Negative evidence is evidence too. Persist only an allowlisted verdict when the
+ * business gate refuses acceptance, so production failures remain diagnosable
+ * without exposing tokens, customer data, URLs, or raw browser logs.
+ *
+ * A refused attestation is always FAIL. This helper never converts a rejection
+ * into PASS or CONDITIONAL, even if some technical checks were successful.
+ */
+const SAFE_BROWSER_VERDICT_VALUES = Object.freeze({
+  assertionsPass: ['true', 'false'],
+  runtimeVerified: ['true', 'false'],
+  releaseVerified: ['true', 'false'],
+  productionRuntimeValidated: ['true', 'false'],
+  businessEvidenceAvailable: ['true', 'false', 'null'],
+  businessVerified: ['true', 'false'],
+  productionBusinessValidated: ['true', 'false', 'NOT_APPLICABLE', 'UNKNOWN'],
+  productionValidated: ['true', 'false', 'CONDITIONAL'],
+  businessOutcome: [
+    'BUSINESS_VALIDATED',
+    'BUSINESS_EVIDENCE_NOT_AVAILABLE',
+    'BUSINESS_EVIDENCE_INCOMPLETE',
+    'BUSINESS_VALIDATION_FAILED',
+  ],
+});
+
+export function summarizeRejectedProductionBusiness(verdictLog, sourceSha, githubRunId = null) {
+  const seen = new Map();
+  const duplicates = new Set();
+  for (const line of String(verdictLog ?? '').split(/\r?\n/)) {
+    const match = /^\[coolify-browser-gate\] ([A-Za-z]+)=(.+)$/.exec(line);
+    if (!match || !Object.hasOwn(SAFE_BROWSER_VERDICT_VALUES, match[1])) continue;
+    if (seen.has(match[1])) duplicates.add(match[1]);
+    seen.set(match[1], match[2].trim());
+  }
+  const sanitizedVerdict = Object.fromEntries(
+    Object.entries(SAFE_BROWSER_VERDICT_VALUES).map(([field, allowed]) => [
+      field,
+      !duplicates.has(field) && allowed.includes(seen.get(field))
+        ? seen.get(field)
+        : 'UNKNOWN',
+    ]),
+  );
+  const outcome = sanitizedVerdict.businessOutcome;
+  const businessFailure = ['BUSINESS_EVIDENCE_INCOMPLETE', 'BUSINESS_VALIDATION_FAILED'];
+  const runtimeVerified = [
+    'assertionsPass', 'runtimeVerified', 'releaseVerified', 'productionRuntimeValidated',
+  ].every((field) => sanitizedVerdict[field] === 'true');
+  return {
+    schema_version: 1,
+    source_sha: sourceSha,
+    evidence_source: 'PRODUCTION_READ_ONLY_BROWSER',
+    status: 'FAIL',
+    reason: businessFailure.includes(outcome) ? outcome : 'BUSINESS_ATTESTATION_REFUSED',
+    runtime_verified: runtimeVerified,
+    business_verified: false,
+    production_validated: false,
+    checked_at: new Date().toISOString(),
+    github_run_id: githubRunId,
+    sanitized_verdict: sanitizedVerdict,
+  };
+}
+
 function main() {
   const expectedSha = process.env.EXPECTED_SOURCE_SHA;
   if (!/^[0-9a-f]{40}$/i.test(expectedSha ?? '')) {
@@ -131,6 +194,31 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
   try {
     main();
   } catch (error) {
+    // This must not be mistaken for business acceptance: exit code remains 1.
+    // A sanitized FAIL artifact replaces the previous "No files were found"
+    // diagnostic dead end. If even the artifact cannot be written, fail closed.
+    try {
+      const sha = process.env.EXPECTED_SOURCE_SHA;
+      const [input, output] = process.argv.slice(2);
+      if (/^[0-9a-f]{40}$/i.test(sha ?? '') && input && output) {
+        let verdictLog = '';
+        try {
+          verdictLog = readFileSync(input, 'utf8');
+        } catch {
+          // Missing log is itself a refusal, never inferred to be CONDITIONAL.
+        }
+        const rejection = summarizeRejectedProductionBusiness(
+          verdictLog, sha, process.env.GITHUB_RUN_ID ?? null,
+        );
+        mkdirSync(dirname(output), { recursive: true });
+        writeFileSync(output, JSON.stringify(rejection, null, 2) + '\n', { mode: 0o600 });
+        console.error(
+          `[production-business-attestation] sanitized FAIL artifact: ${rejection.reason}`,
+        );
+      }
+    } catch {
+      console.error('[production-business-attestation] FAILURE_ARTIFACT_WRITE_FAILED');
+    }
     console.error(`[production-business-attestation] REFUSED: ${error.message}`);
     process.exitCode = 1;
   }

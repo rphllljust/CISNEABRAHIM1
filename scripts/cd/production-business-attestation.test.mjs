@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
-import { attestProductionBusiness } from './production-business-attestation.mjs';
+import { attestProductionBusiness, summarizeRejectedProductionBusiness } from './production-business-attestation.mjs';
 
 const runtime = {
   assertionsPass: 'true',
@@ -114,6 +118,71 @@ describe('production business evidence workflow configuration', () => {
         smokeJobHeader.split('\n').includes(`      ${releaseLine.trim()}`),
         `business smoke must define ${variable} identical to the official release`,
       );
+    }
+  });
+});
+
+describe('rejected production business evidence — safe diagnostics, fail closed', () => {
+  it('records only allowlisted fields and never upgrades rejection to acceptance', () => {
+    const log = render({
+      ...real,
+      businessVerified: 'false',
+      productionBusinessValidated: 'false',
+      productionValidated: 'false',
+      businessOutcome: 'BUSINESS_EVIDENCE_INCOMPLETE',
+    }) + '\nPRIVATE_CUSTOMER=Never copy this or https://private.example.com';
+    const proof = summarizeRejectedProductionBusiness(log, 'a'.repeat(40), '123');
+    assert.equal(proof.status, 'FAIL');
+    assert.equal(proof.reason, 'BUSINESS_EVIDENCE_INCOMPLETE');
+    assert.equal(proof.runtime_verified, true);
+    assert.equal(proof.business_verified, false);
+    assert.equal(proof.production_validated, false);
+    assert.equal(proof.sanitized_verdict.businessOutcome, 'BUSINESS_EVIDENCE_INCOMPLETE');
+    assert.doesNotMatch(JSON.stringify(proof), /PRIVATE_CUSTOMER|private\\.example/);
+  });
+
+  it('rejects missing or duplicated verdict fields without trusting their contents', () => {
+    const log = render({ ...real, businessVerified: 'false' }) +
+      '\n[coolify-browser-gate] businessVerified=true';
+    const proof = summarizeRejectedProductionBusiness(log, 'b'.repeat(40));
+    assert.equal(proof.status, 'FAIL');
+    assert.equal(proof.sanitized_verdict.businessVerified, 'UNKNOWN');
+    assert.equal(summarizeRejectedProductionBusiness('a raw error only', 'b'.repeat(40)).status, 'FAIL');
+  });
+
+  it('writes a restricted FAIL artifact and exits nonzero on a real rejection', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cisne-fail-closed-business-'));
+    try {
+      const input = join(dir, 'verdict.log');
+      const output = join(dir, 'attestation.json');
+      writeFileSync(input, render({
+        ...real,
+        businessVerified: 'false',
+        productionBusinessValidated: 'false',
+        productionValidated: 'false',
+        businessOutcome: 'BUSINESS_VALIDATION_FAILED',
+      }) + '\nSECRET_PASSWORD=hidden', 'utf8');
+      const child = spawnSync(process.execPath, [
+        fileURLToPath(new URL('./production-business-attestation.mjs', import.meta.url)), input, output,
+      ], {
+        env: {
+          ...process.env,
+          EXPECTED_SOURCE_SHA: 'c'.repeat(40),
+          GITHUB_RUN_ID: '12345',
+          GITHUB_OUTPUT: '',
+          GITHUB_STEP_SUMMARY: '',
+        },
+        encoding: 'utf8',
+      });
+      assert.equal(child.status, 1, child.stderr);
+      const artifact = JSON.parse(readFileSync(output, 'utf8'));
+      assert.equal(artifact.status, 'FAIL');
+      assert.equal(artifact.reason, 'BUSINESS_VALIDATION_FAILED');
+      assert.equal(artifact.github_run_id, '12345');
+      assert.equal(artifact.source_sha, 'c'.repeat(40));
+      assert.doesNotMatch(JSON.stringify(artifact), /SECRET_PASSWORD|hidden/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });
