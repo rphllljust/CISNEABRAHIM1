@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { prepareAuthenticatedSession } from '../fixtures/visual-helpers';
+import { prepareAccountingSession } from '../fixtures/accounting-api-routes';
 import type { ApiMockProfile } from '../fixtures/api-routes';
 
 /**
@@ -21,7 +22,7 @@ import type { ApiMockProfile } from '../fixtures/api-routes';
 const FORBIDDEN_UNIT_SLUG = /unit-synthetic|UN-DEV-\d+/i;
 const FORBIDDEN_RAW_ENUMS = /\b(COMPLETED|CANCELLED|RELEASED|PREPARED|IN_EXECUTION|PAUSED)\b/;
 
-type Route = { path: string; profile: ApiMockProfile; label: string; filters?: true };
+type Route = { path: string; profile: ApiMockProfile | 'accounting'; label: string; filters?: true };
 
 /** Uma rota por dominio do sidebar, exatamente como pedido no aceite. */
 const ROUTES: Route[] = [
@@ -35,7 +36,9 @@ const ROUTES: Route[] = [
   { path: '/app/inventory', profile: 'inventory', label: 'Estoque' },
   { path: '/app/proposals', profile: 'commercial', label: 'Comercial · Propostas' },
   { path: '/app/work-inbox', profile: 'dashboard', label: 'WORKBENCH · Central de trabalho' },
-  { path: '/app/closing', profile: 'dashboard', label: 'WORKBENCH · Central de fechamento' },
+  // Closing is an accounting capability. The dashboard profile has no period:close grant
+  // or /closing/readiness handler: testing its denied screen is not a geometry proof.
+  { path: '/app/closing', profile: 'accounting', label: 'WORKBENCH · Central de fechamento' },
   /*
     PARK_FIXTURE_GAP: Conciliacao exige `finance:reconciliation`, que o perfil `finance` do harness
     NAO mocka — a tela responde "Acesso negado", que e o comportamento CORRETO do backend
@@ -125,6 +128,16 @@ async function measure(page: Page) {
       mainCount: document.querySelectorAll('main#main-content').length,
       nestedMain: document.querySelectorAll('main main').length,
       tableTop: table ? Math.round(table.getBoundingClientRect().top) : null,
+      // Closing is an exception-resolution workbench, not a ledger list.
+      // Its primary surface is the BLOCKER QUEUE; the journal-count table is
+      // intentionally detailed evidence after the next-action controls.
+      closingQueueTop: (() => {
+        const queue = document.querySelector('section[aria-label="Bloqueadores do fechamento"]');
+        return queue ? Math.round(queue.getBoundingClientRect().top) : null;
+      })(),
+      closingQueueHasItems: document.querySelectorAll(
+        'section[aria-label="Bloqueadores do fechamento"] [data-severity="BLOCKING"]',
+      ).length > 0,
       rowCount: rows.length,
       firstRowHeight: Math.round(firstRowHeight),
       filtersHeight: filtersBar ? Math.round(filtersBar.getBoundingClientRect().height) : null,
@@ -145,8 +158,22 @@ async function measure(page: Page) {
 test.describe('evidencia visual medida por dominio', () => {
   for (const route of ROUTES) {
     test(`${route.label} — superficie convergente e visivel na primeira dobra`, async ({ page }) => {
-      await prepareAuthenticatedSession(page, route.profile);
+      if (route.profile === 'accounting') {
+        // Reuse the independently exercised accounting fixture: real authorized
+        // read contracts for /accounting/periods and /closing/readiness, no invented
+        // capability and no relaxed geometry checks.
+        await prepareAccountingSession(page);
+      } else {
+        await prepareAuthenticatedSession(page, route.profile);
+      }
       await page.goto(route.path);
+      if (route.profile === 'accounting') {
+        // Wait for the workbench itself, not for a fixed 600ms delay to happen to
+        // cover permission hydration. If it renders the denied state, fail here.
+        await expect(
+          page.getByRole('heading', { level: 1, name: 'Central de fechamento' }),
+        ).toBeVisible();
+      }
       await page.waitForLoadState('load');
       await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(600);
@@ -214,7 +241,27 @@ test.describe('evidencia visual medida por dominio', () => {
         `${route.label}: a tela nao pode estar em branco — precisa ter linhas, estado vazio explicito, resumo ou barra de filtros`,
       ).toBe(true);
 
-      if (m.tableTop !== null) {
+      if (route.profile === 'accounting') {
+        // For closing the work is an exception queue, not the historical
+        // journal-count table (which intentionally comes AFTER actions).
+        // Keep the first-fold gate strict on the actual primary work surface.
+        expect(
+          m.closingQueueTop,
+          `${route.label}: fila de bloqueadores precisa existir para o período autorizado`,
+        ).not.toBeNull();
+        expect(
+          m.closingQueueHasItems,
+          `${route.label}: bloqueadores reais precisam aparecer na fila, não só no resumo`,
+        ).toBe(true);
+        expect(
+          m.closingQueueTop!,
+          `${route.label}: fila de bloqueadores deve começar na primeira dobra (top=${m.closingQueueTop}, viewport=${m.viewportHeight})`,
+        ).toBeLessThan(m.viewportHeight);
+        await expect(
+          page.getByRole('region', { name: 'Bloqueadores do fechamento' })
+            .getByRole('link', { name: /ver lançamentos não postados/i }),
+        ).toBeVisible();
+      } else if (m.tableTop !== null) {
         expect(
           m.tableTop,
           `${route.label}: a grade deve comecar na primeira dobra (top=${m.tableTop}, viewport=${m.viewportHeight})`,
