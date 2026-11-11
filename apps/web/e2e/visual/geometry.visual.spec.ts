@@ -128,6 +128,16 @@ async function measure(page: Page) {
       mainCount: document.querySelectorAll('main#main-content').length,
       nestedMain: document.querySelectorAll('main main').length,
       tableTop: table ? Math.round(table.getBoundingClientRect().top) : null,
+      // Closing is an exception-resolution workbench, not a ledger list.
+      // Its primary surface is the BLOCKER QUEUE; the journal-count table is
+      // intentionally detailed evidence after the next-action controls.
+      closingQueueTop: (() => {
+        const queue = document.querySelector('section[aria-label="Bloqueadores do fechamento"]');
+        return queue ? Math.round(queue.getBoundingClientRect().top) : null;
+      })(),
+      closingQueueHasItems: document.querySelectorAll(
+        'section[aria-label="Bloqueadores do fechamento"] [data-severity="BLOCKING"]',
+      ).length > 0,
       rowCount: rows.length,
       firstRowHeight: Math.round(firstRowHeight),
       filtersHeight: filtersBar ? Math.round(filtersBar.getBoundingClientRect().height) : null,
@@ -231,7 +241,27 @@ test.describe('evidencia visual medida por dominio', () => {
         `${route.label}: a tela nao pode estar em branco — precisa ter linhas, estado vazio explicito, resumo ou barra de filtros`,
       ).toBe(true);
 
-      if (m.tableTop !== null) {
+      if (route.profile === 'accounting') {
+        // For closing the work is an exception queue, not the historical
+        // journal-count table (which intentionally comes AFTER actions).
+        // Keep the first-fold gate strict on the actual primary work surface.
+        expect(
+          m.closingQueueTop,
+          `${route.label}: fila de bloqueadores precisa existir para o período autorizado`,
+        ).not.toBeNull();
+        expect(
+          m.closingQueueHasItems,
+          `${route.label}: bloqueadores reais precisam aparecer na fila, não só no resumo`,
+        ).toBe(true);
+        expect(
+          m.closingQueueTop!,
+          `${route.label}: fila de bloqueadores deve começar na primeira dobra (top=${m.closingQueueTop}, viewport=${m.viewportHeight})`,
+        ).toBeLessThan(m.viewportHeight);
+        await expect(
+          page.getByRole('region', { name: 'Bloqueadores do fechamento' })
+            .getByRole('link', { name: /ver lançamentos não postados/i }),
+        ).toBeVisible();
+      } else if (m.tableTop !== null) {
         expect(
           m.tableTop,
           `${route.label}: a grade deve comecar na primeira dobra (top=${m.tableTop}, viewport=${m.viewportHeight})`,
