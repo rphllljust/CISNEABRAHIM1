@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import {
@@ -71,7 +72,7 @@ function jsonHeaders(): HeadersInit {
 
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, init);
+    const response = await fetchWithSession(`${getApiBaseUrl()}${path}`, init);
     if (!response.ok) {
       throw await parseError(response);
     }
@@ -143,7 +144,7 @@ export async function downloadBillingDocumentPdf(
   signal?: AbortSignal,
 ): Promise<{ blob: Blob; sha256: string | null; filename: string }> {
   try {
-    const response = await fetch(
+    const response = await fetchWithSession(
       `${getApiBaseUrl()}${documentsPath(serviceOrderId, billingRecordId, `/${billingDocumentId}/pdf`)}`,
       {
         method: 'GET',
@@ -206,7 +207,7 @@ export async function probeBillingDocumentCapabilities(signal?: AbortSignal): Pr
     probeMutation(base, 'POST', {}, signal),
     (async () => {
       try {
-        const response = await fetch(
+        const response = await fetchWithSession(
           `${getApiBaseUrl()}${documentsPath(PROBE_SERVICE_ORDER_ID, PROBE_BILLING_RECORD_ID, `/${PROBE_BILLING_DOCUMENT_ID}/pdf`)}`,
           { method: 'GET', headers: authHeaders(), signal },
         );

@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import {
@@ -88,7 +89,7 @@ async function parseError(response: Response): Promise<ReportsApiError> {
 
 export async function getReportCatalog(signal?: AbortSignal): Promise<ReportCatalogItem[]> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/reports/catalog`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/reports/catalog`, {
       method: 'GET',
       headers: authHeaders(),
       signal,
@@ -119,7 +120,7 @@ export async function previewReport(
   const params = buildFilterQuery(filters);
   params.set('reportType', reportType);
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/reports/exports/preview?${params.toString()}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/reports/exports/preview?${params.toString()}`, {
       method: 'GET',
       headers: authHeaders(),
       signal,
@@ -152,7 +153,7 @@ export async function createReportExport(
   params.set('reportType', reportType);
   params.set('format', format);
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/reports/exports?${params.toString()}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/reports/exports?${params.toString()}`, {
       method: 'POST',
       headers: authHeaders(),
       signal,
@@ -177,7 +178,7 @@ export async function createReportExport(
 
 export async function getReportExport(exportId: string, signal?: AbortSignal): Promise<ReportExportSummary> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/reports/exports/${exportId}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/reports/exports/${exportId}`, {
       method: 'GET',
       headers: authHeaders(),
       signal,
@@ -202,7 +203,7 @@ export async function getReportExport(exportId: string, signal?: AbortSignal): P
 
 export async function cancelReportExport(exportId: string, signal?: AbortSignal): Promise<void> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/reports/exports/${exportId}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/reports/exports/${exportId}`, {
       method: 'DELETE',
       headers: authHeaders(),
       signal,
@@ -226,7 +227,7 @@ export async function cancelReportExport(exportId: string, signal?: AbortSignal)
 
 export async function downloadReportExport(exportId: string, signal?: AbortSignal): Promise<Blob> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/reports/exports/${exportId}/download`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/reports/exports/${exportId}/download`, {
       method: 'GET',
       headers: authHeaders(),
       signal,

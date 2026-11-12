@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import type { ServiceRequestDetail } from '../../requests/types/service-request.types';
@@ -22,7 +23,7 @@ async function uploadViaFetch<T>(path: string, formData: FormData, onProgress: (
   if (!accessToken) {
     throw new DocumentsApiError(401, undefined, 'denied');
   }
-  const response = await fetch(`${getApiBaseUrl()}${path}`, {
+  const response = await fetchWithSession(`${getApiBaseUrl()}${path}`, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -126,7 +127,7 @@ function authHeaders(): HeadersInit {
 
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, init);
+    const response = await fetchWithSession(`${getApiBaseUrl()}${path}`, init);
     if (!response.ok) {
       throw await parseError(response);
     }
@@ -233,7 +234,7 @@ export async function downloadDocumentContent(
   signal?: AbortSignal,
 ): Promise<{ blob: Blob; filename: string; sha256: string | null }> {
   try {
-    const response = await fetch(
+    const response = await fetchWithSession(
       `${getApiBaseUrl()}/api/v1/documents/${documentId}/versions/${versionNumber}/content`,
       {
         method: 'GET',
@@ -287,7 +288,7 @@ export async function downloadDocumentBatch(
   signal?: AbortSignal,
 ): Promise<void> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/documents/download-batch`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/documents/download-batch`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ documents }),
@@ -319,7 +320,7 @@ export async function triggerAuthorizedDownload(
   const absoluteUrl = issued.downloadUrl.startsWith('http')
     ? issued.downloadUrl
     : `${getApiBaseUrl()}${issued.downloadUrl}`;
-  const response = await fetch(absoluteUrl);
+  const response = await fetchWithSession(absoluteUrl);
   if (!response.ok) {
     throw await parseError(response);
   }

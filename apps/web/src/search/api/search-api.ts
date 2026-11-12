@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import {
@@ -83,7 +84,7 @@ async function parseError(response: Response): Promise<SearchApiError> {
 
 export async function searchEntities(filters: SearchFilters, signal?: AbortSignal): Promise<SearchResponse> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/search${buildQuery(filters)}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/search${buildQuery(filters)}`, {
       method: 'GET',
       headers: authHeaders(),
       signal,

@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 
@@ -112,7 +113,7 @@ export async function getWorkInbox(
   signal?: AbortSignal,
 ): Promise<WorkInboxPage> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/work-inbox${buildWorkInboxQuery(filters)}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/work-inbox${buildWorkInboxQuery(filters)}`, {
       method: 'GET',
       headers: authHeaders(),
       signal,
