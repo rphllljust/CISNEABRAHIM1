@@ -1708,6 +1708,30 @@ async function assertPreDeltaState(connectionString, deltaFile) {
       return;
     }
 
+    if (deltaFile === '0119_shared_rate_limit_bucket.sql') {
+      /*
+       * PRE-DELTA da 0119.
+       *
+       * N-1 precisa conter o schema de identidade (a tabela de contador so faz sentido
+       * quando existe autenticacao para limitar) e NAO pode conter `sec.rate_limit_bucket`.
+       * Se a tabela ja existisse nesta altura, a migration nao estaria provando o delta.
+       *
+       * O gate incremental roda N-1 -> N sobre um banco real: e o que garante que a 0119 e
+       * aplicavel sobre uma base ja povoada, e nao apenas sobre um banco vazio.
+       */
+      const baseline = await client.query(
+        `SELECT to_regclass('identity.identities') IS NOT NULL AS has_identities,
+                to_regclass('sec.rate_limit_bucket') AS already_shared`,
+      );
+      const row = baseline.rows[0];
+      if (!row?.has_identities || row.already_shared !== null) {
+        throw new Error(
+          '0119 N-1 requires identity schema without the shared rate-limit bucket table',
+        );
+      }
+      return;
+    }
+
     throw new Error(`Unsupported incremental delta migration: ${deltaFile}`);
   } finally {
     await client.end();
