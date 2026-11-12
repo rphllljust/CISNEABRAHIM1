@@ -3,7 +3,7 @@ import test from 'node:test';
 import { buildSurfacePlan, normalizeEnvValue } from './coolify-module-surface.mjs';
 
 /**
- * CONTRATO DE SUPERFICIE — modulo liberado exige FEATURE_MODULE_*=true na API.
+ * SRC-009 2-A: modulo gated da Release 1 exige FEATURE_MODULE_*=false na API.
  *
  * As duas familias de flags sao independentes por desenho:
  *   VITE_FEATURE_MODULE_*  (build, import.meta.env) -> o que o menu mostra
@@ -22,7 +22,7 @@ function envEntry(key, value) {
 
 function envsWith(overrides = {}) {
   const base = {};
-  // Estado saudavel: TODOS os modulos construidos ligados e STUB desligado.
+  // SRC-009 2-A: todos os modulos gated desligados em producao R1.
   for (const moduleId of [
     'FINANCE',
     'FISCAL',
@@ -38,7 +38,7 @@ function envsWith(overrides = {}) {
     'APPROVAL_MATRIX',
     'OPERATIONAL_PROFITABILITY',
   ]) {
-    base[`FEATURE_MODULE_${moduleId}`] = 'true';
+    base[`FEATURE_MODULE_${moduleId}`] = 'false';
   }
   for (const moduleId of ['RENTALS', 'TRANSPORT']) {
     base[`FEATURE_MODULE_${moduleId}`] = 'false';
@@ -50,16 +50,16 @@ function envsWith(overrides = {}) {
 test('estado saudavel nao gera nenhuma divergencia', () => {
   const plan = buildSurfacePlan(envsWith());
   assert.deepEqual(plan.mismatches, []);
-  assert.equal(plan.current.FEATURE_MODULE_FINANCE, 'true');
+  assert.equal(plan.current.FEATURE_MODULE_FINANCE, 'false');
   assert.equal(plan.current.FEATURE_MODULE_RENTALS, 'false');
 });
 
-test('modulo construido desligado na API e divergencia para ligar', () => {
-  const plan = buildSurfacePlan(envsWith({ FEATURE_MODULE_FINANCE: 'false' }));
+test('modulo construido ligado na API sem aceite e divergencia para desligar', () => {
+  const plan = buildSurfacePlan(envsWith({ FEATURE_MODULE_FINANCE: 'true' }));
   assert.equal(plan.mismatches.length, 1);
   assert.equal(plan.mismatches[0].key, 'FEATURE_MODULE_FINANCE');
-  assert.equal(plan.mismatches[0].desired, 'true');
-  assert.equal(plan.mismatches[0].actual, 'false');
+  assert.equal(plan.mismatches[0].desired, 'false');
+  assert.equal(plan.mismatches[0].actual, 'true');
   assert.equal(plan.mismatches[0].action, 'update');
 });
 
@@ -84,7 +84,7 @@ test('ausente != false: valor vazio nao conta como desligado', () => {
   const plan = buildSurfacePlan(envsWith({ FEATURE_MODULE_ALERTS: '' }));
   assert.equal(plan.mismatches.length, 1);
   assert.equal(plan.mismatches[0].key, 'FEATURE_MODULE_ALERTS');
-  assert.equal(plan.mismatches[0].desired, 'true');
+  assert.equal(plan.mismatches[0].desired, 'false');
 });
 
 test('entrada de preview nao e confundida com producao', () => {
@@ -105,7 +105,7 @@ test('entrada de preview nao e confundida com producao', () => {
 
 test('duas entradas de producao para a mesma chave e ambiguidade, nao aceite', () => {
   const envs = envsWith();
-  envs.push(envEntry('FEATURE_MODULE_FINANCE', 'true'));
+  envs.push(envEntry('FEATURE_MODULE_FINANCE', 'false'));
   const plan = buildSurfacePlan(envs);
   assert.equal(plan.mismatches.length, 1);
   assert.equal(plan.mismatches[0].key, 'FEATURE_MODULE_FINANCE');
@@ -146,7 +146,7 @@ test('nao mascara valor invalido como se fosse o correto', () => {
 });
 
 test('plano aceita aspas literais como valor correto', () => {
-  const envs = envsWith({ FEATURE_MODULE_FINANCE: "'true'", FEATURE_MODULE_RENTALS: "'false'" });
+  const envs = envsWith({ FEATURE_MODULE_FINANCE: "'false'", FEATURE_MODULE_RENTALS: "'false'" });
   const plan = buildSurfacePlan(envs);
   assert.deepEqual(plan.mismatches, []);
 });
