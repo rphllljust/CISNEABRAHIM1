@@ -41,7 +41,7 @@ export class SearchAccessService {
   ) {}
 
   async search(actor: IdentityAuthzContext, query: SearchQueryInput): Promise<SearchResponse> {
-    this.endpointRateLimit.assertAllowed('search', actor.identityId);
+    await this.endpointRateLimit.assertAllowed('search', actor.identityId);
     const normalized = query.q ? normalizeSearchQuery(query.q) : null;
     if (!normalized) {
       throw new SearchHttpException(400, SEARCH_ERROR_CODES.INVALID_QUERY, 'Invalid search query.');
