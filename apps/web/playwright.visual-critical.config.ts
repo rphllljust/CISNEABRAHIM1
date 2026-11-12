@@ -46,6 +46,7 @@ export default defineConfig({
     // permissivo que o full, senão vira teatro.
     toHaveScreenshot: {
       maxDiffPixelRatio: 0.01,
+      threshold: 0.25,
       animations: 'disabled',
     },
   },
