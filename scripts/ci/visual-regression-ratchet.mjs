@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { parseVisualFailures } from './visual-regression-parser.mjs';
+import { resolveVisualBaselineSha, selectVisualBaselineRun } from './visual-ratchet-baseline.mjs';
 
 const [currentLogPath] = process.argv.slice(2);
 if (!currentLogPath) {
@@ -45,19 +46,7 @@ async function githubJson(path) {
 }
 
 const event = JSON.parse(await readFile(eventPath, 'utf8'));
-let baselineSha;
-
-if (eventName === 'pull_request') {
-  baselineSha = event.pull_request?.base?.sha;
-} else if (eventName === 'push') {
-  baselineSha = event.before;
-} else {
-  throw new Error(`Unsupported event for visual ratchet: ${eventName}`);
-}
-
-if (!baselineSha || /^0+$/.test(baselineSha)) {
-  throw new Error('Unable to resolve exact baseline SHA; failing closed.');
-}
+const baselineSha = resolveVisualBaselineSha(eventName, event, process.env.GITHUB_SHA);
 
 const currentFailures = parseVisualFailures(await readFile(currentLogPath, 'utf8'));
 const [owner, repo] = repository.split('/');
@@ -66,9 +55,7 @@ const [owner, repo] = repository.split('/');
 const runs = await githubJson(
   `/repos/${owner}/${repo}/actions/runs?head_sha=${encodeURIComponent(baselineSha)}&status=completed&per_page=100`,
 );
-const baselineRun = runs.workflow_runs
-  ?.filter((run) => run.name === 'Visual full' && run.head_sha === baselineSha && run.status === 'completed')
-  .sort((a, b) => b.id - a.id)[0];
+const baselineRun = selectVisualBaselineRun(runs.workflow_runs, baselineSha, process.env.GITHUB_RUN_ID);
 
 if (!baselineRun) {
   throw new Error(
