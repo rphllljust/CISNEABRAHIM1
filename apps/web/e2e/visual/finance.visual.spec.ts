@@ -34,7 +34,9 @@ test.describe('finance visual', () => {
     ).toBeVisible();
     await expect(page.getByText('CC-OPER')).toBeVisible();
     await expect(page.getByLabel(/identificador da despesa/i)).toHaveCount(0);
-    await expect(page.getByText(/3 despesa\(s\) no total/)).toBeVisible();
+    // Paginação autoritativa: o rodapé usa a faixa e o total retornados pela API.
+    // WorklistFooter combina faixa autoritativa e número da página no MESMO <p>.
+    await expect(page.getByText(/^1–3 de 3\s*·\s*Página 1 de 1$/)).toBeVisible();
     await assertNoPageLevelHorizontalOverflow(page);
 
     await stabilizePage(page);
