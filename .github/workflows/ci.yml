@@ -769,36 +769,8 @@ jobs:
   visual-full:
     name: Visual full
     runs-on: ubuntu-latest
-    # ─────────────────────────────────────────────────────────────────────────────────────────
-    # RETIRADO DO CAMINHO CRITICO DO CD — SEM REDUZIR UM PIXEL DE COBERTURA
-    # ─────────────────────────────────────────────────────────────────────────────────────────
-    #
-    # MEDIDO: a suite completa (24 specs x 3 viewports = ate 72 comparacoes) levou 10m31s no run
-    # 39719203623 (passo `Web visual regression (full suite)`, 03:53:14Z -> 04:03:36Z). Ela NAO
-    # estava no `needs` do `release-ready`, mas rodava DENTRO do workflow `CI` em todo `push` —
-    # e o CD dispara em `workflow_run: [CI] types: [completed]`. Consequencia: o evento que
-    # autoriza a promocao so chegava depois que o visual completo terminasse. Um fix de backend
-    # esperava ~10 min por snapshots de telas que nao tinham como ter mudado.
-    #
-    # AGORA: a suite completa vive em `visual-full.yml`, com gatilhos proprios (nightly,
-    # manual, e obrigatoria em PR cujo diff toca superficie visual). Este workflow `CI` deixa de
-    # emitir `Visual full` e, portanto, deixa de atrasar o `completed` que libera o CD.
-    #
-    # O QUE NAO MUDA
-    #
-    #   - NENHUM snapshot removido; NENHUM limiar afrouxado (`maxDiffPixelRatio` intacto);
-    #   - `Visual critical` PERMANECE no `release-ready` (ver `release-ready.needs` abaixo);
-    #   - a regressao visual continua bloqueando release: `visual-critical` no caminho critico,
-    #     `visual-full` bloqueante em PR com risco visual e no nightly.
-    #
-    # Este job e mantido APENAS para `pull_request` com risco visual, onde bloquear e correto e o
-    # `completed` do CI nao autoriza promocao alguma (PR nao promove). Em `push` para `main` —
-    # o evento que dispara o CD — o visual completo NAO roda aqui: ele roda no `visual-full.yml`.
-    needs: detect-change-scope
-    if: >-
-      always() &&
-      github.event_name == 'pull_request' &&
-      needs.detect-change-scope.outputs.visual_risk == 'true'
+    # Obrigatorio em TODOS os PRs e pushes, inclusive backend, banco e docs.
+    # Release-ready exige Visual Full = success no SHA exato.
     timeout-minutes: 35
     steps:
       - name: Checkout
@@ -834,8 +806,11 @@ jobs:
           fi
       - name: Web visual regression (full suite)
         id: web-visual
+        # Capturar diagnosticos sem aprovar falha; gate terminal exige success.
         continue-on-error: true
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p artifacts/ci
           pnpm --filter @cisne/web test:visual 2>&1 | tee artifacts/ci/web-visual.log
         env:
@@ -857,6 +832,16 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
         run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
+      - name: Enforce strict Visual Full acceptance
+        if: always()
+        shell: bash
+        env:
+          VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
+        run: |
+          if [[ "${VISUAL_OUTCOME}" != "success" ]]; then
+            echo "::error::Visual Full blocked: Playwright did not pass (including pre-existing visual debt)."
+            exit 1
+          fi
 
   release-ready:
     name: Release ready
@@ -884,30 +869,8 @@ jobs:
     # Um agregador escrito como `!= "failure"` transformaria job ausente em liberacao de release.
     # Este e escrito para que a UNICA entrada que produz verde seja `success` explicito.
     #
-    # ─────────────────────────────────────────────────────────────────────────────────────────
-    # GATES AGREGADOS — SO O QUE PROMOVE
-    # ─────────────────────────────────────────────────────────────────────────────────────────
-    #
-    #   unit-tests           : nome ESTAVEL que agrega o matrix de shards unitarios. Uma matrix
-    #                          gera um check por shard; agregar pelo nome estavel impede que um
-    #                          shard ausente passe despercebido.
-    #   integration-executor : job UNICO (nao matrix). Agregar seria uma camada sem funcao.
-    #                                    Uma matrix gera checks por shard; agregar pelo nome
-    #                                    estavel impede que um shard ausente passe despercebido.
-    #   database-migration-gate        : journal/cobertura de migrations (gate barato, uma vez).
-    #   visual-critical                : UNICO visual no caminho de release (login + dashboard).
-    #
-    # FORA DO `needs`, E POR QUE ISSO NAO ENFRAQUECE NADA
-    #
-    #   detect-change-scope : classificador de risco, nao gate. Seu resultado entra em
-    #                         `visual-full`, nao na decisao de promocao.
-    #   visual-full         : permanece bloqueante em PR com risco visual. Em `push` para `main`
-    #                         ele sai deste workflow (que e o que dispara o CD) e passa a viver em
-    #                         `visual-full.yml` (nightly + manual) — sem perder cobertura: os
-    #                         mesmos specs, os mesmos viewports, os mesmos limiares. A divisao e
-    #                         por RISCO DE PROMOCAO, nao por conveniencia: `visual-critical` cobre
-    #                         as telas cujo defeito IMPEDE operar; as demais continuam cobertas,
-    #                         apenas em cadencia propria.
+    # Visual Full obrigatorio em TODOS os PRs e pushes, sem excecao por path.
+    # A ausencia, skipped, cancelled e failure bloqueiam o release-ready.
     needs:
       - static-quality
       - unit-tests
@@ -950,7 +913,8 @@ jobs:
             "integration-executor:$INTEGRATION" \
             "api-e2e:$E2E" \
             "build-release:$BUILD" \
-            "visual-critical:$VISUAL_CRITICAL"
+            "visual-critical:$VISUAL_CRITICAL" \
+            "visual-full:$VISUAL_FULL"
           do
             name="${pair%%:*}"
             result="${pair##*:}"
@@ -970,9 +934,8 @@ jobs:
               failed=1
             fi
           done
-          # In PRs affecting UI, full visual regression is part of the merge authority.
-          # On main, visual-full is intentionally skipped; only visual-critical blocks CD.
-          # A missing/failed risk classifier must not silently classify UI risk as false.
+          # Visual Full ja foi verificado sem condicao acima. O classificador
+          # continua validado no PR apenas para fins de integridade e observabilidade.
           if [ "$EVENT_NAME" = "pull_request" ]; then
             if [ "$CHANGE_SCOPE" != "success" ]; then
               echo "::error::change-scope detector did not succeed ($CHANGE_SCOPE)"
@@ -984,9 +947,6 @@ jobs:
             fi
             if [ "$VISUAL_RISK" != "true" ] && [ "$VISUAL_RISK" != "false" ]; then
               echo "::error::visual risk classifier did not publish true/false ($VISUAL_RISK)"
-              failed=1
-            elif [ "$VISUAL_RISK" = "true" ] && [ "$VISUAL_FULL" != "success" ]; then
-              echo "::error::UI-risk PR requires full visual regression success ($VISUAL_FULL)"
               failed=1
             fi
           fi
