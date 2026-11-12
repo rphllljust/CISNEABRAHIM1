@@ -160,8 +160,8 @@ export function assertR1RegistryScope(modules) {
 
 async function proveActiveRuntimeScope(client, apiUuid) {
   const application = await client.getApplication(apiUuid);
-  const apiUrl = String(application?.fqdn ?? '').split(',')[0].trim().replace(/\\/+$/, '');
-  if (!/^https:\\/\\/[^/]+$/.test(apiUrl)) {
+  const apiUrl = String(application?.fqdn ?? '').split(',')[0].trim().replace(/\/+$/, '');
+  if (!/^https:\/\/[^/]+$/.test(apiUrl)) {
     throw new DeployRefusedError('FQDN HTTPS da API ausente ou invalido');
   }
   const login = required('PROD_SMOKE_LOGIN', process.env.PROD_SMOKE_LOGIN);
@@ -200,6 +200,7 @@ async function main() {
   }
 
   if (plan.mismatches.length === 0) {
+    if (fix) await proveActiveRuntimeScope(client, apiUuid);
     console.log('[module-surface] PASS: superficie da API ja coincide com o contrato de release');
     return;
   }
