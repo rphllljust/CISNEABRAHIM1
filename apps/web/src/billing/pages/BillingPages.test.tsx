@@ -32,6 +32,9 @@ describe('BillingDashboardPage', () => {
     });
 
     expect(screen.getByText(/OS-2026-DEMO01/)).toBeInTheDocument();
+    const metrics = screen.getByRole('region', { name: 'Indicadores da fila de faturamento' });
+    expect(metrics).toHaveAttribute('tabindex', '0');
+    expect(within(metrics).getAllByText(/no recorte/)).toHaveLength(8);
     expect(screen.getAllByText(/1–1 de 1 no recorte/)).toHaveLength(2);
     const requestUrl = (input: RequestInfo | URL) => input instanceof Request ? input.url : input instanceof URL ? input.href : input;
     expect(fetchMock.mock.calls.filter(([input]) => requestUrl(input).includes('/api/v1/billing/worklist'))).toHaveLength(1);
