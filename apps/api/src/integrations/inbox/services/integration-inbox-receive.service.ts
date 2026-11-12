@@ -19,7 +19,7 @@ export class IntegrationInboxReceiveService {
   ) {}
 
   async receive(input: ReceiveIntegrationMessageInput): Promise<ReceiveIntegrationMessageResult> {
-    this.endpointRateLimit.assertAllowed('webhook', input.provider);
+    await this.endpointRateLimit.assertAllowed('webhook', input.provider);
     const rawBody = input.rawBody ?? JSON.stringify(input.payload);
     try {
       this.webhookAuth.validateSignature({
