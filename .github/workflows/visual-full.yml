@@ -1,65 +1,18 @@
 name: Visual full
 
-# SUITE VISUAL COMPLETA — COBERTURA INTEGRAL, CADENCIA PROPRIA.
-#
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-# POR QUE ESTE WORKFLOW EXISTE
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-#
-# MEDIDO (run 39719203623): a suite visual completa levou 10m31s — passo `Web visual regression
-# (full suite)`, 03:53:14Z -> 04:03:36Z. Ela NAO estava no `needs` do `release-ready`, mas rodava
-# DENTRO do workflow `CI` em todo `push` para `main`. Como o CD dispara em
-# `workflow_run: [CI] types: [completed]`, o evento que autoriza a promocao so chegava depois que
-# o visual completo terminasse. Um fix de backend esperava ~10 min por snapshots de telas que nao
-# tinham como ter mudado.
-#
-# A suite completa sai do workflow `CI`. Sai TAMBEM o evento `completed` que ela atrasava.
-#
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-# O QUE NAO MUDA — E PRECISA FICAR ESCRITO
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-#
-#   - NENHUM snapshot removido. NENHUM limiar afrouxado (`maxDiffPixelRatio` intacto).
-#   - os MESMOS 24 specs, os MESMOS 3 viewports de antes.
-#   - `Visual critical` PERMANECE no `release-ready` do `ci.yml`: login + dashboard, as telas cujo
-#     defeito visual IMPEDE operar, continuam bloqueando promocao em TODA mudanca.
-#   - regressao visual continua reprovando via `visual-regression-ratchet` — nada e silenciado.
-#
-# A divisao e por RISCO DE PROMOCAO, nao por conveniencia. Quem promove nao espera a cadeia
-# inteira; quem toca pixel recebe a cadeia inteira, bloqueando.
-#
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-# GATILHOS
-# ─────────────────────────────────────────────────────────────────────────────────────────────
-#
-#   schedule  : nightly. A cobertura ampla precisa existir tambem entre releases — senao a divida
-#               visual se acumula silenciosamente e so aparece quando ja e regressao.
-#   dispatch  : manual, para inspecao sob demanda.
-#   PR        : OBRIGATORIO quando o diff toca superficie visual. Em PR, bloquear e correto:
-#               PR nao promove, entao nao ha caminho critico a proteger.
-#
-# `push` em `main` NAO dispara este workflow de proposito. E exatamente esse o atraso que a
-# separacao elimina.
+# Suite visual independente para execucao agendada ou manual.
+# O Visual Full de TODOS os PRs e pushes e executado, sem filtro de paths,
+# no workflow CI e e exigido por Release ready no SHA exato.
+# Este workflow adicional preserva a verificacao noturna e sob demanda.
 
 on:
   schedule:
     # 04:17 UTC — fora de qualquer janela de release típica.
     - cron: '17 4 * * *'
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'apps/web/src/**'
-      - 'apps/web/e2e/visual/**'
-      - 'apps/web/index.html'
-      - 'apps/web/vite.config.ts'
-      - 'apps/web/tailwind.config**'
-      - 'packages/ui/**'
-      - 'packages/design-**'
-      - '**/*.css'
 
 concurrency:
-  # Grupo proprio, jamais compartilhado com `CI` ou `CD`. Cancelar uma run visual superseded nao
-  # interrompe promocao alguma.
+  # Grupo proprio para verificacao noturna/manual; o gate bloqueante mora no CI.
   group: visual-full-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
