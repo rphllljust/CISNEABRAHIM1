@@ -769,6 +769,9 @@ jobs:
   visual-full:
     name: Visual full
     runs-on: ubuntu-latest
+    # Runtime e fontes identicos ao workflow Visual full independente.
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
     # Obrigatorio em TODOS os PRs e pushes, inclusive backend, banco e docs.
     # Release-ready exige Visual Full = success no SHA exato.
     timeout-minutes: 35
@@ -786,24 +789,10 @@ jobs:
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
         run: pnpm build
-      # Mesmo cache de browser do `visual-critical`: o custo dominante e download +
-      # apt, nao a suite. Chave pela versao do lockfile; miss cai no install completo.
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-      - name: Install Playwright Chromium (web visual regression)
-        run: |
-          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
-            echo "browser em cache — pulando download/apt"
-            pnpm --filter @cisne/web exec playwright install chromium
-          else
-            pnpm --filter @cisne/web exec playwright install chromium --with-deps
-          fi
+      - name: Verify Visual Full exit-status contract
+        run: node --test scripts/ci/visual-full-exit-status.test.mjs
+      - name: Verify Playwright runtime and fonts
+        run: node scripts/ci/visual-runtime-verify.mjs
       - name: Web visual regression (full suite)
         id: web-visual
         # Capturar diagnosticos sem aprovar falha; gate terminal exige success.
