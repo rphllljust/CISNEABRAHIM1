@@ -36,14 +36,16 @@ pnpm readiness:gate          # exit 1 quando produção NO-GO (checklist go-live
 
 ### Blockers reais (produção)
 
-| ID | Tipo | Evidência |
-| -- | ---- | --------- |
-| `BUSINESS_SIGN_OFF_MISSING` | Aceite empresarial | `readiness-evidence.json` → `businessSignOff.decision=PENDING` |
-| `RPO_RTO_NOT_DEFINED (DDP-016)` | Continuidade | `readiness-evidence.json` → `rpoRto.decision=PENDING_APPROVAL` |
-| `PILOT_NOT_STARTED` / `PILOT_OBSERVATION_WINDOW_NOT_COMPLETED` | Piloto | `readiness-evidence.json` → `pilot` |
-| `MANUAL_UAT_NOT_COMPLETED` | UX/A11y manual | `readiness-evidence.json` → `manualUatUx.status=NOT_STARTED` |
-| `READINESS_EVIDENCE_MISMATCH` | Integridade | env var aprova sem registro autorizado |
-| `READINESS_RELEASE_EVIDENCE_MISMATCH` | Release binding | UAT/sign-off de RC diferente do candidato atual |
+| ID | Tipo | Evidência | Estado |
+| -- | ---- | --------- | ------ |
+| `BUSINESS_SIGN_OFF_MISSING` | Aceite empresarial | `readiness-evidence.json` → `businessSignOff.decision` | **RESOLVIDO** — `APPROVED` (SRC-009, 2026-09-29, Abrahim Jabour Junior + Monica Perez Badra Jabour) |
+| `RPO_RTO_NOT_DEFINED (DDP-016)` | Continuidade | `readiness-evidence.json` → `rpoRto.decision` | **RESOLVIDO** — `APPROVED`, tier `conservative`, RPO 24h / RTO 4h (DDP-016, 2026-08-30) |
+| `PILOT_NOT_STARTED` / `PILOT_OBSERVATION_WINDOW_NOT_COMPLETED` | Piloto | `readiness-evidence.json` → `pilot` | **ABERTO** — `phase=NOT_STARTED`, `startedAt=null` |
+| `MANUAL_UAT_NOT_COMPLETED` | UX/A11y manual | `readiness-evidence.json` → `manualUatUx.status` | **ABERTO** — `NOT_STARTED` |
+| `READINESS_EVIDENCE_MISMATCH` | Integridade | env var aprova sem registro autorizado | Regra ativa |
+| `READINESS_RELEASE_EVIDENCE_MISMATCH` | Release binding | UAT/sign-off de RC diferente do candidato atual | Regra ativa |
+
+> **Nota de correção (2026-11-12):** este documento listava `businessSignOff` e `rpoRto` como `PENDING`/`PENDING_APPROVAL`. Os dois estão `APPROVED` no registro autorizado. Corrigido conforme regra de precedência: **fonte autorizada (`readiness-evidence.json`) → evidência registrada → derivação documental**, nunca o inverso. Os blockers remanescentes são apenas `PILOT_*` e `MANUAL_UAT_*`, mais o vínculo de release, que segue o release candidate efetivamente congelado.
 
 ---
 
@@ -53,8 +55,8 @@ pnpm readiness:gate          # exit 1 quando produção NO-GO (checklist go-live
 | ----------- | ------ | --------- |
 | CI PASS | **PASS** | `.github/workflows/ci.yml` |
 | CD PASS | **PASS** | Prompt 87 — `cd-pipeline.spec.ts` |
-| UAT APPROVED | **FAIL** | Engenharia APPROVED; patrocinador PENDING |
-| Pilot APPROVED | **FAIL** | Fase ACTIVE ≠ EXIT_READY |
+| UAT APPROVED | **PASS** | Engenharia APPROVED; aceite empresarial `APPROVED` (SRC-009, 2026-09-29) — escopo `operational-validation-authorization` |
+| Pilot APPROVED | **FAIL** | `pilot.phase=NOT_STARTED`; sem start event autorizado |
 | Security PASS | **PASS** | Prompt 81 |
 | Load tests PASS | **PASS** | Prompt 82 |
 | Backup PASS | **PASS** | Prompt 84 |
