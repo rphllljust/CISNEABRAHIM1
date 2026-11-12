@@ -61,6 +61,9 @@ jobs:
       - name: Verify Playwright runtime and fonts
         run: node scripts/ci/visual-runtime-verify.mjs
       - name: Regenerate snapshots in pinned Linux environment
+        id: snapshot-update
+        # Preserve original test outcome, yet allow a draft with PARTIAL baselines for review.
+        continue-on-error: true
         shell: bash
         env:
           VISUAL_SPECS: ${{ inputs.specs }}
@@ -95,14 +98,16 @@ jobs:
             apps/web/test-results
             apps/web/playwright-report
       - name: Propose changed PNGs in a draft PR (never autoaccept)
+        if: ${{ !cancelled() && (steps.snapshot-update.outcome == 'success' || steps.snapshot-update.outcome == 'failure') }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           VISUAL_SPECS: ${{ inputs.specs }}
+          UPDATE_OUTCOME: ${{ steps.snapshot-update.outcome }}
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          # The baseline must be complete: the preceding test step must pass before publishing.
+          # A failing Playwright execution is recorded as PARTIAL, not green. Never auto-merge.
           # Stage tracked AND newly created snapshots (git diff alone misses untracked PNGs).
           git add -- ':(glob)apps/web/e2e/visual/**/*.png'
           if git diff --cached --quiet; then
@@ -120,13 +125,14 @@ jobs:
           git push origin "HEAD:refs/heads/$branch"
           export BASELINE_BRANCH="$branch" BASELINE_SOURCE_SHA="$source_sha"
           node --input-type=module <<'NODE'
-          const { GITHUB_REPOSITORY: repo, GH_TOKEN: token, GITHUB_SERVER_URL: server, GITHUB_RUN_ID: runId, BASELINE_BRANCH: head, BASELINE_SOURCE_SHA: sha, VISUAL_SPECS: specs } = process.env;
+          const { GITHUB_REPOSITORY: repo, GH_TOKEN: token, GITHUB_SERVER_URL: server, GITHUB_RUN_ID: runId, BASELINE_BRANCH: head, BASELINE_SOURCE_SHA: sha, VISUAL_SPECS: specs, UPDATE_OUTCOME: outcome } = process.env;
           const payload = {
-            title: 'test(visual): Linux baseline (' + specs + ') — review required',
+            title: 'test(visual): Linux baseline (' + specs + ') — ' + (outcome === 'success' ? 'review required' : 'PARTIAL / FAILED tests'),
             head, base: 'main', draft: true,
             body: 'Generated in the pinned Playwright v1.62.1-noble container.\n' +
               'Source SHA: `' + sha + '`\n' +
               'Specs: `' + specs + '`\n' +
+              'Generator Playwright outcome: **' + outcome.toUpperCase() + '** (failures need fixes; PNGs are not approved).\n' +
               'Workflow evidence: ' + server + '/' + repo + '/actions/runs/' + runId + '\n\n' +
               '**Review each changed PNG against expected UI and the diff artifacts before approval.** ' +
               'This PR is not an authorization for production or for automatic acceptance.',
@@ -145,3 +151,13 @@ jobs:
           const pr = await response.json();
           console.log('Baseline draft PR: ' + pr.html_url);
           NODE
+      - name: Enforce original snapshot-generation test result
+        if: always()
+        shell: bash
+        env:
+          UPDATE_OUTCOME: ${{ steps.snapshot-update.outcome }}
+        run: |
+          if [[ "$UPDATE_OUTCOME" != "success" ]]; then
+            echo "::error::Playwright baseline generation did not pass ($UPDATE_OUTCOME). Any draft PNGs are PARTIAL and not accepted."
+            exit 1
+          fi
