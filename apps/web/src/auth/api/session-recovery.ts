@@ -105,18 +105,37 @@ function buildHeaders(init: RequestInit): Headers {
 }
 
 /**
+ * Resolve a URL final de uma requisição.
+ *
+ * Os módulos de API existentes não são uniformes: uns passam o CAMINHO
+ * (`fetchWithSession('/api/v1/clients')`) e outros passam a URL JÁ COMPLETA
+ * (`fetchWithSession(`${getApiBaseUrl()}/api/v1/work-inbox?…`)`). Concatenar a base
+ * indiscriminadamente produzia `http://host/api/v1http://host/api/v1/...` nos segundos —
+ * um erro que o teste unitário do próprio módulo não pegava porque ele intercepta `fetch`
+ * e só inspeciona `pathname`, enquanto a tela real recebia 404 e renderizava vazio.
+ *
+ * Regra: só prefixa quando o argumento é um caminho relativo. Uma URL absoluta
+ * (`http://`, `https://`, `//`) é usada como veio.
+ */
+function resolveRequestUrl(input: string): string {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(input) || input.startsWith('//')) {
+    return input;
+  }
+  return `${getApiBaseUrl()}${input}`;
+}
+
+/**
  * Executa `fetch` com o token corrente e, no 401, renova e repete UMA vez.
  *
- * A URL base vem de `getApiBaseUrl()`, que é o mesmo resolvedor usado pelo login. Os candidatos
- * de fallback multi-host existem em `auth-api.ts`; aqui usa-se o resolvido, porque as APIs de
- * feature sempre operaram com um único host e misturar a fonte da URL base neste PR tornaria
- * ambíguo qual mudança causou uma regressão de conectividade.
+ * Aceita caminho relativo ou URL absoluta (ver `resolveRequestUrl`), porque os módulos de
+ * API já existentes usam as duas formas e normalizá-los no mesmo PR da recuperação de
+ * sessão tornaria ambíguo qual mudança quebrou uma tela.
  */
 export async function fetchWithSession(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  const url = `${getApiBaseUrl()}${path}`;
+  const url = resolveRequestUrl(path);
   const firstAttempt = await fetch(url, { ...init, headers: buildHeaders(init) });
 
   if (firstAttempt.status !== 401) {

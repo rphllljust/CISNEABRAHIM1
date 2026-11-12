@@ -188,4 +188,30 @@ describe('session recovery: continuidade apos expirar o access token', () => {
 
     await expect(renewAccessToken()).resolves.toBe(false);
   });
+
+  it('nao prefixa a base quando o argumento ja e URL absoluta', async () => {
+    /*
+     * REGRESSAO COBERTA: os modulos de API nao sao uniformes. Varios passam a URL JA completa
+     * (`${getApiBaseUrl()}/api/v1/work-inbox?...`). Concatenar a base de novo produzia
+     * `http://host/api/v1http://host/api/v1/...` e a tela recebia 404 sem nenhum teste falhar,
+     * porque o mock de fetch intercepta tudo e so le `pathname`.
+     */
+    tokenStore.setTokens(ACCESS_RENEWED, REFRESH_TOKEN);
+    const seen: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        seen.push(String(url));
+        return jsonResponse(200, { ok: true });
+      }),
+    );
+
+    await fetchWithSession('http://api.exemplo.test/api/v1/work-inbox?offset=0');
+    await fetchWithSession('/api/v1/clients');
+
+    expect(seen[0]).toBe('http://api.exemplo.test/api/v1/work-inbox?offset=0');
+    // Caminho relativo continua sendo prefixado uma unica vez.
+    expect(seen[1]).toMatch(/\/api\/v1\/clients$/);
+    expect(seen[1]?.match(/api\/v1/g)).toHaveLength(1);
+  });
 });
