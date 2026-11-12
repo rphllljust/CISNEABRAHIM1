@@ -10,6 +10,8 @@ test.describe('executive dashboard visual regression', () => {
     await page.goto('/app');
     await expect(page.getByRole('heading', { level: 1, name: /central de operações/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /fila de trabalho/i })).toBeVisible();
+    await expect(page.getByText(/nenhum trabalho neste recorte/i)).toBeVisible();
+    await expect(page.getByText(/não foi possível falar com o servidor para montar a fila de trabalho/i)).toHaveCount(0);
     await stabilizePage(page);
   });
 

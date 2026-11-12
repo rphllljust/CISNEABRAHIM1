@@ -283,6 +283,27 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     return;
   }
 
+  if (pathname === '/api/v1/work-inbox' && method === 'GET' && context.profile === 'dashboard') {
+    const { url } = parseRequest(route);
+    await fulfillJson(route, {
+      items: [],
+      limit: Number(url.searchParams.get('limit') ?? '50'),
+      offset: Number(url.searchParams.get('offset') ?? '0'),
+      total: 0,
+      totalPages: 0,
+      byDomain: {
+        FINANCEIRO: 0,
+        FISCAL: 0,
+        CONTABILIDADE: 0,
+        OPERACOES: 0,
+        COMERCIAL: 0,
+        SUPRIMENTOS: 0,
+      },
+      unavailableDomains: [],
+    });
+    return;
+  }
+
   if (pathname.startsWith('/api/v1/search') && method === 'GET') {
     await fulfillJson(route, {
       query: { raw: 'test', kind: 'text' },
