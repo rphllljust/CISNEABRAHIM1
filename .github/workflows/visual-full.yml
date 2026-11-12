@@ -50,6 +50,15 @@ on:
     paths:
       - 'apps/web/src/**'
       - 'apps/web/e2e/visual/**'
+      # Keep the Visual Full gate sensitive to changes in the test infrastructure itself.
+      - 'apps/web/e2e/fixtures/**'
+      - 'apps/web/playwright*.config.ts'
+      - 'apps/web/package.json'
+      - 'pnpm-lock.yaml'
+      - '.node-version'
+      - '.github/workflows/visual-full.yml'
+      - '.github/workflows/visual-baseline.yml'
+      - 'scripts/ci/visual-*.mjs'
       - 'apps/web/index.html'
       - 'apps/web/vite.config.ts'
       - 'apps/web/tailwind.config**'
