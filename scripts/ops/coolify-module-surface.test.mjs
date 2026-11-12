@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildSurfacePlan, normalizeEnvValue } from './coolify-module-surface.mjs';
+import { assertR1RegistryScope, buildSurfacePlan, normalizeEnvValue } from './coolify-module-surface.mjs';
 
 /**
  * SRC-009 2-A: modulo gated da Release 1 exige FEATURE_MODULE_*=false na API.
@@ -155,4 +155,23 @@ test('plano continua reprovando valor invalido mesmo entre aspas', () => {
   const plan = buildSurfacePlan(envsWith({ FEATURE_MODULE_FINANCE: "'True'" }));
   assert.equal(plan.mismatches.length, 1);
   assert.equal(plan.mismatches[0].key, 'FEATURE_MODULE_FINANCE');
+});
+
+test('registry do runtime confirma os 15 modulos gated not_released', () => {
+  const modules = Object.keys(buildSurfacePlan(envsWith()).current).map((key) => ({
+    moduleCode: key.slice('FEATURE_MODULE_'.length).toLowerCase().replaceAll('_', '-'),
+    status: 'not_released',
+  }));
+  assert.doesNotThrow(() => assertR1RegistryScope(modules));
+  modules[0].status = 'enabled';
+  assert.throws(() => assertR1RegistryScope(modules), /nao esta not_released/);
+});
+
+test('registry incompleto ou invalido nao prova escopo do runtime', () => {
+  const modules = Object.keys(buildSurfacePlan(envsWith()).current).map((key) => ({
+    moduleCode: key.slice('FEATURE_MODULE_'.length).toLowerCase().replaceAll('_', '-'),
+    status: 'not_released',
+  }));
+  assert.throws(() => assertR1RegistryScope(modules.slice(1)), /nao esta not_released/);
+  assert.throws(() => assertR1RegistryScope(null), /registry invalido/);
 });
