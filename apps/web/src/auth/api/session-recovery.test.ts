@@ -107,7 +107,10 @@ describe('session recovery: continuidade apos expirar o access token', () => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
       // /auth/refresh e a unica URL que deve aparecer mais de uma vez se nao houver mutex.
       if (String(url).includes('/auth/refresh')) {
-        const body = JSON.parse(String(init?.body ?? '{}')) as { refreshToken?: string };
+        // `init.body` tipado como BodyInit | null | undefined: so a string e o formato
+        // que o cliente envia. Ler por narrow evita `String()` sobre objeto/stream.
+        const rawBody = typeof init?.body === 'string' ? init.body : '{}';
+        const body = JSON.parse(rawBody) as { refreshToken?: string };
         refreshCalls.push(body.refreshToken ?? '');
         return jsonResponse(200, {
           accessToken: ACCESS_RENEWED,
