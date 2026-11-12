@@ -146,6 +146,43 @@ async function replaceProductionEnv(client, uuid, key, value) {
   });
 }
 
+/** Confirm the active API, not merely the stored Coolify variables. */
+export function assertR1RegistryScope(modules) {
+  if (!Array.isArray(modules)) throw new DeployRefusedError('module registry invalido');
+  for (const moduleId of [...BUILT_MODULES, ...STUB_MODULES]) {
+    const code = moduleId.toLowerCase().replaceAll('_', '-');
+    const matches = modules.filter((entry) => entry?.moduleCode === code);
+    if (matches.length !== 1 || matches[0].status !== 'not_released') {
+      throw new DeployRefusedError(`modulo ${code} nao esta not_released no runtime`);
+    }
+  }
+}
+
+async function proveActiveRuntimeScope(client, apiUuid) {
+  const application = await client.getApplication(apiUuid);
+  const apiUrl = String(application?.fqdn ?? '').split(',')[0].trim().replace(/\\/+$/, '');
+  if (!/^https:\\/\\/[^/]+$/.test(apiUrl)) {
+    throw new DeployRefusedError('FQDN HTTPS da API ausente ou invalido');
+  }
+  const login = required('PROD_SMOKE_LOGIN', process.env.PROD_SMOKE_LOGIN);
+  const password = required('PROD_SMOKE_PASSWORD', process.env.PROD_SMOKE_PASSWORD);
+  const auth = await fetch(`${apiUrl}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ login, password }),
+  });
+  if (!auth.ok) throw new DeployRefusedError(`login de prova recusado: HTTP ${auth.status}`);
+  const token = (await auth.json())?.accessToken;
+  if (!token) throw new DeployRefusedError('login de prova sem accessToken');
+  const response = await fetch(`${apiUrl}/api/v1/modules/registry`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new DeployRefusedError(`module registry: HTTP ${response.status}`);
+  const body = await response.json();
+  assertR1RegistryScope(Array.isArray(body) ? body : body?.modules);
+  console.log('[module-surface] PASS: runtime autenticado reporta todos os modulos gated not_released');
+}
+
 async function main() {
   const fix = process.argv.includes('--fix');
   const client = createCoolifyClient({
@@ -220,6 +257,7 @@ async function main() {
         verified.mismatches.map((m) => m.key).join(', '),
     );
   }
+  await proveActiveRuntimeScope(client, apiUuid);
   console.log('[module-surface] PASS: superficie da API alinhada ao contrato de release');
 }
 
