@@ -104,6 +104,46 @@ const SAFE_BROWSER_VERDICT_VALUES = Object.freeze({
   ],
 });
 
+const SAFE_BUSINESS_CHECKS = Object.freeze([
+  'acceptanceVerified',
+  'eligibilityVerified',
+  'commercialUnitVerified',
+  'authoritativeCustomerVerified',
+  'currentContractVerified',
+  'completedOrderVerified',
+  'approvedMeasurementVerified',
+  'actualQuantityVerified',
+  'measuredQuantityVerified',
+  'evidenceVerified',
+  'billingRecordVerified',
+  'economicTraceVerified',
+]);
+
+/** Extract only stable, allowlisted business check names from the browser verdict. */
+export function summarizeBusinessDiagnostics(verdictLog, businessOutcome) {
+  const details = String(verdictLog ?? '').split(/\\r?\\n/).find((line) =>
+    line.includes('MEDIÇÃO expõe elegibilidade de faturamento —'),
+  );
+  const safeChecks = new Set(SAFE_BUSINESS_CHECKS);
+  const detail = details?.split(' — ').slice(1).join(' — ') ?? '';
+  const pendingMatch = /pendencias=([^;]*)/.exec(detail);
+  const missingChecks = pendingMatch
+    ? [...new Set(pendingMatch[1].split(',').map((item) => item.trim()).filter((item) => safeChecks.has(item)))].sort()
+    : [];
+
+  let category = 'DIAGNOSTIC_NOT_CAPTURED';
+  if (businessOutcome === 'BUSINESS_VALIDATION_FAILED') {
+    category = 'BUSINESS_VALIDATION_FAILED';
+  } else if (businessOutcome === 'BUSINESS_EVIDENCE_INCOMPLETE') {
+    category = detail.includes('sem OS COMPLETED/CLOSED com workbench elegivel')
+      ? 'NO_ELIGIBLE_TERMINAL_ORDER'
+      : missingChecks.length > 0
+        ? 'CHAIN_CHECKS_MISSING'
+        : 'BUSINESS_EVIDENCE_INCOMPLETE';
+  }
+  return { category, missing_checks: missingChecks };
+}
+
 export function summarizeRejectedProductionBusiness(verdictLog, sourceSha, githubRunId = null) {
   const seen = new Map();
   const duplicates = new Set();
@@ -138,6 +178,7 @@ export function summarizeRejectedProductionBusiness(verdictLog, sourceSha, githu
     checked_at: new Date().toISOString(),
     github_run_id: githubRunId,
     sanitized_verdict: sanitizedVerdict,
+    business_diagnostics: summarizeBusinessDiagnostics(verdictLog, outcome),
   };
 }
 
