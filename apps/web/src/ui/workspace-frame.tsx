@@ -34,7 +34,7 @@ export function WorkspaceContextHost({ children }: { children: ReactNode }) {
     <WorkspaceContext.Provider value={value}>
       <div
         className={cn(
-          'grid min-h-0 min-w-0 flex-1 items-start',
+          'grid min-h-0 min-w-0 flex-1 items-stretch',
           panels.size > 0 && 'xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-4',
         )}
         data-layout="context-workbench"
@@ -45,7 +45,7 @@ export function WorkspaceContextHost({ children }: { children: ReactNode }) {
           ref={setHost}
           hidden={panels.size === 0}
           aria-label="Contexto da seleção"
-          className="sticky top-3 min-h-0 max-h-[calc(100dvh-7rem)] overflow-y-auto border-l border-[var(--erp-border)] bg-white"
+          className="sticky top-3 min-h-0 max-h-[calc(100dvh-7rem)] self-start overflow-y-auto border-l border-[var(--erp-border)] bg-white"
         />
       </div>
     </WorkspaceContext.Provider>
