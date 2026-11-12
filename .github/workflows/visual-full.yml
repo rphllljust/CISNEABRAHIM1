@@ -126,6 +126,28 @@ jobs:
             apps/web/test-results
             apps/web/playwright-report
             artifacts/ci/web-visual.log
+      # The full trace bundle can exceed the connector's 512 MiB download limit.
+      # Keep a separately reviewable, first-attempt-only set of actual/diff PNGs.
+      # This changes diagnostics only; the suite and strict acceptance remain authoritative.
+      - name: Prepare visual review images
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p artifacts/ci/visual-review
+          if [[ -d apps/web/test-results ]]; then
+            find apps/web/test-results -type f \
+              \( -name '*-actual.png' -o -name '*-diff.png' \) \
+              ! -path '*-retry*' \
+              -exec cp --parents '{}' artifacts/ci/visual-review/ \;
+          fi
+      - name: Upload visual review images
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-visual-review-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 7
+          path: artifacts/ci/visual-review
       - name: Visual regression debt ratchet
         env:
           GITHUB_TOKEN: ${{ github.token }}
