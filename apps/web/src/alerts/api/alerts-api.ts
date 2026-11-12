@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import {
@@ -55,7 +56,7 @@ export async function getAlerts(
   signal?: AbortSignal,
 ): Promise<BusinessAlertListItem[]> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/alerts${buildQuery(filters)}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/alerts${buildQuery(filters)}`, {
       method: 'GET',
       headers: authHeaders(),
       signal,
@@ -77,7 +78,7 @@ export async function getAlerts(
 
 export async function getAlertSummary(signal?: AbortSignal): Promise<BusinessAlertSummary> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}/api/v1/alerts/summary`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}/api/v1/alerts/summary`, {
       method: 'GET',
       headers: authHeaders(),
       signal,

@@ -17,6 +17,7 @@ import {
   refreshRequest,
   sessionRequest,
 } from '../api/auth-api';
+import { onSessionExpired } from '../api/session-recovery';
 import { tokenStore } from '../storage/token-store';
 import type { AuthUserMessage } from '../types/auth.types';
 
@@ -127,6 +128,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       bootstrapController.current?.abort();
     };
   }, [bootstrap]);
+
+  /*
+   * Uma sessão encerrada em QUALQUER chamada (401 irrecuperável) precisa devolver o app ao
+   * login. Sem este registro, cada tela mostraria um erro próprio e o operador ficaria numa
+   * aplicação morta sem saber que basta entrar de novo. O cancelamento roda no unmount para
+   * não deixar listener apontando para estado desmontado.
+   */
+  useEffect(() => {
+    return onSessionExpired(expireSession);
+  }, [expireSession]);
 
   const login = useCallback(
     async (login: string, password: string) => {

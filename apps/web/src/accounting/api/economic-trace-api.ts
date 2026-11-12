@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 
@@ -189,7 +190,7 @@ function errorKind(status: number): EconomicTraceApiErrorKind {
 async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${getApiBaseUrl()}${path}`, { headers: authHeaders(), signal });
+    response = await fetchWithSession(`${getApiBaseUrl()}${path}`, { headers: authHeaders(), signal });
   } catch {
     throw new EconomicTraceApiError('network');
   }
@@ -202,7 +203,7 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${getApiBaseUrl()}${path}`, {
+    response = await fetchWithSession(`${getApiBaseUrl()}${path}`, {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify(body ?? {}),

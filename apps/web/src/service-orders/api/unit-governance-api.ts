@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 
@@ -29,7 +30,7 @@ function authHeaders(): HeadersInit {
 
 async function request<T>(path: string, init: RequestInit): Promise<T> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, init);
+    const response = await fetchWithSession(`${getApiBaseUrl()}${path}`, init);
     if (!response.ok) {
       const error = await response.json().catch(() => ({})) as { code?: string; error?: { code?: string } };
       throw new UnitGovernanceError(response.status, error.error?.code ?? error.code ?? 'UNIT_REQUEST_FAILED');

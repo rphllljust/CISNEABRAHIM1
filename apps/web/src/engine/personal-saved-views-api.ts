@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../auth/api/session-recovery';
 import { getApiBaseUrl } from '../auth/api/auth-api';
 import { tokenStore } from '../auth/storage/token-store';
 import type { SavedView } from './DynamicSavedViews';
@@ -50,7 +51,7 @@ function asView(value: unknown): SavedView {
 async function request(path: string, options: RequestInit = {}): Promise<unknown> {
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await fetchWithSession(path, {
       ...options,
       headers: {
         ...authorizationHeaders(),

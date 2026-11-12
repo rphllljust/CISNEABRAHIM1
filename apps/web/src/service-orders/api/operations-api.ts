@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 /**
  * CLIENTE DE OPERAÇÕES — leitura e comandos.
  *
@@ -173,7 +174,7 @@ function authHeaders(): HeadersInit {
 
 async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, init);
+    const response = await fetchWithSession(`${getApiBaseUrl()}${path}`, init);
     if (!response.ok) {
       throw await parseError(response);
     }

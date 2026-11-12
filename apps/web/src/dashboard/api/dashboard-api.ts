@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import {
@@ -62,7 +63,7 @@ export async function getExecutiveDashboard(
   signal?: AbortSignal,
 ): Promise<ExecutiveDashboardSnapshot> {
   try {
-    const response = await fetch(
+    const response = await fetchWithSession(
       `${getApiBaseUrl()}/api/v1/dashboard/executive${buildExecutiveQuery(filters)}`,
       {
         method: 'GET',
