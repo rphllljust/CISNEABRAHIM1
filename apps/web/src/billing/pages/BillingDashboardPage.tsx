@@ -198,7 +198,12 @@ export function BillingDashboardPage() {
         count={result.total}
         context="Fila de trabalho de ordens concluídas: exceções e pendências primeiro, com origem e medição no mesmo registro. Nota Fatura é documento interno; não representa emissão fiscal oficial."
         metrics={
-          <>
+          <div
+            role="region"
+            aria-label="Indicadores da fila de faturamento"
+            tabIndex={0}
+            className="flex w-full min-w-0 gap-2 overflow-x-auto pb-1"
+          >
             <EnterpriseMetric
               value={counts?.cancelled_document ?? '—'}
               label="documentos cancelados no recorte"
@@ -233,7 +238,7 @@ export function BillingDashboardPage() {
               value={counts?.issued ?? '—'}
               label="documentos emitidos no recorte"
             />
-          </>
+          </div>
         }
       />
 
