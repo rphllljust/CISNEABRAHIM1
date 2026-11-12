@@ -806,3 +806,9 @@ Classificação: interpretação de engenharia e aderência visual à instruçã
 | SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |
 | --- | --- | --- | --- | --- | --- |
 | Ordem executiva do responsável, 2026-10-29 (fonte de autorização de engenharia; não fonte de regra empresarial) | Produção autenticada sem contratos/OS/medições/aceites/billing no recorte observado; gate anterior misturava N/A e sucesso técnico | Nenhuma regra empresarial nova; ausência não é PASS; cadeia incompleta falha; readiness/go-live oficial preservado | ED-007; `coolify-browser-gate.mjs` separa runtime/release/business e exige cadeia completa, incluindo referências de billing e Economic Trace; workflow publica `CONDITIONAL` sem negócio | testes de estrutura, comportamento, veredito e workflow; suite `scripts/cd/*.test.mjs` | Sem operação: `productionValidated=CONDITIONAL`; com cadeia completa somente `true`; nenhum deploy ou aprovação é inferido deste registro |
+
+## API DO NAVEGADOR REMOTO — 2026-11-12
+
+| SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |
+| --- | --- | --- | --- | --- | --- |
+| Ordem MASTER CISNE Enterprise do responsável nesta sessão; correção de engenharia do PR #298 | `main@fde3d448` ainda direciona para `http://localhost:3000` quando não há URL configurada; o PR #298 corrige o fallback, mas aceitava URL explícita de loopback em navegador remoto | Nenhuma regra empresarial nova; configuração local permanece permitida quando o próprio navegador está no host local | `apps/web/src/auth/api/auth-api.ts`: rejeitar `localhost`, `127.0.0.1` e `[::1]` configurados em produção para navegador remoto; usar mesma origem como fallback | `auth-api.test.ts`: caso remoto e caso local; suíte focada 8/8 local | Candidato técnico; CI, Visual Full, HML e navegador autenticado no SHA exato pendentes; produção NO-GO |
