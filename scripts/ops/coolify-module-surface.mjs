@@ -15,12 +15,12 @@
  * Este script:
  *   1. LE o estado real do Coolify (envs de producao da API e do Web);
  *   2. COMPARA com o contrato de release declarado em `release-1-scope.ts`
- *      (BUILT_MODULES ligados, STUB_MODULES desligados);
+ *      (SRC-009 clausula 2-A: todos os modulos gated desligados na Release 1);
  *   3. REPORTa divergencias de forma auditavel;
  *   4. Com `--fix`, ESCREVE o valor correto e redeploya a API.
  *
- * O contrato NAO e inventado aqui: vem do proprio repositorio. Modulo que nao esta em
- * BUILT_MODULES nunca e ligado — STUB permanece desligado por nao ter backend real.
+ * O contrato vem de SRC-009 2-A e ED-005: codigo construido nao autoriza
+ * ativar FEATURE_MODULE_* na producao R1. HML conserva a cobertura ampliada.
  *
  * Variaveis:
  *   COOLIFY_BASE_URL, COOLIFY_TOKEN, COOLIFY_API_UUID, COOLIFY_WEB_UUID
@@ -36,7 +36,7 @@ import { createCoolifyClient, DeployRefusedError } from '../cd/coolify-deploy.mj
 /**
  * Contrato de release (fonte unica no repositorio).
  * Espelha `apps/web/src/release-scope/feature-flags.ts`:
- * BUILT_MODULES = produto real   |   STUB_MODULES = superficie sem backend.
+ * BUILT_MODULES e STUB_MODULES continuam gated na producao R1.
  */
 const BUILT_MODULES = [
   'FINANCE',
@@ -103,7 +103,7 @@ export function buildSurfacePlan(envs) {
 
   for (const moduleId of [...BUILT_MODULES, ...STUB_MODULES]) {
     const key = `FEATURE_MODULE_${moduleId}`;
-    const desired = BUILT_MODULES.includes(moduleId) ? 'true' : 'false';
+    const desired = 'false';
     const actual = productionEnvValue(envs, key);
     current[key] = actual.state === 'ok' ? actual.value : actual.state;
 
