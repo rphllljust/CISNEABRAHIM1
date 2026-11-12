@@ -1,21 +1,20 @@
-# Baseline visual SOMENTE no container pinado, SOMENTE por dispatch, SEMPRE em PR draft.
-# Nunca roda em PR/push; nunca grava na main. O PNG so existe depois de revisao humana do PR.
+# Baseline visual somente por dispatch, no container oficial alinhado ao lockfile.
+# Snapshots NUNCA sao aceitos automaticamente: os PNGs alterados vao para PR draft.
+# Diferencas semanticas/funcionais permanecem falhas; a regeneracao nao e uma aprovacao.
 name: Visual baseline (dispatch)
 
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Branch/SHA cujo codigo e mocks definem o baseline (deve conter os mocks corretos)'
+        description: 'SHA exato ou branch que define o codigo e as fixtures; revisar o HEAD no log'
         required: true
+        type: string
       specs:
-        description: 'Specs separados por espaco (ex.: accounting.visual finance.visual login.visual)'
+        description: 'all = todos os specs; ou lista de nomes separados por espaco (ex.: accounting.visual fiscal.visual)'
         required: true
-        default: 'accounting.visual finance.visual login.visual'
-      exclude_specs:
-        description: 'Testes excluidos do baseline, formato spec:NN,NN (testes tem titulo "NN ..."). Baseline draft NAO inclui 08/10/11 ate #291 mergear e ser verificado.'
-        required: false
-        default: 'accounting.visual:08,10,11'
+        default: 'all'
+        type: string
 
 permissions:
   contents: write
@@ -27,16 +26,27 @@ concurrency:
 
 jobs:
   baseline:
-    name: Gerar baseline no container
+    name: Gerar baseline Linux em PR draft
     runs-on: ubuntu-latest
     container:
+      # Mesma versao do Visual Full e do pnpm-lock.yaml.
       image: mcr.microsoft.com/playwright:v1.62.1-noble
-    timeout-minutes: 40
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      VITE_CISNE_SURFACE: 'dev'
     steps:
-      - name: Checkout
+      - name: Checkout do ref solicitado
         uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
+          persist-credentials: true
+      - name: Registrar SHA de origem
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/ci
+          git rev-parse HEAD | tee artifacts/ci/visual-baseline-source-sha.txt
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
       - name: Setup Node.js
@@ -50,40 +60,88 @@ jobs:
         run: pnpm build
       - name: Verify Playwright runtime and fonts
         run: node scripts/ci/visual-runtime-verify.mjs
-      - name: Update snapshots (apenas os specs informados)
+      - name: Regenerate snapshots in pinned Linux environment
+        shell: bash
         env:
-          SPECS: ${{ inputs.specs }}
-          EXCLUDE: ${{ inputs.exclude_specs }}
+          VISUAL_SPECS: ${{ inputs.specs }}
         run: |
           set -euo pipefail
-          files=""
-          for s in $SPECS; do files="$files e2e/visual/$s.spec.ts"; done
-          # exclude_specs "spec:08,10,11" -> --grep-invert " (08|10|11) (?!rotas)" (titulos comecam com NN)
-          ids=""
-          for entry in $EXCLUDE; do
-            list="${entry#*:}"
-            ids="${ids:+$ids|}${list//,/|}"
-          done
-          grep_args=()
-          if [ -n "$ids" ]; then grep_args=(--grep-invert " ($ids) (?!rotas)"); fi
-          cd apps/web
-          pnpm exec playwright test $files "${grep_args[@]}" --update-snapshots --retries=0
-      - name: Abrir PR draft com os PNGs
+          args=()
+          if [[ "$VISUAL_SPECS" != "all" ]]; then
+            # Never turn arbitrary dispatch input into a shell command or Playwright flag.
+            read -r -a requested <<< "$VISUAL_SPECS"
+            test "${#requested[@]}" -gt 0
+            for name in "${requested[@]}"; do
+              [[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "::error::Invalid spec name: $name"; exit 1; }
+              name="${name%.spec.ts}"
+              path="e2e/visual/$name.spec.ts"
+              [[ -f "apps/web/$path" ]] || { echo "::error::Unknown visual spec: $path"; exit 1; }
+              args+=("$path")
+            done
+          fi
+          # No grep-invert: the all mode really covers every visual test/project.
+          # No || true: a functional assertion failure must prevent generating an approval PR.
+          pnpm --filter @cisne/web exec playwright test "${args[@]}" --update-snapshots --retries=0 --workers=2
+      - name: Upload diagnostics and comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-visual-baseline-evidence-${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            artifacts/ci/visual-baseline-source-sha.txt
+            artifacts/ci/visual-runtime.json
+            apps/web/test-results
+            apps/web/playwright-report
+      - name: Propose changed PNGs in a draft PR (never autoaccept)
+        shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REF: ${{ inputs.ref }}
-          SPECS: ${{ inputs.specs }}
+          GH_TOKEN: ${{ github.token }}
+          VISUAL_SPECS: ${{ inputs.specs }}
         run: |
           set -euo pipefail
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          # The baseline must be complete: the preceding test step must pass before publishing.
+          # Stage tracked AND newly created snapshots (git diff alone misses untracked PNGs).
+          git add -- ':(glob)apps/web/e2e/visual/**/*.png'
+          if git diff --cached --quiet; then
+            echo "No visual baseline changes to propose."
+            exit 0
+          fi
+          echo "Changed snapshot files:"
+          git diff --cached --name-status
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- 'apps/web/e2e/**/*.png'; then echo "Sem diff de baseline."; exit 0; fi
           branch="bot/visual-baseline-${GITHUB_RUN_ID}"
+          source_sha="$(git rev-parse HEAD)"
           git switch -c "$branch"
-          git add 'apps/web/e2e/**/*.png'
-          git commit -m "test(visual): baseline regerado no container playwright:v1.62.1-noble (${SPECS}) a partir de ${REF}"
-          git push origin "$branch"
-          gh pr create --draft --base main --head "$branch" \
-            --title "test(visual): baseline (${SPECS}) — DRAFT, revisar tela a tela" \
-            --body "Gerado por workflow_dispatch no container pinado a partir de \`${REF}\`. Revisar cada PNG antes de marcar ready. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          git commit -m "test(visual): regenerate Linux baseline from ${source_sha}"
+          git push origin "HEAD:refs/heads/$branch"
+          export BASELINE_BRANCH="$branch" BASELINE_SOURCE_SHA="$source_sha"
+          node --input-type=module <<'NODE'
+          const { GITHUB_REPOSITORY: repo, GH_TOKEN: token, GITHUB_SERVER_URL: server, GITHUB_RUN_ID: runId, BASELINE_BRANCH: head, BASELINE_SOURCE_SHA: sha, VISUAL_SPECS: specs } = process.env;
+          const payload = {
+            title: 'test(visual): Linux baseline (' + specs + ') — review required',
+            head, base: 'main', draft: true,
+            body: 'Generated in the pinned Playwright v1.62.1-noble container.\n' +
+              'Source SHA: `' + sha + '`\n' +
+              'Specs: `' + specs + '`\n' +
+              'Workflow evidence: ' + server + '/' + repo + '/actions/runs/' + runId + '\n\n' +
+              '**Review each changed PNG against expected UI and the diff artifacts before approval.** ' +
+              'This PR is not an authorization for production or for automatic acceptance.',
+          };
+          const response = await fetch('https://api.github.com/repos/' + repo + '/pulls', {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer ' + token,
+              Accept: 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload),
+          });
+          if (!response.ok) throw new Error('Failed to create baseline PR: HTTP ' + response.status + ': ' + (await response.text()).slice(0, 600));
+          const pr = await response.json();
+          console.log('Baseline draft PR: ' + pr.html_url);
+          NODE
