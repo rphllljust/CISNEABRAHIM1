@@ -189,5 +189,5 @@ export function assertAllowedOrThrow(
     return;
   }
   void config;
-  throw new RateLimitExceededError(surface as never);
+  throw new RateLimitExceededError(surface);
 }

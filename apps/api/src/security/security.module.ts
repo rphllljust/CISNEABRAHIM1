@@ -31,10 +31,7 @@ export const RATE_LIMIT_EXECUTOR = Symbol('RATE_LIMIT_EXECUTOR');
           return null;
         }
         return {
-          query: (text: string, values: unknown[]) =>
-            connection.pool.query(text, values) as unknown as Promise<{
-              rows: Array<Record<string, unknown>>;
-            }>,
+          query: (text: string, values: unknown[]) => connection.pool.query(text, values),
         };
       },
       inject: [DatabaseService],
