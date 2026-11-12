@@ -95,7 +95,12 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await expect(processFlow.getByText('Ordem de serviço', { exact: true })).toBeVisible();
     await expect(processFlow.getByText('Recebimento', { exact: true })).toBeVisible();
 
-    // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
+    // 6. ANALYTICS COM DRILLDOWN REAL: a área secundária usa <details> fechado
+    // por padrão. Abrir pelo controle nativo antes de exigir a visibilidade dos gráficos.
+    const operationalInsight = page.locator('details[data-layout="operational-insight"]');
+    await expect(operationalInsight).toBeVisible();
+    await operationalInsight.locator('summary').click();
+    await expect(operationalInsight).toHaveAttribute('open', '');
     await expect(page.getByRole('heading', { name: /ordens por situação/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: /atraso por faixa/i })).toBeVisible();
     // Cada segmento abre a lista filtrada que produziu o numero.
@@ -120,19 +125,34 @@ test.describe('visao geral — fila decisoria exercitada', () => {
 
     await page.screenshot({ path: 'tmp-dashboard-1440.png', fullPage: false });
 
-    // ESTADO B: clicar no item da fila ABRE o drawer com o contexto, sem perder a fila.
-    await page
-      .getByRole('button', { name: /OS-2026-0184.*Execução de manutenção preventiva/i })
-      .click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('OS-2026-0184')).toBeVisible();
+    // ESTADO B: a ação de seleção tem nome acessível igual à referência humana,
+    // enquanto o título da OS é texto adjacente. O contexto é uma coluna inline,
+    // não um diálogo modal (que bloquearia a worklist).
+    await overdueRow.getByRole('button', { name: 'OS-2026-0184', exact: true }).click();
+    const selectedContext = page.getByRole('complementary', {
+      name: 'Contexto do item selecionado',
+    });
+    await expect(selectedContext).toBeVisible();
+    await expect(selectedContext.getByText('OS-2026-0184', { exact: true })).toBeVisible();
+    await expect(selectedContext.getByText('Execução de manutenção preventiva')).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(queueVisible).toBeVisible();
     await page.screenshot({ path: 'tmp-dashboard-drawer-1440.png', fullPage: false });
 
-    // ESTADO C: fechar LIMPA a selecao — o drawer nao permanece visivel sem objeto.
-    await dialog.getByRole('button', { name: /fechar/i }).first().click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    // ESTADO C: fechar restaura o rail de apoio sem perder a fila.
+    await selectedContext.getByRole('button', { name: 'Fechar contexto' }).click();
+    // O rail de apoio é visível somente a partir de 1280px (dashboard.css);
+    // em mobile/tablet o encerramento do drawer não deve deixar contexto aberto.
+    const supportRail = page.locator('aside[aria-label="Apoio à decisão operacional"]');
+    await expect(supportRail).toHaveCount(1);
+    if ((page.viewportSize()?.width ?? 0) >= 1280) {
+      await expect(supportRail).toBeVisible();
+    } else {
+      await expect(supportRail).toBeHidden();
+    }
+    await expect(page.getByRole('complementary', {
+      name: 'Contexto do item selecionado',
+    })).toHaveCount(0);
     await expect(queueVisible).toBeVisible();
   });
 });
