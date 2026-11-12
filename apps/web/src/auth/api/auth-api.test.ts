@@ -54,6 +54,36 @@ describe('auth-api', () => {
     expect(getApiBaseUrl()).toBe('https://api.runtime.example');
   });
 
+  it('uses same-origin API when production configuration is missing or malformed', () => {
+    const production = { isDev: false, browserHostname: 'cisne.example.test' };
+    expect(buildApiBaseUrlCandidates(undefined, production)).toEqual(['']);
+    expect(buildApiBaseUrlCandidates('', production)).toEqual(['']);
+    expect(buildApiBaseUrlCandidates('not a valid absolute URL', production)).toEqual(['']);
+  });
+
+  it('accepts only HTTP(S) absolute API origins in production', () => {
+    const production = { isDev: false, browserHostname: 'cisne.example.test' };
+    for (const invalid of ['javascript:alert(1)', 'data:text/plain,hello', 'file:///tmp/private']) {
+      expect(buildApiBaseUrlCandidates(invalid, production)).toEqual(['']);
+    }
+    expect(buildApiBaseUrlCandidates('https://api.cisne.example.test/v1', production)).toEqual([
+      'https://api.cisne.example.test',
+    ]);
+  });
+
+  it('rejects a configured loopback API for a remote production browser', () => {
+    const remote = { isDev: false, browserHostname: 'cisne.example.test' };
+    for (const url of ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://[::1]:3000']) {
+      expect(buildApiBaseUrlCandidates(url, remote)).toEqual(['']);
+    }
+    expect(
+      buildApiBaseUrlCandidates('http://localhost:3000', {
+        isDev: false,
+        browserHostname: 'localhost',
+      }),
+    ).toEqual(['http://localhost:3000']);
+  });
+
   it('prefers vite proxy for LAN browser access before direct API host', () => {
     const candidates = buildApiBaseUrlCandidates('http://localhost:3000', {
       isDev: true,

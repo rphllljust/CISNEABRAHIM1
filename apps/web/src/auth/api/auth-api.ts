@@ -17,7 +17,7 @@ type ApiBaseUrlResolutionOptions = {
 };
 
 function isLoopbackHostname(hostname: string): boolean {
-  return LOOPBACK_HOSTNAMES.has(hostname.toLowerCase());
+  return LOOPBACK_HOSTNAMES.has(hostname.toLowerCase().replace(/^\[|\]$/g, ''));
 }
 
 function getBrowserHostname(): string | null {
@@ -29,7 +29,11 @@ function getBrowserHostname(): string | null {
 
 function sanitizeAbsoluteBaseUrl(baseUrl: string): string | null {
   try {
-    return new URL(baseUrl).origin;
+    const parsed = new URL(baseUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    return parsed.origin;
   } catch {
     return null;
   }
@@ -74,7 +78,15 @@ export function buildApiBaseUrlCandidates(
   if (configured) {
     const sanitized = sanitizeAbsoluteBaseUrl(configured);
     if (sanitized) {
-      candidates.push(adaptConfiguredBaseUrl(sanitized, options));
+      const configuredHostname = new URL(sanitized).hostname;
+      // A remote production browser must not call its own loopback interface.
+      if (
+        options.isDev ||
+        !isLoopbackHostname(configuredHostname) ||
+        (options.browserHostname !== null && isLoopbackHostname(options.browserHostname))
+      ) {
+        candidates.push(adaptConfiguredBaseUrl(sanitized, options));
+      }
     }
   }
 
@@ -95,7 +107,8 @@ export function buildApiBaseUrlCandidates(
   }
 
   if (candidates.length === 0) {
-    candidates.push('http://localhost:3000');
+    // Production must never target the browser operator's localhost.
+    candidates.push(options.isDev ? 'http://localhost:3000' : '');
   }
 
   return dedupe(candidates);
@@ -122,10 +135,10 @@ function getApiBaseUrlCandidatesFromRuntime(): string[] {
 }
 
 export function getApiBaseUrl(): string {
-  if (preferredApiBaseUrl) {
+  if (preferredApiBaseUrl !== null) {
     return preferredApiBaseUrl;
   }
-  return getApiBaseUrlCandidatesFromRuntime()[0] ?? 'http://localhost:3000';
+  return getApiBaseUrlCandidatesFromRuntime()[0] ?? '';
 }
 
 export function resetApiBaseUrlCacheForTests(): void {
@@ -149,7 +162,7 @@ function shouldRetryWithNextCandidate(
 
 async function fetchApi(path: string, init: RequestInit): Promise<Response> {
   const candidates = getApiBaseUrlCandidatesFromRuntime();
-  const orderedCandidates = preferredApiBaseUrl
+  const orderedCandidates = preferredApiBaseUrl !== null
     ? [preferredApiBaseUrl, ...candidates.filter((candidate) => candidate !== preferredApiBaseUrl)]
     : candidates;
 
