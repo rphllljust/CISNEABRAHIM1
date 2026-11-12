@@ -28,14 +28,15 @@ describe('PostgresRateLimitStore — limite compartilhado entre replicas', () =>
   let pool: Pool;
   let replicaA: PostgresRateLimitStore;
   let replicaB: PostgresRateLimitStore;
-  let databaseUrl: string | null;
 
   beforeAll(async () => {
-    databaseUrl = getTestDatabaseUrl();
-    if (!databaseUrl) {
+    // `getTestDatabaseUrl()` devolve `string | undefined`; o `Pool` exige `string`.
+    // O narrow abaixo prova a presenca antes de construir o pool, em vez de castar.
+    const connectionString = getTestDatabaseUrl();
+    if (!connectionString) {
       throw new Error('TEST_DATABASE_URL is required for the shared rate limit proof');
     }
-    pool = new Pool({ connectionString: databaseUrl, max: 8 });
+    pool = new Pool({ connectionString, max: 8 });
     replicaA = new PostgresRateLimitStore(executorFrom(pool));
     replicaB = new PostgresRateLimitStore(executorFrom(pool));
   });
