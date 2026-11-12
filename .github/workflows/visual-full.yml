@@ -95,7 +95,7 @@ jobs:
       - name: Build
         run: pnpm build
       - name: Verify Visual Full exit-status contract
-        run: node --test scripts/ci/visual-full-exit-status.test.mjs
+        run: node --test scripts/ci/visual-full-exit-status.test.mjs scripts/ci/visual-ratchet-baseline.test.mjs
       - name: Verify Playwright runtime and fonts
         run: node scripts/ci/visual-runtime-verify.mjs
       - name: Web visual regression (full suite)
