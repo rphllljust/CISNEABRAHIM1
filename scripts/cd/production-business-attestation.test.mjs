@@ -148,7 +148,7 @@ describe('rejected production business evidence — safe diagnostics, fail close
       productionBusinessValidated: 'false',
       productionValidated: 'false',
       businessOutcome: 'BUSINESS_EVIDENCE_INCOMPLETE',
-    }) + '\\nFAIL  MEDIÇÃO expõe elegibilidade de faturamento — BUSINESS_EVIDENCE_INCOMPLETE; ordensLidas=2; pendencias=acceptanceVerified,billingRecordVerified,PRIVATE_CUSTOMER';
+    }) + '\nFAIL  MEDIÇÃO expõe elegibilidade de faturamento — BUSINESS_EVIDENCE_INCOMPLETE; ordensLidas=2; pendencias=acceptanceVerified,billingRecordVerified,PRIVATE_CUSTOMER';
     const proof = summarizeRejectedProductionBusiness(log, 'd'.repeat(40));
     assert.deepEqual(proof.business_diagnostics, {
       category: 'CHAIN_CHECKS_MISSING',
@@ -159,7 +159,7 @@ describe('rejected production business evidence — safe diagnostics, fail close
 
   it('identifies absence of a terminal order without exposing operational data', () => {
     const log = render({ ...real, businessOutcome: 'BUSINESS_EVIDENCE_INCOMPLETE' }) +
-      '\\nFAIL  MEDIÇÃO expõe elegibilidade de faturamento — BUSINESS_EVIDENCE_INCOMPLETE; sem OS COMPLETED/CLOSED com workbench elegivel';
+      '\nFAIL  MEDIÇÃO expõe elegibilidade de faturamento — BUSINESS_EVIDENCE_INCOMPLETE; sem OS COMPLETED/CLOSED com workbench elegivel';
     const proof = summarizeRejectedProductionBusiness(log, 'e'.repeat(40));
     assert.deepEqual(proof.business_diagnostics, {
       category: 'NO_ELIGIBLE_TERMINAL_ORDER',
