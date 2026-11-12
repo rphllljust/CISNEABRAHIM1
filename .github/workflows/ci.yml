@@ -524,42 +524,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
-        # DECISAO DE RELEASE EXPLICITA — este job produz o artefato imutavel que vai para
-        # producao, portanto e ELE que precisa declarar a superficie de modulos.
-        #
-        # DEFEITO QUE ESTA CORRECAO FECHA (medido em 2026-10-23):
-        #
-        # `apps/web/src/release-scope/feature-flags.ts` resolve o default por
-        # `VITE_CISNE_SURFACE`. HML declara `hml` (docker/hml/compose.yaml) e o job de
-        # visual declara `dev` (linhas ~676/763). Este job NAO declarava nada, entao caia
-        # em `conservative-default` e compilava o bundle com os 13 modulos CONSTRUIDOS
-        # desligados. Prova: resolveModuleFlag com env vazio devolvia
-        # `enabled=false origin=conservative-default` para finance, fiscal, accounting,
-        # inventory, payroll, procurement, suppliers, contracts, people, alerts, reports,
-        # approval-matrix e operational-profitability.
-        #
-        # Sintoma ao operador: backend respondendo, menu sem os modulos, produto mutilado —
-        # e nenhum gate vermelho, porque nada falhava.
-        #
-        # `production` NAO esta em HOMOLOGATION_SURFACES, entao promove-lo sozinho nao faz
-        # nada: a liberacao e declarada modulo a modulo abaixo, de forma explicita, em vez
-        # de herdada por omissao. Modulos STUB (rentals, transport) seguem desligados por
-        # nao terem backend real atras.
+        # SRC-009, clausula 2-A + ED-005: o aceite cobre a fatia operacional R1.
+        # Os modulos gated continuam em HML, mas o bundle de producao os mantem
+        # desabilitados ate UAT incremental e decisao expressa por flag.
+        # Valores explicitos impedem que um default de HML amplie a superficie.
         env:
           VITE_CISNE_SURFACE: 'production'
-          VITE_FEATURE_MODULE_FINANCE: 'true'
-          VITE_FEATURE_MODULE_FISCAL: 'true'
-          VITE_FEATURE_MODULE_ACCOUNTING: 'true'
-          VITE_FEATURE_MODULE_INVENTORY: 'true'
-          VITE_FEATURE_MODULE_PAYROLL: 'true'
-          VITE_FEATURE_MODULE_PROCUREMENT: 'true'
-          VITE_FEATURE_MODULE_SUPPLIERS: 'true'
-          VITE_FEATURE_MODULE_CONTRACTS: 'true'
-          VITE_FEATURE_MODULE_PEOPLE: 'true'
-          VITE_FEATURE_MODULE_ALERTS: 'true'
-          VITE_FEATURE_MODULE_REPORTS: 'true'
-          VITE_FEATURE_MODULE_APPROVAL_MATRIX: 'true'
-          VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true'
+          VITE_FEATURE_MODULE_FINANCE: 'false'
+          VITE_FEATURE_MODULE_FISCAL: 'false'
+          VITE_FEATURE_MODULE_ACCOUNTING: 'false'
+          VITE_FEATURE_MODULE_INVENTORY: 'false'
+          VITE_FEATURE_MODULE_PAYROLL: 'false'
+          VITE_FEATURE_MODULE_PROCUREMENT: 'false'
+          VITE_FEATURE_MODULE_SUPPLIERS: 'false'
+          VITE_FEATURE_MODULE_CONTRACTS: 'false'
+          VITE_FEATURE_MODULE_PEOPLE: 'false'
+          VITE_FEATURE_MODULE_ALERTS: 'false'
+          VITE_FEATURE_MODULE_REPORTS: 'false'
+          VITE_FEATURE_MODULE_APPROVAL_MATRIX: 'false'
+          VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'false'
         run: pnpm build
       - name: Emit build metadata
         run: node scripts/ci-emit-build-metadata.mjs

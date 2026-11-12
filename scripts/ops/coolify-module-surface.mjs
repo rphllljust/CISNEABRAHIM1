@@ -15,12 +15,12 @@
  * Este script:
  *   1. LE o estado real do Coolify (envs de producao da API e do Web);
  *   2. COMPARA com o contrato de release declarado em `release-1-scope.ts`
- *      (BUILT_MODULES ligados, STUB_MODULES desligados);
+ *      (SRC-009 clausula 2-A: todos os modulos gated desligados na Release 1);
  *   3. REPORTa divergencias de forma auditavel;
  *   4. Com `--fix`, ESCREVE o valor correto e redeploya a API.
  *
- * O contrato NAO e inventado aqui: vem do proprio repositorio. Modulo que nao esta em
- * BUILT_MODULES nunca e ligado — STUB permanece desligado por nao ter backend real.
+ * O contrato vem de SRC-009 2-A e ED-005: codigo construido nao autoriza
+ * ativar FEATURE_MODULE_* na producao R1. HML conserva a cobertura ampliada.
  *
  * Variaveis:
  *   COOLIFY_BASE_URL, COOLIFY_TOKEN, COOLIFY_API_UUID, COOLIFY_WEB_UUID
@@ -36,7 +36,7 @@ import { createCoolifyClient, DeployRefusedError } from '../cd/coolify-deploy.mj
 /**
  * Contrato de release (fonte unica no repositorio).
  * Espelha `apps/web/src/release-scope/feature-flags.ts`:
- * BUILT_MODULES = produto real   |   STUB_MODULES = superficie sem backend.
+ * BUILT_MODULES e STUB_MODULES continuam gated na producao R1.
  */
 const BUILT_MODULES = [
   'FINANCE',
@@ -103,7 +103,7 @@ export function buildSurfacePlan(envs) {
 
   for (const moduleId of [...BUILT_MODULES, ...STUB_MODULES]) {
     const key = `FEATURE_MODULE_${moduleId}`;
-    const desired = BUILT_MODULES.includes(moduleId) ? 'true' : 'false';
+    const desired = 'false';
     const actual = productionEnvValue(envs, key);
     current[key] = actual.state === 'ok' ? actual.value : actual.state;
 
@@ -146,6 +146,43 @@ async function replaceProductionEnv(client, uuid, key, value) {
   });
 }
 
+/** Confirm the active API, not merely the stored Coolify variables. */
+export function assertR1RegistryScope(modules) {
+  if (!Array.isArray(modules)) throw new DeployRefusedError('module registry invalido');
+  for (const moduleId of [...BUILT_MODULES, ...STUB_MODULES]) {
+    const code = moduleId.toLowerCase().replaceAll('_', '-');
+    const matches = modules.filter((entry) => entry?.moduleCode === code);
+    if (matches.length !== 1 || matches[0].status !== 'not_released') {
+      throw new DeployRefusedError(`modulo ${code} nao esta not_released no runtime`);
+    }
+  }
+}
+
+async function proveActiveRuntimeScope(client, apiUuid) {
+  const application = await client.getApplication(apiUuid);
+  const apiUrl = String(application?.fqdn ?? '').split(',')[0].trim().replace(/\/+$/, '');
+  if (!/^https:\/\/[^/]+$/.test(apiUrl)) {
+    throw new DeployRefusedError('FQDN HTTPS da API ausente ou invalido');
+  }
+  const login = required('PROD_SMOKE_LOGIN', process.env.PROD_SMOKE_LOGIN);
+  const password = required('PROD_SMOKE_PASSWORD', process.env.PROD_SMOKE_PASSWORD);
+  const auth = await fetch(`${apiUrl}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ login, password }),
+  });
+  if (!auth.ok) throw new DeployRefusedError(`login de prova recusado: HTTP ${auth.status}`);
+  const token = (await auth.json())?.accessToken;
+  if (!token) throw new DeployRefusedError('login de prova sem accessToken');
+  const response = await fetch(`${apiUrl}/api/v1/modules/registry`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new DeployRefusedError(`module registry: HTTP ${response.status}`);
+  const body = await response.json();
+  assertR1RegistryScope(Array.isArray(body) ? body : body?.modules);
+  console.log('[module-surface] PASS: runtime autenticado reporta todos os modulos gated not_released');
+}
+
 async function main() {
   const fix = process.argv.includes('--fix');
   const client = createCoolifyClient({
@@ -163,6 +200,7 @@ async function main() {
   }
 
   if (plan.mismatches.length === 0) {
+    if (fix) await proveActiveRuntimeScope(client, apiUuid);
     console.log('[module-surface] PASS: superficie da API ja coincide com o contrato de release');
     return;
   }
@@ -220,6 +258,7 @@ async function main() {
         verified.mismatches.map((m) => m.key).join(', '),
     );
   }
+  await proveActiveRuntimeScope(client, apiUuid);
   console.log('[module-surface] PASS: superficie da API alinhada ao contrato de release');
 }
 
