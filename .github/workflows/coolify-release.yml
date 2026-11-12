@@ -162,6 +162,16 @@ jobs:
           PROVENANCE_VERIFY_CHECKOUT: 'true'
         run: node scripts/cd/verify-provenance.mjs
 
+      # SRC-009 2-A / ED-005: o ambiente atual deve manter flags gated desligadas.
+      # Falha ANTES de publicar imagens ou tocar o deploy; alinhamento de env ocorre
+      # no workflow separado Production module surface, com auditoria e redeploy.
+      - name: Require signed R1 module scope in Coolify
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_API_UUID: ${{ secrets.COOLIFY_API_UUID }}
+        run: node scripts/ops/coolify-module-surface.mjs
+
       - name: Login to GHCR
         uses: docker/login-action@v4
         with:
