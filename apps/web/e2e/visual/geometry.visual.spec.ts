@@ -149,6 +149,12 @@ test.describe('evidencia visual medida por dominio', () => {
       await page.goto(route.path);
       await page.waitForLoadState('load');
       await page.evaluate(() => document.fonts.ready);
+      // A navegação conclui antes de o React montar a rota. A espera fixa de 600 ms
+      // deixava a medição encontrar zero <main> de forma intermitente no Estoque.
+      await expect(page.locator('main#main-content')).toHaveCount(1);
+      if (route.path === '/app/inventory') {
+        await expect(page.getByRole('table', { name: 'Depósitos' })).toBeVisible();
+      }
       await page.waitForTimeout(600);
 
       const m = await measure(page);
