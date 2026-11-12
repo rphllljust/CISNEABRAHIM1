@@ -141,6 +141,32 @@ describe('rejected production business evidence — safe diagnostics, fail close
     assert.doesNotMatch(JSON.stringify(proof), /PRIVATE_CUSTOMER|private\\.example/);
   });
 
+  it('publishes only allowlisted missing business checks for incomplete chains', () => {
+    const log = render({
+      ...real,
+      businessVerified: 'false',
+      productionBusinessValidated: 'false',
+      productionValidated: 'false',
+      businessOutcome: 'BUSINESS_EVIDENCE_INCOMPLETE',
+    }) + '\\nFAIL  MEDIÇÃO expõe elegibilidade de faturamento — BUSINESS_EVIDENCE_INCOMPLETE; ordensLidas=2; pendencias=acceptanceVerified,billingRecordVerified,PRIVATE_CUSTOMER';
+    const proof = summarizeRejectedProductionBusiness(log, 'd'.repeat(40));
+    assert.deepEqual(proof.business_diagnostics, {
+      category: 'CHAIN_CHECKS_MISSING',
+      missing_checks: ['acceptanceVerified', 'billingRecordVerified'],
+    });
+    assert.doesNotMatch(JSON.stringify(proof), /PRIVATE_CUSTOMER|ordensLidas/);
+  });
+
+  it('identifies absence of a terminal order without exposing operational data', () => {
+    const log = render({ ...real, businessOutcome: 'BUSINESS_EVIDENCE_INCOMPLETE' }) +
+      '\\nFAIL  MEDIÇÃO expõe elegibilidade de faturamento — BUSINESS_EVIDENCE_INCOMPLETE; sem OS COMPLETED/CLOSED com workbench elegivel';
+    const proof = summarizeRejectedProductionBusiness(log, 'e'.repeat(40));
+    assert.deepEqual(proof.business_diagnostics, {
+      category: 'NO_ELIGIBLE_TERMINAL_ORDER',
+      missing_checks: [],
+    });
+  });
+
   it('rejects missing or duplicated verdict fields without trusting their contents', () => {
     const log = render({ ...real, businessVerified: 'false' }) +
       '\n[coolify-browser-gate] businessVerified=true';
