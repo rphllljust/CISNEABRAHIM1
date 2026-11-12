@@ -65,7 +65,7 @@ test.describe('clients composition metrics', () => {
     await row.getByRole('cell').nth(2).click();
     await page.waitForTimeout(600);
     const columnState = await page.evaluate(() => {
-      const col = document.querySelector('[data-region="context-column"]');
+      const col = document.querySelector('[data-region="context-region"]');
       return {
         exists: Boolean(col),
         display: col ? getComputedStyle(col).display : null,
@@ -84,12 +84,14 @@ test.describe('clients composition metrics', () => {
     // A PROPORÇÃO É O ACEITE: a fila domina e a coluna de contexto coexiste com ela.
     const split = await page.evaluate(() => {
       const list = document.querySelector('[data-region="worklist-master"]');
-      const ctx = document.querySelector('[data-region="context-column"]');
+      const ctx = document.querySelector('[data-region="context-region"]');
       const lw = list ? list.getBoundingClientRect().width : 0;
       const cw = ctx ? ctx.getBoundingClientRect().width : 0;
       return { listWidth: Math.round(lw), contextWidth: Math.round(cw), ratio: lw + cw ? Math.round((lw / (lw + cw)) * 100) : 0 };
     });
     console.log('SPLIT ' + JSON.stringify(split));
+    // O painel real é identificado como context-region; não confundir o alias antigo inexistente.
+    expect(split.contextWidth, 'contexto precisa ocupar largura real, não zero').toBeGreaterThan(0);
     expect(split.ratio).toBeGreaterThanOrEqual(70);
     expect(split.ratio).toBeLessThanOrEqual(78);
 
