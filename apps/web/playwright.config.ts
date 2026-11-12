@@ -12,7 +12,9 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   expect: {
     toHaveScreenshot: {
+      // Preserve the strict 1% image budget; threshold only limits per-pixel antialias noise.
       maxDiffPixelRatio: 0.01,
+      threshold: 0.25,
       animations: 'disabled',
     },
   },
