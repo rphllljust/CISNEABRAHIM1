@@ -34,6 +34,9 @@ export async function prepareAuthenticatedSession(
 
 export async function stabilizePage(page: Page): Promise<void> {
   await page.waitForLoadState('load');
+  // Fixtures are finite; an active network request must not race the screenshot.
+  // Fail explicitly on persistent polling rather than silently capturing unstable content.
+  await page.waitForLoadState('networkidle', { timeout: 10_000 });
   await page.evaluate(() => document.fonts.ready);
 }
 
