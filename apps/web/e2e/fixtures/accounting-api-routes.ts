@@ -681,5 +681,7 @@ export async function prepareAccountingSession(page: Page): Promise<void> {
 
 export async function stabilizeAccountingPage(page: Page): Promise<void> {
   await page.waitForLoadState('load');
+  // Same deterministic capture contract as visual-helpers.ts for accounting routes.
+  await page.waitForLoadState('networkidle', { timeout: 10_000 });
   await page.evaluate(() => document.fonts.ready);
 }
