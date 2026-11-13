@@ -38,6 +38,34 @@ type RouteContext = {
 
 const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string[]>> = {
   /*
+   * INVENTORY — Estoque exige `inventory:stock:read`.
+   *
+   * `/app/inventory` é protegido por `InventoryRoute` → `BackofficeCapabilityRoute`, que só
+   * renderiza o workspace depois que `probeInventoryReadAccess` obtém 2xx em
+   * `GET /api/v1/inventory/items?limit=1&offset=0`. O perfil `inventory` já mocka essa rota
+   * (`inventory-api-routes.ts`), mas não publicava capability nenhuma: a página negava acesso
+   * corretamente e o teste falhava ANTES do snapshot — `mainCount: 0`, `h1Count: 0`.
+   *
+   * Isso não é cobertura dispensada: o módulo continua na suíte, com a interface HABILITADA.
+   * O caso de bloqueio (capability ausente ⇒ nega) continua provado pelo perfil `dashboard`,
+   * que não publica `inventory:stock:read` — ver `inventory.visual.spec.ts`.
+   */
+  inventory: [
+    'inventory:stock:read',
+    'inventory:stock:list',
+    'inventory:item:read',
+    'inventory:warehouse:read',
+  ],
+  /*
+   * DASHBOARD — perfil de shell/painel, sem capability de módulo.
+   *
+   * `geometry.visual.spec.ts` percorre uma rota por domínio usando este perfil. Telas de módulo
+   * protegido (`/app/closing`) NÃO podem ser exercitadas sob ele: o `AccountingRoute` nega acesso
+   * por falta de `accounting:journal:read`, e a falha é do PERFIL, não da tela. A cobertura
+   * habilitada de Fechamento é feita pela família contábil (`accounting.visual.spec.ts`), que
+   * instala os mocks próprios e concede a capability. O bloqueio continua verificado aqui.
+   */
+  /*
    * BILLING — a suíte visual de faturamento usa o perfil `billing-empty`, mas ele não publicava
    * capability nenhuma. Sem `billing:billing-record:read` a página de Faturamento interno nega
    * acesso corretamente ("Acesso negado… exigida para esta área"), e o teste falhava antes de

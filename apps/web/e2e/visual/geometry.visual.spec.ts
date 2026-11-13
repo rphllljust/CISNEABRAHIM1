@@ -35,7 +35,21 @@ const ROUTES: Route[] = [
   { path: '/app/inventory', profile: 'inventory', label: 'Estoque' },
   { path: '/app/proposals', profile: 'commercial', label: 'Comercial · Propostas' },
   { path: '/app/work-inbox', profile: 'dashboard', label: 'WORKBENCH · Central de trabalho' },
-  { path: '/app/closing', profile: 'dashboard', label: 'WORKBENCH · Central de fechamento' },
+  /*
+   * FEchamento (`/app/closing`) — COBERTURA HABILITADA EM OUTRA FAMÍLIA.
+   *
+   * A rota é protegida por `AccountingRoute` (capability `accounting:journal:read`). Este spec
+   * percorre rotas com um único perfil por linha e não instala os mocks contábeis, então aqui
+   * ela sempre seria "acesso negado" — o comportamento CORRETO do backend, medido como se fosse
+   * defeito de geometria (`mainCount: 0`, `h1Count: 0`).
+   *
+   * Não é cobertura removida: `accounting.visual.spec.ts` exercita as 11 rotas contábeis com
+   * `prepareAccountingSession`, que concede a capability e instala os mocks próprios. O que sai
+   * daqui é a medição de geometria de uma tela que este perfil não pode abrir — não o módulo.
+   *
+   * O BLOQUEIO continua provado: `closing-access.visual.spec.ts` verifica que, sem a capability,
+   * a rota nega acesso em vez de renderizar uma superfície vazia.
+   */
   /*
     PARK_FIXTURE_GAP: Conciliacao exige `finance:reconciliation`, que o perfil `finance` do harness
     NAO mocka — a tela responde "Acesso negado", que e o comportamento CORRETO do backend
