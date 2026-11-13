@@ -153,7 +153,7 @@ async function assertWorkbenchGrammar(page: Page, options: { requireSavedViews?:
 }
 
 test.describe('aceite visual final — service orders e creates', () => {
-  test.use({ viewport: { width: 1600, height: 900 } });
+  test.use({ viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false });
 
 
   test('ordens de servico — workspace operacional, nao CRUD', async ({ page }) => {

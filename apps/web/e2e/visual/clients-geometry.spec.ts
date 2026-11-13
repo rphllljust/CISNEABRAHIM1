@@ -43,7 +43,7 @@ async function measure(page: Page) {
 }
 
 test.describe('clients composition metrics', () => {
-  test.use({ viewport: { width: 1600, height: 900 } });
+  test.use({ viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false });
 
   test.beforeEach(async ({ page }) => {
     await prepareAuthenticatedSession(page, 'clients');
