@@ -13,9 +13,14 @@ on:
         required: true
         default: 'accounting.visual finance.visual login.visual'
       exclude_specs:
-        description: 'Testes excluidos do baseline, formato spec:NN,NN (testes tem titulo "NN ..."). Baseline draft NAO inclui 08/10/11 ate #291 mergear e ser verificado.'
+        description: 'Testes excluidos do baseline, formato spec:NN,NN (testes tem titulo "NN ..."). Vazio = nenhum excluido.'
         required: false
-        default: 'accounting.visual:08,10,11'
+        # ERA 'accounting.visual:08,10,11' com a justificativa "ate #291 mergear e ser
+        # verificado". O #291 esta MERGED desde 2026-11-08, e os testes 08/10/11 (fechamentos,
+        # ativo imobilizado, central de fechamento) sao cobertos por fixtures reais desde
+        # de464efc/daef29ce. Manter a exclusao deixaria tres telas SEM baseline -- falha
+        # permanente no Visual Full por ausencia de referencia, nao por imagem errada.
+        default: ''
 
 permissions:
   contents: write
@@ -51,6 +56,10 @@ jobs:
       - name: Verify Playwright runtime and fonts
         run: node scripts/ci/visual-runtime-verify.mjs
       - name: Update snapshots (apenas os specs informados)
+        # O container playwright:v1.62.1-noble roda o `run` sob `sh` (dash), que NAO aceita
+        # `set -o pipefail` -- o step morria com "Illegal option -o pipefail" antes de gerar
+        # qualquer baseline. Mesmo padrao ja usado em visual-full.yml/ci.yml.
+        shell: bash
         env:
           SPECS: ${{ inputs.specs }}
           EXCLUDE: ${{ inputs.exclude_specs }}
@@ -69,6 +78,8 @@ jobs:
           cd apps/web
           pnpm exec playwright test $files "${grep_args[@]}" --update-snapshots --retries=0
       - name: Abrir PR draft com os PNGs
+        # Idem: `set -euo pipefail` exige bash. Sob dash o step falhava antes de commitar.
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF: ${{ inputs.ref }}
