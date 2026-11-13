@@ -58,11 +58,21 @@ test.describe('acesso negado — modulo protegido nao renderiza superficie', () 
   for (const route of PROTECTED_ROUTES) {
     test(`${route.label} nega acesso sem a capability exigida`, async ({ page }) => {
       /*
-       * Perfil `dashboard` de proposito: é o perfil de shell que NÃO publica capabilities de
-       * módulo (`VISUAL_PROFILE_PERMISSIONS.dashboard` é ausente). É exatamente o ator sem
-       * permissão — o cenário que precisa ser provado.
+       * PERFIL `shell` — a escolha do ator sem permissao e o ponto do teste.
+       *
+       * `shell` NAO tem entrada em `VISUAL_PROFILE_PERMISSIONS`, ou seja, publica ZERO
+       * capabilities de modulo: e o ator minimo (sessao valida, nenhum grant de area).
+       *
+       * Nao usar `inventory` nem `finance` aqui: depois da correcao do harness esses perfis
+       * PASSARAM a publicar as capabilities que a tela exige (era isso que destravava a
+       * cobertura habilitada). Com eles a rota abre, e o teste de BLOQUEIO mediria o contrario
+       * do que promete — foi exatamente o que aconteceu na primeira versao deste arquivo
+       * (5 falhas: a tela renderizou porque o perfil tinha acesso).
+       *
+       * Bloqueio e habilitado precisam de ATORES DIFERENTES. Este arquivo prova o ator sem
+       * grant; `inventory.visual.spec.ts` e `accounting.visual.spec.ts` provam o ator com grant.
        */
-      await prepareAuthenticatedSession(page, 'dashboard');
+      await prepareAuthenticatedSession(page, 'shell');
       await page.goto(route.path);
       await page.waitForLoadState('load');
 
