@@ -34,20 +34,6 @@ export async function prepareAuthenticatedSession(
 
 export async function stabilizePage(page: Page): Promise<void> {
   await page.waitForLoadState('load');
-  /*
-   * ÂNCORA DE MONTAGEM DO SHELL — esperar o SINAL, não um relógio.
-   *
-   * MEDIDO: depois que a bancada passou a esticar até a dobra (`items-stretch` no grid do
-   * workspace), a primeira pintura faz mais trabalho de layout e o shell ainda publicava
-   * "Carregando navegação…" quando os specs mediam ou clicavam. O sintoma variava por spec:
-   * `main#main-content` ausente, `<h1>` ausente, clique sem alvo — sempre a MESMA causa.
-   *
-   * A espera por `fontes` + `load` não cobria essa janela. Esta espera é por um estado
-   * OBSERVÁVEL do produto (a navegação terminou) e pela existência do `<main>`; nenhuma
-   * asserção de teste foi afrouxada, porque este helper não asserta contrato — só sincroniza.
-   */
-  await expect(page.getByText('Carregando navegação…')).toHaveCount(0);
-  await expect(page.locator('main#main-content')).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
 }
 
