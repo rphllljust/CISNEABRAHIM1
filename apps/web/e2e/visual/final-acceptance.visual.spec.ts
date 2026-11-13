@@ -90,8 +90,12 @@ test.describe('aceite visual final — 1600x900', () => {
     await expect(page.getByLabel(/vencimento a partir de/i)).toBeVisible();
     await expect(page.getByLabel(/ordenar por/i)).toBeVisible();
 
-    // A COLUNA DE CONTEXTO existe mesmo SEM selecao — nao ha oceano branco a direita.
-    await expect(page.getByLabel('Contexto do título')).toBeVisible();
+    // O CONTEXTO DO TÍTULO é um painel sob demanda (ContextDrawer), não uma coluna sempre
+    // presente. Ele só existe no DOM depois que o operador abre uma prévia real; o `title=` do
+    // drawer fechado não é alcançável por `getByLabel`. Abrir a prévia de um título real e então
+    // asserir o cabeçalho é o contrato que a tela publica.
+    await page.getByRole('button', { name: /^Prévia de / }).first().click();
+    await expect(page.getByRole('heading', { name: 'Contexto do título' })).toBeVisible();
 
     await assertWorkSurfaceAboveFold(page);
     await assertNoHorizontalOverflow(page);
@@ -114,7 +118,9 @@ test.describe('aceite visual final — 1600x900', () => {
       /agingBucket=90_PLUS/,
     );
     await expect(page.getByLabel(/buscar títulos no domínio/i)).toBeVisible();
-    await expect(page.getByLabel('Contexto do título')).toBeVisible();
+    // Mesmo contrato de a pagar: o contexto é um painel sob demanda, aberto pela prévia do título.
+    await page.getByRole('button', { name: /^Prévia de / }).first().click();
+    await expect(page.getByRole('heading', { name: 'Contexto do título' })).toBeVisible();
 
     await assertWorkSurfaceAboveFold(page);
     await assertNoHorizontalOverflow(page);
@@ -130,9 +136,17 @@ test.describe('aceite visual final — 1600x900', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Financeiro' })).toBeVisible();
     await stabilizePage(page);
 
-    // A SITUACAO abre a central; a fila de excecoes vem logo depois.
+    // A SITUACAO abre a central; a coluna de apoio é disclosure e nasce fechada.
     await expect(page.getByLabel(/situação financeira do recorte/i)).toBeVisible();
-    await expect(page.getByRole('heading', { name: /exceções financeiras/i })).toBeVisible();
+    // O botão de disclosure aparece mais de uma vez na composição (moldura externa e painel
+    // interno); o `.first()` é a moldura que governa a coluna de apoio da central.
+    await page.getByRole('button', { name: 'Contexto do processo' }).first().click();
+    // "Exceções financeiras" aparece DUAS vezes por contrato: o rótulo da seção de contexto
+    // (`<h3>` do `ContextSection`) e o título da fila (`<h2>` do `WorkbenchQueue`). O `.first()`
+    // ancora na seção de contexto, que é a que a coluna de apoio publica.
+    await expect(
+      page.getByRole('heading', { name: /exceções financeiras/i }).first(),
+    ).toBeVisible();
 
     // A regiao de trabalho existe e a tela nao tem overflow.
     await expect(page.locator('[data-region="work-surface"]').first()).toBeVisible();

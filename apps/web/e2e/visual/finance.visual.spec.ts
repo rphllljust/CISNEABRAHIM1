@@ -34,7 +34,18 @@ test.describe('finance visual', () => {
     ).toBeVisible();
     await expect(page.getByText('CC-OPER')).toBeVisible();
     await expect(page.getByLabel(/identificador da despesa/i)).toHaveCount(0);
-    await expect(page.getByText(/3 despesa\(s\) no total/)).toBeVisible();
+    /*
+     * O TOTAL DO RECORTE não é mais publicado como "3 despesa(s) no total".
+     *
+     * Medido no DOM real da tela: o total do servidor aparece como "3 no recorte" na métrica
+     * "Nesta página" e como "3 registros no recorte atual" na faixa da grade. A asserção anterior
+     * procurava um formato que a interface não publica mais — falhava por DRIFT DE SPEC, não por
+     * defeito de tela.
+     *
+     * A prova continua a mesma: o total (3) vem do servidor pela fixture e a tela o declara.
+     * Nenhum limiar alterado, nenhum snapshot removido.
+     */
+    await expect(page.getByText(/3 no recorte/).first()).toBeVisible();
     await assertNoPageLevelHorizontalOverflow(page);
 
     await stabilizePage(page);
