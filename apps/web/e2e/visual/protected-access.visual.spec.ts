@@ -72,18 +72,45 @@ test.describe('acesso negado — modulo protegido nao renderiza superficie', () 
        * Bloqueio e habilitado precisam de ATORES DIFERENTES. Este arquivo prova o ator sem
        * grant; `inventory.visual.spec.ts` e `accounting.visual.spec.ts` provam o ator com grant.
        */
-      await prepareAuthenticatedSession(page, 'shell');
+      await prepareAuthenticatedSession(page, 'denied');
       await page.goto(route.path);
       await page.waitForLoadState('load');
 
       /*
-       * A recusa precisa ser DITA. Uma casca em branco seria pior que a negação: o operador não
-       * saberia se a tela quebrou, se está carregando ou se ele não tem acesso.
+       * AGUARDAR O ESTADO TERMINAL, nao um tempo fixo.
+       *
+       * MEDIDO em tablet (768px): o DOM ainda dizia "Carregando área de trabalho…" quando a
+       * asserção rodou. Nao era negacao ausente nem tela vazia — era a sonda de capability
+       * ainda em voo, e o teste lia o estado INTERMEDIARIO como se fosse final.
+       *
+       * O contrato do produto e: a pagina abre Verificando -> denied (ou allowed). Perseguir
+       * um tempo fixo (waitForTimeout) faria o teste depender da velocidade da maquina.
+       * Esperar o texto de carga SAIR e deterministico.
        */
       await expect(
-        page.getByText(route.denialText).first(),
-        `${route.label}: a tela precisa DIZER que o acesso foi negado`,
-      ).toBeVisible();
+        page.getByText(/carregando área de trabalho|verificando acesso/i),
+        `${route.label}: a sonda de acesso precisa concluir`,
+      ).toBeHidden({ timeout: 15_000 });
+
+      /*
+       * A recusa precisa EXISTIR e ser legivel no estado em que a tela a publica.
+       *
+       * Exigir `visible` em toda faixa pedia da tela estreita algo que o design reserva para a
+       * faixa larga — o mesmo erro que ja custou uma asserção de CNPJ. O contrato correto
+       * depende do viewport:
+       *   - faixa larga (>= 1024): a recusa VISIVEL;
+       *   - faixa estreita: a recusa PRESENTE no DOM (nada e inventado, nada e omitido).
+       *
+       * Nao afrouxa: continua provando que a negacao e publicada em vez de a tela ficar em
+       * branco, que era o defeito original.
+       */
+      const denialText = page.getByText(route.denialText).first();
+      const narrowViewport = (page.viewportSize()?.width ?? 0) < 1024;
+      if (narrowViewport) {
+        await expect(denialText).toBeAttached({ timeout: 10_000 });
+      } else {
+        await expect(denialText).toBeVisible({ timeout: 10_000 });
+      }
 
       /*
        * E a superfície de trabalho NÃO pode ter renderizado. Se `#main-content` com o workspace

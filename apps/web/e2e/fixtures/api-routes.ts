@@ -30,7 +30,19 @@ export type ApiMockProfile =
   | 'procurement'
   | 'inventory'
   | 'finance'
-  | 'measurement';
+  | 'measurement'
+  /*
+   * ATOR SEM GRANT EM SUPERFICIE PROTEGIDA.
+   *
+   * Existe para provar BLOQUEIO. Nao e o mesmo que `shell`: `shell` nao mocka as rotas de
+   * modulo, entao a sonda falha por rede (`error`) em vez de autorizacao (`denied`), e a tela
+   * mostra estado de erro — nao a mensagem de acesso negado que o operador precisa ler.
+   *
+   * `probeRealListAccess` so interpreta 403 como "sem acesso"; qualquer outro status lanca.
+   * Este perfil responde 403 nas rotas protegidas, que e o UNICO caminho honesto para medir o
+   * comportamento de negacao da interface.
+   */
+  | 'denied';
 
 type RouteContext = {
   profile: ApiMockProfile;
@@ -271,6 +283,29 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
 
   if (context.profile === 'inventory' && (await handleInventoryApiRoute(route))) {
     return;
+  }
+
+  /*
+   * ATOR SEM GRANT — responde 403 nas rotas de modulo protegido.
+   *
+   * `probeRealListAccess` trata APENAS 403 como "sem acesso" e lanca em qualquer outro status.
+   * Sem este caminho o teste de bloqueio mede estado de erro de rede, e a tela nao publica a
+   * mensagem de negacao que o operador precisa ler. O escopo e deliberadamente estreito: so as
+   * rotas de leitura que as sondas de capability consultam.
+   */
+  if (context.profile === 'denied') {
+    const deniedPrefixes = [
+      '/api/v1/inventory',
+      '/api/v1/accounting',
+    ];
+    if (deniedPrefixes.some((prefix) => pathname.startsWith(prefix))) {
+      await fulfillJson(
+        route,
+        { error: { code: 'AUTHZ_DENIED', message: 'Access denied.' } },
+        403,
+      );
+      return;
+    }
   }
 
   if (context.profile === 'finance' && (await handleFinanceApiRoute(route))) {
