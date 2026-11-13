@@ -163,7 +163,23 @@ test.describe('evidencia visual medida por dominio', () => {
       await page.goto(route.path);
       await page.waitForLoadState('load');
       await page.evaluate(() => document.fonts.ready);
-      await page.waitForTimeout(600);
+      /*
+       * ÂNCORA DE MONTAGEM — esperar o SHELL terminar, não um tempo fixo.
+       *
+       * MEDIDO: `waitForTimeout(600)` era insuficiente. Com `items-stretch` no grid do workspace,
+       * o navegador faz mais trabalho de layout na primeira pintura, e o shell ainda publicava
+       * "Carregando navegação…" quando `measure()` rodava — a `<main>` não existia ainda e
+       * `mainCount` vinha 0. A falha alternava de rota entre execuções (WORKBENCH, Estoque,
+       * Clientes), assinatura de corrida de tempo, não de geometria.
+       *
+       * A espera agora é por um SINAL OBSERVÁVEL do produto, não por relógio: a região de navegação
+       * deixa de declarar carregamento E o `#main-content` existe. Nenhuma asserção abaixo foi
+       * afrouxada — todas continuam exigindo main único, h1 único e ausência de overflow.
+       */
+      await expect(page.getByText('Carregando navegação…')).toHaveCount(0);
+      await expect(page.locator('main#main-content')).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(300);
 
       const m = await measure(page);
 
