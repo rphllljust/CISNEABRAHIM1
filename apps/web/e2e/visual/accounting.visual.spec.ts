@@ -128,7 +128,31 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
      * de estorno e botão Postar continuam exigidas e inalteradas.
      */
     await expect(page.getByText('Carregando navegação…')).toHaveCount(0);
-    await expect(page.getByRole('heading', { level: 1, name: 'Lançamento' })).toBeVisible();
+    /*
+     * O `<h1>` DO DETALHE É RESPONSIVO — E A ASSERÇÃO EXIGIA SÓ O NOME DO DESKTOP.
+     *
+     * MEDIDO no DOM real (error-context da run 43507333821, viewport mobile):
+     *
+     *   - main:
+     *     - navigation "Breadcrumb": ... - text: "Lancamento #1"
+     *     - heading "Venda de servicos de manutencao" [level=1]
+     *
+     * Em mobile o `<h1>` é a DESCRIÇÃO do lançamento; em desktop é o rótulo genérico
+     * "Lançamento". Exigir `name: 'Lançamento'` em 390px reprovava a tela CORRETA — mesma
+     * classe de defeito já corrigida nesta frente no contrato de CNPJ por viewport (59928a5f).
+     *
+     * A prova continua integral nos dois viewports: o cabeçalho de identidade do lançamento
+     * (nível 1) tem de estar visível e o breadcrumb tem de dizer "Lançamento #N". Muda apenas
+     * QUAL texto é o `<h1>` em cada largura — contrato real do produto.
+     */
+    const isNarrowViewport = (page.viewportSize()?.width ?? 1280) < 1024;
+    await expect(
+      page.getByRole('heading', {
+        level: 1,
+        name: isNarrowViewport ? /^Venda de serviços de manutenção$/ : 'Lançamento',
+      }),
+    ).toBeVisible();
+    await expect(page.getByText(/Lançamento #\d+/)).toBeVisible();
     await expect(page.getByRole('table', { name: /linhas do lançamento/i })).toBeVisible();
     // Escopo no comando de estorno: o nome 'Estornar' (substring) também casava a barra de
     // comandos ('Estornar lançamento'); o id do comando é a âncora estável.
