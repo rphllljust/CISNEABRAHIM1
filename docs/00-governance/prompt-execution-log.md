@@ -736,16 +736,16 @@ NOTES:
 
 Classificação: **interpretação de engenharia / projeção de leitura**. Nenhuma regra de domínio foi criada ou promovida. O modelo persistente já oferece os vínculos e índices necessários; não foi criada migration.
 
-| SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |
-| ------ | -------- | ------------- | -------------- | ---- | ---------- |
+| SOURCE                                                                                                                | EVIDENCE                                                                                                                                                                                | BUSINESS RULE                                                                                                                                              | IMPLEMENTATION                                                                                                                                                                                                                                                                                                                                                                                                       | TEST                                                                                                                                                                                                                                                         | ACCEPTANCE                                                                       |
+| --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
 | Solicitação do responsável para concluir a vertical Billing, eliminando paginação heurística e indicadores sem escopo | Worklist anterior carregava ordens concluídas e fazia até três leituras adicionais por ordem; a fila não tinha total autoritativo e o frontend classificava/somava somente o lote local | Nenhuma regra nova; autorização e políticas comerciais persistidas continuam fontes; moedas não são convertidas e ausência de valor permanece desconhecida | `GET /api/v1/billing/worklist` publica page items, total do recorte, `hasMore`, contagens e agregados por moeda por uma consulta; filtros/pesquisa/ordenação ficam no servidor; projeção aplica escopos próprios a registro, documento e recebível; fila usa saved views, filtros, drawer, estados e comandos únicos; política comercial aceita apenas snapshots numéricos válidos; removidos adaptadores locais/N+1 | typecheck API/Web PASS; lint focado API/Web PASS; repository unit 1/1 e billing UI 9/9 asserts aprovados; Vitest não encerrou limpo; integração PostgreSQL acrescentada mas não executada (sem `TEST_DATABASE_URL`, psql ou Docker); `git diff --check` PASS | `PASS_WITH_RESTRICTIONS` até execução da integração PostgreSQL em CI; sem deploy |
 
 ## VARREDURA GLOBAL DE TOKENS VISUAIS — 2026-10-14
 
 Classificação: **instrução de composição visual**. Utilitários gray/slate genéricos permanecem intactos; primitives e classes identificadas como semânticas consomem os papéis explícitos `--erp-*`.
 
-| SOURCE | EVIDENCE | BUSINESS RULE | IMPLEMENTATION | TEST | ACCEPTANCE |
-| ------ | -------- | ------------- | -------------- | ---- | ---------- |
+| SOURCE                                                                                                                                     | EVIDENCE                                                                                                                                                                                                                         | BUSINESS RULE                                                                                                                                         | IMPLEMENTATION                                                                                                                                                                                                                                                                                                                                                                                                                                | TEST                                                                                                                                                                                                | ACCEPTANCE                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Prompt anexado `CISNE — RECOMPOSIÇÃO VISUAL GLOBAL ERP TIER-1`, correção de saturação e instrução explícita para varrer telas renderizadas | Control Center mantinha painéis de distribuição/aging sem dados, empurrando a fila; drawers e `DynamicBusinessChain` tinham cores locais; tokens de grade/ação e superfícies eram consumidos indiretamente por Tailwind genérico | Nenhuma regra de negócio alterada; ausência continua unknown, dados semânticos preservam cores próprias, neutralidades genéricas permanecem genéricas | Declarados papéis `--erp-*`; aliases de superfície, texto, borda, ação e estado apontam aos papéis; sem remap de gray/slate; `Badge`, `DynamicList`, `Drawer`, `ContextDrawer`, `DynamicContextDrawer`, `EnterpriseMetric`, `WorklistStatePanel`, `OperationsControlCenter` e Control Center consomem papéis; sem gráfico, superfície analítica é omitida; fluxo e fila sobem antes das análises; densidade do contexto e comandos corrigidos | dashboard E2E 4/4, billing UI 9/9 asserts, repository unit 1/1; build Web PASS; typecheck/lint focados em execução; nenhum screenshot real/CI visual disponível; integração PostgreSQL indisponível | `PASS_WITH_RESTRICTIONS`; o estado sem dados e a composição funcional foram testados em DOM; CI deve executar integração PostgreSQL e gate visual antes de release |
 
 ---
@@ -2459,13 +2459,13 @@ NOTES:
 
 ## Prompt 37 — Catálogo de tipos de recursos físicos
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 37 |
-| Título | Catálogo de tipos de recursos físicos |
-| Status | PASS |
-| Commit | feat(resources): implement physical resource type catalog |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                                     |
+| ------------ | --------------------------------------------------------- |
+| ID           | 37                                                        |
+| Título       | Catálogo de tipos de recursos físicos                     |
+| Status       | PASS                                                      |
+| Commit       | feat(resources): implement physical resource type catalog |
+| Executado em | 2026-08-29                                                |
 
 ```
 Resumo:
@@ -2490,13 +2490,13 @@ Resumo:
 
 ## Prompt 38 — Tipos de mão de obra e capacidades operacionais
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 38 |
-| Título | Tipos de mão de obra e capacidades operacionais |
-| Status | PASS |
-| Commit | feat(resources): implement operational labor types |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                              |
+| ------------ | -------------------------------------------------- |
+| ID           | 38                                                 |
+| Título       | Tipos de mão de obra e capacidades operacionais    |
+| Status       | PASS                                               |
+| Commit       | feat(resources): implement operational labor types |
+| Executado em | 2026-08-29                                         |
 
 ```
 Resumo:
@@ -2520,13 +2520,13 @@ Resumo:
 
 ## Prompt 39 — Modelos comerciais, precificação e medição
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 39 |
-| Título | Modelos comerciais, precificação e medição |
-| Status | PASS |
-| Commit | feat(commercial): implement pricing and measurement models |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                                      |
+| ------------ | ---------------------------------------------------------- |
+| ID           | 39                                                         |
+| Título       | Modelos comerciais, precificação e medição                 |
+| Status       | PASS                                                       |
+| Commit       | feat(commercial): implement pricing and measurement models |
+| Executado em | 2026-08-29                                                 |
 
 ```
 Resumo:
@@ -2551,13 +2551,13 @@ Resumo:
 
 ## Prompt 40 — Requisitos de execução e evidências tipadas
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 40 |
-| Título | Requisitos de execução e evidências tipadas |
-| Status | PASS |
-| Commit | feat(catalog): implement typed execution requirements |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                                 |
+| ------------ | ----------------------------------------------------- |
+| ID           | 40                                                    |
+| Título       | Requisitos de execução e evidências tipadas           |
+| Status       | PASS                                                  |
+| Commit       | feat(catalog): implement typed execution requirements |
+| Executado em | 2026-08-29                                            |
 
 ```
 Resumo:
@@ -2583,13 +2583,13 @@ Resumo:
 
 ## Prompt 41 — Seed canônico do portfólio de serviços CISNE
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 41 |
-| Título | Seed canônico do portfólio de serviços CISNE |
-| Status | PASS |
-| Commit | feat(catalog): seed complete Cisne service portfolio |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                                |
+| ------------ | ---------------------------------------------------- |
+| ID           | 41                                                   |
+| Título       | Seed canônico do portfólio de serviços CISNE         |
+| Status       | PASS                                                 |
+| Commit       | feat(catalog): seed complete Cisne service portfolio |
+| Executado em | 2026-08-29                                           |
 
 ```
 Resumo:
@@ -2612,13 +2612,13 @@ Resumo:
 
 ## Prompt 42 — Frontend administrativo do catálogo
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 42 |
-| Título | Frontend administrativo do catálogo |
-| Status | PASS |
-| Commit | feat(web): implement service catalog administration |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                               |
+| ------------ | --------------------------------------------------- |
+| ID           | 42                                                  |
+| Título       | Frontend administrativo do catálogo                 |
+| Status       | PASS                                                |
+| Commit       | feat(web): implement service catalog administration |
+| Executado em | 2026-08-29                                          |
 
 ```
 Resumo:
@@ -2643,13 +2643,13 @@ Resumo:
 
 ## Prompt 43 — Ativos físicos e veículos (backend)
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 43 |
-| Título | Ativos físicos e veículos: backend |
-| Status | PASS |
-| Commit | feat(resources): implement physical asset registry |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                              |
+| ------------ | -------------------------------------------------- |
+| ID           | 43                                                 |
+| Título       | Ativos físicos e veículos: backend                 |
+| Status       | PASS                                               |
+| Commit       | feat(resources): implement physical asset registry |
+| Executado em | 2026-08-29                                         |
 
 ```
 Resumo:
@@ -2678,13 +2678,13 @@ Resumo:
 
 ## Prompt 44 — Ativos físicos e veículos (frontend)
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 44 |
-| Título | Ativos físicos e veículos: frontend |
-| Status | PASS |
-| Commit | feat(web): implement physical asset management |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                          |
+| ------------ | ---------------------------------------------- |
+| ID           | 44                                             |
+| Título       | Ativos físicos e veículos: frontend            |
+| Status       | PASS                                           |
+| Commit       | feat(web): implement physical asset management |
+| Executado em | 2026-08-29                                     |
 
 ```
 Resumo:
@@ -2708,13 +2708,13 @@ Resumo:
 
 ## Prompt 45 — Documentos, versionamento e object storage
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 45 |
-| Título | Documentos, versionamento e object storage |
-| Status | PASS |
-| Commit | feat(documents): implement secure versioned document storage |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                                        |
+| ------------ | ------------------------------------------------------------ |
+| ID           | 45                                                           |
+| Título       | Documentos, versionamento e object storage                   |
+| Status       | PASS                                                         |
+| Commit       | feat(documents): implement secure versioned document storage |
+| Executado em | 2026-08-29                                                   |
 
 ```
 Resumo:
@@ -2741,13 +2741,13 @@ Resumo:
 
 ## Prompt 46 — Propostas comerciais (backend)
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 46 |
-| Título | Propostas comerciais: backend |
-| Status | PASS |
-| Commit | feat(commercial): implement versioned commercial proposals |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                                      |
+| ------------ | ---------------------------------------------------------- |
+| ID           | 46                                                         |
+| Título       | Propostas comerciais: backend                              |
+| Status       | PASS                                                       |
+| Commit       | feat(commercial): implement versioned commercial proposals |
+| Executado em | 2026-08-29                                                 |
 
 ```text
 PROMPT: 46
@@ -2814,13 +2814,13 @@ NOTES:
 
 ## Prompt 47 — Purchase orders e autorizações comerciais
 
-| Campo | Valor |
-| ----- | ----- |
-| ID | 47 |
-| Título | Purchase order, RC e autorizações comerciais |
-| Status | PASS |
-| Commit | feat(commercial): implement purchase orders and authorizations |
-| Executado em | 2026-08-29 |
+| Campo        | Valor                                                          |
+| ------------ | -------------------------------------------------------------- |
+| ID           | 47                                                             |
+| Título       | Purchase order, RC e autorizações comerciais                   |
+| Status       | PASS                                                           |
+| Commit       | feat(commercial): implement purchase orders and authorizations |
+| Executado em | 2026-08-29                                                     |
 
 ```text
 PROMPT: 47
@@ -3629,16 +3629,16 @@ NOTES:
 
 ## Quality gate Prompt 63 (evidência)
 
-| Gate | Resultado | Evidência principal |
-|------|-----------|---------------------|
-| BUSINESS FLOW | PASS | `first-vertical-quality-gate.integration.spec.ts` |
-| CONCURRENCY | PASS | clients.audit-closure, service-orders, planning, execution, measurements, billing-document integration |
-| SECURITY | PASS | IDOR/cross-scope documents; audit redaction; storageKey leak corrigido em billing document |
-| MIGRATIONS | PASS | `gate:database` fresh + incremental (0000→0025); persistence integration 49 |
-| RESPONSIVE | PASS | `vertical-quality-gate.e2e.test.tsx` mobile/tablet/desktop |
-| ACCESSIBILITY | PASS | shell skip-link/aria; ServiceDefinitionForm + DocumentManagementPanel a11y tests |
-| E2E | PASS | api e2e 40; web e2e suites 171 |
-| REGRESSIONS | NONE | lint + typecheck + test + integration + e2e + build |
+| Gate          | Resultado | Evidência principal                                                                                    |
+| ------------- | --------- | ------------------------------------------------------------------------------------------------------ |
+| BUSINESS FLOW | PASS      | `first-vertical-quality-gate.integration.spec.ts`                                                      |
+| CONCURRENCY   | PASS      | clients.audit-closure, service-orders, planning, execution, measurements, billing-document integration |
+| SECURITY      | PASS      | IDOR/cross-scope documents; audit redaction; storageKey leak corrigido em billing document             |
+| MIGRATIONS    | PASS      | `gate:database` fresh + incremental (0000→0025); persistence integration 49                            |
+| RESPONSIVE    | PASS      | `vertical-quality-gate.e2e.test.tsx` mobile/tablet/desktop                                             |
+| ACCESSIBILITY | PASS      | shell skip-link/aria; ServiceDefinitionForm + DocumentManagementPanel a11y tests                       |
+| E2E           | PASS      | api e2e 40; web e2e suites 171                                                                         |
+| REGRESSIONS   | NONE      | lint + typecheck + test + integration + e2e + build                                                    |
 
 ---
 
@@ -3682,13 +3682,13 @@ NOTES:
 
 ## Quality gate Prompt 64 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| correct event | PASS | `domain-events.integration.spec.ts` — event + intent |
-| no duplicate event | PASS | idempotency_key dedup |
-| transaction rollback | PASS | ROLLBACK sem linhas em evt.domain_events |
-| authorization-independent semantics | PASS | payload sem actor/session/grants |
-| payload versioning | PASS | `event-payloads.v1.spec.ts` + payload_version=1 |
+| Cenário de teste                    | Resultado | Evidência                                            |
+| ----------------------------------- | --------- | ---------------------------------------------------- |
+| correct event                       | PASS      | `domain-events.integration.spec.ts` — event + intent |
+| no duplicate event                  | PASS      | idempotency_key dedup                                |
+| transaction rollback                | PASS      | ROLLBACK sem linhas em evt.domain_events             |
+| authorization-independent semantics | PASS      | payload sem actor/session/grants                     |
+| payload versioning                  | PASS      | `event-payloads.v1.spec.ts` + payload_version=1      |
 
 ---
 
@@ -3725,15 +3725,15 @@ NOTES:
 
 ## Quality gate Prompt 65 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| success | PASS | `background-worker.integration.spec.ts` |
-| retry | PASS | transient + scheduleRetry + backoff |
-| exhausted retry | PASS | status DEAD após max_attempts |
-| crash | PASS | releaseExpiredLeases + reprocessamento |
-| shutdown | PASS | stop() aguarda in-flight |
-| duplicate job | PASS | idempotency_key unique |
-| concurrency | PASS | WORKER_CONCURRENCY=2 |
+| Cenário de teste | Resultado | Evidência                               |
+| ---------------- | --------- | --------------------------------------- |
+| success          | PASS      | `background-worker.integration.spec.ts` |
+| retry            | PASS      | transient + scheduleRetry + backoff     |
+| exhausted retry  | PASS      | status DEAD após max_attempts           |
+| crash            | PASS      | releaseExpiredLeases + reprocessamento  |
+| shutdown         | PASS      | stop() aguarda in-flight                |
+| duplicate job    | PASS      | idempotency_key unique                  |
+| concurrency      | PASS      | WORKER_CONCURRENCY=2                    |
 
 ---
 
@@ -3768,14 +3768,14 @@ NOTES:
 
 ## Quality gate Prompt 66 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| rollback | PASS | outbox ausente após ROLLBACK |
-| committed event | PASS | PENDING → publish → domain_events |
-| duplicate worker | PASS | SKIP LOCKED — um worker por row |
-| crash after external action | PASS | republish idempotente |
-| retry | PASS | scheduleRetry → republish |
-| ordering when required | PASS | sequence_number + ordering_key |
+| Cenário de teste            | Resultado | Evidência                         |
+| --------------------------- | --------- | --------------------------------- |
+| rollback                    | PASS      | outbox ausente após ROLLBACK      |
+| committed event             | PASS      | PENDING → publish → domain_events |
+| duplicate worker            | PASS      | SKIP LOCKED — um worker por row   |
+| crash after external action | PASS      | republish idempotente             |
+| retry                       | PASS      | scheduleRetry → republish         |
+| ordering when required      | PASS      | sequence_number + ordering_key    |
 
 ---
 
@@ -3812,15 +3812,15 @@ NOTES:
 
 ## Quality gate Prompt 67 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| same message twice | PASS | dedup + 1 effect |
-| same id different provider | PASS | 2 rows + 2 effects |
-| invalid payload | PASS | status INVALID |
-| processing failure | PASS | status FAILED PERMANENT |
-| retry | PASS | TRANSIENT → scheduleRetry → PROCESSED |
-| concurrency | PASS | SKIP LOCKED — um worker por row |
-| webhook auth | PASS | assinatura inválida rejeitada |
+| Cenário de teste           | Resultado | Evidência                             |
+| -------------------------- | --------- | ------------------------------------- |
+| same message twice         | PASS      | dedup + 1 effect                      |
+| same id different provider | PASS      | 2 rows + 2 effects                    |
+| invalid payload            | PASS      | status INVALID                        |
+| processing failure         | PASS      | status FAILED PERMANENT               |
+| retry                      | PASS      | TRANSIENT → scheduleRetry → PROCESSED |
+| concurrency                | PASS      | SKIP LOCKED — um worker por row       |
+| webhook auth               | PASS      | assinatura inválida rejeitada         |
 
 ---
 
@@ -3858,16 +3858,16 @@ NOTES:
 
 ## Quality gate Prompt 68 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| provider mapping | PASS | dygnus-customer.mapper.spec.ts + contract fixture |
-| malformed external data | PASS | parseDygnusCustomerPayload INVALID_PAYLOAD |
-| timeout | PASS | provider-executor.spec.ts |
-| retry | PASS | provider-executor.spec.ts (TRANSIENT only) |
-| domain isolation | PASS | domain-isolation.spec.ts |
-| contract tests | PASS | dygnus-erp.adapter.spec.ts + fixture JSON |
-| safe user errors | PASS | integration-safe-error.spec.ts |
-| circuit breaker | PASS | circuit-breaker.spec.ts |
+| Cenário de teste        | Resultado | Evidência                                         |
+| ----------------------- | --------- | ------------------------------------------------- |
+| provider mapping        | PASS      | dygnus-customer.mapper.spec.ts + contract fixture |
+| malformed external data | PASS      | parseDygnusCustomerPayload INVALID_PAYLOAD        |
+| timeout                 | PASS      | provider-executor.spec.ts                         |
+| retry                   | PASS      | provider-executor.spec.ts (TRANSIENT only)        |
+| domain isolation        | PASS      | domain-isolation.spec.ts                          |
+| contract tests          | PASS      | dygnus-erp.adapter.spec.ts + fixture JSON         |
+| safe user errors        | PASS      | integration-safe-error.spec.ts                    |
+| circuit breaker         | PASS      | circuit-breaker.spec.ts                           |
 
 ---
 
@@ -3900,19 +3900,19 @@ NOTES:
 
 ## Business / Integration Gate Prompt 69 (evidência)
 
-| Critério | Status | Evidência |
-|----------|--------|-----------|
-| ERP confirmado | **FAIL** | DDP-014 `OPEN`; nenhum vendor ERP nomeado em fonte `CONFIRMED` |
-| API/documentação | **FAIL** | SGAR-001 P2 NOT_PROVIDED; INT-REQ-001 `PENDING_EXTERNAL_DOCUMENTATION` |
-| Autenticação | **FAIL** | Sem contrato; Dygnus scaffold usa Bearer hipotético sem fonte |
-| Homologação/sandbox | **FAIL** | Nenhum endpoint ou credencial de homologação registrada |
-| Rate limits | **FAIL** | Não documentado |
-| Identifiers | **PARTIAL** | BR-031 + `externalErpId` modelado internamente; mapeamento ERP↔CISNE sem contrato externo |
+| Critério               | Status      | Evidência                                                                                    |
+| ---------------------- | ----------- | -------------------------------------------------------------------------------------------- |
+| ERP confirmado         | **FAIL**    | DDP-014 `OPEN`; nenhum vendor ERP nomeado em fonte `CONFIRMED`                               |
+| API/documentação       | **FAIL**    | SGAR-001 P2 NOT_PROVIDED; INT-REQ-001 `PENDING_EXTERNAL_DOCUMENTATION`                       |
+| Autenticação           | **FAIL**    | Sem contrato; Dygnus scaffold usa Bearer hipotético sem fonte                                |
+| Homologação/sandbox    | **FAIL**    | Nenhum endpoint ou credencial de homologação registrada                                      |
+| Rate limits            | **FAIL**    | Não documentado                                                                              |
+| Identifiers            | **PARTIAL** | BR-031 + `externalErpId` modelado internamente; mapeamento ERP↔CISNE sem contrato externo    |
 | Source-of-truth matrix | **PARTIAL** | DBND-SOT-001: cliente=CISNE master; PO/preço/pagamento ERP candidato sem integração definida |
-| Erros | **FAIL** | Sem catálogo de erros do fornecedor |
-| Paginação | **FAIL** | Não documentado |
-| Webhook/polling | **FAIL** | DDP-014 OPEN; inbox (Prompt 67) genérico, sem eventos ERP confirmados |
-| Credenciais | **FAIL** | Nenhuma credencial ou vault path registrado em fonte |
+| Erros                  | **FAIL**    | Sem catálogo de erros do fornecedor                                                          |
+| Paginação              | **FAIL**    | Não documentado                                                                              |
+| Webhook/polling        | **FAIL**    | DDP-014 OPEN; inbox (Prompt 67) genérico, sem eventos ERP confirmados                        |
+| Credenciais            | **FAIL**    | Nenhuma credencial ou vault path registrado em fonte                                         |
 
 **Decisão:** gate **BLOCKED** — implementação de adapter real proibida (AGENTS.md §19; Prompt 69 regra explícita).
 
@@ -3949,18 +3949,18 @@ NOTES:
 
 ## Business / Integration Gate Prompt 70 (evidência)
 
-| Critério | Status | Evidência |
-|----------|--------|-----------|
-| API/documentação real | **FAIL** | INT-REQ-003 `PENDING_EXTERNAL_DOCUMENTATION`; source-registry `NOT_PROVIDED` |
-| Provedor confirmado | **FAIL** | DDP-014 `OPEN`; EVA-001 contrato técnico não confirmado |
-| Autenticação | **FAIL** | Sem contrato de API |
-| Homologação/sandbox | **FAIL** | Ausente |
-| Identifiers (`externalVehicleId` ↔ asset) | **FAIL** | Sem contrato provider; placa/chassi DDP-034 `OPEN` |
+| Critério                                      | Status      | Evidência                                                                                  |
+| --------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| API/documentação real                         | **FAIL**    | INT-REQ-003 `PENDING_EXTERNAL_DOCUMENTATION`; source-registry `NOT_PROVIDED`               |
+| Provedor confirmado                           | **FAIL**    | DDP-014 `OPEN`; EVA-001 contrato técnico não confirmado                                    |
+| Autenticação                                  | **FAIL**    | Sem contrato de API                                                                        |
+| Homologação/sandbox                           | **FAIL**    | Ausente                                                                                    |
+| Identifiers (`externalVehicleId` ↔ asset)     | **FAIL**    | Sem contrato provider; placa/chassi DDP-034 `OPEN`                                         |
 | Modelo interno (lat/long/timestamp/ignition…) | **PARTIAL** | Porta ACL existe; snapshot atual só `trackingCode/status` — insuficiente sem contrato real |
-| Stale threshold / timestamp provider | **FAIL** | Sem regra nem API para definir threshold |
-| Segurança / autorização operacional | **PARTIAL** | Requisito do prompt registrado; sem provider para implementar controle de escopo |
-| Webhook/polling | **FAIL** | Não documentado |
-| Credenciais | **FAIL** | Ausente |
+| Stale threshold / timestamp provider          | **FAIL**    | Sem regra nem API para definir threshold                                                   |
+| Segurança / autorização operacional           | **PARTIAL** | Requisito do prompt registrado; sem provider para implementar controle de escopo           |
+| Webhook/polling                               | **FAIL**    | Não documentado                                                                            |
+| Credenciais                                   | **FAIL**    | Ausente                                                                                    |
 
 **Decisão:** gate **BLOCKED** — implementação de vehicle tracking adapter proibida (Prompt 70 regra explícita; AGENTS.md §19).
 
@@ -4007,19 +4007,19 @@ NOTES:
 
 ## Quality gate Prompt 70-A (evidência)
 
-| Cenário | Resultado | Evidência |
-|---------|-----------|-----------|
-| production bootstrap sem ERP | PASS | integration-bootstrap.spec.ts AppModule |
-| production bootstrap sem Tracking | PASS | integration-bootstrap.spec.ts IntegrationsAclModule |
-| stub não registrado em produção | PASS | Unconfigured* binding; provider-classification.ts |
-| ERP unavailable → INTEGRATION_NOT_CONFIGURED | PASS | integration-bootstrap.spec.ts |
-| Tracking unavailable → INTEGRATION_NOT_CONFIGURED | PASS | integration-bootstrap.spec.ts |
-| TEST_ONLY stub em módulo isolado | PASS | integration-bootstrap.spec.ts |
-| capability configured/enabled false | PASS | integration-capability.config.spec.ts |
-| UI sem ação falsa ERP/GPS | PASS | audit web — apenas externalErpId manual |
-| api unit | PASS | 170 |
-| typecheck | PASS | |
-| lint | PASS | |
+| Cenário                                           | Resultado | Evidência                                           |
+| ------------------------------------------------- | --------- | --------------------------------------------------- |
+| production bootstrap sem ERP                      | PASS      | integration-bootstrap.spec.ts AppModule             |
+| production bootstrap sem Tracking                 | PASS      | integration-bootstrap.spec.ts IntegrationsAclModule |
+| stub não registrado em produção                   | PASS      | Unconfigured* binding; provider-classification.ts   |
+| ERP unavailable → INTEGRATION_NOT_CONFIGURED      | PASS      | integration-bootstrap.spec.ts                       |
+| Tracking unavailable → INTEGRATION_NOT_CONFIGURED | PASS      | integration-bootstrap.spec.ts                       |
+| TEST_ONLY stub em módulo isolado                  | PASS      | integration-bootstrap.spec.ts                       |
+| capability configured/enabled false               | PASS      | integration-capability.config.spec.ts               |
+| UI sem ação falsa ERP/GPS                         | PASS      | audit web — apenas externalErpId manual             |
+| api unit                                          | PASS      | 170                                                 |
+| typecheck                                         | PASS      |                                                     |
+| lint                                              | PASS      |                                                     |
 
 ## Reexecution contract — ERP (Prompt 69)
 
@@ -4184,68 +4184,68 @@ NOTES:
 
 ## Quality gate Prompt 74 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| zero denominator | PASS | productivity.domain.spec.ts |
-| one OS cycle time | PASS | productivity.domain.spec.ts |
-| late / on-time completion | PASS | productivity-read-model.repository.ts SQL |
-| rework (measurement rejection) | PASS | productivity-read-model.repository.ts |
-| aggregation by period | PASS | productivity.domain.spec.ts |
-| aggregation by unit | PASS | productivity.integration.spec.ts |
-| authorization | PASS | productivity.integration.spec.ts |
-| timezone periods | PASS | productivity.domain.spec.ts |
-| no consolidated score | PASS | productivity.domain.spec.ts |
-| EXPLAIN aggregate query | PASS | productivity.integration.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste               | Resultado | Evidência                                 |
+| ------------------------------ | --------- | ----------------------------------------- |
+| zero denominator               | PASS      | productivity.domain.spec.ts               |
+| one OS cycle time              | PASS      | productivity.domain.spec.ts               |
+| late / on-time completion      | PASS      | productivity-read-model.repository.ts SQL |
+| rework (measurement rejection) | PASS      | productivity-read-model.repository.ts     |
+| aggregation by period          | PASS      | productivity.domain.spec.ts               |
+| aggregation by unit            | PASS      | productivity.integration.spec.ts          |
+| authorization                  | PASS      | productivity.integration.spec.ts          |
+| timezone periods               | PASS      | productivity.domain.spec.ts               |
+| no consolidated score          | PASS      | productivity.domain.spec.ts               |
+| EXPLAIN aggregate query        | PASS      | productivity.integration.spec.ts          |
+| API typecheck                  | PASS      | tsc --noEmit                              |
 
 ---
 
 ## Quality gate Prompt 73 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| OS dentro do prazo | PASS | aging.domain.spec.ts |
-| vencimento exatamente agora | PASS | aging.domain.spec.ts |
-| OS vencida (derivada) | PASS | aging.domain.spec.ts + integration |
-| OS terminal não vencida | PASS | aging.domain.spec.ts |
-| billing futuro / vencido | PASS | aging.domain.spec.ts |
-| timezone / due date civil | PASS | aging.domain.spec.ts |
-| authorization scope | PASS | aging.integration.spec.ts |
-| Decimal sums | PASS | aging.domain.spec.ts |
-| financial hidden without grant | PASS | aging-response.serializer.spec.ts |
-| EXPLAIN query crítica | PASS | aging.integration.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste               | Resultado | Evidência                          |
+| ------------------------------ | --------- | ---------------------------------- |
+| OS dentro do prazo             | PASS      | aging.domain.spec.ts               |
+| vencimento exatamente agora    | PASS      | aging.domain.spec.ts               |
+| OS vencida (derivada)          | PASS      | aging.domain.spec.ts + integration |
+| OS terminal não vencida        | PASS      | aging.domain.spec.ts               |
+| billing futuro / vencido       | PASS      | aging.domain.spec.ts               |
+| timezone / due date civil      | PASS      | aging.domain.spec.ts               |
+| authorization scope            | PASS      | aging.integration.spec.ts          |
+| Decimal sums                   | PASS      | aging.domain.spec.ts               |
+| financial hidden without grant | PASS      | aging-response.serializer.spec.ts  |
+| EXPLAIN query crítica          | PASS      | aging.integration.spec.ts          |
+| API typecheck                  | PASS      | tsc --noEmit                       |
 
 ---
 
 ## Quality gate Prompt 72 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| read model scope isolation | PASS | operational-dashboard.integration.spec.ts |
-| access denied without grants | PASS | operational-dashboard.integration.spec.ts |
-| snapshot section ordering | PASS | operational-dashboard-response.serializer.spec.ts |
-| single API call (no N+1) | PASS | dashboard.e2e.test.tsx |
-| responsive shell landmarks | PASS | shell.e2e.test.tsx, auth-flow.e2e.test.tsx |
-| metric card a11y (link/article) | PASS | dashboard.components.test.tsx |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                | Resultado | Evidência                                         |
+| ------------------------------- | --------- | ------------------------------------------------- |
+| read model scope isolation      | PASS      | operational-dashboard.integration.spec.ts         |
+| access denied without grants    | PASS      | operational-dashboard.integration.spec.ts         |
+| snapshot section ordering       | PASS      | operational-dashboard-response.serializer.spec.ts |
+| single API call (no N+1)        | PASS      | dashboard.e2e.test.tsx                            |
+| responsive shell landmarks      | PASS      | shell.e2e.test.tsx, auth-flow.e2e.test.tsx        |
+| metric card a11y (link/article) | PASS      | dashboard.components.test.tsx                     |
+| API typecheck                   | PASS      | tsc --noEmit                                      |
 
 ---
 
 ## Quality gate Prompt 71 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| success | PASS | notification-delivery.integration.spec.ts IN_APP delivered |
-| transient failure | PASS | notification-delivery.service.spec.ts + integration retry |
-| permanent failure | PASS | notification-delivery.service.spec.ts + integration email |
-| retry | PASS | notification-delivery.integration.spec.ts attempt 2 |
-| duplicate | PASS | notification-delivery.integration.spec.ts skip re-dispatch |
-| invalid recipient | PASS | notification-delivery.integration.spec.ts INVALID_RECIPIENT |
-| provider timeout | PASS | notification-delivery.service.spec.ts + integration |
-| webhook delivery update | PASS | notification-delivery.integration.spec.ts applyDeliveryUpdate |
-| minimal template payload | PASS | notification-delivery.service.spec.ts privacy |
-| channel config gating | PASS | notification-channel.config.spec.ts |
+| Cenário de teste         | Resultado | Evidência                                                     |
+| ------------------------ | --------- | ------------------------------------------------------------- |
+| success                  | PASS      | notification-delivery.integration.spec.ts IN_APP delivered    |
+| transient failure        | PASS      | notification-delivery.service.spec.ts + integration retry     |
+| permanent failure        | PASS      | notification-delivery.service.spec.ts + integration email     |
+| retry                    | PASS      | notification-delivery.integration.spec.ts attempt 2           |
+| duplicate                | PASS      | notification-delivery.integration.spec.ts skip re-dispatch    |
+| invalid recipient        | PASS      | notification-delivery.integration.spec.ts INVALID_RECIPIENT   |
+| provider timeout         | PASS      | notification-delivery.service.spec.ts + integration           |
+| webhook delivery update  | PASS      | notification-delivery.integration.spec.ts applyDeliveryUpdate |
+| minimal template payload | PASS      | notification-delivery.service.spec.ts privacy                 |
+| channel config gating    | PASS      | notification-channel.config.spec.ts                           |
 
 ---
 
@@ -4285,18 +4285,18 @@ NOTES:
 
 ## Quality gate Prompt 75 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| overdue card com maior atraso | PASS | dashboard.executive.test.tsx, executive-dashboard-response.serializer.spec.ts |
-| zero overdue | PASS | executive-dashboard-response.serializer.spec.ts |
-| productivity sem score composto | PASS | dashboard.executive.test.tsx |
-| aging buckets | PASS | dashboard.executive.test.tsx |
-| charts (bar + tabela acessível) | PASS | dashboard.executive.test.tsx |
-| empty attention | PASS | dashboard.executive.test.tsx |
-| filtros URL (period) | PASS | dashboard.e2e.test.tsx |
-| single API call | PASS | dashboard.e2e.test.tsx |
-| API typecheck | PASS | tsc --noEmit |
-| web typecheck | PASS | tsc --noEmit |
+| Cenário de teste                | Resultado | Evidência                                                                     |
+| ------------------------------- | --------- | ----------------------------------------------------------------------------- |
+| overdue card com maior atraso   | PASS      | dashboard.executive.test.tsx, executive-dashboard-response.serializer.spec.ts |
+| zero overdue                    | PASS      | executive-dashboard-response.serializer.spec.ts                               |
+| productivity sem score composto | PASS      | dashboard.executive.test.tsx                                                  |
+| aging buckets                   | PASS      | dashboard.executive.test.tsx                                                  |
+| charts (bar + tabela acessível) | PASS      | dashboard.executive.test.tsx                                                  |
+| empty attention                 | PASS      | dashboard.executive.test.tsx                                                  |
+| filtros URL (period)            | PASS      | dashboard.e2e.test.tsx                                                        |
+| single API call                 | PASS      | dashboard.e2e.test.tsx                                                        |
+| API typecheck                   | PASS      | tsc --noEmit                                                                  |
+| web typecheck                   | PASS      | tsc --noEmit                                                                  |
 
 ---
 
@@ -4333,19 +4333,19 @@ NOTES:
 
 ## Quality gate Prompt 76 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| before deadline (no overdue) | PASS | alert-evaluation.engine.spec.ts |
-| at deadline (overdue) | PASS | alert-evaluation.engine.spec.ts |
-| due soon within threshold | PASS | alert-evaluation.engine.spec.ts |
-| escalation when policy threshold | PASS | alert-evaluation.engine.spec.ts |
-| dedup key composition | PASS | alert-deduplication.spec.ts |
-| transition create/touch/resolve | PASS | alert-transition.engine.spec.ts |
-| duplicate worker cycle (touch not create) | PASS | business-alerts.integration.spec.ts |
-| resolve when SO completed | PASS | business-alerts.integration.spec.ts |
-| alert center + entity link | PASS | alerts.components.test.tsx |
-| API typecheck | PASS | tsc --noEmit |
-| web typecheck | PASS | tsc --noEmit |
+| Cenário de teste                          | Resultado | Evidência                           |
+| ----------------------------------------- | --------- | ----------------------------------- |
+| before deadline (no overdue)              | PASS      | alert-evaluation.engine.spec.ts     |
+| at deadline (overdue)                     | PASS      | alert-evaluation.engine.spec.ts     |
+| due soon within threshold                 | PASS      | alert-evaluation.engine.spec.ts     |
+| escalation when policy threshold          | PASS      | alert-evaluation.engine.spec.ts     |
+| dedup key composition                     | PASS      | alert-deduplication.spec.ts         |
+| transition create/touch/resolve           | PASS      | alert-transition.engine.spec.ts     |
+| duplicate worker cycle (touch not create) | PASS      | business-alerts.integration.spec.ts |
+| resolve when SO completed                 | PASS      | business-alerts.integration.spec.ts |
+| alert center + entity link                | PASS      | alerts.components.test.tsx          |
+| API typecheck                             | PASS      | tsc --noEmit                        |
+| web typecheck                             | PASS      | tsc --noEmit                        |
 
 ---
 
@@ -4378,21 +4378,21 @@ NOTES:
 
 ## Quality gate Prompt 77 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| CNPJ formatado/dígitos | PASS | search-query-normalizer.spec.ts, search.integration.spec.ts |
-| código OS/PO | PASS | search-query-normalizer.spec.ts |
-| nome parcial | PASS | search.integration.spec.ts (paginate) |
-| sem resultado | PASS | search.integration.spec.ts |
-| paginação/limite | PASS | search.integration.spec.ts |
-| SQL injection (parametrizado) | PASS | search-query-normalizer.spec.ts |
-| IDOR/escopo | PASS | search.integration.spec.ts |
-| race rapid typing | PASS | search.components.test.tsx |
-| keyboard Enter | PASS | search.components.test.tsx |
-| highlight seguro | PASS | search.components.test.tsx |
-| merge scope SQL params | PASS | search-sql.helper.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
-| web typecheck | PASS | tsc --noEmit |
+| Cenário de teste              | Resultado | Evidência                                                   |
+| ----------------------------- | --------- | ----------------------------------------------------------- |
+| CNPJ formatado/dígitos        | PASS      | search-query-normalizer.spec.ts, search.integration.spec.ts |
+| código OS/PO                  | PASS      | search-query-normalizer.spec.ts                             |
+| nome parcial                  | PASS      | search.integration.spec.ts (paginate)                       |
+| sem resultado                 | PASS      | search.integration.spec.ts                                  |
+| paginação/limite              | PASS      | search.integration.spec.ts                                  |
+| SQL injection (parametrizado) | PASS      | search-query-normalizer.spec.ts                             |
+| IDOR/escopo                   | PASS      | search.integration.spec.ts                                  |
+| race rapid typing             | PASS      | search.components.test.tsx                                  |
+| keyboard Enter                | PASS      | search.components.test.tsx                                  |
+| highlight seguro              | PASS      | search.components.test.tsx                                  |
+| merge scope SQL params        | PASS      | search-sql.helper.spec.ts                                   |
+| API typecheck                 | PASS      | tsc --noEmit                                                |
+| web typecheck                 | PASS      | tsc --noEmit                                                |
 
 ---
 
@@ -4432,18 +4432,18 @@ NOTES:
 
 ## Quality gate Prompt 78 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| filtros/preview | PASS | reports.components.test.tsx, reports.integration.spec.ts |
-| totals vs preview limit | PASS | reports.integration.spec.ts |
-| escopo/IDOR | PASS | reports.integration.spec.ts |
-| CSV injection | PASS | csv-export.spec.ts, reports.integration.spec.ts |
-| async/cancel signal | PASS | report-generation.service.spec.ts |
-| timezone no contrato | PASS | reports.integration.spec.ts |
-| precisão monetária (texto CSV) | PASS | csv-export.spec.ts |
-| acessibilidade UI | PASS | reports.components.test.tsx |
-| API typecheck | PASS | tsc --noEmit |
-| web typecheck | PASS | tsc --noEmit |
+| Cenário de teste               | Resultado | Evidência                                                |
+| ------------------------------ | --------- | -------------------------------------------------------- |
+| filtros/preview                | PASS      | reports.components.test.tsx, reports.integration.spec.ts |
+| totals vs preview limit        | PASS      | reports.integration.spec.ts                              |
+| escopo/IDOR                    | PASS      | reports.integration.spec.ts                              |
+| CSV injection                  | PASS      | csv-export.spec.ts, reports.integration.spec.ts          |
+| async/cancel signal            | PASS      | report-generation.service.spec.ts                        |
+| timezone no contrato           | PASS      | reports.integration.spec.ts                              |
+| precisão monetária (texto CSV) | PASS      | csv-export.spec.ts                                       |
+| acessibilidade UI              | PASS      | reports.components.test.tsx                              |
+| API typecheck                  | PASS      | tsc --noEmit                                             |
+| web typecheck                  | PASS      | tsc --noEmit                                             |
 
 ---
 
@@ -4476,17 +4476,17 @@ NOTES:
 
 ## Quality gate Prompt 79 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| correlation propagation | PASS | observability-context.spec.ts |
-| redaction / no secrets | PASS | log-redaction.spec.ts, structured-log.spec.ts |
-| error/http metrics | PASS | metrics-registry.service.spec.ts |
-| worker metrics | PASS | metrics-registry.service.spec.ts |
-| liveness vs readiness | PASS | health.controller.spec.ts |
-| business vs technical metrics | PASS | observability-metrics.service.spec.ts |
-| structured JSON format | PASS | structured-log.spec.ts |
-| latency percentiles | PASS | latency-histogram.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste              | Resultado | Evidência                                     |
+| ----------------------------- | --------- | --------------------------------------------- |
+| correlation propagation       | PASS      | observability-context.spec.ts                 |
+| redaction / no secrets        | PASS      | log-redaction.spec.ts, structured-log.spec.ts |
+| error/http metrics            | PASS      | metrics-registry.service.spec.ts              |
+| worker metrics                | PASS      | metrics-registry.service.spec.ts              |
+| liveness vs readiness         | PASS      | health.controller.spec.ts                     |
+| business vs technical metrics | PASS      | observability-metrics.service.spec.ts         |
+| structured JSON format        | PASS      | structured-log.spec.ts                        |
+| latency percentiles           | PASS      | latency-histogram.spec.ts                     |
+| API typecheck                 | PASS      | tsc --noEmit                                  |
 
 ---
 
@@ -4517,16 +4517,16 @@ NOTES:
 
 ## Quality gate Prompt 80 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| threshold + duration firing | PASS | technical-alert.engine.spec.ts |
-| resolution após normalização | PASS | technical-alert.engine.spec.ts |
-| spike isolado ignorado | PASS | technical-alert.engine.spec.ts |
-| severidade não tudo CRITICAL | PASS | technical-alert.engine.spec.ts |
-| runbook em CRITICAL | PASS | technical-alert.engine.spec.ts |
-| backup failure imediato | PASS | technical-alert.engine.spec.ts |
-| amostra insuficiente error rate | PASS | technical-alert.engine.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                | Resultado | Evidência                      |
+| ------------------------------- | --------- | ------------------------------ |
+| threshold + duration firing     | PASS      | technical-alert.engine.spec.ts |
+| resolution após normalização    | PASS      | technical-alert.engine.spec.ts |
+| spike isolado ignorado          | PASS      | technical-alert.engine.spec.ts |
+| severidade não tudo CRITICAL    | PASS      | technical-alert.engine.spec.ts |
+| runbook em CRITICAL             | PASS      | technical-alert.engine.spec.ts |
+| backup failure imediato         | PASS      | technical-alert.engine.spec.ts |
+| amostra insuficiente error rate | PASS      | technical-alert.engine.spec.ts |
+| API typecheck                   | PASS      | tsc --noEmit                   |
 
 ---
 
@@ -4564,16 +4564,16 @@ NOTES:
 
 ## Quality gate Prompt 81 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| mass assignment rejection | PASS | forbidden-payload-fields.spec.ts, security-regression.spec.ts |
-| privileged fields on critical DTOs | PASS | security-regression.spec.ts |
-| error message sanitization | PASS | safe-error-message.spec.ts |
-| security headers config (HSTS/CSP) | PASS | security-headers.interceptor.spec.ts |
-| rate limiting surfaces | PASS | endpoint-rate-limit.service.spec.ts, login-rate-limiter.service.spec.ts |
-| filename path traversal | PASS | safe-filename.spec.ts |
-| secret scanning | PASS | secret-scan.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                   | Resultado | Evidência                                                               |
+| ---------------------------------- | --------- | ----------------------------------------------------------------------- |
+| mass assignment rejection          | PASS      | forbidden-payload-fields.spec.ts, security-regression.spec.ts           |
+| privileged fields on critical DTOs | PASS      | security-regression.spec.ts                                             |
+| error message sanitization         | PASS      | safe-error-message.spec.ts                                              |
+| security headers config (HSTS/CSP) | PASS      | security-headers.interceptor.spec.ts                                    |
+| rate limiting surfaces             | PASS      | endpoint-rate-limit.service.spec.ts, login-rate-limiter.service.spec.ts |
+| filename path traversal            | PASS      | safe-filename.spec.ts                                                   |
+| secret scanning                    | PASS      | secret-scan.spec.ts                                                     |
+| API typecheck                      | PASS      | tsc --noEmit                                                            |
 
 ---
 
@@ -4608,14 +4608,14 @@ NOTES:
 
 ## Quality gate Prompt 82 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| smoke benchmarks within budget | PASS | performance-smoke.perf-smoke.spec.ts |
-| concurrency CNPJ integrity | PASS | performance-concurrency.perf.spec.ts |
-| budget derivation | PASS | performance-budgets.spec.ts |
-| search parallel queries | PASS | search.repository.spec.ts |
-| search integration regression | PASS | search.integration.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste               | Resultado | Evidência                            |
+| ------------------------------ | --------- | ------------------------------------ |
+| smoke benchmarks within budget | PASS      | performance-smoke.perf-smoke.spec.ts |
+| concurrency CNPJ integrity     | PASS      | performance-concurrency.perf.spec.ts |
+| budget derivation              | PASS      | performance-budgets.spec.ts          |
+| search parallel queries        | PASS      | search.repository.spec.ts            |
+| search integration regression  | PASS      | search.integration.spec.ts           |
+| API typecheck                  | PASS      | tsc --noEmit                         |
 
 ---
 
@@ -4651,13 +4651,13 @@ NOTES:
 
 ## Quality gate Prompt 83 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| gate NOT_REQUIRED vs P82 baselines | PASS | cache-decision.spec.ts |
-| no CacheModule in app | PASS | cache-decision.spec.ts |
-| excluded surfaces documented | PASS | cache-control-assessment.md |
-| hypothetical scope-aware keys | PASS | cache-decision.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                   | Resultado | Evidência                   |
+| ---------------------------------- | --------- | --------------------------- |
+| gate NOT_REQUIRED vs P82 baselines | PASS      | cache-decision.spec.ts      |
+| no CacheModule in app              | PASS      | cache-decision.spec.ts      |
+| excluded surfaces documented       | PASS      | cache-control-assessment.md |
+| hypothetical scope-aware keys      | PASS      | cache-decision.spec.ts      |
+| API typecheck                      | PASS      | tsc --noEmit                |
 
 ---
 
@@ -4687,15 +4687,15 @@ NOTES:
 
 ## Quality gate Prompt 84 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| backup executado (postgres + object storage) | PASS | backup-runner.spec.ts |
-| artefato válido e storage acessível | PASS | backup-runner.spec.ts |
-| checksum / criptografia | PASS | backup-crypto.spec.ts |
-| falha registra status monitorável | PASS | backup-runner.spec.ts |
-| alerta em falha de backup | PASS | technical-alert.engine.spec.ts |
-| RPO/RTO não inventados | PASS | backup-strategy.md |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                             | Resultado | Evidência                      |
+| -------------------------------------------- | --------- | ------------------------------ |
+| backup executado (postgres + object storage) | PASS      | backup-runner.spec.ts          |
+| artefato válido e storage acessível          | PASS      | backup-runner.spec.ts          |
+| checksum / criptografia                      | PASS      | backup-crypto.spec.ts          |
+| falha registra status monitorável            | PASS      | backup-runner.spec.ts          |
+| alerta em falha de backup                    | PASS      | technical-alert.engine.spec.ts |
+| RPO/RTO não inventados                       | PASS      | backup-strategy.md             |
+| API typecheck                                | PASS      | tsc --noEmit                   |
 
 ---
 
@@ -4725,16 +4725,16 @@ NOTES:
 
 ## Quality gate Prompt 85 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| restore isolado object storage + hashes | PASS | dr-runner.spec.ts |
-| drill completo backup→desastre→restore→verify | PASS | dr-runner.spec.ts |
-| integridade documentos (objeto ausente) | PASS | dr-runner.spec.ts |
-| bloqueio ambiente produção | PASS | dr-runner.spec.ts |
-| 5 cenários de desastre documentados | PASS | dr-types.ts |
-| RPO/RTO medidos sem inventar metas | PASS | dr-metrics.ts |
-| runbook operacional | PASS | dr-restore-runbook.md |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                              | Resultado | Evidência             |
+| --------------------------------------------- | --------- | --------------------- |
+| restore isolado object storage + hashes       | PASS      | dr-runner.spec.ts     |
+| drill completo backup→desastre→restore→verify | PASS      | dr-runner.spec.ts     |
+| integridade documentos (objeto ausente)       | PASS      | dr-runner.spec.ts     |
+| bloqueio ambiente produção                    | PASS      | dr-runner.spec.ts     |
+| 5 cenários de desastre documentados           | PASS      | dr-types.ts           |
+| RPO/RTO medidos sem inventar metas            | PASS      | dr-metrics.ts         |
+| runbook operacional                           | PASS      | dr-restore-runbook.md |
+| API typecheck                                 | PASS      | tsc --noEmit          |
 
 ---
 
@@ -4768,14 +4768,14 @@ NOTES:
 
 ## Quality gate Prompt 86 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| isolamento HML vs produção | PASS | hml-config.spec.ts |
-| outbound sandbox default | PASS | hml-config.spec.ts |
-| smoke pós-deploy (domínios core) | PASS | hml-smoke.spec.ts |
-| compose + Dockerfiles promovíveis | PASS | docker/hml/* |
-| migrations via drizzle no deploy | PASS | hml-deploy.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                  | Resultado | Evidência          |
+| --------------------------------- | --------- | ------------------ |
+| isolamento HML vs produção        | PASS      | hml-config.spec.ts |
+| outbound sandbox default          | PASS      | hml-config.spec.ts |
+| smoke pós-deploy (domínios core)  | PASS      | hml-smoke.spec.ts  |
+| compose + Dockerfiles promovíveis | PASS      | docker/hml/*       |
+| migrations via drizzle no deploy  | PASS      | hml-deploy.ts      |
+| API typecheck                     | PASS      | tsc --noEmit       |
 
 ---
 
@@ -4809,17 +4809,17 @@ NOTES:
 
 ## Quality gate Prompt 87 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| deploy successful (HML + smoke) | PASS | cd-pipeline.spec.ts |
-| health failure blocks smoke | PASS | cd-pipeline.spec.ts |
-| smoke failure blocks promotion | PASS | cd-pipeline.spec.ts |
-| migration failure blocks deploy | PASS | cd-pipeline.spec.ts |
-| production gate sem aprovação | PASS | cd-pipeline.spec.ts |
-| same artifact promotion PRD | PASS | cd-pipeline.spec.ts |
-| rollback sem revert DB | PASS | cd-pipeline.spec.ts |
-| secret scan no artifact | PASS | cd-secrets.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                | Resultado | Evidência           |
+| ------------------------------- | --------- | ------------------- |
+| deploy successful (HML + smoke) | PASS      | cd-pipeline.spec.ts |
+| health failure blocks smoke     | PASS      | cd-pipeline.spec.ts |
+| smoke failure blocks promotion  | PASS      | cd-pipeline.spec.ts |
+| migration failure blocks deploy | PASS      | cd-pipeline.spec.ts |
+| production gate sem aprovação   | PASS      | cd-pipeline.spec.ts |
+| same artifact promotion PRD     | PASS      | cd-pipeline.spec.ts |
+| rollback sem revert DB          | PASS      | cd-pipeline.spec.ts |
+| secret scan no artifact         | PASS      | cd-secrets.ts       |
+| API typecheck                   | PASS      | tsc --noEmit        |
 
 ---
 
@@ -4856,17 +4856,17 @@ NOTES:
 
 ## Quality gate Prompt 88 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| sizing from P82 baseline | PASS | prod-sizing.ts |
-| full infrastructure validation | PASS | prod-validation.spec.ts |
-| network — DB not public | PASS | prod-validation.spec.ts |
-| TLS required on public URLs | PASS | prod-validation.spec.ts |
-| scaling — shared S3 for replicas | PASS | prod-validation.spec.ts |
-| service account least privilege | PASS | prod-validation.spec.ts |
-| security scan embedded secrets | PASS | prod-validation.spec.ts |
-| secret store gate | PASS | prod-validation.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                 | Resultado | Evidência               |
+| -------------------------------- | --------- | ----------------------- |
+| sizing from P82 baseline         | PASS      | prod-sizing.ts          |
+| full infrastructure validation   | PASS      | prod-validation.spec.ts |
+| network — DB not public          | PASS      | prod-validation.spec.ts |
+| TLS required on public URLs      | PASS      | prod-validation.spec.ts |
+| scaling — shared S3 for replicas | PASS      | prod-validation.spec.ts |
+| service account least privilege  | PASS      | prod-validation.spec.ts |
+| security scan embedded secrets   | PASS      | prod-validation.spec.ts |
+| secret store gate                | PASS      | prod-validation.spec.ts |
+| API typecheck                    | PASS      | tsc --noEmit            |
 
 ---
 
@@ -4900,16 +4900,16 @@ NOTES:
 
 ## Quality gate Prompt 89 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| locação end-to-end | PASS | uat-business.integration.spec.ts |
-| transporte end-to-end | PASS | uat-business.integration.spec.ts |
-| obra composto end-to-end | PASS | uat-business.integration.spec.ts |
-| perfis Admin/Executor/Finance | PASS | uat-profile-checks.ts |
-| severidade BLOCKER/CRITICAL | PASS | uat-verdict.spec.ts |
-| vertical regressão obra | PASS | first-vertical-quality-gate.integration.spec.ts |
-| UX shell responsivo | PASS | vertical-quality-gate.e2e.test.tsx |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste              | Resultado | Evidência                                       |
+| ----------------------------- | --------- | ----------------------------------------------- |
+| locação end-to-end            | PASS      | uat-business.integration.spec.ts                |
+| transporte end-to-end         | PASS      | uat-business.integration.spec.ts                |
+| obra composto end-to-end      | PASS      | uat-business.integration.spec.ts                |
+| perfis Admin/Executor/Finance | PASS      | uat-profile-checks.ts                           |
+| severidade BLOCKER/CRITICAL   | PASS      | uat-verdict.spec.ts                             |
+| vertical regressão obra       | PASS      | first-vertical-quality-gate.integration.spec.ts |
+| UX shell responsivo           | PASS      | vertical-quality-gate.e2e.test.tsx              |
+| API typecheck                 | PASS      | tsc --noEmit                                    |
 
 ---
 
@@ -4941,16 +4941,16 @@ NOTES:
 
 ## Quality gate Prompt 90 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| escopo limitado | PASS | pilot-scope.ts |
-| bloqueio migração total | PASS | pilot-runner.spec.ts |
-| flags sem framework | PASS | pilot-flags.ts |
-| categorias feedback separadas | PASS | pilot-feedback.ts |
-| observação thresholds | PASS | pilot-observation.ts |
-| exit criteria EXIT_READY/BLOCKED | PASS | pilot-runner.spec.ts |
-| janela mínima observação | PASS | pilot-exit.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                 | Resultado | Evidência            |
+| -------------------------------- | --------- | -------------------- |
+| escopo limitado                  | PASS      | pilot-scope.ts       |
+| bloqueio migração total          | PASS      | pilot-runner.spec.ts |
+| flags sem framework              | PASS      | pilot-flags.ts       |
+| categorias feedback separadas    | PASS      | pilot-feedback.ts    |
+| observação thresholds            | PASS      | pilot-observation.ts |
+| exit criteria EXIT_READY/BLOCKED | PASS      | pilot-runner.spec.ts |
+| janela mínima observação         | PASS      | pilot-exit.ts        |
+| API typecheck                    | PASS      | tsc --noEmit         |
 
 ---
 
@@ -4980,15 +4980,15 @@ NOTES:
 
 ## Quality gate Prompt 91 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| deploy N → N+1 → rollback N (mesmo digest) | PASS | release-drill.spec.ts |
-| expand/contract sem downgrade destrutivo | PASS | release-migration-safety.ts |
-| estratégias compat (dual read, flag, migration) | PASS | release-compat.ts |
-| idempotência notifications/ERP/billing/outbox | PASS | release-idempotency.ts |
-| critérios objetivos de rollback | PASS | release-decision.ts |
-| validação pós-rollback (7 domínios) | PASS | release-drill.spec.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                                | Resultado | Evidência                   |
+| ----------------------------------------------- | --------- | --------------------------- |
+| deploy N → N+1 → rollback N (mesmo digest)      | PASS      | release-drill.spec.ts       |
+| expand/contract sem downgrade destrutivo        | PASS      | release-migration-safety.ts |
+| estratégias compat (dual read, flag, migration) | PASS      | release-compat.ts           |
+| idempotência notifications/ERP/billing/outbox   | PASS      | release-idempotency.ts      |
+| critérios objetivos de rollback                 | PASS      | release-decision.ts         |
+| validação pós-rollback (7 domínios)             | PASS      | release-drill.spec.ts       |
+| API typecheck                                   | PASS      | tsc --noEmit                |
 
 ---
 
@@ -5023,13 +5023,13 @@ NOTES:
 
 ## Quality gate Prompt 92 (evidência)
 
-| Cenário de teste | Resultado | Evidência |
-|------------------|-----------|-----------|
-| engineering gates PASS | PASS | readiness-gate.spec.ts |
-| NO-GO com blockers reais | PASS | readiness-gate.spec.ts |
-| GO somente com flags explícitas | PASS | readiness-gate.spec.ts |
-| support model definido | PASS | readiness-gate.ts |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário de teste                | Resultado | Evidência              |
+| ------------------------------- | --------- | ---------------------- |
+| engineering gates PASS          | PASS      | readiness-gate.spec.ts |
+| NO-GO com blockers reais        | PASS      | readiness-gate.spec.ts |
+| GO somente com flags explícitas | PASS      | readiness-gate.spec.ts |
+| support model definido          | PASS      | readiness-gate.ts      |
+| API typecheck                   | PASS      | tsc --noEmit           |
 
 ---
 
@@ -5490,19 +5490,19 @@ NOTES:
 
 ## Quality gate Prompt 92 reexecução (evidência)
 
-| Cenário | Resultado | Evidência |
-|---------|-----------|-----------|
-| engineering gates PASS | PASS | readiness-gate.spec.ts |
-| evidência pending → NO-GO | PASS | readiness-gate.spec.ts |
-| GO somente com evidência completa | PASS | readiness-gate.spec.ts |
-| env sem fonte → MISMATCH | PASS | readiness-gate.spec.ts |
-| piloto <14d → NO-GO | PASS | readiness-gate.spec.ts |
-| release binding mismatch | PASS | readiness-gate.spec.ts |
-| sign-off revogado | PASS | readiness-gate.spec.ts |
-| fonte indisponível → fail-closed | PASS | readiness-gate.spec.ts |
-| root gate.mjs sem dotenv | PASS | readiness-gate.spec.ts |
-| pnpm readiness:gate executa | PASS | exit 1 (NO-GO correto) |
-| API typecheck | PASS | tsc --noEmit |
+| Cenário                           | Resultado | Evidência              |
+| --------------------------------- | --------- | ---------------------- |
+| engineering gates PASS            | PASS      | readiness-gate.spec.ts |
+| evidência pending → NO-GO         | PASS      | readiness-gate.spec.ts |
+| GO somente com evidência completa | PASS      | readiness-gate.spec.ts |
+| env sem fonte → MISMATCH          | PASS      | readiness-gate.spec.ts |
+| piloto <14d → NO-GO               | PASS      | readiness-gate.spec.ts |
+| release binding mismatch          | PASS      | readiness-gate.spec.ts |
+| sign-off revogado                 | PASS      | readiness-gate.spec.ts |
+| fonte indisponível → fail-closed  | PASS      | readiness-gate.spec.ts |
+| root gate.mjs sem dotenv          | PASS      | readiness-gate.spec.ts |
+| pnpm readiness:gate executa       | PASS      | exit 1 (NO-GO correto) |
+| API typecheck                     | PASS      | tsc --noEmit           |
 
 ---
 
@@ -9547,8 +9547,6 @@ WORKING TREE: DIRTY
 NEXT: STOP
 ```
 
-
-
 ```text
 PROMPT: RELEASE 1 CLOSED SCOPE
 TITLE: Escopo fechado da Release 1 — flags fail-closed e diferenciação de faturamento interno
@@ -9626,7 +9624,6 @@ WORKING TREE: DIRTY
 NEXT: STOP
 ```
 
-
 ```text
 PROMPT: GIT WORKING TREE AUDIT
 TITLE: Auditoria dos arquivos dirty e commits atomicos por bounded context
@@ -9679,7 +9676,6 @@ WORKING TREE: expected clean after docs commit
 NEXT: STOP
 ```
 
-
 ```text
 PROMPT: UNIT TEST SUITES BUGFIX
 TITLE: Correção rápida das suítes unitárias e dos gates estáticos
@@ -9725,7 +9721,6 @@ WORKING TREE: DIRTY (alterações preexistentes preservadas)
 NEXT: STOP
 ```
 
-
 ```text
 PROMPT: SURGICAL BUG VALIDATION
 TITLE: Validação imediata dos erros pendentes sem alteração de código
@@ -9763,7 +9758,6 @@ COMMIT: THIS_COMMIT
 WORKING TREE: DIRTY (9 alterações preexistentes preservadas)
 NEXT: STOP
 ```
-
 
 ```text
 PROMPT: SURGICAL CASH FLOW DEBUG
@@ -9810,7 +9804,6 @@ COMMIT: THIS_COMMIT
 WORKING TREE: expected clean after this commit
 NEXT: STOP
 ```
-
 
 ```text
 PROMPT: COMPLETE INTEGRATION DEBUG
@@ -9866,7 +9859,6 @@ WORKING TREE: DIRTY
 NEXT: STOP
 ```
 
-
 ```text
 PROMPT: COMPLETE INTEGRATION SUITE VALIDATION
 TITLE: Reexecução da suíte de integração e debug do flake de outbox em chaos-recovery
@@ -9915,7 +9907,6 @@ WORKING TREE: DIRTY
 NEXT: STOP
 ```
 
-
 ```text
 PROMPT: COMPLETE INTEGRATION SUITE RE-RUN
 TITLE: Reexecução da suíte de integração após isolamento do poller de outbox
@@ -9949,7 +9940,6 @@ COMMIT: NOT_REQUIRED
 WORKING TREE: DIRTY
 NEXT: STOP
 ```
-
 
 ```text
 PROMPT: FULLSTACK FINANCE UI DEBUG
@@ -9997,7 +9987,6 @@ WORKING TREE: DIRTY
 NEXT: STOP
 ```
 
-
 ```text
 PROMPT: BACKEND DOUBLE-POST BOUNDARY
 TITLE: Travamento do double POST de settle/pay com a mesma chave e rowVersion original
@@ -10039,7 +10028,6 @@ COMMIT: NOT_REQUIRED
 WORKING TREE: DIRTY
 NEXT: STOP
 ```
-
 
 ```text
 PROMPT: SRC-003 CADASTRE
@@ -10091,7 +10079,6 @@ COMMIT: NOT_REQUIRED
 WORKING TREE: DIRTY
 NEXT: STOP
 ```
-
 
 ```text
 PROMPT: SRC-004 CENTRALIZED SYSTEM
@@ -10147,7 +10134,6 @@ COMMIT: NOT_REQUIRED
 WORKING TREE: DIRTY
 NEXT: STOP
 ```
-
 
 ```text
 PROMPT: SRC-007 NFE DANFE GATES
@@ -11538,6 +11524,7 @@ NOTES:
   Proxima rodada: Comercial (Contratos UI) e/ou Payroll (mapas de erro/estados).
 WORKING TREE: DIRTY (WIP anterior mantido) | NEXT: proxima rodada do programa
 ```
+
 ```text
 PROMPT: BUSINESS FRONTEND GAP CLOSURE � Rodada 4 (Payroll + CreateRecordForm compartilhado)
 TITLE: Payroll: mapas de erro por codigo real, acoes por status do periodo, ack idempotente, resultados honestos; CreateRecordForm (VersionedActionForm) com banner de conflito/periodo fechado
@@ -11564,6 +11551,7 @@ NOTES:
   Proxima rodada: Comercial (Contratos UI) e/ou Finance (reverse/tesouraria/recon/collections).
 WORKING TREE: DIRTY (WIP anterior mantido) | NEXT: proxima rodada do programa
 ```
+
 ```text
 PROMPT: BUSINESS FRONTEND GAP CLOSURE � Rodada 5 (Comercial: Contratos UI)
 TITLE: Criar modulo UI de contratos comerciais (list/create/detail, update versionado, activate/close/expire, document links) sobre controller existente
@@ -11584,6 +11572,7 @@ NOTES:
   Proxima rodada: Finance (reverse payable, tesouraria escrita, recon/collections, false-success) e/ou unidades de medida admin.
 WORKING TREE: DIRTY (WIP anterior mantido) | NEXT: proxima rodada do programa
 ```
+
 ```text
 PROMPT: BUSINESS FRONTEND GAP CLOSURE � Rodada 6 (Finance)
 TITLE: Finance: reverse de pagamento, escrita de tesouraria, acoes de conciliacao bancaria, correcoes de false-success (overview/treasury/recon/collection)
@@ -11609,13 +11598,14 @@ NOTES:
   Proxima rodada: Fiscal/Accounting (emissao fiscal, regras tributarias, lancamento manual, posting rules, issuer) e/ou Assets/Rental/Transport.
 WORKING TREE: DIRTY (WIP anterior mantido) | NEXT: proxima rodada do programa
 ```
+
 ```text
 PROMPT: HERMETIC PRODUCTION RELEASE
 TITLE: Distribuição de produção reproduzível/autocontida (release hermética) — auditar/classificar dependências, eliminar FORBIDDEN, build reproduzível, pacote versionado (manifest/checksums/SBOM), config validada no startup, PostgreSQL/Object Storage explícitos, integrações opcionais sem bloquear core, e gates CLEAN/OFFLINE/UPGRADE/RECOVERY/SECURITY a partir do artefato.
 STARTED_AT: 2026-09-04T14:00:00-04:00
 FINISHED_AT: 2026-09-04T20:30:00-04:00
 STATUS: IN_PROGRESS (PRODUCTION ARTIFACT NOT_READY; gates de install/offline/upgrade/recovery/migrations/security PASS)
-CLASSIFICATION: Interpretacao de engenharia + operacoes. Auditoria 100% feita antes das modificacoes (7 relatorios em tmp/audit-hermetic; consolidado docs/19-operations/release-hermetic-audit.md). 
+CLASSIFICATION: Interpretacao de engenharia + operacoes. Auditoria 100% feita antes das modificacoes (7 relatorios em tmp/audit-hermetic; consolidado docs/19-operations/release-hermetic-audit.md).
 SCOPE:
   - Auditoria e classificacao (BUNDLED/PROVISIONED_AUTOMATICALLY/HOST_PREREQUISITE/OPTIONAL_EXTERNAL_SERVICE/FORBIDDEN).
   - Correcoes: dotenv/pg promovidos a dependencies (@cisne/api e @cisne/database); frontend self-host fonts (remove Google Fonts); v0ite build fuerça NODE_ENV=production; .dockerignore; literal path de dev removido; journal drizzle regista 0073; BOM de 0070 removido; runner de migrations hermetico (sem drizzle-kit); validação fail-fast de config (API+worker) com CONFIGURATION_ERROR; segredo literal 'test-download-token-secret' removido; worker .env path corrigido; worker DI fixado (export de handlers); prod compose volume PG18 + env unica + healthchecks + pull_policy never; sandbox compose offline (bridge sem masquerade).
@@ -11627,7 +11617,7 @@ RESULT:
 QUALITY GATES:
   - typecheck api/db/web PASS (verificado; fix pre-existente pilot-observation cast).
   - lint: @cisne/database PASS (apos fix no-unsafe-member-access); @cisne/api lint a confirmar.
-  - unit @cisne/api 885/888; 3 falhas em arquivos WIP nao commitados do programa concorrente (release-scope.guard, policy-decision-point) — nao causadas por este prompt (novas specs verdes). 
+  - unit @cisne/api 885/888; 3 falhas em arquivos WIP nao commitados do programa concorrente (release-scope.guard, policy-decision-point) — nao causadas por este prompt (novas specs verdes).
 NOTES:
   - Working tree preserva WIP pre-existente (programa BUSINESS FRONTEND GAP CLOSURE Round 6 em andamento; ~268 arquivos).
   - Restricoes/débitos registrados em docs/19-operations/release-hermetic-report.md.
@@ -11635,6 +11625,7 @@ COMMIT: DONE (por area: database/migrations, runtime-config, web hermetico, infr
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: CONTINUE
 ```
+
 ```text
 PROMPT: HERMETIC PRODUCTION RELEASE (round 3 update)
 TITLE: Suites canonicas com banco real + correcoes de dominio descobertas no gate
@@ -11648,6 +11639,7 @@ COMMIT: DONE (fix(accounting,catalog) 23f78ae)
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: CONTINUE
 ```
+
 ```text
 PROMPT: HERMETIC PRODUCTION RELEASE (round 4 update)
 TITLE: Verificacao do prerequisito de emissora (own-company) para verticais
@@ -11660,6 +11652,7 @@ COMMIT: n/a nesta rodada (apenas limpeza DBs de teste)
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: CONTINUE (fechar e2e/lint/unit WIP-dependente + rodar fluxo critico com dataset operacional autorizado)
 ```
+
 ```text
 PROMPT: HERMETIC PRODUCTION RELEASE (round 5 update — status BLOCKED no criterio READY)
 STATUS: BLOCKED (somente para o criterio estrito PRODUCTION ARTIFACT=READY)
@@ -11667,6 +11660,7 @@ BLOCKER: Execucao do fluxo critico vertical (uat/master-business/enterprise + jo
 ESCOPO DE ENGENHARIA DA RELEASE: CONCLUIDO E GATEADO (build hermetico, pacote 0.1.0-rc.1, clean/offline install, migrations 75/75+idempotente, upgrade, recovery, secrets 0, SBOM 735+6, modulo-suites criticos verdes em DB real provisionado pelo artefato, ERP NONE, core sem integracoes PASS). Documentacao: docs/19-operations/release-hermetic-audit.md e release-hermetic-report.md.
 NEXT: aguardar provisionamento operacional autorizado para executar verticais e fluxo HTTP completo e entao setar READY.
 ```
+
 ```text
 PROMPT: HERMETIC PRODUCTION RELEASE (encerramento — aceite do responsavel)
 STATUS: PASS_WITH_RESTRICTIONS
@@ -11676,6 +11670,7 @@ COMMIT: DONE (por area, lista nos registros das rodadas)
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: FINANCIAL ACCOUNTING CONTINUOUS RECONCILIATION + FISCAL CHAIN HARDENING
 TITLE: Motor de reconciliacao continua financeira (sem novos ledgers, sem auto-corrigir POSTED) + endurecimento da cadeia fiscal (traceabilidade/retry)
@@ -11697,6 +11692,7 @@ COMMIT: DONE (feat(finance) x4: engine, collector, per-fact posting, integracao 
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: ENTERPRISE MODULE REGISTRY
 TITLE: Registry servidor-side dos modulos reais do Cisne (moduleCode/name/capabilities/resources/availableFeatures/routes/status)
@@ -11712,6 +11708,7 @@ COMMIT: DONE (feat(platform): enterprise module registry ... 909d63f)
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: ATUE COMO PRINCIPAL SOFTWARE ENGINEER - CENTRAL DE GOVERNANCA DA PAGINA SISTEMA>MODULOS
 TITLE: Central de Governanca dos Modulos - semantica de status pela fonte real (release-scope flags), summary sem tech, detalhe tecnico admin-gated, painel de governanca no frontend
@@ -11729,6 +11726,7 @@ RISKS/GAPS: drawer detail 403 explicito p/ quem nao tem authz:access-admin:read 
 WORKING TREE: DIRTY (WIP pre-existente preservado; 260+ arquivos nao tocados por este prompt)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: HARDENING DE PRODUCAO (etapa 2) - Module Registry / autorizacao administrativa / feature gates / release
 TITLE: Coerencia e seguranca para producao da Central de Governanca de Modulos (sem refazer pagina/registry, sem estados ficticios, sem capability sem prova)
@@ -11750,6 +11748,7 @@ SHA: 5443112 (hardening) / 4888289 (gate script / HEAD atual)
 WORKING TREE: DIRTY (WIP pre-existente preservado; 260+ arquivos nao tocados)
 NEXT: (a) dono do programa WIP commitar paginas/dominios referenciados por HEAD; (b) rodar build-approved-commit.ps1 ate rc=0; (c) remover marcador '-dirty-' e revalidar matriz; senao blocker persiste.
 ```
+
 ```text
 PROMPT: HARDENING DE PRODUCAO (etapa 2) - ROUND 1 (continuacao automatica)
 STATUS: EM EXECUCAO - blocker criterios 8/9 re-verificado (observacao 1/3)
@@ -11757,6 +11756,7 @@ EVIDENCIA: novo probe commitado scripts/hml/check-commit-self-contained.ps1 - HE
 COMMIT: DONE (2b3d050 probe)
 NEXT: aguardar commit do WIP (dono do programa concorrente) para build-approved-commit.ps1 rc=0 e remocao do marcador '-dirty-'; revalidar matriz.
 ```
+
 ```text
 PROMPT: HARDENING DE PRODUCAO (etapa 2) - ROUND 2 (continuacao automatica; observacao 2/3 do blocker 8/9)
 STATUS: EM EXECUCAO
@@ -11770,6 +11770,7 @@ COMMIT: DONE (7f8642a)
 BLOCKER 8/9 (persiste, observacao 2/3): HEAD nao autocontido - 22 imports (probe commitado) resolvem apenas para WIP nao commitado do programa concorrente; aguardando commit do WIP para build limpo rc=0.
 NEXT: round 3 -> se WIP nao committado, registrar blocker formal com condicao concreta.
 ```
+
 ```text
 PROMPT: INTEGRACAO LOCAL (REDE LOCAL) BACK-BANCO-FRONT
 TITLE: Subir o stack local na rede local e fechar a integracao entre PostgreSQL, API e Web
@@ -11861,6 +11862,7 @@ WORKING TREE: DIRTY (WIP pre-existente preservado: apps/web/src/accounting/accou
               e docs/inputs/_write_src003.py - nao tocados)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: ANALISE E CONSTRUCAO DE APIS
 TITLE: Analisar a superficie de API (frontend runtime x backend) e construir o que estiver faltando
@@ -11935,6 +11937,7 @@ COMMIT: DONE (por area: feat(api) reports export list; fix(finance) invalid id 4
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: BI EXISTING ASSET AUDIT
 TITLE: Auditoria read-only dos ativos de BI existentes (analytics, dashboard, reports, schema rpt, charts)
@@ -11975,6 +11978,7 @@ COMMIT: NOT_REQUIRED
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP (aguarda decisao do responsavel sobre quais gaps corrigir)
 ```
+
 ```text
 PROMPT: EXECUTIVE DASHBOARD AUTHZ FIX
 TITLE: Aplicar grants e scope em TODAS as metricas do executive dashboard (masking por capability)
@@ -12028,6 +12032,7 @@ COMMIT: DONE (por area: feat(analytics) masking+scope no read-model; feat(dashbo
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: REPORT_GENERATION WORKER FIX
 TITLE: Corrigir fiacao do REPORT_GENERATION no worker (handler executavel + cancelamento)
@@ -12068,6 +12073,7 @@ COMMIT: DONE (por area: fix(worker) import ReportsModule; fix(background-jobs) c
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: DEADLINE SEMANTIC KERNEL
 TITLE: Uma unica definicao de prazo/vencimento (deadline/overdue/days/approaching) reutilizada em todas as superficies
@@ -12105,6 +12111,7 @@ COMMIT: DONE (por area: feat(db) 0076 funcao kernel; fix(scripts) probe fn; feat
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: DEADLINE SEMANTIC KERNEL (continuacao - fechamento do passo de testes)
 TITLE: Spec dedicado de fronteira/reconciliacao do nucleo de prazo/vencimento
@@ -12121,6 +12128,7 @@ COMMIT: DONE (test + docs)
 WORKING TREE: DIRTY (WIP pre-existente preservado)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: REPORT FILTER CONTRACT
 STATUS: PASS
@@ -12186,6 +12194,7 @@ SCOPE: fixture deterministica da cadeia persistida service order -> billing reco
 NEXT: reconciliacao Finance=Analytics=Executive no mesmo dataset; gates lint/typecheck; rerun BI CORRECTION GATE. NAO certificado ainda.
 NOTES: Prompt 93 nao executado; sem push; WIP preservado; producao NO-GO.
 ```
+
 ```text
 PROMPT: STOP_AND_FIX (FINANCIAL) - fechamento passos 1-4 + rerun BI CORRECTION GATE
 STATUS: PASS (cenarios financeiros verdes; certificacao formal do gate aguarda o responsavel com os ids numerados do prompt original)
@@ -12212,6 +12221,7 @@ RESULTADO: FINANCIAL GATE: PASS | FALSE FINANCIAL METRICS: 0 | SURFACES RECONCIL
 NOTES: Prompt 93 nao executado; sem push; producao NO-GO (PILOT_OBSERVATION_WINDOW_NOT_COMPLETED); WIP pre-existente preservado (accounting-backoffice.ui.test.tsx, docs/inputs/_write_src003.py).
 NEXT: STOP - aguarda revisao do usuario / rodada oficial do BI CORRECTION GATE com os ids numerados do prompt original.
 ```
+
 ```text
 PROMPT: STOP_AND_FIX (FINANCIAL) - passo 5: rerun oficial BI CORRECTION GATE + certificacao
 STATUS: PASS (gate financeiro CERTIFICADO em 2026-09-08)
@@ -12232,6 +12242,7 @@ RESULTADO: BI CORRECTION GATE: PASS | CERTIFICADO: SIM (2026-09-08) | FALSE FINA
 NOTES: Prompt 93 nao executado; sem push; producao NO-GO (PILOT_OBSERVATION_WINDOW_NOT_COMPLETED); WIP preservado; lint pre-existente reportado e nao mascarado (API 14 em arquivos intocados 681434d; web 31).
 NEXT: STOP
 ```
+
 ```text
 PROMPT: REVISAO 4 (STOP_AND_FIX FINANCIAL / BI CORRECTION GATE)
 STATUS: PASS (sem novo FAIL no escopo entregue; certificacao mantida com 3 restricoes registradas)
@@ -12245,6 +12256,7 @@ REVISAO (verificacao independente, leitura de codigo + evidencia da rodada ofici
 RESULTADO: REVISAO 4: PASS | NOVOS FAILS: 0 | RESTRICOES REGISTRADAS: R-1..R-6 | CERTIFICACAO BI CORRECTION GATE: MANTIDA (2026-09-08) com qualificacao PASS_WITH_RESTRICTIONS
 NEXT: STOP
 ```
+
 ```text
 PROMPT: REVISAO 5 (STOP_AND_FIX FINANCIAL / BI CORRECTION GATE)
 STATUS: PASS (nenhum novo FAIL; certificacao mantida com restricoes R5-3/R5-4 adicionais)
@@ -12258,6 +12270,7 @@ REVISAO (verificacao independente; leitura de codigo + 2 rodadas consecutivas da
 RESULTADO: REVISAO 5: PASS | NOVOS FAILS: 0 | RESTRICOES ADICIONAIS: R5-3, R5-4 | CERTIFICACAO BI CORRECTION GATE: MANTIDA (PASS_WITH_RESTRICTIONS)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: STOP_AND_FIX (FINANCIAL) - passo 6: auditoria da fonte do relatorio FinancialAging
 STATUS: PASS
@@ -12273,6 +12286,7 @@ COMMIT: a1250bf (test)
 NOTES: Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado.
 NEXT: STOP
 ```
+
 ```text
 PROMPT: EXECUTIVE DASHBOARD AUTHZ FIX (reexecucao/validacao)
 STATUS: PASS
@@ -12284,6 +12298,7 @@ GATES:
 RESULTADO: EXECUTIVE AUTHZ: PASS | CROSS-SCOPE LEAKS: 0 | UNAUTHORIZED METRICS: 0 | CLIENT-SIDE AUTHORITY: 0 | REGRESSIONS: NONE (reexecucao sem alteracao de codigo; commits originais c6d5693/f7fe042 intactos)
 NEXT: STOP
 ```
+
 ```text
 PROMPT: REPORT_GENERATION WORKER FIX (reexecucao/validacao)
 STATUS: PASS (sem alteracao de codigo - infraestrutura ja correta em HEAD; sem refatorar)
@@ -12299,6 +12314,7 @@ GATES (rodada fresca, base limpa):
 RESULTADO: REPORT WORKER: PASS | HANDLER REGISTERED: PASS | STUCK EXPORTS: 0 (estado real banco: 0 antes da rodada) | DUPLICATE EXPORTS: 0 | INVALID STATE TRANSITIONS: 0 | REGRESSIONS: NONE (22/22 PASS)
 NEXT: STOP (proximos candidatos listados no prompt - DEADLINE_SEMANTIC_KERNEL | STOP_AND_FIX - nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: DEADLINE SEMANTIC KERNEL (reexecucao/validacao)
 STATUS: PASS (sem alteracao de codigo - nucleo canonico ja em HEAD; EVOLVE_EXISTING sem refatorar)
@@ -12313,6 +12329,7 @@ GATES (rodada fresca, base limpa, PostgreSQL real):
 RESULTADO: DEADLINE SEMANTICS: PASS | CANONICAL DEADLINE SOURCE: so.deadline_for(uuid) (migration 0076) + deadline-semantics.ts | DIVERGENT IMPLEMENTATIONS: 0 | HARDCODED DEADLINE THRESHOLDS: 0 | SILENT DEADLINE FAILURES: 0 | CROSS-SURFACE MISMATCHES: 0 | REGRESSIONS: NONE (29/29 integracao + 22/22 unit)
 NEXT: STOP (REPORT_FILTER_CONTRACT | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: REPORT FILTER CONTRACT (reexecucao/validacao)
 STATUS: PASS (sem alteracao de codigo - contrato ja em HEAD; commit original 679fe98; EVOLVE_EXISTING sem refatorar)
@@ -12328,6 +12345,7 @@ GATES (rodada fresca, base limpa):
 RESULTADO: REPORT FILTERS: PASS | FILTER ALLOWLIST: PASS | AUTHZ RESOURCE MAPPING: PASS | SILENTLY IGNORED FILTERS: 0 | SQL FILTER ERRORS: 0 | AUTHZ MISMATCHES: 0 | CROSS-SCOPE LEAKS: 0 | REGRESSIONS: NONE (7/7 unit + 17/17 integracao + 6/6 e2e)
 NEXT: STOP (BUSINESS_METRIC_OBSERVABILITY | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: BUSINESS METRIC OBSERVABILITY (reexecucao/validacao)
 STATUS: PASS (sem alteracao de codigo - caminho correto em HEAD; collector auditado nesta sessao; nao refatorado pois continua correto)
@@ -12345,6 +12363,7 @@ GATES (unit):
 RESULTADO: BUSINESS METRIC OBSERVABILITY: PASS | SILENT FAILURES: 0 (escopo business metrics do BI; observacao platform count() registrada) | FALSE ZERO: 0 | UNDIAGNOSABLE FAILURES: 0 | SCHEMA-DRIFT MASKING: 0 | REGRESSIONS: NONE (5/5 unit + regressoes BI verdes)
 NEXT: STOP (FINANCIAL_AGING_CONSISTENCY | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: FINANCIAL AGING CONSISTENCY (fechamento formal)
 STATUS: PASS
@@ -12359,6 +12378,7 @@ GATES: eslint PASS; typecheck @cisne/api PASS; integracao do spec 2/2 PASS; regr
 RESULTADO: FINANCIAL AGING CONSISTENCY: PASS | CANONICAL RECEIVABLE SOURCE: PASS | DIVERGENT FINANCIAL FORMULAS: 0 | FALSE OVERDUE: 0 | FALSE ZERO: 0 | NO_DATA MISREPRESENTATION: 0 | CROSS-SURFACE MISMATCHES: 0 | CROSS-SCOPE LEAKS: 0 | REGRESSIONS: NONE
 NEXT: STOP (SNAPSHOT_SEMANTICS | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: ANALYTICS SNAPSHOT SEMANTICS (fechamento da rodada dedicada)
 STATUS: PASS
@@ -12373,6 +12393,7 @@ GATES: eslint PASS; typecheck @cisne/api PASS; unit 4/4 PASS (snapshot-semantics
 RESULTADO: SNAPSHOT SEMANTICS: PASS | DASHBOARD SNAPSHOT: LIVE_REQUEST (aging com envelope AN-SEM-001; executive/operational sem falsa consistencia) | REPORT PREVIEW: LIVE | REPORT EXPORT: FROZEN (FinancialAging) / LIVE (demais, declarado por tipo) | AMBIGUOUS SNAPSHOTS: 0 | FALSE CONSISTENCY CLAIMS: 0 | PREVIEW_EXPORT UNDOCUMENTED DRIFT: 0 | REGRESSIONS: NONE
 NEXT: STOP (BI_CORRECTION_GATE | STOP_AND_FIX ja verdes nesta sessao; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: SEMANTIC METRIC CATALOG
 STATUS: PASS
@@ -12390,6 +12411,7 @@ REGRESSION: unit 42/42 PASS (catalog 11, aging.domain 15, productivity.domain 8,
 RESULTADO: SEMANTIC CATALOG: PASS | CONFIRMED METRICS: 16 | CANDIDATE METRICS: 0 | BLOCKED METRICS: 1 | DUPLICATED METRICS: 0 | METRICS WITHOUT SOURCE: 0 para CONFIRMED | CLIENT FORMULAS: 0 | AUTHZ MISMATCHES: 0 | REGRESSIONS: NONE
 NEXT: STOP (METRIC_VERSIONING_LINEAGE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: METRIC VERSIONING AND LINEAGE
 STATUS: PASS
@@ -12406,6 +12428,7 @@ TESTES: metric-versioning.spec 10/10 PASS (lookup id+version; versao atual; vers
 RESULTADO: METRIC VERSIONING: PASS | LINEAGE: PASS | IMMUTABLE PUBLISHED VERSIONS: PASS | CONFIRMED WITHOUT LINEAGE: 0 | CIRCULAR LINEAGE: 0 | BLOCKED CURRENT METRICS: 0 | HISTORICAL DRIFT: 0 | DUPLICATED FORMULAS: 0 | REGRESSIONS: NONE (21/21 unit)
 NEXT: STOP (VISUALIZATION_PRIMITIVES | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: SEMANTIC CATALOG CARDINALITY RECONCILIATION
 STATUS: PASS (causa identificada: erro de contagem/documentacao na evidencia SMC-001; nenhuma metrica removida/perdida)
@@ -12422,6 +12445,7 @@ TESTES: catalog 11/11 + versioning 10/10 = 21/21 PASS (nenhum metricId CONFIRMED
 RESULTADO: PREVIOUS CONFIRMED: 15 (nao 16 - erro de contagem na evidencia) | CURRENT CONFIRMED DEFINITIONS: 15 | CURRENT CONFIRMED LOGICAL METRICS: 15 | REMOVED WITHOUT JUSTIFICATION: 0 | STATUS DRIFT: 0 | UNRESOLVED METRIC LOSS: 0 | CATALOG CONTINUITY: PASS
 NEXT: STOP (VISUALIZATION_PRIMITIVES | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: VISUALIZATION PRIMITIVES
 STATUS: PASS
@@ -12436,6 +12460,7 @@ NOTAS: build-dashboard-kpis pre-existente agrega contagens de series ja resolvid
 RESULTADO: VISUALIZATION PRIMITIVES: PASS | REUSABLE PRIMITIVES: 4 (ChartStateNotice, AccessibleDataTable, Kpi, chartCardClassName) | DUPLICATED CHART LOGIC: 0 | CLIENT KPI CALCULATIONS: 0 (primitives nao calculam) | FALSE ZERO PRESENTATION: 0 | ACCESSIBILITY REGRESSIONS: 0 | DASHBOARD REGRESSIONS: NONE (16/16)
 NEXT: STOP (FILTER_DRILL_CONTRACT | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: FILTER + DRILL CONTRACT
 STATUS: PASS
@@ -12453,6 +12478,7 @@ RESULTADO: FILTER CONTRACT: PASS | DRILL CONTRACT: PASS | DRILLABLE METRICS: 1 (
 NOTAS: destinos 'approaching-due' (mesmo kernel, nao testado separadamente) e 'overdue-receivables' (browse; paridade exige lista de recebiveis dedicada - fora deste prompt) permanecem no registry com flags honestas. Consumo no frontend (hrefs) mantem rota unica derivada do backend.
 NEXT: STOP (BI_PERFORMANCE_AUTHORIZATION_GATE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: BI PERFORMANCE + AUTHORIZATION GATE
 STATUS: PASS (auditoria + revalidacao; NENHUM indice/view/cache/timeout novo - sem necessidade comprovada em base local)
@@ -12470,6 +12496,7 @@ LIMITACOES REGISTRADAS (nao mascaradas): base local pequena - sem indice novo po
 RESULTADO: BI PERFORMANCE: PASS | BI AUTHORIZATION: PASS | CRITICAL N+1: 0 | UNBOUNDED INTERACTIVE QUERIES: 0 | CROSS-SCOPE LEAKS: 0 | AGGREGATION LEAKS: 0 | CATALOG AUTHZ DRIFT: 0 | CRITICAL SLOW QUERIES: 0 | BI-INDUCED DEADLOCKS: 0 | OLTP CRITICAL REGRESSIONS: 0 | REGRESSIONS: NONE (gate evidence 4/4 novos + regressoes BI desta sessao verdes)
 NEXT: STOP (COMPOSITE_DASHBOARDS | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: COMPOSITE DASHBOARDS
 STATUS: PASS (EVOLVE do painel unico /app; sem DashboardV2/stack paralela/board builder)
@@ -12485,6 +12512,7 @@ RESULTADO: COMPOSITE DASHBOARDS: PASS | CONFIRMED METRICS RENDERED: 8 | BLOCKED 
 NOTES: camada declarativa adotada como fonte de metadados de render; visualizacao efetiva continua a mesma dos componentes ja existentes (sem segundo motor). KPIs/series fora do SMC-001 nao sao declarados como metrica.
 NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: BI RUNTIME UI WIRING
 STATUS: PASS (rota real /app comprovada com E2E frontend; nova pagina NAO criada)
@@ -12499,6 +12527,7 @@ RESULTADO: BI RUNTIME UI: PASS | PANELS VISIBLE: PASS | CHARTS VISIBLE: PASS (4 
 NOTAS (nao mascaradas): validacao visual em NAVEGADOR real com servidores live e checagem de dimensoes/overflow/hydration/console nao executada nesta sessao (exige dev env API:3000+Web:5173); a prova de rota foi feita pelo E2E jsdom equivalente (App real + login + DOM na rota /app). RUNTIME JS ERRORS/FAILED NETWORK: contexto de teste usa mock com 200/404 controlado - os 401/403/500 reais sao cobertos pelas suites backend/HTTP (authz negativa, reports, exec fail-closed) ja verdes.
 NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados neste turno; Prompt 93 nao executado; sem push; producao NO-GO; WIP preservado)
 ```
+
 ```text
 PROMPT: BI LIVE BROWSER DELIVERY FIX
 STATUS: PASS (instancia real HML atualizada e validada em navegador real - nao jsdom)
@@ -12522,6 +12551,7 @@ RESULTADO: BI LIVE UI: PASS | PANELS VISIBLE: PASS | CHARTS VISIBLE: PASS | DATA
 NOTAS: producao NO-GO mantida; HML nao e producao. Prompt 93 nao executado; sem push; WIP preservado.
 NEXT: STOP (CISNE_BI_QUALITY_GATE | STOP_AND_FIX nao executados neste turno)
 ```
+
 ```text
 PROMPT: LINT REMEDIATION (CI verde) - pedido direto do responsavel
 STATUS: PASS
@@ -12535,41 +12565,41 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 
 ## WORKFORCE ASSIGNMENT TO SERVICE ORDER — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` |
-| Classificacao | Interpretacao de engenharia / autorizacao operacional |
-| Escopo | Finalizar atribuicao de empregado a OS usando `wrk.workforce_members`, `identity_id`, planejamento/alocacao existente e contexto `ASSIGNED` |
-| Alteracoes | Alocacao `LABOR` persistida em `res.resource_allocations.workforce_member_id`; `ASSIGNED` resolvido a partir de alocacao ativa de workforce member vinculado a identidade; listagem/leitura/execucao de OS respeitam grant `ASSIGNED`; ativo fisico permanece em `physical_asset_id` |
-| Fora de escopo | Sem sistema paralelo de responsavel; sem nova autenticacao/RBAC/workflow; sem alteracao de medicao, faturamento, financeiro, documentos ou estados alem do acesso/atribuicao |
-| Validacao | `corepack pnpm --filter @cisne/api typecheck`; `corepack pnpm --filter @cisne/database typecheck`; `corepack pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders/service-order-planning.integration.spec.ts`; `corepack pnpm --filter @cisne/api exec vitest run src/authorization/scope/scope-matcher.spec.ts src/authorization/services/policy-decision-point.service.spec.ts` |
-| Resultado | PASS |
+| Campo          | Valor                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Status         | `PASS`                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Classificacao  | Interpretacao de engenharia / autorizacao operacional                                                                                                                                                                                                                                                                                                                                                                          |
+| Escopo         | Finalizar atribuicao de empregado a OS usando `wrk.workforce_members`, `identity_id`, planejamento/alocacao existente e contexto `ASSIGNED`                                                                                                                                                                                                                                                                                    |
+| Alteracoes     | Alocacao `LABOR` persistida em `res.resource_allocations.workforce_member_id`; `ASSIGNED` resolvido a partir de alocacao ativa de workforce member vinculado a identidade; listagem/leitura/execucao de OS respeitam grant `ASSIGNED`; ativo fisico permanece em `physical_asset_id`                                                                                                                                           |
+| Fora de escopo | Sem sistema paralelo de responsavel; sem nova autenticacao/RBAC/workflow; sem alteracao de medicao, faturamento, financeiro, documentos ou estados alem do acesso/atribuicao                                                                                                                                                                                                                                                   |
+| Validacao      | `corepack pnpm --filter @cisne/api typecheck`; `corepack pnpm --filter @cisne/database typecheck`; `corepack pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders/service-order-planning.integration.spec.ts`; `corepack pnpm --filter @cisne/api exec vitest run src/authorization/scope/scope-matcher.spec.ts src/authorization/services/policy-decision-point.service.spec.ts` |
+| Resultado      | PASS                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ---
 
 ## INTEGRATION MIGRATION HARNESS ALIGNMENT — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS_WITH_RESTRICTIONS` |
-| Classificacao | Interpretacao de engenharia / infraestrutura de teste |
-| Escopo | Alinhar `apps/api/src/test/ensure-migrations.ts` com migrations registradas `0076_deadline_kernel`, `0077_workforce_member_identity` e `0078_workforce_member_allocation` para permitir validacao reprodutivel do WIP de atribuicao de empregado |
-| Diagnostico | A suite `service-order-planning.integration.spec.ts` travava por concorrencia com processos Vitest antigos e o harness de teste nao tinha probes das migrations 0076..0078; processos de teste orfaos foram encerrados e o harness passou a aplicar as migrations ausentes de forma idempotente |
-| Alteracoes | Probes idempotentes para funcao `so.deadline_for`, coluna `wrk.workforce_members.identity_id` e coluna `res.resource_allocations.workforce_member_id` antes de aplicar as migrations correspondentes |
-| Fora de escopo | Sem nova regra empresarial; sem reset destrutivo; sem declaracao de fechamento geral do CISNE; producao permanece NO-GO |
-| Validacao | `corepack pnpm --filter @cisne/api typecheck`; `corepack pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders/service-order-planning.integration.spec.ts --reporter=verbose` (22/22); `corepack pnpm db:migrate:test`; gates adicionais ja executados nesta rodada: lint database/api/web PASS, typecheck database/api/web PASS, unit database 23/23, PDP/scope 7/7, web planning 9/9 |
-| Resultado | PASS para harness de integracao; `CISNE AINDA POSSUI BLOCKERS` para entrega total solicitada |
+| Campo          | Valor                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status         | `PASS_WITH_RESTRICTIONS`                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Classificacao  | Interpretacao de engenharia / infraestrutura de teste                                                                                                                                                                                                                                                                                                                                                                              |
+| Escopo         | Alinhar `apps/api/src/test/ensure-migrations.ts` com migrations registradas `0076_deadline_kernel`, `0077_workforce_member_identity` e `0078_workforce_member_allocation` para permitir validacao reprodutivel do WIP de atribuicao de empregado                                                                                                                                                                                   |
+| Diagnostico    | A suite `service-order-planning.integration.spec.ts` travava por concorrencia com processos Vitest antigos e o harness de teste nao tinha probes das migrations 0076..0078; processos de teste orfaos foram encerrados e o harness passou a aplicar as migrations ausentes de forma idempotente                                                                                                                                    |
+| Alteracoes     | Probes idempotentes para funcao `so.deadline_for`, coluna `wrk.workforce_members.identity_id` e coluna `res.resource_allocations.workforce_member_id` antes de aplicar as migrations correspondentes                                                                                                                                                                                                                               |
+| Fora de escopo | Sem nova regra empresarial; sem reset destrutivo; sem declaracao de fechamento geral do CISNE; producao permanece NO-GO                                                                                                                                                                                                                                                                                                            |
+| Validacao      | `corepack pnpm --filter @cisne/api typecheck`; `corepack pnpm --filter @cisne/api exec vitest run --config vitest.integration.config.ts src/service-orders/service-order-planning.integration.spec.ts --reporter=verbose` (22/22); `corepack pnpm db:migrate:test`; gates adicionais ja executados nesta rodada: lint database/api/web PASS, typecheck database/api/web PASS, unit database 23/23, PDP/scope 7/7, web planning 9/9 |
+| Resultado      | PASS para harness de integracao; `CISNE AINDA POSSUI BLOCKERS` para entrega total solicitada                                                                                                                                                                                                                                                                                                                                       |
 
 ---
 
 ## FINALIZATION CYCLE — CAUSAS RAIZ, DEFEITO DE PRODUCAO E SUITES COMPLETAS — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS_WITH_RESTRICTIONS` |
-| Classificacao | Interpretacao de engenharia / fechamento tecnico |
-| Ciclo | INSPECIONAR -> REPRODUZIR -> CAUSA RAIZ -> CORRIGIR -> TESTAR -> RETESTAR |
-| Escopo | Reproduzir e corrigir todas as falhas das suites obrigatorias (lint, typecheck, unit, integracao, E2E, build, migrations em banco limpo) sem recriar projeto, sem trocar stack e sem alterar arquitetura |
+| Campo         | Valor                                                                                                                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | `PASS_WITH_RESTRICTIONS`                                                                                                                                                                                 |
+| Classificacao | Interpretacao de engenharia / fechamento tecnico                                                                                                                                                         |
+| Ciclo         | INSPECIONAR -> REPRODUZIR -> CAUSA RAIZ -> CORRIGIR -> TESTAR -> RETESTAR                                                                                                                                |
+| Escopo        | Reproduzir e corrigir todas as falhas das suites obrigatorias (lint, typecheck, unit, integracao, E2E, build, migrations em banco limpo) sem recriar projeto, sem trocar stack e sem alterar arquitetura |
 
 ### Lacunas, causas raiz e correcoes
 
@@ -12629,23 +12659,23 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 
 ### Gates reexecutados nesta rodada
 
-| Gate | Comando | Resultado |
-| ---- | ------- | --------- |
-| Lint database/api/web | `corepack pnpm --filter @cisne/<pkg> lint` | PASS (0 erros) |
-| Typecheck database/api/web | `corepack pnpm --filter @cisne/<pkg> typecheck` | PASS |
-| Unit database | `corepack pnpm --filter @cisne/database test` | PASS 23/23 |
-| Unit API | `corepack pnpm --filter @cisne/api test` | PASS 941/941 (215 arquivos) |
-| Integracao API | `corepack pnpm --filter @cisne/api test:integration` | PASS 705/705 (96 arquivos) |
-| E2E API | `corepack pnpm --filter @cisne/api test:e2e` | PASS 77/77 (26 arquivos) |
-| Web | `corepack pnpm --filter @cisne/web test` | PASS 469/469 (107 arquivos) |
-| Build database/api/web | `corepack pnpm --filter @cisne/<pkg> build` | PASS |
-| Migrations em banco limpo | banco `cisne_clean_verify` vazio -> `node scripts/run-drizzle-migrate.mjs` | PASS: 0 objetos -> 79 migrations aplicadas -> 185 tabelas base, 116 views, 29 schemas |
-| Bootstrap minimo | `node packages/database/dist/cli/run-bootstrap-cli.js` | PASS (created + idempotente + guardas) |
-| Start API em banco limpo | `node apps/api/dist/main.js` (PORT=3210) | PASS: `live` 200, `ready` 200 (`database up`), login 200 com token |
-| Separacao live/ready | `node apps/api/dist/main.js` com `DATABASE_URL` inalcancavel | PASS: `live` 200, `ready` 503 com payload |
-| Readiness engenharia | `corepack pnpm --filter @cisne/api readiness:engineering` | `engineeringReadiness=READY`, `engineeringBlockers=[]` |
-| Readiness producao | `corepack pnpm --filter @cisne/api readiness:gate` | `NO-GO` (blocker de piloto, nao tecnico) |
-| Higiene de release | `git status`, `git diff --stat`, `git diff --check` | `git diff --check` sem erros; 123 arquivos modificados (2181 insercoes, 357 remocoes) + untracked |
+| Gate                       | Comando                                                                    | Resultado                                                                                         |
+| -------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Lint database/api/web      | `corepack pnpm --filter @cisne/<pkg> lint`                                 | PASS (0 erros)                                                                                    |
+| Typecheck database/api/web | `corepack pnpm --filter @cisne/<pkg> typecheck`                            | PASS                                                                                              |
+| Unit database              | `corepack pnpm --filter @cisne/database test`                              | PASS 23/23                                                                                        |
+| Unit API                   | `corepack pnpm --filter @cisne/api test`                                   | PASS 941/941 (215 arquivos)                                                                       |
+| Integracao API             | `corepack pnpm --filter @cisne/api test:integration`                       | PASS 705/705 (96 arquivos)                                                                        |
+| E2E API                    | `corepack pnpm --filter @cisne/api test:e2e`                               | PASS 77/77 (26 arquivos)                                                                          |
+| Web                        | `corepack pnpm --filter @cisne/web test`                                   | PASS 469/469 (107 arquivos)                                                                       |
+| Build database/api/web     | `corepack pnpm --filter @cisne/<pkg> build`                                | PASS                                                                                              |
+| Migrations em banco limpo  | banco `cisne_clean_verify` vazio -> `node scripts/run-drizzle-migrate.mjs` | PASS: 0 objetos -> 79 migrations aplicadas -> 185 tabelas base, 116 views, 29 schemas             |
+| Bootstrap minimo           | `node packages/database/dist/cli/run-bootstrap-cli.js`                     | PASS (created + idempotente + guardas)                                                            |
+| Start API em banco limpo   | `node apps/api/dist/main.js` (PORT=3210)                                   | PASS: `live` 200, `ready` 200 (`database up`), login 200 com token                                |
+| Separacao live/ready       | `node apps/api/dist/main.js` com `DATABASE_URL` inalcancavel               | PASS: `live` 200, `ready` 503 com payload                                                         |
+| Readiness engenharia       | `corepack pnpm --filter @cisne/api readiness:engineering`                  | `engineeringReadiness=READY`, `engineeringBlockers=[]`                                            |
+| Readiness producao         | `corepack pnpm --filter @cisne/api readiness:gate`                         | `NO-GO` (blocker de piloto, nao tecnico)                                                          |
+| Higiene de release         | `git status`, `git diff --stat`, `git diff --check`                        | `git diff --check` sem erros; 123 arquivos modificados (2181 insercoes, 357 remocoes) + untracked |
 
 ### Blocker de producao — estado atual (nao tecnico, nao resolvivel por codigo)
 
@@ -12665,11 +12695,11 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 
 ## VISUAL REGRESSION GATE — SELETORES OBSOLETOS E BASELINE REGENERADO — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` |
-| Classificacao | Interpretacao de engenharia / infraestrutura de teste (visual) |
-| Escopo | Gate `test:visual` (Playwright/Chromium real) estava VERMELHO de forma pre-existente (28 falhas em 30 testes, 2 skipped). Reproduzir, separar causa raiz estrutural de drift de pixel, corrigir e revalidar |
+| Campo         | Valor                                                                                                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | `PASS`                                                                                                                                                                                                      |
+| Classificacao | Interpretacao de engenharia / infraestrutura de teste (visual)                                                                                                                                              |
+| Escopo        | Gate `test:visual` (Playwright/Chromium real) estava VERMELHO de forma pre-existente (28 falhas em 30 testes, 2 skipped). Reproduzir, separar causa raiz estrutural de drift de pixel, corrigir e revalidar |
 
 ### Causas raiz (todas pre-existentes e nao causadas por este ciclo)
 
@@ -12698,11 +12728,11 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 
 ### Gates reexecutados
 
-| Gate | Comando | Resultado |
-| ---- | ------- | --------- |
+| Gate                              | Comando                                         | Resultado                                     |
+| --------------------------------- | ----------------------------------------------- | --------------------------------------------- |
 | Visual (Playwright/Chromium real) | `corepack pnpm --filter @cisne/web test:visual` | PASS 28/28 (2 skipped por serem desktop-only) |
-| Lint web (inclui `e2e/**/*.ts`) | `corepack pnpm --filter @cisne/web lint` | PASS |
-| Typecheck web | `corepack pnpm --filter @cisne/web typecheck` | PASS |
+| Lint web (inclui `e2e/**/*.ts`)   | `corepack pnpm --filter @cisne/web lint`        | PASS                                          |
+| Typecheck web                     | `corepack pnpm --filter @cisne/web typecheck`   | PASS                                          |
 
 | Resultado | `PASS` — gate visual verde com contrato estrutural reforcado; 4 specs + 28 baselines atualizados; producao NO-GO mantido (blocker de piloto) |
 
@@ -12710,11 +12740,11 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 
 ## CORRECAO DE REGISTRO — COMPOSICAO DO METRICADOR `http_error_rate` — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (correcao de registro; nenhum codigo de produto alterado nesta entrada) |
-| Classificacao | Interpretacao de engenharia / correcao de afirmacao anterior |
-| Motivo | A entrada "FINALIZATION CYCLE" afirmou que "o metricador em processo conta apenas 5xx (`isError = failed || statusCode >= 500`), portanto 403/404 de negacao nao entram no erro". **Essa afirmacao esta INCORRETA** e e corrigida aqui. O registro anterior permanece (append-only) por exigencia de governanca |
+| Campo         | Valor                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------- |
+| Status        | `PASS` (correcao de registro; nenhum codigo de produto alterado nesta entrada)                           |
+| Classificacao | Interpretacao de engenharia / correcao de afirmacao anterior                                             |
+| Motivo        | A entrada "FINALIZATION CYCLE" afirmou que "o metricador em processo conta apenas 5xx (`isError = failed |     | statusCode >= 500`), portanto 403/404 de negacao nao entram no erro". **Essa afirmacao esta INCORRETA** e e corrigida aqui. O registro anterior permanece (append-only) por exigencia de governanca |
 
 ### Comportamento real (reproduzido)
 
@@ -12736,11 +12766,11 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 
 ## PRODUCT PASS REAL (browser + API + PostgreSQL) — 2 DEFEITOS CORRIGIDOS — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS_WITH_RESTRICTIONS` (restricao = autenticacao Railway pendente) |
-| Classificacao | Interpretacao de engenharia / validacao de produto em ambiente real |
-| Escopo | Regra 4 (passagem de produto real), Regra 9 (seguranca) e Regra 13 (release real): subir API real (`node apps/api/dist/main.js`), Web real (`vite preview` sobre `dist` com `VITE_API_BASE_URL`), banco real (`cisne_local_dev` com 79 migrations + seed sintetico + perfis CONTROLE/EMPREGADO/CONTROLE_B) e percorrer as paginas basicas com Playwright/Chromium real |
+| Campo         | Valor                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | `PASS_WITH_RESTRICTIONS` (restricao = autenticacao Railway pendente)                                                                                                                                                                                                                                                                                                   |
+| Classificacao | Interpretacao de engenharia / validacao de produto em ambiente real                                                                                                                                                                                                                                                                                                    |
+| Escopo        | Regra 4 (passagem de produto real), Regra 9 (seguranca) e Regra 13 (release real): subir API real (`node apps/api/dist/main.js`), Web real (`vite preview` sobre `dist` com `VITE_API_BASE_URL`), banco real (`cisne_local_dev` com 79 migrations + seed sintetico + perfis CONTROLE/EMPREGADO/CONTROLE_B) e percorrer as paginas basicas com Playwright/Chromium real |
 
 ### Ambiente real montado
 
@@ -12782,19 +12812,19 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 
 ### Gates reexecutados (autoritativos) nesta rodada
 
-| Gate | Resultado |
-| ---- | --------- |
-| lint database/api/web | PASS |
-| typecheck database/api/web | PASS |
-| database unit | PASS |
-| API unit | PASS |
-| API integration | PASS |
-| API E2E | PASS |
-| web (unit+e2e jsdom) | PASS |
-| web visual (Chromium real) | PASS |
-| build database/api/web | PASS |
-| migrations banco limpo | PASS (79/79) |
-| ensaio producao (start/live/ready/login) | PASS |
+| Gate                                     | Resultado    |
+| ---------------------------------------- | ------------ |
+| lint database/api/web                    | PASS         |
+| typecheck database/api/web               | PASS         |
+| database unit                            | PASS         |
+| API unit                                 | PASS         |
+| API integration                          | PASS         |
+| API E2E                                  | PASS         |
+| web (unit+e2e jsdom)                     | PASS         |
+| web visual (Chromium real)               | PASS         |
+| build database/api/web                   | PASS         |
+| migrations banco limpo                   | PASS (79/79) |
+| ensaio producao (start/live/ready/login) | PASS         |
 
 | Resultado | `PASS` para engenharia e produto (2 defeitos de producao corrigidos e verificados em browser real); `RESTRICTION` unica = autenticacao Railway pendente para o deploy publico (nao e defeito de codigo) |
 
@@ -12802,11 +12832,11 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 
 ## DEPLOY PUBLICO — CISNE ACESSIVEL NA INTERNET — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS_WITH_RESTRICTIONS` |
-| Classificacao | Interpretacao de engenharia / release e operacao |
-| Escopo | Regras 13, 14, 15 e 17: preparar o release de hoje, expor o sistema publicamente e executar smoke test publico real |
+| Campo         | Valor                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Status        | `PASS_WITH_RESTRICTIONS`                                                                                            |
+| Classificacao | Interpretacao de engenharia / release e operacao                                                                    |
+| Escopo        | Regras 13, 14, 15 e 17: preparar o release de hoje, expor o sistema publicamente e executar smoke test publico real |
 
 ### Railway — blocker externo real (billing)
 
@@ -12821,10 +12851,10 @@ NOTES: WIP pre-existente (accounting-backoffice.ui.test.tsx) e docs/inputs/_writ
 Para nao deixar o sistema inacessivel enquanto o billing do Railway e resolvido, a aplicacao foi exposta por tunel HTTPS
 (Cloudflare `cloudflared` 2026.9.3, binario baixado em `tmp/`, modo quick tunnel sem conta), servindo os MESMOS artefatos de release:
 
-| Servico | URL publica | Origem local |
-| ------- | ----------- | ------------ |
-| Web (SPA Release 1) | `https://badge-subsidiary-reef-marking.trycloudflare.com` | `apps/web/dist` servido por SPA server estatico (4173) |
-| API | `https://recruiting-broadcast-cap-exists.trycloudflare.com` | `node apps/api/dist/main.js` (3000) |
+| Servico             | URL publica                                                 | Origem local                                           |
+| ------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
+| Web (SPA Release 1) | `https://badge-subsidiary-reef-marking.trycloudflare.com`   | `apps/web/dist` servido por SPA server estatico (4173) |
+| API                 | `https://recruiting-broadcast-cap-exists.trycloudflare.com` | `node apps/api/dist/main.js` (3000)                    |
 
 - A Web foi construida com `VITE_API_BASE_URL` apontando para a URL publica da API (**zero localhost no bundle**).
 - `CORS_ORIGIN` da API = origem publica da Web; preflight `OPTIONS` devolve `204` com `Access-Control-Allow-Origin` correto.
@@ -12834,19 +12864,19 @@ Para nao deixar o sistema inacessivel enquanto o billing do Railway e resolvido,
 
 **CONTROLE** — 11 paginas basicas, todas abrindo com dados reais:
 
-| Pagina | h1 | Linhas | Erro/negacao |
-| ------ | -- | ------ | ------------ |
-| `/app` | Visão geral | 12 | nao |
-| `/app/clients` | Clientes | 20 | nao |
-| `/app/requests` | Solicitações de serviço | 17 | nao |
-| `/app/service-orders` | Ordens de serviço | 17 | nao |
-| `/app/documents` | Documentos | 14 | nao |
-| `/app/billing` | Faturamento interno | 0 (fila vazia) | nao |
-| `/app/finance/receivables` | Contas a receber | 3 | nao |
-| `/app/catalog` | Catálogo de serviços | 20 | nao |
-| `/app/people` | Pessoas | 1 | nao |
-| `/app/proposals` | Propostas comerciais | 14 | nao |
-| `/app/purchase-orders` | Pedidos de compra | 10 | nao |
+| Pagina                     | h1                      | Linhas         | Erro/negacao |
+| -------------------------- | ----------------------- | -------------- | ------------ |
+| `/app`                     | Visão geral             | 12             | nao          |
+| `/app/clients`             | Clientes                | 20             | nao          |
+| `/app/requests`            | Solicitações de serviço | 17             | nao          |
+| `/app/service-orders`      | Ordens de serviço       | 17             | nao          |
+| `/app/documents`           | Documentos              | 14             | nao          |
+| `/app/billing`             | Faturamento interno     | 0 (fila vazia) | nao          |
+| `/app/finance/receivables` | Contas a receber        | 3              | nao          |
+| `/app/catalog`             | Catálogo de serviços    | 20             | nao          |
+| `/app/people`              | Pessoas                 | 1              | nao          |
+| `/app/proposals`           | Propostas comerciais    | 14             | nao          |
+| `/app/purchase-orders`     | Pedidos de compra       | 10             | nao          |
 
 - `NAV` publico = 13 itens; **CHAMADAS A localhost/127.0.0.1 = 0**; **ERROS 5xx = 0**; erros de pagina (JS) = 0; hosts de API = somente o tunel publico.
 - **EMPREGADO**: ve exatamente **6 OS** (somente atribuidas); `/app/finance/receivables` → `/app/no-access` (negado).
@@ -12869,25 +12899,25 @@ Para nao deixar o sistema inacessivel enquanto o billing do Railway e resolvido,
 
 ## PROCESSO EMPRESARIAL REAL EXECUTADO NA URL PUBLICA — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` |
-| Classificacao | Interpretacao de engenharia / validacao de ponta a ponta em ambiente publico |
-| Escopo | Regra 16: executar um processo real no ambiente publico **somente pela UI** (sem SQL, sem Postman, sem endpoint manual) |
+| Campo         | Valor                                                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Status        | `PASS`                                                                                                                  |
+| Classificacao | Interpretacao de engenharia / validacao de ponta a ponta em ambiente publico                                            |
+| Escopo        | Regra 16: executar um processo real no ambiente publico **somente pela UI** (sem SQL, sem Postman, sem endpoint manual) |
 
 ### Cadeia executada — recebivel aberto -> pagamento -> RECEBIDO/PAID
 
 Ator: **CONTROLE B** (`controle-financeiro@cisne-rondonia.invalid`), autenticado pela UI publica. Titulo `5aef87a8-ca34-4259-82a7-e4e1b7bf6533` (unidade `UN-DEV-001`, `NF-2026-000003`).
 
-| Etapa | Evidencia |
-| ----- | --------- |
-| Estado inicial (API publica) | `status=OPEN`, `principal=2500`, `remainingBalance=2500`, `settlements=0` |
-| UI: chip de status antes | "Em aberto" |
-| UI: preenchimento do valor | formulario "Registrar recebimento" com `2500` |
-| UI: confirmacao | dialogo nativo "Confirmar recebimento" -> botao `Receber` |
-| Chamada de rede | `POST /api/v1/finance/receivables/5aef87a8-.../settlements` -> **200** |
-| UI: chip de status depois | **"Recebido"** |
-| Estado final (API publica) | **`status=PAID`**, `remainingBalance=0`, `settledAmount=2500`, `settlements=1` |
+| Etapa                        | Evidencia                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------ |
+| Estado inicial (API publica) | `status=OPEN`, `principal=2500`, `remainingBalance=2500`, `settlements=0`      |
+| UI: chip de status antes     | "Em aberto"                                                                    |
+| UI: preenchimento do valor   | formulario "Registrar recebimento" com `2500`                                  |
+| UI: confirmacao              | dialogo nativo "Confirmar recebimento" -> botao `Receber`                      |
+| Chamada de rede              | `POST /api/v1/finance/receivables/5aef87a8-.../settlements` -> **200**         |
+| UI: chip de status depois    | **"Recebido"**                                                                 |
+| Estado final (API publica)   | **`status=PAID`**, `remainingBalance=0`, `settledAmount=2500`, `settlements=1` |
 
 Resultado: **PAYMENT FLOW PASS** — a baixa foi persistida pelo backend, o status derivou para recebido e o saldo zerou, sem qualquer manipulacao direta de banco.
 
@@ -12908,27 +12938,27 @@ Na primeira tentativa o mesmo fluxo recebeu **403** em `POST .../settlements`. C
 
 ## CONCLUSAO REAL DOS MODULOS FISCAL, CONTABILIDADE E BI/ANALYTICS — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (implementacao + testes dos tres modulos) |
+| Campo         | Valor                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status        | `PASS` (implementacao + testes dos tres modulos)                                                                                            |
 | Classificacao | Interpretacao de engenharia; nenhuma regra empresarial nova `CONFIRMED`; nenhum enum de banco alterado; nenhum modulo externo transplantado |
-| Escopo | Completar de forma real Contabilidade, Fiscal e BI/Analytics. Regra regente: **criar apenas o que nao existe** |
-| Producao | `NO-GO` mantido (blocker externo de piloto inalterado) |
+| Escopo        | Completar de forma real Contabilidade, Fiscal e BI/Analytics. Regra regente: **criar apenas o que nao existe**                              |
+| Producao      | `NO-GO` mantido (blocker externo de piloto inalterado)                                                                                      |
 
 ### Fase 0 — auditoria (CAPACIDADE -> JA EXISTE COMPLETA / EXISTE PARCIAL / NAO EXISTE)
 
-| Capacidade | Situacao encontrada | Decisao |
-| ---------- | ------------------- | ------- |
-| Fiscal: modelos de dominio (documento, evento, autorizacao, credenciamento, periodo, regra tributaria, apuracao, obrigacao) | COMPLETA | Preservado, nao reescrito |
-| Fiscal: transicoes oficiais (draft/ready/submit/recover/revise/cancel) e bloqueio por credenciamento | COMPLETA | Preservado |
-| Fiscal: superficie de consulta (lista por unidade/situacao/competencia) | NAO EXISTIA | Criada (4 listas reais) |
-| Fiscal: rotas/navegacao das paginas de periodo e apuracao | **PARCIAL — paginas orfas, sem rota** | Corrigido |
-| Contabilidade: ledger, partidas dobradas, periodos, fechamento/reabertura, regras de lancamento, imobilizado | COMPLETA | Preservado |
-| Contabilidade: rastreabilidade evento -> lancamento | NAO EXISTIA | Criada (`GET /accounting/posting-requests` + tela) |
-| Contabilidade: trilha de auditoria do lancamento (quem lancou, estorno nos dois sentidos) | **PARCIAL — apenas `reversesEntryId`** | Estendida (`reversedByEntryId`, `reversedByEntryNumber`, `postedBy`) |
-| BI: catalogo semantico SMC-001 (15 CONFIRMED, 5 dominios) | **PARCIAL — sem fiscal, sem contabil** | Estendido para 22 CONFIRMED / 7 dominios |
-| BI: painel de conformidade fiscal/contabil | NAO EXISTIA | Criado (read model + endpoint + tela) |
-| BI: `acc.accounting_posting_requests` com status `PENDING`/`REJECTED` | **NAO EXISTE ESCRITOR** — o fluxo atual grava apenas `POSTED` ou reverte atomicamente | Superficie de "pendentes" NAO foi inventada; a tela mostra a contagem real (hoje zero) em vez de simular pendencia |
+| Capacidade                                                                                                                  | Situacao encontrada                                                                   | Decisao                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Fiscal: modelos de dominio (documento, evento, autorizacao, credenciamento, periodo, regra tributaria, apuracao, obrigacao) | COMPLETA                                                                              | Preservado, nao reescrito                                                                                          |
+| Fiscal: transicoes oficiais (draft/ready/submit/recover/revise/cancel) e bloqueio por credenciamento                        | COMPLETA                                                                              | Preservado                                                                                                         |
+| Fiscal: superficie de consulta (lista por unidade/situacao/competencia)                                                     | NAO EXISTIA                                                                           | Criada (4 listas reais)                                                                                            |
+| Fiscal: rotas/navegacao das paginas de periodo e apuracao                                                                   | **PARCIAL — paginas orfas, sem rota**                                                 | Corrigido                                                                                                          |
+| Contabilidade: ledger, partidas dobradas, periodos, fechamento/reabertura, regras de lancamento, imobilizado                | COMPLETA                                                                              | Preservado                                                                                                         |
+| Contabilidade: rastreabilidade evento -> lancamento                                                                         | NAO EXISTIA                                                                           | Criada (`GET /accounting/posting-requests` + tela)                                                                 |
+| Contabilidade: trilha de auditoria do lancamento (quem lancou, estorno nos dois sentidos)                                   | **PARCIAL — apenas `reversesEntryId`**                                                | Estendida (`reversedByEntryId`, `reversedByEntryNumber`, `postedBy`)                                               |
+| BI: catalogo semantico SMC-001 (15 CONFIRMED, 5 dominios)                                                                   | **PARCIAL — sem fiscal, sem contabil**                                                | Estendido para 22 CONFIRMED / 7 dominios                                                                           |
+| BI: painel de conformidade fiscal/contabil                                                                                  | NAO EXISTIA                                                                           | Criado (read model + endpoint + tela)                                                                              |
+| BI: `acc.accounting_posting_requests` com status `PENDING`/`REJECTED`                                                       | **NAO EXISTE ESCRITOR** — o fluxo atual grava apenas `POSTED` ou reverte atomicamente | Superficie de "pendentes" NAO foi inventada; a tela mostra a contagem real (hoje zero) em vez de simular pendencia |
 
 ### Fase 1 — benchmark (padroes apenas; nenhum codigo, schema ou migration transplantado)
 
@@ -12939,18 +12969,18 @@ Na primeira tentativa o mesmo fluxo recebeu **403** em `POST .../settlements`. C
 
 ### Fase 2 — implementacao (o que foi criado)
 
-| Modulo | Entrega | Arquivos centrais |
-| ------ | ------- | ---------------- |
-| Fiscal | Lista paginada de documentos com protocolo/resultado da ultima autorizacao | `fiscal/repositories/fiscal.repository.ts`, `fiscal/services/fiscal-access.service.ts`, `fiscal/controllers/fiscal.controller.ts`, `fiscal/serializers/fiscal-response.serializer.ts` |
-| Fiscal | Lista de periodos fiscais (competencia/situacao) e de apuracoes (competencia/componente) | `fiscal/repositories/fiscal-period.repository.ts`, `fiscal/repositories/tax-assessment.repository.ts` + servicos/controladores/serializadores |
-| Fiscal | Lista de regras tributarias com versao publicada vigente | `fiscal/repositories/tax-engine.repository.ts` + servico/controlador/serializador |
-| Fiscal | Roteamento e navegacao das 4 superficies (incluindo as 2 paginas antes inacessiveis) | `apps/web/src/App.tsx`, `apps/web/src/shell/nav-config.ts` |
+| Modulo        | Entrega                                                                                     | Arquivos centrais                                                                                                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fiscal        | Lista paginada de documentos com protocolo/resultado da ultima autorizacao                  | `fiscal/repositories/fiscal.repository.ts`, `fiscal/services/fiscal-access.service.ts`, `fiscal/controllers/fiscal.controller.ts`, `fiscal/serializers/fiscal-response.serializer.ts`                                             |
+| Fiscal        | Lista de periodos fiscais (competencia/situacao) e de apuracoes (competencia/componente)    | `fiscal/repositories/fiscal-period.repository.ts`, `fiscal/repositories/tax-assessment.repository.ts` + servicos/controladores/serializadores                                                                                     |
+| Fiscal        | Lista de regras tributarias com versao publicada vigente                                    | `fiscal/repositories/tax-engine.repository.ts` + servico/controlador/serializador                                                                                                                                                 |
+| Fiscal        | Roteamento e navegacao das 4 superficies (incluindo as 2 paginas antes inacessiveis)        | `apps/web/src/App.tsx`, `apps/web/src/shell/nav-config.ts`                                                                                                                                                                        |
 | Contabilidade | Rastreabilidade evento de negocio -> lancamento (`GET /api/v1/accounting/posting-requests`) | `accounting/repositories/accounting-posting.repository.ts`, `accounting/serializers/accounting-posting-read.serializer.ts`, `accounting/services/accounting-access.service.ts`, `accounting/controllers/accounting.controller.ts` |
-| Contabilidade | Trilha de auditoria do lancamento no detalhe | `accounting/repositories/accounting.repository.ts` (`findReversalOf`), `accounting/serializers/accounting-response.serializer.ts` |
-| BI | Read model de conformidade (fiscal + contabil) | `analytics/repositories/compliance-read-model.repository.ts` |
-| BI | Endpoint `GET /api/v1/analytics/compliance` com visibilidade por bloco | `analytics/services/compliance-access.service.ts`, `analytics/controllers/compliance.controller.ts`, `analytics/serializers/compliance-response.serializer.ts`, `analytics/analytics.module.ts` |
-| BI | 7 metricas novas no SMC-001 + lineage + espelho frontend | `analytics/domain/semantic-metric-catalog.ts`, `analytics/domain/metric-versioning.ts`, `apps/web/src/dashboard/semantic-dashboard.ts` |
-| Web | Telas novas: Origem dos lancamentos, Conformidade fiscal e contabil | `apps/web/src/accounting/pages/AccountingPostingOriginsPage.tsx`, `apps/web/src/analytics/pages/ComplianceBiPage.tsx` |
+| Contabilidade | Trilha de auditoria do lancamento no detalhe                                                | `accounting/repositories/accounting.repository.ts` (`findReversalOf`), `accounting/serializers/accounting-response.serializer.ts`                                                                                                 |
+| BI            | Read model de conformidade (fiscal + contabil)                                              | `analytics/repositories/compliance-read-model.repository.ts`                                                                                                                                                                      |
+| BI            | Endpoint `GET /api/v1/analytics/compliance` com visibilidade por bloco                      | `analytics/services/compliance-access.service.ts`, `analytics/controllers/compliance.controller.ts`, `analytics/serializers/compliance-response.serializer.ts`, `analytics/analytics.module.ts`                                   |
+| BI            | 7 metricas novas no SMC-001 + lineage + espelho frontend                                    | `analytics/domain/semantic-metric-catalog.ts`, `analytics/domain/metric-versioning.ts`, `apps/web/src/dashboard/semantic-dashboard.ts`                                                                                            |
+| Web           | Telas novas: Origem dos lancamentos, Conformidade fiscal e contabil                         | `apps/web/src/accounting/pages/AccountingPostingOriginsPage.tsx`, `apps/web/src/analytics/pages/ComplianceBiPage.tsx`                                                                                                             |
 
 ### Achados de qualidade de gate corrigidos (defeitos reais, nao cosmeticos)
 
@@ -12961,16 +12991,16 @@ Na primeira tentativa o mesmo fluxo recebeu **403** em `POST .../settlements`. C
 
 ### Testes adicionados/atualizados
 
-| Suite | Casos | Cobertura |
-| ----- | ----- | --------- |
-| `fiscal/fiscal.integration.spec.ts` | 4 novos (10 no total) | paginacao por unidade, filtro de situacao, protocolo/resultado da ultima autorizacao, negacao sem concessao, consulta invalida (`status`, janela invertida, `pageSize`) |
-| `fiscal/fiscal-period-close.integration.spec.ts` | 3 novos (11) | filtro por competencia/situacao, isolamento de unidade, negacao sem concessao, competencia malformada |
-| `fiscal/tax-engine.integration.spec.ts` | 2 novos (8) | versao publicada vigente + contagem de versoes, isolamento de unidade, negacao |
-| `fiscal/tax-obligation-payable.integration.spec.ts` | 2 novos (9) | lista de apuracoes com obrigacao vinculada, filtro por competencia/componente, negacao |
-| `analytics/compliance.integration.spec.ts` | 7 novos | agregacao real fiscal+contabil, isolamento de unidade, janela de periodo, `NO_DATA != 0`, visibilidade por bloco, negacao sem concessao, `unitId` obrigatorio, unidade sem concessao |
-| `analytics/domain/*.spec.ts` | atualizados | `CONFIRMED` 15 -> 22, drift catalogo x API, lineage completo para as 22, paridade com o espelho frontend |
-| `analytics/compliance-bi.ui.test.tsx` | 4 novos | indicadores do servidor sem recalculo, `NO_DATA != 0` na tela, bloco indisponivel em vez de zerado, negacao do servidor |
-| `fiscal/fiscal-backoffice.ui.test.tsx` | reescrito (5) | lista filtravel como superficie primaria, estado vazio, valores persistidos, negacao na lista e no detalhe |
+| Suite                                               | Casos                 | Cobertura                                                                                                                                                                            |
+| --------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fiscal/fiscal.integration.spec.ts`                 | 4 novos (10 no total) | paginacao por unidade, filtro de situacao, protocolo/resultado da ultima autorizacao, negacao sem concessao, consulta invalida (`status`, janela invertida, `pageSize`)              |
+| `fiscal/fiscal-period-close.integration.spec.ts`    | 3 novos (11)          | filtro por competencia/situacao, isolamento de unidade, negacao sem concessao, competencia malformada                                                                                |
+| `fiscal/tax-engine.integration.spec.ts`             | 2 novos (8)           | versao publicada vigente + contagem de versoes, isolamento de unidade, negacao                                                                                                       |
+| `fiscal/tax-obligation-payable.integration.spec.ts` | 2 novos (9)           | lista de apuracoes com obrigacao vinculada, filtro por competencia/componente, negacao                                                                                               |
+| `analytics/compliance.integration.spec.ts`          | 7 novos               | agregacao real fiscal+contabil, isolamento de unidade, janela de periodo, `NO_DATA != 0`, visibilidade por bloco, negacao sem concessao, `unitId` obrigatorio, unidade sem concessao |
+| `analytics/domain/*.spec.ts`                        | atualizados           | `CONFIRMED` 15 -> 22, drift catalogo x API, lineage completo para as 22, paridade com o espelho frontend                                                                             |
+| `analytics/compliance-bi.ui.test.tsx`               | 4 novos               | indicadores do servidor sem recalculo, `NO_DATA != 0` na tela, bloco indisponivel em vez de zerado, negacao do servidor                                                              |
+| `fiscal/fiscal-backoffice.ui.test.tsx`              | reescrito (5)         | lista filtravel como superficie primaria, estado vazio, valores persistidos, negacao na lista e no detalhe                                                                           |
 
 ### Fronteira de honestidade registrada
 
@@ -12984,27 +13014,27 @@ Na primeira tentativa o mesmo fluxo recebeu **403** em `POST .../settlements`. C
 
 ## GATE COMPLETO DA CONSOLIDACAO + CORRECOES DE CAUSA RAIZ — 2026-09-25 (rodada 2)
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (gates verdes) |
+| Campo         | Valor                                                                     |
+| ------------- | ------------------------------------------------------------------------- |
+| Status        | `PASS` (gates verdes)                                                     |
 | Classificacao | Interpretacao de engenharia / infraestrutura de teste / qualidade de gate |
-| Producao | `NO-GO` mantido (blocker externo de piloto inalterado) |
+| Producao      | `NO-GO` mantido (blocker externo de piloto inalterado)                    |
 
 ### Resultados autoritativos (artefato de producao)
 
-| Gate | Resultado |
-| ---- | --------- |
-| lint database / api / web | PASS |
-| typecheck database / api / web (web com `tsc -b --force`) | PASS |
-| database unit 23/23 + build | PASS |
-| api unit 941/941 | PASS |
-| api integration (suíte completa, ~25 min) | PASS |
-| api E2E | PASS |
-| web 480/480 (108 arquivos) | PASS |
-| web visual (Playwright) 28 passed / 2 skipped | PASS |
-| build api + web | PASS |
-| banco vazio: fresh migration + incremental N-1->N (`ci-database-gate.mjs`) | PASS |
-| bootstrap guards (`already_exists` rejeita banco nao vazio) | PASS |
+| Gate                                                                       | Resultado |
+| -------------------------------------------------------------------------- | --------- |
+| lint database / api / web                                                  | PASS      |
+| typecheck database / api / web (web com `tsc -b --force`)                  | PASS      |
+| database unit 23/23 + build                                                | PASS      |
+| api unit 941/941                                                           | PASS      |
+| api integration (suíte completa, ~25 min)                                  | PASS      |
+| api E2E                                                                    | PASS      |
+| web 480/480 (108 arquivos)                                                 | PASS      |
+| web visual (Playwright) 28 passed / 2 skipped                              | PASS      |
+| build api + web                                                            | PASS      |
+| banco vazio: fresh migration + incremental N-1->N (`ci-database-gate.mjs`) | PASS      |
+| bootstrap guards (`already_exists` rejeita banco nao vazio)                | PASS      |
 
 ### Correcoes de causa raiz (defeitos reais, nao cosmeticos)
 
@@ -13024,11 +13054,11 @@ Na primeira tentativa o mesmo fluxo recebeu **403** em `POST .../settlements`. C
 
 ## GATE FUNCIONAL + GATE NEGATIVO (processo empresarial completo) — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` |
+| Campo         | Valor                                                                           |
+| ------------- | ------------------------------------------------------------------------------- |
+| Status        | `PASS`                                                                          |
 | Classificacao | Interpretacao de engenharia / validacao de ponta a ponta em banco real de teste |
-| Producao | `NO-GO` mantido (blocker externo de piloto) |
+| Producao      | `NO-GO` mantido (blocker externo de piloto)                                     |
 
 ### Evidencia (suites canonitas reexecutadas agora, banco real)
 
@@ -13043,11 +13073,11 @@ O gate negativo esta coberto por: `adversarial-security.e2e.spec.ts` (12/12, BOL
 
 ## DEFEITO DE PRODUCAO CORRIGIDO — observability/metrics 500 (enum invalido) — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (corrigido + regressao) |
-| Classificacao | Bug real / causa raiz / observabilidade |
-| Producao | `NO-GO` mantido (blocker externo de piloto) |
+| Campo         | Valor                                       |
+| ------------- | ------------------------------------------- |
+| Status        | `PASS` (corrigido + regressao)              |
+| Classificacao | Bug real / causa raiz / observabilidade     |
+| Producao      | `NO-GO` mantido (blocker externo de piloto) |
 
 ### Reproducao (HML real, smoke `run-hml-smoke`)
 
@@ -13068,11 +13098,11 @@ O gate negativo esta coberto por: `adversarial-security.e2e.spec.ts` (12/12, BOL
 
 ## VERIFICACAO AO VIVO HML (redeploy + smoke) — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (smoke 11/11) |
+| Campo         | Valor                                             |
+| ------------- | ------------------------------------------------- |
+| Status        | `PASS` (smoke 11/11)                              |
 | Classificacao | Deploy + verificacao em ambiente homologacao real |
-| Producao | `NO-GO` mantido (blocker externo de piloto) |
+| Producao      | `NO-GO` mantido (blocker externo de piloto)       |
 
 ### Cadeia executada
 
@@ -13082,12 +13112,12 @@ O gate negativo esta coberto por: `adversarial-security.e2e.spec.ts` (12/12, BOL
 
 ### Resultado
 
-| Check | Antes | Depois |
-| ----- | ----- | ------ |
-| observability_metrics | 500 (enum invalido) | **200** |
+| Check                                               | Antes               | Depois                |
+| --------------------------------------------------- | ------------------- | --------------------- |
+| observability_metrics                               | 500 (enum invalido) | **200**               |
 | service_orders / execution / measurements / billing | 200 (imagem antiga) | **200** apos migracao |
-| demais (health/login/clients/requests/documents) | 200 | 200 |
-| **Smoke global** | FAIL | **PASS (11/11)** |
+| demais (health/login/clients/requests/documents)    | 200                 | 200                   |
+| **Smoke global**                                    | FAIL                | **PASS (11/11)**      |
 
 ### Segundo achado corrigido no caminho (drift de schema HML)
 
@@ -13099,11 +13129,11 @@ O redeploy expôs que o banco HML nao tinha as migrations `0077_workforce_member
 
 ## CORRECAO DE PERMISSOES — EMPREGADO SOBRE-PRIVILEGIADO — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (corrigido + verificado) |
+| Campo         | Valor                                            |
+| ------------- | ------------------------------------------------ |
+| Status        | `PASS` (corrigido + verificado)                  |
 | Classificacao | Bug real / autorizacao / seed de desenvolvimento |
-| Producao | `NO-GO` mantido (blocker externo de piloto) |
+| Producao      | `NO-GO` mantido (blocker externo de piloto)      |
 
 ### Achado
 
@@ -13121,12 +13151,12 @@ O membro operacional `EMP-DEV-001` apontava para a identidade antiga `empregado@
 
 ### Verificacao
 
-| Item | Resultado |
-| ---- | --------- |
-| grants do empregado | 11 (7 ASSIGNED + 4 GLOBAL), **0 sensiveis** |
-| ordens atribuidas resolvidas (`ASSIGNED` via alocacao ativa) | **6** |
-| database unit | 23/23 PASS |
-| database lint/typecheck | PASS |
+| Item                                                         | Resultado                                   |
+| ------------------------------------------------------------ | ------------------------------------------- |
+| grants do empregado                                          | 11 (7 ASSIGNED + 4 GLOBAL), **0 sensiveis** |
+| ordens atribuidas resolvidas (`ASSIGNED` via alocacao ativa) | **6**                                       |
+| database unit                                                | 23/23 PASS                                  |
+| database lint/typecheck                                      | PASS                                        |
 
 | Resultado | `PASS` — empregado restaurado a "somente ASSIGNED", sem perda do fluxo (6 OS atribuidas), sem concessao GLOBAL indevida |
 
@@ -13134,22 +13164,22 @@ O membro operacional `EMP-DEV-001` apontava para a identidade antiga `empregado@
 
 ## GATE FUNCIONAL + GATE NEGATIVO LITERAL NO NAVEGADOR (HML vivo) — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (6/6) |
+| Campo         | Valor                                                                      |
+| ------------- | -------------------------------------------------------------------------- |
+| Status        | `PASS` (6/6)                                                               |
 | Classificacao | Interpretacao de engenharia / validacao de ponta a ponta em navegador real |
-| Producao | `NO-GO` mantido (blocker externo de piloto) |
+| Producao      | `NO-GO` mantido (blocker externo de piloto)                                |
 
 ### Evidencia (browser Chromium real -> frontend HML 5174 -> API HML 3100 -> PostgreSQL HML)
 
-| Check | Resultado |
-| ----- | --------- |
-| login real (`hml-admin`) -> dashboard `/app` | PASS |
-| `/app/clients` exibe "TESTE — Cliente Logística Norte…" (dado real do banco) | PASS |
-| `/app/service-orders` exibe `OS-2026-*` (numero da ordem, dado real) | PASS |
-| `/app/documents` superficie autorizada (`main` visivel) | PASS |
-| zero erros de pagina (JS) durante o fluxo | PASS |
-| gate negativo: contexto sem sessao em `/app/clients` -> redirecionado a `/login` | PASS |
+| Check                                                                            | Resultado |
+| -------------------------------------------------------------------------------- | --------- |
+| login real (`hml-admin`) -> dashboard `/app`                                     | PASS      |
+| `/app/clients` exibe "TESTE — Cliente Logística Norte…" (dado real do banco)     | PASS      |
+| `/app/service-orders` exibe `OS-2026-*` (numero da ordem, dado real)             | PASS      |
+| `/app/documents` superficie autorizada (`main` visivel)                          | PASS      |
+| zero erros de pagina (JS) durante o fluxo                                        | PASS      |
+| gate negativo: contexto sem sessao em `/app/clients` -> redirecionado a `/login` | PASS      |
 
 Nenhum mock, nenhum SQL/curl/Postman para o fluxo: o navegador autenticou, navegou e leu dados persistidos do servidor HML (15 clientes, 9 OS, 9 solicitacoes, 3 billing records). Script descartavel mantido em `tmp/functional-gate.mjs` (fora do repo).
 
@@ -13159,12 +13189,12 @@ Nenhum mock, nenhum SQL/curl/Postman para o fluxo: o navegador autenticou, naveg
 
 ## LOGINS ESTATICOS DE DESENVOLVIMENTO — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (aplicado + verificado) |
-| Classificacao | Requisito do responsavel / seed de desenvolvimento |
-| Requisito | "eu quero esses logins estaticos" — `abrahim@`, `monica@`, `rafael@cisne-rondonia.invalid` sempre com as senhas informadas |
-| Producao | `NO-GO` mantido (blocker externo de piloto) |
+| Campo         | Valor                                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Status        | `PASS` (aplicado + verificado)                                                                                             |
+| Classificacao | Requisito do responsavel / seed de desenvolvimento                                                                         |
+| Requisito     | "eu quero esses logins estaticos" — `abrahim@`, `monica@`, `rafael@cisne-rondonia.invalid` sempre com as senhas informadas |
+| Producao      | `NO-GO` mantido (blocker externo de piloto)                                                                                |
 
 ### Achado 1 (estado antes da correcao)
 
@@ -13188,17 +13218,17 @@ Os tres identificadores existiam em `cisne_local_dev` e estavam `active`, mas **
 
 ### Verificacao
 
-| Item | Resultado |
-| ---- | --------- |
-| `password_hash` verifica a senha informada (3/3) | PASS |
+| Item                                                                     | Resultado                                                                 |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `password_hash` verifica a senha informada (3/3)                         | PASS                                                                      |
 | `POST /api/v1/auth/login` (API real `127.0.0.1:3000`, `cisne_local_dev`) | PASS — `abrahim` 200, `monica` 200, `rafael` 200, todos com `accessToken` |
-| Gate negativo (senha errada) | PASS — 401, sem token |
-| Grants do empregado apos `auth:repair:dev-login` | 11 (4 GLOBAL + 7 ASSIGNED), **0** financeiro/contabil/fiscal |
-| Grants dos donos | 263 GLOBAL cada (preservado) |
-| `seed.bootstrap.integration.spec.ts` | 10/10 PASS (antes: 1 falha) |
-| `@cisne/database` lint + typecheck | PASS |
-| Prettier nos arquivos alterados | PASS |
-| Idempotencia | reexecucao com `grantsAdded: 0` em ambos os scripts |
+| Gate negativo (senha errada)                                             | PASS — 401, sem token                                                     |
+| Grants do empregado apos `auth:repair:dev-login`                         | 11 (4 GLOBAL + 7 ASSIGNED), **0** financeiro/contabil/fiscal              |
+| Grants dos donos                                                         | 263 GLOBAL cada (preservado)                                              |
+| `seed.bootstrap.integration.spec.ts`                                     | 10/10 PASS (antes: 1 falha)                                               |
+| `@cisne/database` lint + typecheck                                       | PASS                                                                      |
+| Prettier nos arquivos alterados                                          | PASS                                                                      |
+| Idempotencia                                                             | reexecucao com `grantsAdded: 0` em ambos os scripts                       |
 
 Escopo nao coberto: HML (`cisne_hml`) **nao** recebeu estes logins — la permanece `hml-admin@cisne.invalid`. `cisne_runtime` nao existe no PostgreSQL local; os dois scripts reportam esse banco como `skipped` com a razao, sem ocultar a falha.
 
@@ -13208,12 +13238,12 @@ Escopo nao coberto: HML (`cisne_hml`) **nao** recebeu estes logins — la perman
 
 ## CORRECAO: AUTORIZACAO POR CAPABILITY DE PAPEL — split desenvolvedor x empregado — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (corrigido + verificado) |
-| Classificacao | Bug real / autorizacao / seed de desenvolvimento |
+| Campo                  | Valor                                                                                                |
+| ---------------------- | ---------------------------------------------------------------------------------------------------- |
+| Status                 | `PASS` (corrigido + verificado)                                                                      |
+| Classificacao          | Bug real / autorizacao / seed de desenvolvimento                                                     |
 | Decisao do responsavel | `rafael@` e o **desenvolvedor com acesso global**; o empregado operacional passa a ter login proprio |
-| Producao | `NO-GO` mantido (blocker externo de piloto) |
+| Producao               | `NO-GO` mantido (blocker externo de piloto)                                                          |
 
 ### Retificacao do registro anterior
 
@@ -13225,9 +13255,9 @@ O PDP concede acesso por **grant direto** E por **capability de papel**: `policy
 
 `scripts/repair-dev-login.mjs` (`ensureStaticRole` -> `ensureRoleCapabilities`) atribuia `Object.values(AUTHZ_ACTIONS)` — **263** actions — ao papel de **todo** perfil. Consequencia materializada no banco dev:
 
-| Papel | Capabilities | Incluia |
-| ----- | ------------ | ------- |
-| `DEVELOPER` (atribuido ao antigo login do empregado, GLOBAL) | 263 | `authz:access-admin:read`, `authz:access-admin:manage`, `authz:grant:create/revoke`, todo `finance:*`, `accounting:*`, `fiscal:*` |
+| Papel                                                        | Capabilities | Incluia                                                                                                                           |
+| ------------------------------------------------------------ | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `DEVELOPER` (atribuido ao antigo login do empregado, GLOBAL) | 263          | `authz:access-admin:read`, `authz:access-admin:manage`, `authz:grant:create/revoke`, todo `finance:*`, `accounting:*`, `fiscal:*` |
 
 Prova por HTTP, com o login entao tratado como "empregado de menor privilegio": `GET /api/v1/authz/access-admin/identities` -> **200**; `GET /api/v1/authz/access-admin/catalog` -> **200**; sem token -> 401. Ou seja, a correcao de 2026-09-25 (que revogou 249 grants diretos) nao fechou o acesso: limpou o artefato visivel e deixou intacta a origem real da permissao.
 
@@ -13236,6 +13266,7 @@ A guarda que eu havia adicionado na rodada anterior cobria apenas `ensureDevelop
 ### Achado 2 (conflito de fonte no mesmo login)
 
 `rafael@cisne-rondonia.invalid` estava definido simultaneamente como:
+
 - "Desenvolvedor estatico do CISNE com acesso global de desenvolvimento" (`scripts/repair-dev-login.mjs`);
 - "empregado operacional, somente ASSIGNED" (`operational-profiles.ts`, `EMPREGADO_LOGIN = RAFAEL_DEVELOPER_LOGIN`) — a regra registrada em 2026-09-25.
 
@@ -13253,19 +13284,19 @@ Decisao do responsavel: `rafael@` = desenvolvedor com acesso global (intencional
 
 ### Verificacao
 
-| Item | Resultado |
-| ---- | --------- |
-| Login HTTP dos 4 perfis (`POST /api/v1/auth/login`) | PASS — `abrahim` 200, `monica` 200, `rafael` 200, `empregado` 200 |
-| `empregado@` -> `/api/v1/authz/access-admin/identities` e `/catalog` | **403** (antes: 200) |
-| `empregado@` -> `/api/v1/service-orders` | 200 (escopo ASSIGNED) |
-| `rafael@` -> `/api/v1/authz/access-admin/*` | 200 (amplo, **por decisao**) |
-| Papel `EMPREGADO` | 17 capabilities, **0** financeiro/contabil/fiscal/authz (nao virou 263) |
-| `empregado@` grants | 7 GLOBAL + 10 ASSIGNED, **0** sensiveis |
-| `rafael@` | papel `DEVELOPER` 263 capabilities + 263 grants GLOBAL (amplo, por decisao) |
-| Membro `EMP-DEV-001` | relinkado para `empregado@` |
-| `seed.bootstrap.integration.spec.ts` | 10/10 PASS |
-| `@cisne/database` lint + typecheck; Prettier | PASS |
-| Idempotencia | reexecucao com `grantsAdded: 0` e sem alterar contagem de capabilities |
+| Item                                                                 | Resultado                                                                   |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Login HTTP dos 4 perfis (`POST /api/v1/auth/login`)                  | PASS — `abrahim` 200, `monica` 200, `rafael` 200, `empregado` 200           |
+| `empregado@` -> `/api/v1/authz/access-admin/identities` e `/catalog` | **403** (antes: 200)                                                        |
+| `empregado@` -> `/api/v1/service-orders`                             | 200 (escopo ASSIGNED)                                                       |
+| `rafael@` -> `/api/v1/authz/access-admin/*`                          | 200 (amplo, **por decisao**)                                                |
+| Papel `EMPREGADO`                                                    | 17 capabilities, **0** financeiro/contabil/fiscal/authz (nao virou 263)     |
+| `empregado@` grants                                                  | 7 GLOBAL + 10 ASSIGNED, **0** sensiveis                                     |
+| `rafael@`                                                            | papel `DEVELOPER` 263 capabilities + 263 grants GLOBAL (amplo, por decisao) |
+| Membro `EMP-DEV-001`                                                 | relinkado para `empregado@`                                                 |
+| `seed.bootstrap.integration.spec.ts`                                 | 10/10 PASS                                                                  |
+| `@cisne/database` lint + typecheck; Prettier                         | PASS                                                                        |
+| Idempotencia                                                         | reexecucao com `grantsAdded: 0` e sem alterar contagem de capabilities      |
 
 ### Observacoes honestas (nao corrigidas nesta rodada)
 
@@ -13279,11 +13310,11 @@ Decisao do responsavel: `rafael@` = desenvolvedor com acesso global (intencional
 
 ## PERMISSOES — CONTROLADOR FINANCEIRO SEPARADO DO DONO + REGRESSAO DE SoD — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (corrigido + regressao) |
+| Campo         | Valor                                          |
+| ------------- | ---------------------------------------------- |
+| Status        | `PASS` (corrigido + regressao)                 |
 | Classificacao | Bug real / autorizacao / segregacao de funcoes |
-| Producao | `NO-GO` mantido (blocker externo de piloto) |
+| Producao      | `NO-GO` mantido (blocker externo de piloto)    |
 
 ### Achado
 
@@ -13299,12 +13330,12 @@ Decisao do responsavel: `rafael@` = desenvolvedor com acesso global (intencional
 
 ### Verificacao (banco dev)
 
-| Login | Perfil | grants | ASSIGNED | finance | fora do escopo |
-| ----- | ------ | ------ | -------- | ------- | -------------- |
-| abrahim@ | CONTROLE (dono) | 263 | 0 | 37 | 78 (por desenho) |
-| monica@ | CONTROLADOR FINANCEIRO | **39** | 0 | 37 | **0** |
-| empregado@ | EMPREGADO operacional | **17** | 10 | **0** | **0** |
-| rafael@ | Desenvolvedor estatico (decisao registrada) | 270 | 7 | 37 | 78 (por desenho) |
+| Login      | Perfil                                      | grants | ASSIGNED | finance | fora do escopo   |
+| ---------- | ------------------------------------------- | ------ | -------- | ------- | ---------------- |
+| abrahim@   | CONTROLE (dono)                             | 263    | 0        | 37      | 78 (por desenho) |
+| monica@    | CONTROLADOR FINANCEIRO                      | **39** | 0        | 37      | **0**            |
+| empregado@ | EMPREGADO operacional                       | **17** | 10       | **0**   | **0**            |
+| rafael@    | Desenvolvedor estatico (decisao registrada) | 270    | 7        | 37      | 78 (por desenho) |
 
 Testes: database **27/27** (23 anteriores + 4 de SoD); lint/typecheck database PASS.
 
@@ -13314,11 +13345,11 @@ Testes: database **27/27** (23 anteriores + 4 de SoD); lint/typecheck database P
 
 ## GATE DE INTEGRACAO DE `@cisne/database` VERMELHO — 2 CAUSAS RAIZ CORRIGIDAS — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` |
+| Campo         | Valor                                                           |
+| ------------- | --------------------------------------------------------------- |
+| Status        | `PASS`                                                          |
 | Classificacao | Defeito real de gate / idempotencia de seed / assercao obsoleta |
-| Producao | `NO-GO` mantido (blocker externo de piloto inalterado) |
+| Producao      | `NO-GO` mantido (blocker externo de piloto inalterado)          |
 
 ### Defeito 1 — assercao impossivel em `clients.persistence.integration.spec.ts`
 
@@ -13336,13 +13367,13 @@ Correcao: matriz obtida por `ON CONFLICT (code) DO NOTHING` + SELECT de fallback
 
 ### PROVA
 
-| Gate | Resultado |
-| ---- | --------- |
-| `@cisne/database` lint / typecheck / build | PASS |
-| `src/clients.persistence.integration.spec.ts` | **2/2 PASS** (antes 1 failed) |
-| `src/seed.bootstrap.integration.spec.ts` | **10/10 PASS** (antes 2 failed) |
+| Gate                                               | Resultado                                                                         |
+| -------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `@cisne/database` lint / typecheck / build         | PASS                                                                              |
+| `src/clients.persistence.integration.spec.ts`      | **2/2 PASS** (antes 1 failed)                                                     |
+| `src/seed.bootstrap.integration.spec.ts`           | **10/10 PASS** (antes 2 failed)                                                   |
 | `@cisne/database test:integration` (gate completo) | **12 arquivos / 57 testes PASS**, 24,65 s (antes 4 arquivos / 10 testes falhando) |
-| `@cisne/api` build | PASS |
+| `@cisne/api` build                                 | PASS                                                                              |
 
 ### Limitacoes e achados registrados (nao mascarados)
 
@@ -13356,11 +13387,11 @@ Correcao: matriz obtida por `ON CONFLICT (code) DO NOTHING` + SELECT de fallback
 
 ## OBSERVABILIDADE — FALSE ZERO EM METRICAS DE PLATAFORMA DESARMAVA ALERTAS TECNICOS — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (unidade + integracao PG real + HTTP) |
+| Campo         | Valor                                        |
+| ------------- | -------------------------------------------- |
+| Status        | `PASS` (unidade + integracao PG real + HTTP) |
 | Classificacao | Defeito real de observabilidade / invariante |
-| Producao | `NO-GO` mantido |
+| Producao      | `NO-GO` mantido                              |
 
 ### Problema e causa raiz
 
@@ -13385,10 +13416,10 @@ Convergencia ao contrato ja canonico no repositorio (`BusinessMetricsCollectorSe
 
 ## ISOLAMENTO DE BANCO DE TESTE — FILA POR ADVISORY LOCK ENTRE AGENTES — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (protecao secundaria + mecanismo de isolamento) |
-| Classificacao | Defeito de isolamento de teste / performance de gate |
+| Campo         | Valor                                                  |
+| ------------- | ------------------------------------------------------ |
+| Status        | `PASS` (protecao secundaria + mecanismo de isolamento) |
+| Classificacao | Defeito de isolamento de teste / performance de gate   |
 
 ### Problema
 
@@ -13400,12 +13431,12 @@ Aplicado o mesmo advisory lock ao pacote que o exporta (`integration-test-db-ser
 
 ### Evidencia de isolamento (medida)
 
-| Execucao | Ambiente | Duracao |
-| -------- | -------- | ------- |
-| Mesmo spec (4 testes) | `TEST_DATABASE_URL` compartilhado | 116,5 s |
-| Mesmo spec (4 testes) | banco isolado (`cisne_test_iso_*`) | **37,6 s** |
-| Suite e2e completa sob contencao | compartilhado | > 30 min, com fila de lock |
-| Suite e2e completa | banco isolado | 27 arquivos / 82 testes PASS |
+| Execucao                         | Ambiente                           | Duracao                      |
+| -------------------------------- | ---------------------------------- | ---------------------------- |
+| Mesmo spec (4 testes)            | `TEST_DATABASE_URL` compartilhado  | 116,5 s                      |
+| Mesmo spec (4 testes)            | banco isolado (`cisne_test_iso_*`) | **37,6 s**                   |
+| Suite e2e completa sob contencao | compartilhado                      | > 30 min, com fila de lock   |
+| Suite e2e completa               | banco isolado                      | 27 arquivos / 82 testes PASS |
 
 `ci.yml` define `TEST_DATABASE_URL` no nivel do job e roda `pnpm test:integration`; o novo setupFile nao introduz dependencia nova de ambiente (`gate:ci-database` usa script Node proprio e nao foi afetado).
 
@@ -13419,11 +13450,11 @@ Aplicado o mesmo advisory lock ao pacote que o exporta (`integration-test-db-ser
 
 ## INTEGRIDADE TRANSACIONAL DO SEED E SIMETRIA DO BUILDER — PENDENCIAS FECHADAS — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (regressao comprovadamente vermelha antes da correcao, verde depois, PostgreSQL real) |
-| Classificacao | Defeito real de persistencia (nao transacional) + defeito de isolamento de teste |
-| Producao | `NO-GO` mantido |
+| Campo         | Valor                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------- |
+| Status        | `PASS` (regressao comprovadamente vermelha antes da correcao, verde depois, PostgreSQL real) |
+| Classificacao | Defeito real de persistencia (nao transacional) + defeito de isolamento de teste             |
+| Producao      | `NO-GO` mantido                                                                              |
 
 Fecha as duas pendencias registradas na entrada `GATE DE INTEGRACAO DE @cisne/database VERMELHO — 2 CAUSAS RAIZ CORRIGIDAS — 2026-09-25`, secao "Limitacoes e achados registrados". O texto historico daquela entrada permanece integralmente no registro; esta entrada apenas o resolve.
 
@@ -13453,15 +13484,15 @@ Fecha as duas pendencias registradas na entrada `GATE DE INTEGRACAO DE @cisne/da
 
 ### Prova
 
-| Verificacao | Resultado |
-| ----------- | --------- |
-| `operational-profiles.integrity.integration.spec.ts` antes da correcao | **2 de 5 VERMELHOS** nas assercoes dos dois defeitos (matriz orfa `1 != 0`; estado parcial `{matrices:1, versions:1, rules:0}`) — a terceira falha da rodada inicial era erro de autoria do proprio spec (ordem de DELETE respeitando FK), corrigida antes da rodada valida |
-| `operational-profiles.integrity.integration.spec.ts` depois | **5/5 PASS**, 6,7 s |
-| `transaction.integration.spec.ts` | **4/4 PASS** (dados nao commitados invisiveis ao pool durante a transacao; rollback total na falha; 0 conexoes `idle in transaction`) |
-| `seed.bootstrap.integration.spec.ts` + `identity.persistence.integration.spec.ts` | **10/10** e **11/11 PASS** |
-| `@cisne/database test:integration` (gate do pacote) | **14 arquivos / 66 testes PASS**, 45,08 s |
-| `@cisne/database test` / `lint` / `typecheck` / `build` | unit 27/27 PASS; lint PASS; typecheck PASS; build PASS (`dist/transaction.js` emitido) |
-| Estado do banco de desenvolvimento | `approval_matrices`: 1 linha `DEV-PAYMENT-MATRIX` com `published_version=1`, 1 versao, 1 versao publicada, 1 regra — convergido, sem residuo orfo |
+| Verificacao                                                                       | Resultado                                                                                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `operational-profiles.integrity.integration.spec.ts` antes da correcao            | **2 de 5 VERMELHOS** nas assercoes dos dois defeitos (matriz orfa `1 != 0`; estado parcial `{matrices:1, versions:1, rules:0}`) — a terceira falha da rodada inicial era erro de autoria do proprio spec (ordem de DELETE respeitando FK), corrigida antes da rodada valida |
+| `operational-profiles.integrity.integration.spec.ts` depois                       | **5/5 PASS**, 6,7 s                                                                                                                                                                                                                                                         |
+| `transaction.integration.spec.ts`                                                 | **4/4 PASS** (dados nao commitados invisiveis ao pool durante a transacao; rollback total na falha; 0 conexoes `idle in transaction`)                                                                                                                                       |
+| `seed.bootstrap.integration.spec.ts` + `identity.persistence.integration.spec.ts` | **10/10** e **11/11 PASS**                                                                                                                                                                                                                                                  |
+| `@cisne/database test:integration` (gate do pacote)                               | **14 arquivos / 66 testes PASS**, 45,08 s                                                                                                                                                                                                                                   |
+| `@cisne/database test` / `lint` / `typecheck` / `build`                           | unit 27/27 PASS; lint PASS; typecheck PASS; build PASS (`dist/transaction.js` emitido)                                                                                                                                                                                      |
+| Estado do banco de desenvolvimento                                                | `approval_matrices`: 1 linha `DEV-PAYMENT-MATRIX` com `published_version=1`, 1 versao, 1 versao publicada, 1 regra — convergido, sem residuo orfo                                                                                                                           |
 
 ### Performance
 
@@ -13480,12 +13511,12 @@ Fecha as duas pendencias registradas na entrada `GATE DE INTEGRACAO DE @cisne/da
 
 ## HARDENING FINAL DO HELPER TRANSACIONAL — ERRO PRIMARIO PRESERVADO E CONEXAO DESCARTADA — 2026-09-25
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` (PostgreSQL real, banco isolado, prova executada no proprio commit) |
+| Campo         | Valor                                                                      |
+| ------------- | -------------------------------------------------------------------------- |
+| Status        | `PASS` (PostgreSQL real, banco isolado, prova executada no proprio commit) |
 | Classificacao | Revisao de robustez da solucao transacional; nenhuma regra de negocio nova |
-| Producao | `NO-GO` mantido |
-| Commit | `075381d296d50ed143827b0e1c620763d3038172` |
+| Producao      | `NO-GO` mantido                                                            |
+| Commit        | `075381d296d50ed143827b0e1c620763d3038172`                                 |
 
 Fecha a frente aberta pela entrada anterior (`INTEGRIDADE TRANSACIONAL DO SEED E SIMETRIA DO BUILDER — PENDENCIAS FECHADAS`), cuja ultima limitacao registrada — "`withTransaction` faz `ROLLBACK` sem protecao propria de falha" — era um defeito real, nao apenas uma nota.
 
@@ -13508,25 +13539,27 @@ Inventario medido: `apps/api` tem ~250 ocorrencias inline de `BEGIN`/`COMMIT`/`R
 ### 4. Referencias
 
 **Master GitHub (codigo/projetos reais estudados)**
+
 - [brianc/node-postgres#154 — "Clients with aborted transactions taint the pool"](https://github.com/brianc/node-postgres/issues/154): conexao cujo desfecho de transacao nao pode ser confirmado nao deve voltar ao pool.
 - [stablyai/orca commit `1fd2c1b` — "fix(database): evict/destroy connections when COMMIT or ROLLBACK fails"](https://github.com/stablyai/orca/commit/1fd2c1b28d433f483de4a855ea353e26aa26e213): mesmo padrao (descartar conexao quando COMMIT ou ROLLBACK falha).
 - [brianc/node-postgres#2512](https://github.com/brianc/node-postgres/issues/2512): erro `Client was closed and is not queryable` — o secundario efetivamente observado na prova.
 
 **Documentacao autoritativa**
+
 - [node-postgres, Transactions](https://node-postgres.com/features/transactions): `pool.connect()` + `BEGIN`/`COMMIT`/`ROLLBACK` na mesma conexao.
 - `pg-pool` (brianc/node-postgres), fonte instalada `index.js::_release`: "release a client back to the pool, include an error to remove it from the pool".
 - Discussao da classe (referencia de projeto, nao codigo executado): [gajus/slonik#50 "Errors lose information"](https://github.com/gajus/slonik/issues/50).
 
 ### Prova (banco isolado `cisne_test_iso_txharden`, sem compartilhar `TEST_DATABASE_URL`)
 
-| Verificacao | Resultado |
-| ----------- | --------- |
+| Verificacao                                                                | Resultado                                                                                                                                                                                                  |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `transaction.integration.spec.ts` (contrato do primitivo, PostgreSQL real) | **6/6 PASS** — commit; conexao dedicada; mesma sessao **e mesma transacao** (`ON COMMIT DROP` + pid + xid); rollback total; 0 `idle in transaction`; **falha primaria preservada com descarte da conexao** |
-| `operational-profiles.integrity.integration.spec.ts` | **5/5 PASS** |
-| `seed.bootstrap.integration.spec.ts` | **10/10 PASS** |
-| `@cisne/database test:integration` (gate do pacote) | **14 arquivos / 68 testes PASS**, 39,57 s |
-| `lint` / `typecheck` / `build` / `test` (unit) | PASS / PASS / PASS / 27/27 PASS |
-| Prova associada ao COMMIT (worktree isolada em `075381d`) | **21/21 PASS** nos 3 specs focados, 29,09 s — a arvore commitada, nao o working tree |
+| `operational-profiles.integrity.integration.spec.ts`                       | **5/5 PASS**                                                                                                                                                                                               |
+| `seed.bootstrap.integration.spec.ts`                                       | **10/10 PASS**                                                                                                                                                                                             |
+| `@cisne/database test:integration` (gate do pacote)                        | **14 arquivos / 68 testes PASS**, 39,57 s                                                                                                                                                                  |
+| `lint` / `typecheck` / `build` / `test` (unit)                             | PASS / PASS / PASS / 27/27 PASS                                                                                                                                                                            |
+| Prova associada ao COMMIT (worktree isolada em `075381d`)                  | **21/21 PASS** nos 3 specs focados, 29,09 s — a arvore commitada, nao o working tree                                                                                                                       |
 
 ### Performance
 
@@ -13582,12 +13615,12 @@ Correção: `scripts/lib/run-package-script.mjs` delega via `pnpm --filter @cisn
 
 ### Prova por execução
 
-| Comando | Resultado |
-| ------- | --------- |
-| `pnpm prod:validate` | CLI executou e emitiu relatório JSON (`status: FAIL`, estágio `environment`: `CISNE_ENV must be "production"`) — precondição de domínio |
-| `pnpm pilot:status` | CLI executou; falha apenas na assertiva de domínio `CISNE_ENV must be "pilot"` (`pilot-scope.ts:37`) |
-| `node --check` nos 9 arquivos | OK |
-| `pnpm lint` / `pnpm typecheck` | exit 0 (não cobrem `scripts/` — nenhuma task do turbo cobre essa pasta) |
+| Comando                        | Resultado                                                                                                                               |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm prod:validate`           | CLI executou e emitiu relatório JSON (`status: FAIL`, estágio `environment`: `CISNE_ENV must be "production"`) — precondição de domínio |
+| `pnpm pilot:status`            | CLI executou; falha apenas na assertiva de domínio `CISNE_ENV must be "pilot"` (`pilot-scope.ts:37`)                                    |
+| `node --check` nos 9 arquivos  | OK                                                                                                                                      |
+| `pnpm lint` / `pnpm typecheck` | exit 0 (não cobrem `scripts/` — nenhuma task do turbo cobre essa pasta)                                                                 |
 
 ### Limitação de ambiente (não é defeito do produto)
 
@@ -13637,7 +13670,7 @@ Causa raiz: `syncDrizzleJournal` resolve o efeito de cada tag por `MIGRATION_EFF
 0077 e 0078 não tinham probe, `migrationEffectsPresent` devolvia `null`, e o branch `effects === null`
 gravava o hash em `drizzle.__drizzle_migrations` mesmo assim. O migrator passava a considerá-las
 aplicadas e nunca as executava — banco com journal 79/79 e schema incompleto. É exatamente o invariante
-que o próprio arquivo declara: *"Domain tags MUST have a probe so an incomplete DB is not marked applied"*.
+que o próprio arquivo declara: _"Domain tags MUST have a probe so an incomplete DB is not marked applied"_.
 
 Correção (`scripts/lib/database-test-env.mjs`): probes para 0077 (`wrk.workforce_members.identity_id`) e
 0078 (`res.resource_allocations.workforce_member_id`); o mesmo branch agora acumula `unprobed` e emite
@@ -13649,14 +13682,14 @@ Unidade atômica entregue: migrations + `_journal.json` + schema Drizzle declara
 
 Prova (`tmp/migration-proof.mjs`, bancos isolados criados e removidos na mesma execução):
 
-| Verificação | Resultado |
-| ----------- | --------- |
-| FRESH (vazio -> runner canônico) | 79/79 aplicadas, 13 asserções PASS |
-| INCREMENTAL (0076 -> runner canônico) | 0077+0078 efetivamente aplicadas, 13 asserções PASS |
-| Comportamento | UNIQUE parcial `identity_id` bloqueia 2º vínculo (23505); FK bloqueia identity inexistente (23503); CHECK exatamente-um-recurso rejeita 0 e 2 recursos (23514) e aceita 1; EXCLUDE antigo removido e dois parciais novos presentes |
-| Idempotência | re-run exit 0, journal 79 -> 79, sem duplicação |
-| `@cisne/database test:integration` (banco isolado) | **14 arquivos / 68 testes PASS**, 41,28 s |
-| Specs focados da API (`service-order-planning`, `physical-assets`, `people`) | **3 arquivos / 43 testes PASS**, 49,94 s |
+| Verificação                                                                  | Resultado                                                                                                                                                                                                                          |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FRESH (vazio -> runner canônico)                                             | 79/79 aplicadas, 13 asserções PASS                                                                                                                                                                                                 |
+| INCREMENTAL (0076 -> runner canônico)                                        | 0077+0078 efetivamente aplicadas, 13 asserções PASS                                                                                                                                                                                |
+| Comportamento                                                                | UNIQUE parcial `identity_id` bloqueia 2º vínculo (23505); FK bloqueia identity inexistente (23503); CHECK exatamente-um-recurso rejeita 0 e 2 recursos (23514) e aceita 1; EXCLUDE antigo removido e dois parciais novos presentes |
+| Idempotência                                                                 | re-run exit 0, journal 79 -> 79, sem duplicação                                                                                                                                                                                    |
+| `@cisne/database test:integration` (banco isolado)                           | **14 arquivos / 68 testes PASS**, 41,28 s                                                                                                                                                                                          |
+| Specs focados da API (`service-order-planning`, `physical-assets`, `people`) | **3 arquivos / 43 testes PASS**, 49,94 s                                                                                                                                                                                           |
 
 Antes da correção o caminho INCREMENTAL terminava com journal completo e schema **não** migrado:
 42 asserções vermelhas. Depois: 100% verde.
@@ -13889,12 +13922,12 @@ e dois arrays aninhados por linha) para exibir 3 colunas.
 `packages/database/migrations/0079_clients_list_indexes.sql`. Medido em PostgreSQL 18 real, 50.000
 Clientes + 56.666 endereços, banco descartável isolado (`EXPLAIN (ANALYZE, BUFFERS)`):
 
-| Sonda | Antes | Depois |
-| --- | --- | --- |
+| Sonda                              | Antes    | Depois  |
+| ---------------------------------- | -------- | ------- |
 | listagem padrão (razão social asc) | 712,6 ms | 0,59 ms |
 | status = ACTIVE + razão social asc | 509,9 ms | 0,60 ms |
-| ordenação por última atualização | 446,5 ms | 0,43 ms |
-| prefixo de CNPJ (12 dígitos) | 9,1 ms | 0,17 ms |
+| ordenação por última atualização   | 446,5 ms | 0,43 ms |
+| prefixo de CNPJ (12 dígitos)       | 9,1 ms   | 0,17 ms |
 
 `(status, legal_name, id)` foi **medido e rejeitado**: 1,36 ms, pior que `(legal_name, id)` sozinho
 (0,31 ms), porque ACTIVE é ~89% da base e a varredura ordenada encerra após 20 linhas. Não criado, e
@@ -14284,10 +14317,10 @@ NEXT_PROMPT_EXECUTED: NO
 
 ### Baseline real (PostgreSQL 18, 50 recebiveis + 50 contas a pagar, cada um com 3 parcelas e 1 liquidacao/pagamento)
 
-| Alvo                      | p50 ANTES | queries/req ANTES | p95 carga 30 conc. |
-| ------------------------- | --------- | ----------------- | ------------------ |
-| `GET /finance/receivables`| 974,23 ms | 1.525             | 710,66 ms          |
-| `GET /finance/payables`   | 816,92 ms | 1.505             | 663,36 ms          |
+| Alvo                       | p50 ANTES | queries/req ANTES | p95 carga 30 conc. |
+| -------------------------- | --------- | ----------------- | ------------------ |
+| `GET /finance/receivables` | 974,23 ms | 1.525             | 710,66 ms          |
+| `GET /finance/payables`    | 816,92 ms | 1.505             | 663,36 ms          |
 
 Distribuicao das 1.525 queries (recebiveis): 510 grants / 255 roles / 255 insert de auditoria de
 decisao / 5 leitura da lista / 500 leitura de filhos (250 parcelas + 250 liquidacoes). Payload
@@ -14345,17 +14378,17 @@ decisao / 5 leitura da lista / 500 leitura de filhos (250 parcelas + 250 liquida
 
 ### Antes/depois consolidado (mesmo dataset, mesma maquina)
 
-| Alvo         | p50 antes | p50 depois | queries antes | queries depois | payload |
-| ------------ | --------- | ---------- | ------------- | -------------- | ------- |
-| receivables  | 974,23 ms | 19,65 ms   | 1.525         | 50             | 61.001 B (inalterado) |
-| payables     | 816,92 ms | 14,19 ms   | 1.505         | 35             | 53.491 B (inalterado) |
+| Alvo        | p50 antes | p50 depois | queries antes | queries depois | payload               |
+| ----------- | --------- | ---------- | ------------- | -------------- | --------------------- |
+| receivables | 974,23 ms | 19,65 ms   | 1.525         | 50             | 61.001 B (inalterado) |
+| payables    | 816,92 ms | 14,19 ms   | 1.505         | 35             | 53.491 B (inalterado) |
 
 ### Carga controlada (30 concorrentes por alvo, `DATABASE_POOL_MAX=10`)
 
-| Alvo        | p50      | p95      | max      | erro | vs. baseline sequencial |
-| ----------- | -------- | -------- | -------- | ---- | ----------------------- |
-| receivables | 557,85 ms| 710,66 ms| 714,78 ms| 0    | 710 ms de p95 era o p50 de UMA requisicao antes |
-| payables    | 532,11 ms| 663,36 ms| 681,56 ms| 0    | idem                    |
+| Alvo        | p50       | p95       | max       | erro | vs. baseline sequencial                         |
+| ----------- | --------- | --------- | --------- | ---- | ----------------------------------------------- |
+| receivables | 557,85 ms | 710,66 ms | 714,78 ms | 0    | 710 ms de p95 era o p50 de UMA requisicao antes |
+| payables    | 532,11 ms | 663,36 ms | 681,56 ms | 0    | idem                                            |
 
 60 requisicoes concorrentes, 510 queries no total, 1.454 ms de parede, 0 erros, nenhum sinal de
 esgotamento de pool (`pg` faz fila FIFO; 60 requisições x ~0,5 s cada cabem em 10 conexões).
@@ -14438,6 +14471,7 @@ Dois testes falharam na suite completa e NENHUM e relacionado a esta wave:
 - O dataset e sintetico (50 + 50 linhas) e o banco e local: os numeros servem para comparar antes
   e depois na MESMA maquina, e a contagem de queries (que e independente de hardware) e a
   evidencia principal.
+
 ---
 
 ```text
@@ -14927,15 +14961,15 @@ permaneceram intactas.
 
 ### Evidencia (medida, com codigo de saida real)
 
-| Comando                                                              | Resultado |
-| -------------------------------------------------------------------- | --------- |
-| `pnpm typecheck` (`tsc -b --force`)                                   | **FAIL** — ver pendencia P1 |
-| `pnpm exec eslint <arquivos do login>`                                | **PASS** — exit 0 |
-| `pnpm exec vitest run src/pages/LoginPage.test.tsx`                   | **PASS** — 8/8, exit 0 |
-| `pnpm build`                                                          | **PASS** |
-| `pnpm exec playwright test login.visual.spec.ts`                      | **PASS** — 4 passed / 2 skipped, exit 0 |
-| suites e2e dependentes do login (auth, assets, catalog, clients, contracts, dashboard, proposals, purchase-orders, requests) | **PASS** |
-| `playwright screenshot` em 1366x768, 1440x900, 1920x1080, 2560x1440, 390x844, 768x1024 | CTA, campos e beneficios visiveis em todos |
+| Comando                                                                                                                      | Resultado                                  |
+| ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `pnpm typecheck` (`tsc -b --force`)                                                                                          | **FAIL** — ver pendencia P1                |
+| `pnpm exec eslint <arquivos do login>`                                                                                       | **PASS** — exit 0                          |
+| `pnpm exec vitest run src/pages/LoginPage.test.tsx`                                                                          | **PASS** — 8/8, exit 0                     |
+| `pnpm build`                                                                                                                 | **PASS**                                   |
+| `pnpm exec playwright test login.visual.spec.ts`                                                                             | **PASS** — 4 passed / 2 skipped, exit 0    |
+| suites e2e dependentes do login (auth, assets, catalog, clients, contracts, dashboard, proposals, purchase-orders, requests) | **PASS**                                   |
+| `playwright screenshot` em 1366x768, 1440x900, 1920x1080, 2560x1440, 390x844, 768x1024                                       | CTA, campos e beneficios visiveis em todos |
 
 Snapshots do login regerados: `login-form-{mobile,tablet,desktop}.png` e
 `login-reference-desktop.png`.
@@ -15052,47 +15086,48 @@ COMMIT: ver bloco seguinte
 ```
 
 CONTAINER_ENV (pós-correção, subida sob host DELIBERADAMENTE CONTAMINADO):
-  Host simulado: FEATURE_MODULE_RENTALS=true, FEATURE_MODULE_TRANSPORT=true,
-                 FEATURE_MODULE_FINANCE=false  (todos contrários à política)
-  Comando: node scripts/hml/up.mjs
-  Gate: PASS — "[0] Determinismo: 3 variável(is) herdada(s) divergente(s) descartada(s)"
-  Wrapper: "FEATURE_FLAG_ENV_OVERRIDE_DETECTED — 15 variável(is) ... ignoradas"
-  Containers recriados e Healthy: cisne_hml_api, cisne_hml_web
+Host simulado: FEATURE_MODULE_RENTALS=true, FEATURE_MODULE_TRANSPORT=true,
+FEATURE_MODULE_FINANCE=false (todos contrários à política)
+Comando: node scripts/hml/up.mjs
+Gate: PASS — "[0] Determinismo: 3 variável(is) herdada(s) divergente(s) descartada(s)"
+Wrapper: "FEATURE_FLAG_ENV_OVERRIDE_DETECTED — 15 variável(is) ... ignoradas"
+Containers recriados e Healthy: cisne_hml_api, cisne_hml_web
 
-  cisne_hml_api printenv:
-    FEATURE_MODULE_FINANCE=true     <- host dizia false; política venceu
-    FEATURE_MODULE_RENTALS=false    <- host dizia true;  política venceu
-    FEATURE_MODULE_TRANSPORT=false  <- host dizia true;  política venceu
+cisne_hml_api printenv:
+FEATURE_MODULE_FINANCE=true <- host dizia false; política venceu
+FEATURE_MODULE_RENTALS=false <- host dizia true; política venceu
+FEATURE_MODULE_TRANSPORT=false <- host dizia true; política venceu
 
-  Bundle web (nginx html/assets): RENTALS:"false"  <- superfície do web coerente
+Bundle web (nginx html/assets): RENTALS:"false" <- superfície do web coerente
 
-  ANTES da correção (container em execução, build anterior):
-    FEATURE_MODULE_RENTALS=true e FEATURE_MODULE_TRANSPORT=true  <- defeito comprovado ao vivo
+ANTES da correção (container em execução, build anterior):
+FEATURE_MODULE_RENTALS=true e FEATURE_MODULE_TRANSPORT=true <- defeito comprovado ao vivo
 
 SMOKE FOCADO (8 módulos construídos + 2 stubs):
-  finance    200 OK | reports 200 OK
-  fiscal     400 FISCAL_VALIDATION_FAILED | accounting 400 ACCOUNTING_VALIDATION_FAILED
-  inventory  403 INVENTORY_DENIED | procurement 403 PROCUREMENT_DENIED | suppliers 403 SUPPLIER_DENIED
-  payroll    500 PAYROLL_VALIDATION_FAILED  <- DEFEITO ABERTO (ver abaixo)
-  rentals/transport 200 (sem gate próprio; são filtro de archetype sobre OS)
-  FEATURE_DISABLED: 0 de 8  <- objetivo central atingido
-  AUTHZ_DENIED (403) é autorização real operando — aceitável, identificado como tal.
+finance 200 OK | reports 200 OK
+fiscal 400 FISCAL_VALIDATION_FAILED | accounting 400 ACCOUNTING_VALIDATION_FAILED
+inventory 403 INVENTORY_DENIED | procurement 403 PROCUREMENT_DENIED | suppliers 403 SUPPLIER_DENIED
+payroll 500 PAYROLL_VALIDATION_FAILED <- DEFEITO ABERTO (ver abaixo)
+rentals/transport 200 (sem gate próprio; são filtro de archetype sobre OS)
+FEATURE_DISABLED: 0 de 8 <- objetivo central atingido
+AUTHZ_DENIED (403) é autorização real operando — aceitável, identificado como tal.
 
 DEFEITO ABERTO DECLARADO (fora do escopo deste trabalho, NÃO corrigido):
-  GET /api/v1/payroll/periods/:periodId responde HTTP 500 com código PAYROLL_VALIDATION_FAILED.
-  Erro de validação de entrada é condição de cliente; 500 é mapeamento incorreto.
-  Confirmado nos logs do servidor (metadata.statusCode=500, errorCode=PAYROLL_VALIDATION_FAILED).
-  NÃO é defeito de release-scope: o guard LIBEROU a rota. Causa no mapeamento de erro do
-  domínio de folha (mapPayrollDomainError / unitId ausente na cadeia de authz).
-  Registrado como exceção conhecida em scripts/hml/smoke-modules.mjs (KNOWN_OPEN_DEFECTS)
-  para que o smoke meça configuração sem mascarar o defeito. Corrigir exige autorização nova.
+GET /api/v1/payroll/periods/:periodId responde HTTP 500 com código PAYROLL_VALIDATION_FAILED.
+Erro de validação de entrada é condição de cliente; 500 é mapeamento incorreto.
+Confirmado nos logs do servidor (metadata.statusCode=500, errorCode=PAYROLL_VALIDATION_FAILED).
+NÃO é defeito de release-scope: o guard LIBEROU a rota. Causa no mapeamento de erro do
+domínio de folha (mapPayrollDomainError / unitId ausente na cadeia de authz).
+Registrado como exceção conhecida em scripts/hml/smoke-modules.mjs (KNOWN_OPEN_DEFECTS)
+para que o smoke meça configuração sem mascarar o defeito. Corrigir exige autorização nova.
 
 HONESTIDADE:
-  - O smoke de módulos NÃO valida autorização nem regra de negócio; mede apenas se a
-    superfície declarada é a servida.
-  - `rentals`/`transport` retornam 200 porque não têm gate próprio: são a mesma lista de OS
-    filtrada por archetype. A flag false é provada pelo gate de configuração, não por eles.
-  - Nenhum alvo de produção foi tocado; todo o trabalho foi em HML com dados sintéticos.
+
+- O smoke de módulos NÃO valida autorização nem regra de negócio; mede apenas se a
+  superfície declarada é a servida.
+- `rentals`/`transport` retornam 200 porque não têm gate próprio: são a mesma lista de OS
+  filtrada por archetype. A flag false é provada pelo gate de configuração, não por eles.
+- Nenhum alvo de produção foi tocado; todo o trabalho foi em HML com dados sintéticos.
 
 ---
 
@@ -15169,12 +15204,12 @@ WORKING_TREE: DIRTY (trabalho de login preexistente preservado)
 
 ## SINCRONIZACAO DOCUMENTAL — MAQUINA DE ESTADOS DA OS — 2026-08-28
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS_WITH_RESTRICTIONS` |
-| Classificacao | Sincronizacao documental. Registro de **Conflito de fonte** e **Decisao pendente** |
-| Escopo | Somente `docs/08-state-machines/` e este log |
-| Alteracao de dominio | **NENHUMA**. Nenhum arquivo de codigo, schema ou migration foi tocado |
+| Campo                | Valor                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------- |
+| Status               | `PASS_WITH_RESTRICTIONS`                                                           |
+| Classificacao        | Sincronizacao documental. Registro de **Conflito de fonte** e **Decisao pendente** |
+| Escopo               | Somente `docs/08-state-machines/` e este log                                       |
+| Alteracao de dominio | **NENHUMA**. Nenhum arquivo de codigo, schema ou migration foi tocado              |
 
 RESUMO: docs sincronizados com codigo; nenhuma alteracao de dominio.
 
@@ -15192,11 +15227,11 @@ RESUMO: docs sincronizados com codigo; nenhuma alteracao de dominio.
 
 ### TRECHOS RECLASSIFICADOS — NENHUM APAGADO
 
-| Arquivo | Trecho | Antes | Depois |
-| ------- | ------ | ----- | ------ |
+| Arquivo                          | Trecho                                 | Antes                                               | Depois                                                                                     |
+| -------------------------------- | -------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `service-order-state-machine.md` | Linha "Pausada" na tabela de pendentes | `Sem evidencia SRC-001 — PENDING_SOURCE_VALIDATION` | Texto original **preservado**, com marcador `[sincronizado 2026-08-28]` e nota de conflito |
-| `state-transition-register.md` | TR-CAND-012 | `PENDING_BUSINESS_DECISION` | **Inalterado.** Apenas nota: codigo ja implementa; DDP-005 e SDD-R01 seguem `OPEN` |
-| `state-transition-register.md` | TR-CAND-011 | `CANDIDATE` | **Inalterado.** Nota de conflito: codigo nao permite cancelar de `IN_EXECUCAO` |
+| `state-transition-register.md`   | TR-CAND-012                            | `PENDING_BUSINESS_DECISION`                         | **Inalterado.** Apenas nota: codigo ja implementa; DDP-005 e SDD-R01 seguem `OPEN`         |
+| `state-transition-register.md`   | TR-CAND-011                            | `CANDIDATE`                                         | **Inalterado.** Nota de conflito: codigo nao permite cancelar de `IN_EXECUCAO`             |
 
 NENHUMA classificacao `PENDING` foi promovida a confirmada. Nenhum estado novo foi inventado.
 `REOPENED` **nao** foi criado.
@@ -15249,20 +15284,20 @@ WORKING_TREE: DIRTY (trabalho preexistente preservado)
 
 ## TR-CAND-011 CORRIGIDO + EVIDENCIA VERDE DE EXECUCAO — 2026-08-28
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` |
-| Classificacao | Correcao de registro + evidencia de execucao real |
-| Escopo | 2 docs + 1 execucao de teste. **Zero** alteracao em codigo/schema/migration |
-| Alteracao de dominio | **NENHUMA** |
+| Campo                | Valor                                                                       |
+| -------------------- | --------------------------------------------------------------------------- |
+| Status               | `PASS`                                                                      |
+| Classificacao        | Correcao de registro + evidencia de execucao real                           |
+| Escopo               | 2 docs + 1 execucao de teste. **Zero** alteracao em codigo/schema/migration |
+| Alteracao de dominio | **NENHUMA**                                                                 |
 
 ### 1. TR-CAND-011 — REJECTED_BY_IMPLEMENTATION
 
 `docs/08-state-machines/state-transition-register.md`. O conflito registrado na sessao anterior
 foi **resolvido**, com o codigo confirmado como correto e o registro como incorreto.
 
-| Antes | Depois |
-| ----- | ------ |
+| Antes                                                                | Depois                                                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | Origem `RASCUNHO/PREPARADA/LIBERADA/EM_EXECUCAO`; Status `CANDIDATE` | Origem `RASCUNHO/PREPARADA/LIBERADA`; Status `REJECTED_BY_IMPLEMENTATION` |
 
 Texto original **preservado integralmente** em bloco citado dentro da propria entrada — nenhuma
@@ -15357,24 +15392,24 @@ EVIDENCIA: 18/18 PASS, exit 0 — banco de teste local
 
 ## CANAL AUDIT_TRAIL — INFRAESTRUTURA DE AUDITORIA PERSISTENTE — 2026-08-28
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS_WITH_RESTRICTIONS` |
-| Classificacao | Implementacao parcial autorizada + achados de duplicacao |
-| Escopo executado | T1, T2, T3 + teste de integracao (ampliado de 5 para 7 casos) |
+| Campo                | Valor                                                                             |
+| -------------------- | --------------------------------------------------------------------------------- |
+| Status               | `PASS_WITH_RESTRICTIONS`                                                          |
+| Classificacao        | Implementacao parcial autorizada + achados de duplicacao                          |
+| Escopo executado     | T1, T2, T3 + teste de integracao (ampliado de 5 para 7 casos)                     |
 | Escopo NAO executado | T4 (decorator/interceptor), T5 (aplicacao em service-orders), T6 (correlation ID) |
-| Alteracao de domain/ | **NENHUMA — verificado por git status** |
+| Alteracao de domain/ | **NENHUMA — verificado por git status**                                           |
 
 ### ACHADOS QUE RESTRINGIRAM O PROMPT
 
 A verificacao previa mostrou que 3 das 8 tarefas se sobrepoem ao que ja existe. Nao foram
 executadas para nao criar duplicacao concorrente.
 
-| Tarefa | Achado | Evidencia |
-| ------ | ------ | --------- |
-| T6 — correlation ID | **JA EXISTE, completo** | `infrastructure/http/correlation-id.ts` (`resolveCorrelationId`, randomUUID, header, limite 64) + `correlation-id.interceptor.ts`. Consumido por 126 pontos (guards, filters, observability) |
-| T4a — interceptor | **Padrao ja existe** | `SecurityHeadersInterceptor`, `CorrelationIdInterceptor`, `ObservabilityContextInterceptor` |
-| T4/T5 — auditoria de transicao | **Ja existe em 2 canais** | `audit.security_audit_events` (acao/resultado + correlation_id) e `so.service_order_history_events` (dentro da transacao) |
+| Tarefa                         | Achado                    | Evidencia                                                                                                                                                                                    |
+| ------------------------------ | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T6 — correlation ID            | **JA EXISTE, completo**   | `infrastructure/http/correlation-id.ts` (`resolveCorrelationId`, randomUUID, header, limite 64) + `correlation-id.interceptor.ts`. Consumido por 126 pontos (guards, filters, observability) |
+| T4a — interceptor              | **Padrao ja existe**      | `SecurityHeadersInterceptor`, `CorrelationIdInterceptor`, `ObservabilityContextInterceptor`                                                                                                  |
+| T4/T5 — auditoria de transicao | **Ja existe em 2 canais** | `audit.security_audit_events` (acao/resultado + correlation_id) e `so.service_order_history_events` (dentro da transacao)                                                                    |
 
 AUDITORIA DO QUE JA EXISTE — lacuna real identificada:
 
@@ -15495,15 +15530,15 @@ Casos cobertos (7, ampliado dos 5 pedidos):
 
 ### QUALITY GATES
 
-| Gate | Resultado |
-| ---- | --------- |
-| `pnpm typecheck` (api) | **PASS**, exit 0 |
-| `eslint` (4 arquivos novos/alterados) | **PASS**, exit 0 |
-| `node scripts/check-scripts.mjs` | **PASS** — 43 .mjs; "migration probes complete"; detectors 13/13 |
-| `vitest src/audit` (regressao) | **6/6 PASS** (redaction 4, security-audit 2) |
-| `any` explicito em codigo novo | **0 ocorrencias** (verificado por grep) |
-| `console.log` em codigo novo | **0 ocorrencias** (verificado por grep) |
-| `git status -- apps/api/src/service-orders/domain/` | **VAZIO — domain/ INTOCADO** |
+| Gate                                                | Resultado                                                        |
+| --------------------------------------------------- | ---------------------------------------------------------------- |
+| `pnpm typecheck` (api)                              | **PASS**, exit 0                                                 |
+| `eslint` (4 arquivos novos/alterados)               | **PASS**, exit 0                                                 |
+| `node scripts/check-scripts.mjs`                    | **PASS** — 43 .mjs; "migration probes complete"; detectors 13/13 |
+| `vitest src/audit` (regressao)                      | **6/6 PASS** (redaction 4, security-audit 2)                     |
+| `any` explicito em codigo novo                      | **0 ocorrencias** (verificado por grep)                          |
+| `console.log` em codigo novo                        | **0 ocorrencias** (verificado por grep)                          |
+| `git status -- apps/api/src/service-orders/domain/` | **VAZIO — domain/ INTOCADO**                                     |
 
 ### RESTRICOES E PENDENCIAS DECLARADAS
 
@@ -15533,13 +15568,13 @@ DOMAIN: INTOCADO — verificado por git status
 
 ## AUDIT_TRAIL ALIMENTADO POR SERVICE-ORDERS — LOOP FECHADO — 2026-08-28
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS` |
-| Classificacao | Implementacao autorizada com desvio de design declarado |
-| Escopo | Repositorio, service, controller de service-orders + spec de auditoria |
-| Alteracao de domain/ | **NENHUMA — verificado por git status** |
-| Migration nova | **NENHUMA** (schema ja existia desde B1) |
+| Campo                | Valor                                                                  |
+| -------------------- | ---------------------------------------------------------------------- |
+| Status               | `PASS`                                                                 |
+| Classificacao        | Implementacao autorizada com desvio de design declarado                |
+| Escopo               | Repositorio, service, controller de service-orders + spec de auditoria |
+| Alteracao de domain/ | **NENHUMA — verificado por git status**                                |
+| Migration nova       | **NENHUMA** (schema ja existia desde B1)                               |
 
 > **AUDIT_TRAIL agora alimentado por service-orders; lacuna entre politica e implementacao
 > fechada para o canal AUDIT_TRAIL.**
@@ -15656,15 +15691,15 @@ rental/transport/custos/prazos, todos verdes. Nenhuma regressao.
 
 ### QUALITY GATES
 
-| Gate | Resultado |
-| ---- | --------- |
-| `pnpm typecheck` (api) | **PASS**, exit 0 |
-| `eslint` (7 arquivos tocados) | **PASS**, exit 0 |
-| Teste novo | **7/7 PASS**, exit 0 |
-| Regressao service-orders + audit | **118/118 PASS** |
-| `any` explicito / `console.log` | 0 ocorrencias |
+| Gate                                                | Resultado            |
+| --------------------------------------------------- | -------------------- |
+| `pnpm typecheck` (api)                              | **PASS**, exit 0     |
+| `eslint` (7 arquivos tocados)                       | **PASS**, exit 0     |
+| Teste novo                                          | **7/7 PASS**, exit 0 |
+| Regressao service-orders + audit                    | **118/118 PASS**     |
+| `any` explicito / `console.log`                     | 0 ocorrencias        |
 | `git status -- apps/api/src/service-orders/domain/` | **VAZIO — INTOCADO** |
-| Migration nova | Nenhuma |
+| Migration nova                                      | Nenhuma              |
 
 ### NAO ALTERADO
 
@@ -15679,14 +15714,14 @@ DOMAIN: INTOCADO — verificado por git status
 
 ## D1 RESOLVIDA + ADR-007 + DDP-043 — DIVIDAS FECHADAS — 2026-10-01
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `PASS_WITH_RESTRICTIONS` |
-| Classificacao | Correcao de injecao + formalizacao documental |
-| Escopo | D1 (AuditService obrigatorio) e D2 (ADR). D4 aberta como DDP. D3 adiada |
-| Alteracao de domain/ | **NENHUMA — verificado por git status** |
-| Migration nova | **NENHUMA** |
-| Referencias cruzadas | B1, B1.5, ADR-007, DDP-043 |
+| Campo                | Valor                                                                   |
+| -------------------- | ----------------------------------------------------------------------- |
+| Status               | `PASS_WITH_RESTRICTIONS`                                                |
+| Classificacao        | Correcao de injecao + formalizacao documental                           |
+| Escopo               | D1 (AuditService obrigatorio) e D2 (ADR). D4 aberta como DDP. D3 adiada |
+| Alteracao de domain/ | **NENHUMA — verificado por git status**                                 |
+| Migration nova       | **NENHUMA**                                                             |
+| Referencias cruzadas | B1, B1.5, ADR-007, DDP-043                                              |
 
 ### CORRECAO DE PREMISSA (declarada)
 
@@ -15780,9 +15815,9 @@ logo 043 e o proximo livre. O prompt dizia "DDP-027", que **ja esta em uso** por
 
     Exatamente 11 arquivos e 118 PASS — atende ">= 118 PASS".
 
-5d. `pnpm typecheck` (api)  ->  exit 0
+5d. `pnpm typecheck` (api) -> exit 0
 
-5e. `pnpm eslint` (5 arquivos alterados)  ->  exit 0
+5e. `pnpm eslint` (5 arquivos alterados) -> exit 0
 
     Nota: a primeira execucao do eslint FALHOU com
     `@typescript-eslint/no-unnecessary-type-assertion` no stub do spec (`as never` tornou-se
@@ -15805,12 +15840,12 @@ nesta sessao (ja estava correto de B1.5).
 
 ### DIVIDAS RESTANTES
 
-| Divida | Status |
-| ------ | ------ |
-| D1 — AuditService opcional | **RESOLVIDA** (tornado obrigatorio) |
-| D2 — ADR formal | **RESOLVIDA** (ADR-007, ACCEPTED) |
-| D3 — Testcontainers | **ADIADA** para Fase 4 (CI/CD), conforme instrucao |
-| D4 — Cobertura sem correlacao | **ABERTA** como DDP-043, sem implementacao |
+| Divida                        | Status                                             |
+| ----------------------------- | -------------------------------------------------- |
+| D1 — AuditService opcional    | **RESOLVIDA** (tornado obrigatorio)                |
+| D2 — ADR formal               | **RESOLVIDA** (ADR-007, ACCEPTED)                  |
+| D3 — Testcontainers           | **ADIADA** para Fase 4 (CI/CD), conforme instrucao |
+| D4 — Cobertura sem correlacao | **ABERTA** como DDP-043, sem implementacao         |
 
 ### NAO ALTERADO
 
@@ -15826,13 +15861,13 @@ DOMAIN: INTOCADO · MIGRATIONS: NENHUMA NOVA · AuditService: OBRIGATORIO
 
 ## B2 / TAREFA 0 — RBAC VERIFICADO: BLOQUEIO POR PREMISSA INCORRETA — 2026-10-01
 
-| Campo | Valor |
-| ----- | ----- |
-| Status | `BLOCKED_BY_INCORRECT_PREMISE` |
-| Classificacao | Verificacao de pre-requisitos. Nenhum codigo escrito |
-| Escopo | Somente leitura de codigo + este registro + DDP-044 |
-| Alteracao de domain/ | **NENHUMA — verificado por git status** |
-| Migration nova | **NENHUMA** |
+| Campo                | Valor                                                |
+| -------------------- | ---------------------------------------------------- |
+| Status               | `BLOCKED_BY_INCORRECT_PREMISE`                       |
+| Classificacao        | Verificacao de pre-requisitos. Nenhum codigo escrito |
+| Escopo               | Somente leitura de codigo + este registro + DDP-044  |
+| Alteracao de domain/ | **NENHUMA — verificado por git status**              |
+| Migration nova       | **NENHUMA**                                          |
 
 ### RESUMO EXECUTIVO
 
@@ -15842,13 +15877,13 @@ sugerido seria regressao de seguranca. Nenhum codigo escrito.
 
 ### PRE-REQUISITOS VERIFICADOS (0a a 0e)
 
-| # | Pre-requisito | Prompt assumia | Realidade | Veredito |
-| - | ------------- | -------------- | --------- | -------- |
-| 0a | `PermissionsGuard` | Existe e deve ser reutilizado | **NAO EXISTE**. Equivalente real: `AuthorizationGuard` + `@RequireAuthz` + `PolicyDecisionPointService` + `ScopeEnforcementService` | Preenchido por equivalente |
-| 0b | Modelo de escopo de dados | `GLOBAL\|FILIAL\|PROJETO` | **JA EXISTE e supera**: `AUTHZ_SCOPES` = Own, Assigned, Unit, Client, Contract, Document, Financial, Global, Platform (9 escopos). `Unit` = "FILIAL". Nao existe "PROJETO" (equivalente: Contract/Client) | Preenchido e superado |
-| 0c | Modelo de permissoes | Criar `service_orders:ler` etc. | Derivadas de `authorization.grants`, formato `recurso:acao` kebab-case EN (ex.: `service-orders:service-order:read`) | Preenchido |
-| 0d | Endpoints com `@RequireAuthz` | (nao quantificado) | **20 endpoints** em 4 controllers: access-admin (12), authz (3), observability (3), security-audit (1). **Nenhum** controller de service-orders — intencional | OK |
-| 0e | Cobertura de service-orders | (a implementar) | **33 endpoints, 100% protegidos**; 23 acoes de authz dedicadas; `getListScopeFilter` ja filtra listagem por escopo | Preenchido |
+| #   | Pre-requisito                 | Prompt assumia                  | Realidade                                                                                                                                                                                                 | Veredito                   |
+| --- | ----------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| 0a  | `PermissionsGuard`            | Existe e deve ser reutilizado   | **NAO EXISTE**. Equivalente real: `AuthorizationGuard` + `@RequireAuthz` + `PolicyDecisionPointService` + `ScopeEnforcementService`                                                                       | Preenchido por equivalente |
+| 0b  | Modelo de escopo de dados     | `GLOBAL\|FILIAL\|PROJETO`       | **JA EXISTE e supera**: `AUTHZ_SCOPES` = Own, Assigned, Unit, Client, Contract, Document, Financial, Global, Platform (9 escopos). `Unit` = "FILIAL". Nao existe "PROJETO" (equivalente: Contract/Client) | Preenchido e superado      |
+| 0c  | Modelo de permissoes          | Criar `service_orders:ler` etc. | Derivadas de `authorization.grants`, formato `recurso:acao` kebab-case EN (ex.: `service-orders:service-order:read`)                                                                                      | Preenchido                 |
+| 0d  | Endpoints com `@RequireAuthz` | (nao quantificado)              | **20 endpoints** em 4 controllers: access-admin (12), authz (3), observability (3), security-audit (1). **Nenhum** controller de service-orders — intencional                                             | OK                         |
+| 0e  | Cobertura de service-orders   | (a implementar)                 | **33 endpoints, 100% protegidos**; 23 acoes de authz dedicadas; `getListScopeFilter` ja filtra listagem por escopo                                                                                        | Preenchido                 |
 
 Evidencia da busca (0a):
 
@@ -15857,13 +15892,13 @@ Evidencia da busca (0a):
 
 ### COBERTURA DE SERVICE-ORDERS
 
-| Controller | Endpoints |
-| ---------- | --------- |
-| `service-orders.controller.ts` | 8 |
-| `service-order-execution.controller.ts` | 11 |
-| `service-order-planning.controller.ts` | 8 |
-| `operational-cost.controller.ts` | 2 |
-| **Total** | **33** |
+| Controller                              | Endpoints |
+| --------------------------------------- | --------- |
+| `service-orders.controller.ts`          | 8         |
+| `service-order-execution.controller.ts` | 11        |
+| `service-order-planning.controller.ts`  | 8         |
+| `operational-cost.controller.ts`        | 2         |
+| **Total**                               | **33**    |
 
 Acoes de authz dedicadas: **23** (`authz-actions.ts` linhas 126-178).
 Mecanismo: `requireServiceOrder` (`service-orders-access.service.ts:763`) carrega o registro e
@@ -15965,14 +16000,14 @@ autorizacao explicita do usuario apos o relatorio da Fase 0.
 
 ### O QUE **NAO** FOI FEITO (e por que)
 
-| Item do prompt | Decisao | Motivo |
-| --- | --- | --- |
-| Tarefa 1 — pino | **NAO executado** | `StructuredLoggerService` (JSON) ja existe e e consumido. Trocar = reescrever o que existe (restricao 3); adicionar ao lado = duplicar logger (restricao 3 + 10). |
-| Tarefa 2b — ALS em `common/logger/context.ts` | **NAO executado** | ALS ja existe em `observability/context/observability-context.ts`, carregando `correlationId`, `requestId`, `operation`, `actorId`. Criar segundo ALS = duplicacao (restricao 3). |
-| Tarefa 3 — interceptor global de log HTTP | **NAO executado** | `ObservabilityContextInterceptor` ja esta registrado via `APP_INTERCEPTOR` e ja loga entrada/saida/erro com duracao, status e correlation-id. |
-| Tarefa 5 — `/health` e `/ready` | **NAO executado como escrito** | Ja existem como `/health/live` e `/health/ready`, com semantica correta (liveness 200 sem banco; readiness 503). Testados nos caminhos reais. |
-| `GET /metrics` anonimo | **NAO executado** | Contraria o Caso 6 do proprio prompt e o modelo fail-closed ja provado. Repo nao possui `observability:read`; cria-la exigiria tocar `authorization/` (PROIBIDO). |
-| `main.ts` — shutdown hooks | **NAO executado** | Nao e exigido pelo escopo complementar; `DatabaseService.onModuleDestroy` ja encerra o pool e e exercido em `app.close()` nos testes. |
+| Item do prompt                                | Decisao                        | Motivo                                                                                                                                                                            |
+| --------------------------------------------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tarefa 1 — pino                               | **NAO executado**              | `StructuredLoggerService` (JSON) ja existe e e consumido. Trocar = reescrever o que existe (restricao 3); adicionar ao lado = duplicar logger (restricao 3 + 10).                 |
+| Tarefa 2b — ALS em `common/logger/context.ts` | **NAO executado**              | ALS ja existe em `observability/context/observability-context.ts`, carregando `correlationId`, `requestId`, `operation`, `actorId`. Criar segundo ALS = duplicacao (restricao 3). |
+| Tarefa 3 — interceptor global de log HTTP     | **NAO executado**              | `ObservabilityContextInterceptor` ja esta registrado via `APP_INTERCEPTOR` e ja loga entrada/saida/erro com duracao, status e correlation-id.                                     |
+| Tarefa 5 — `/health` e `/ready`               | **NAO executado como escrito** | Ja existem como `/health/live` e `/health/ready`, com semantica correta (liveness 200 sem banco; readiness 503). Testados nos caminhos reais.                                     |
+| `GET /metrics` anonimo                        | **NAO executado**              | Contraria o Caso 6 do proprio prompt e o modelo fail-closed ja provado. Repo nao possui `observability:read`; cria-la exigiria tocar `authorization/` (PROIBIDO).                 |
+| `main.ts` — shutdown hooks                    | **NAO executado**              | Nao e exigido pelo escopo complementar; `DatabaseService.onModuleDestroy` ja encerra o pool e e exercido em `app.close()` nos testes.                                             |
 
 ### COMANDO EXATO DO TESTE + SAIDA LITERAL
 
@@ -16018,20 +16053,20 @@ no baseline `82f72c6` — falharam de forma identica sem nenhuma alteracao desta
 
 ### INVENTARIO COMPLETO DE ARQUIVOS (Tarefa 7)
 
-| Arquivo | Origem | Acao |
-| --- | --- | --- |
-| `apps/api/src/observability/logging/log-redaction.ts` | B3 | Incluir no commit B3 (8a) |
-| `apps/api/src/observability/logging/log-redaction.spec.ts` | B3 | Incluir no commit B3 (8a) |
-| `apps/api/package.json` | B3 | Incluir no commit B3 (8b) |
-| `pnpm-lock.yaml` | B3 | Incluir no commit B3 (8b) |
-| `apps/api/src/observability/metrics/prometheus-metrics.service.ts` | B3 (novo) | Incluir no commit B3 (8b) |
-| `apps/api/src/observability/observability.module.ts` | B3 | Incluir no commit B3 (8b) |
-| `apps/api/src/observability/interceptors/observability-context.interceptor.ts` | B3 | Incluir no commit B3 (8b) |
-| `apps/api/src/observability/interceptors/observability-context.interceptor.spec.ts` | B3 | Incluir no commit B3 (8b) |
-| `apps/api/src/infrastructure/http/api-exception.filter.ts` | B3 | Incluir no commit B3 (8b) |
-| `apps/api/src/observability/controllers/observability.controller.ts` | B3 | Incluir no commit B3 (8b) |
-| `apps/api/src/observability/observability-b3.integration.spec.ts` | B3 (novo) | Incluir no commit B3 (8d) |
-| `docs/00-governance/prompt-execution-log.md` | B3 | Este bloco |
+| Arquivo                                                                             | Origem    | Acao                      |
+| ----------------------------------------------------------------------------------- | --------- | ------------------------- |
+| `apps/api/src/observability/logging/log-redaction.ts`                               | B3        | Incluir no commit B3 (8a) |
+| `apps/api/src/observability/logging/log-redaction.spec.ts`                          | B3        | Incluir no commit B3 (8a) |
+| `apps/api/package.json`                                                             | B3        | Incluir no commit B3 (8b) |
+| `pnpm-lock.yaml`                                                                    | B3        | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/metrics/prometheus-metrics.service.ts`                  | B3 (novo) | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/observability.module.ts`                                | B3        | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/interceptors/observability-context.interceptor.ts`      | B3        | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/interceptors/observability-context.interceptor.spec.ts` | B3        | Incluir no commit B3 (8b) |
+| `apps/api/src/infrastructure/http/api-exception.filter.ts`                          | B3        | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/controllers/observability.controller.ts`                | B3        | Incluir no commit B3 (8b) |
+| `apps/api/src/observability/observability-b3.integration.spec.ts`                   | B3 (novo) | Incluir no commit B3 (8d) |
+| `docs/00-governance/prompt-execution-log.md`                                        | B3        | Este bloco                |
 
 **ORFAOS DE SESSOES ANTERIORES: NENHUM ENCONTRADO.** Nao houve commit corretivo (8e), conforme
 a regra "se nenhum orfao for encontrado, NAO invente commit corretivo".
@@ -16043,11 +16078,11 @@ Preservados conforme `AGENTS.md` regra 10.
 
 ### COMMITS CRIADOS (Tarefa 8)
 
-| Hash | Mensagem | Arquivos |
-| --- | --- | --- |
-| `ffbcac9` | `feat(observability): redaction de CPF, CNPJ, tax_id e x-api-key` | `log-redaction.ts`, `log-redaction.spec.ts` |
+| Hash      | Mensagem                                                               | Arquivos                                                                                                                                                                                               |
+| --------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ffbcac9` | `feat(observability): redaction de CPF, CNPJ, tax_id e x-api-key`      | `log-redaction.ts`, `log-redaction.spec.ts`                                                                                                                                                            |
 | `c82adc6` | `feat(observability): exposicao Prometheus sobre o registry existente` | `package.json`, `pnpm-lock.yaml`, `prometheus-metrics.service.ts`, `observability.module.ts`, `observability-context.interceptor.ts` (+spec), `api-exception.filter.ts`, `observability.controller.ts` |
-| `252151f` | `test(observability): cobertura de integracao do ciclo B3 (6 casos)` | `observability-b3.integration.spec.ts` |
+| `252151f` | `test(observability): cobertura de integracao do ciclo B3 (6 casos)`   | `observability-b3.integration.spec.ts`                                                                                                                                                                 |
 
 ### CONFIRMACOES OBRIGATORIAS (Tarefa 9f)
 
@@ -16148,17 +16183,17 @@ O commit-base `82f72c6` aparece imediatamente abaixo, confirmando encadeamento l
 
 ### ESTADO DA OBSERVABILIDADE — TODOS OS ITENS FECHADOS
 
-| Item | Evidencia | Estado |
-| ---- | --------- | ------ |
-| `observability.module.ts` `@Global()` | `observability.module.ts:17` | FECHADO |
-| Registrado no `AppModule` | `app.module.ts:23` (import), `:45` (imports) | FECHADO |
-| `/health/live` | `health.controller.ts:54` | FECHADO |
-| `/health/ready` | `health.controller.ts:68` | FECHADO |
-| `/observability/prometheus` | `observability.controller.ts:51` | FECHADO |
-| `/observability/metrics`, `/alerts`, `/artifact` | `observability.controller.ts:30,61,76` | FECHADO |
-| `StructuredLoggerService` em uso | Consumidor do interceptor global | FECHADO |
-| Redaction de cpf, cnpj, tax_id, x-api-key | `log-redaction.ts:27,28,30,31`; `CPF_PATTERN:39` | FECHADO |
-| `PrometheusMetricsService` registrado | `observability.module.ts:23` (provider), `:38` (export) | FECHADO |
+| Item                                             | Evidencia                                               | Estado  |
+| ------------------------------------------------ | ------------------------------------------------------- | ------- |
+| `observability.module.ts` `@Global()`            | `observability.module.ts:17`                            | FECHADO |
+| Registrado no `AppModule`                        | `app.module.ts:23` (import), `:45` (imports)            | FECHADO |
+| `/health/live`                                   | `health.controller.ts:54`                               | FECHADO |
+| `/health/ready`                                  | `health.controller.ts:68`                               | FECHADO |
+| `/observability/prometheus`                      | `observability.controller.ts:51`                        | FECHADO |
+| `/observability/metrics`, `/alerts`, `/artifact` | `observability.controller.ts:30,61,76`                  | FECHADO |
+| `StructuredLoggerService` em uso                 | Consumidor do interceptor global                        | FECHADO |
+| Redaction de cpf, cnpj, tax_id, x-api-key        | `log-redaction.ts:27,28,30,31`; `CPF_PATTERN:39`        | FECHADO |
+| `PrometheusMetricsService` registrado            | `observability.module.ts:23` (provider), `:38` (export) | FECHADO |
 
 **Nenhum GAP REMANESCENTE em observabilidade.**
 
@@ -16239,9 +16274,9 @@ Comando: `vitest run --config vitest.config.ts src/work-inbox/sources/finance.so
 CLASSIFICACAO: **REGRESSAO REAL** (de sessao anterior, nao de B3). Causa raiz verificada por
 arqueologia de `git log`:
 
-| Commit | Data | O que fez |
-| ------ | ---- | --------- |
-| `caffc18` | 2026-09-27 | Criou `finance.source.ts` E `finance.source.spec.ts` no mesmo commit |
+| Commit    | Data       | O que fez                                                                                                                   |
+| --------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `caffc18` | 2026-09-27 | Criou `finance.source.ts` E `finance.source.spec.ts` no mesmo commit                                                        |
 | `fd262dc` | 2026-09-28 | `fix(finance): paginate titles in SQL with authorized scope and list gate` — mudou `list()` para devolver envelope paginado |
 
 `fd262dc` alterou o contrato de `list()` para retornar `{ items: [...] }`, mas NAO atualizou o spec,
@@ -16262,11 +16297,11 @@ Busca por `ensure-migrations-journal|operational-eligibility|finance.source|DDP-
 
 ### ARQUIVOS TOCADOS NESTA SESSAO
 
-| Arquivo | Origem | Acao |
-| ------- | ------ | ---- |
+| Arquivo                                               | Origem      | Acao        |
+| ----------------------------------------------------- | ----------- | ----------- |
 | `docs/01-foundation/DDP-045-falhas-pre-existentes.md` | B3-R (novo) | Commit B3-R |
-| `docs/01-foundation/domain-decisions-pending.md` | B3-R | Commit B3-R |
-| `docs/00-governance/prompt-execution-log.md` | B3-R | Este bloco |
+| `docs/01-foundation/domain-decisions-pending.md`      | B3-R        | Commit B3-R |
+| `docs/00-governance/prompt-execution-log.md`          | B3-R        | Este bloco  |
 
 **ORFAOS DE SESSOES ANTERIORES: NENHUM ENCONTRADO.** Nao houve commit corretivo.
 
@@ -16382,13 +16417,13 @@ Quatro endpoints entregues:
 
 ### PRINCIPIO DE EXPOSICAO — COMO FOI CUMPRIDO
 
-| Fonte | Como foi consumida | Duplicacao? |
-| ----- | ------------------ | ----------- |
-| State machine | `TRANSITIONS` + `canTransition` | NAO — mapa lido, nao reimplementado |
-| RBAC | `AuthorizationRepository.listGrants` | NAO — nenhuma query de permissao escrita |
-| Escopo de OS | `ServiceOrdersAccessService.getById` | NAO — gate existente reutilizado |
-| Auditoria | `AuditTrailReadService` (contexto Platform) | NAO — leitura delegada ao dono do schema |
-| correlation-id | `resolveCorrelationId` existente | NAO |
+| Fonte          | Como foi consumida                          | Duplicacao?                              |
+| -------------- | ------------------------------------------- | ---------------------------------------- |
+| State machine  | `TRANSITIONS` + `canTransition`             | NAO — mapa lido, nao reimplementado      |
+| RBAC           | `AuthorizationRepository.listGrants`        | NAO — nenhuma query de permissao escrita |
+| Escopo de OS   | `ServiceOrdersAccessService.getById`        | NAO — gate existente reutilizado         |
+| Auditoria      | `AuditTrailReadService` (contexto Platform) | NAO — leitura delegada ao dono do schema |
+| correlation-id | `resolveCorrelationId` existente            | NAO                                      |
 
 ### BLOQUEIO ENCONTRADO E RESOLVIDO — VIOLACAO DE FRONTEIRA
 
@@ -16413,13 +16448,13 @@ que a suite unitaria detecta.
 
 ### ITENS DO PROMPT NAO EXECUTADOS COMO ESCRITOS (autorizados)
 
-| Item | Decisao | Autorizacao |
-| ---- | ------- | ----------- |
-| `TRANSITIONS` nao exportada | Exportada (1 palavra) porque o prompt exige catalogo vindo exclusivamente dela e proibe tocar `domain/`. Nenhum valor/assinatura/regra alterado. | Usuario autorizou |
-| 404 para OS fora de escopo (2d) | Entregue **403**, alinhado ao padrao vigente e testado do repositorio (`documents.e2e.spec.ts:317`, `contextual-scope.e2e.spec.ts:139`). 404 exigiria segundo caminho de autorizacao. | Usuario autorizou |
-| `nome`/`email` no `/me` | Retornam `null`: `identity.identities` nao possui essas colunas. Null declarado, nao inventado (Regra 5). | Usuario autorizou |
-| `escopo_ativo` no `/me` | Retorna `null`: nao existe vinculo persistido sessao->escopo em `authorization.grants`. | Usuario autorizou |
-| `requer_justificativa` | Retorna `false`: a state machine nao expoe essa informacao. O unico fluxo com justificativa obrigatoria e o reopen, que NAO e comando de `TRANSITIONS`. | Regra 4c do proprio prompt |
+| Item                            | Decisao                                                                                                                                                                               | Autorizacao                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `TRANSITIONS` nao exportada     | Exportada (1 palavra) porque o prompt exige catalogo vindo exclusivamente dela e proibe tocar `domain/`. Nenhum valor/assinatura/regra alterado.                                      | Usuario autorizou          |
+| 404 para OS fora de escopo (2d) | Entregue **403**, alinhado ao padrao vigente e testado do repositorio (`documents.e2e.spec.ts:317`, `contextual-scope.e2e.spec.ts:139`). 404 exigiria segundo caminho de autorizacao. | Usuario autorizou          |
+| `nome`/`email` no `/me`         | Retornam `null`: `identity.identities` nao possui essas colunas. Null declarado, nao inventado (Regra 5).                                                                             | Usuario autorizou          |
+| `escopo_ativo` no `/me`         | Retorna `null`: nao existe vinculo persistido sessao->escopo em `authorization.grants`.                                                                                               | Usuario autorizou          |
+| `requer_justificativa`          | Retorna `false`: a state machine nao expoe essa informacao. O unico fluxo com justificativa obrigatoria e o reopen, que NAO e comando de `TRANSITIONS`.                               | Regra 4c do proprio prompt |
 
 ### COMANDO EXATO DO TESTE + SAIDA LITERAL
 
@@ -16532,17 +16567,17 @@ Capturados em execucao real (AppModule + PostgreSQL real). `curl` equivalente:
 
 ### INVENTARIO COMPLETO DE ARQUIVOS (Tarefa 6)
 
-| Arquivo | Origem | Acao |
-| ------- | ------ | ---- |
-| `apps/api/src/audit/services/audit-trail-read.service.ts` | B4 (novo) | Commit 7a |
-| `apps/api/src/audit/audit.module.ts` | B4 | Commit 7a |
-| `apps/api/src/service-orders/domain/service-order.state-machine.ts` | B4 (1 palavra: `export`) | Commit 7b |
-| `apps/api/src/service-orders/services/service-order-metadata.repository.ts` | B4 (novo) | Commit 7b |
-| `apps/api/src/service-orders/services/service-order-metadata.service.ts` | B4 (novo) | Commit 7b |
-| `apps/api/src/service-orders/controllers/service-order-metadata.controller.ts` | B4 (novo) | Commit 7b |
-| `apps/api/src/service-orders/service-orders.module.ts` | B4 | Commit 7b |
-| `apps/api/src/service-orders/service-order-metadata.integration.spec.ts` | B4 (novo) | Commit 7c |
-| `docs/00-governance/prompt-execution-log.md` | B4 | Este bloco |
+| Arquivo                                                                        | Origem                   | Acao       |
+| ------------------------------------------------------------------------------ | ------------------------ | ---------- |
+| `apps/api/src/audit/services/audit-trail-read.service.ts`                      | B4 (novo)                | Commit 7a  |
+| `apps/api/src/audit/audit.module.ts`                                           | B4                       | Commit 7a  |
+| `apps/api/src/service-orders/domain/service-order.state-machine.ts`            | B4 (1 palavra: `export`) | Commit 7b  |
+| `apps/api/src/service-orders/services/service-order-metadata.repository.ts`    | B4 (novo)                | Commit 7b  |
+| `apps/api/src/service-orders/services/service-order-metadata.service.ts`       | B4 (novo)                | Commit 7b  |
+| `apps/api/src/service-orders/controllers/service-order-metadata.controller.ts` | B4 (novo)                | Commit 7b  |
+| `apps/api/src/service-orders/service-orders.module.ts`                         | B4                       | Commit 7b  |
+| `apps/api/src/service-orders/service-order-metadata.integration.spec.ts`       | B4 (novo)                | Commit 7c  |
+| `docs/00-governance/prompt-execution-log.md`                                   | B4                       | Este bloco |
 
 **ORFAOS DE SESSOES ANTERIORES: NENHUM ENCONTRADO.** Nao houve commit corretivo (7f).
 
@@ -16553,12 +16588,12 @@ Preservados conforme `AGENTS.md` regra 10.
 
 ### COMMITS CRIADOS (Tarefa 7)
 
-| Hash | Mensagem | Arquivos |
-| ---- | -------- | -------- |
-| `196cdb0` | `feat(audit): leitura do canal AUDIT_TRAIL por registro auditado` | `audit-trail-read.service.ts`, `audit.module.ts` |
-| `3c72ad4` | `feat(service-orders): endpoints meta de identidade, comandos e timeline` | `service-order.state-machine.ts`, `service-order-metadata.repository.ts`, `service-order-metadata.service.ts`, `service-order-metadata.controller.ts`, `service-orders.module.ts` |
-| `22743b4` | `test(service-orders): cobertura de integracao dos endpoints meta (10 casos)` | `service-order-metadata.integration.spec.ts` |
-| (doc) | `docs(governance): registra sessao B4` | `prompt-execution-log.md` |
+| Hash      | Mensagem                                                                      | Arquivos                                                                                                                                                                          |
+| --------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `196cdb0` | `feat(audit): leitura do canal AUDIT_TRAIL por registro auditado`             | `audit-trail-read.service.ts`, `audit.module.ts`                                                                                                                                  |
+| `3c72ad4` | `feat(service-orders): endpoints meta de identidade, comandos e timeline`     | `service-order.state-machine.ts`, `service-order-metadata.repository.ts`, `service-order-metadata.service.ts`, `service-order-metadata.controller.ts`, `service-orders.module.ts` |
+| `22743b4` | `test(service-orders): cobertura de integracao dos endpoints meta (10 casos)` | `service-order-metadata.integration.spec.ts`                                                                                                                                      |
+| (doc)     | `docs(governance): registra sessao B4`                                        | `prompt-execution-log.md`                                                                                                                                                         |
 
 ### CONFIRMACOES OBRIGATORIAS (Tarefa 8f)
 
@@ -16741,14 +16776,14 @@ em navegação, topbar, fundo, hierarquia visual e gramática de tabelas/cards c
 
 ### Arquivos alterados
 
-| Arquivo | Ação |
-| ------- | ---- |
+| Arquivo                                 | Ação                                                                                                       |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `apps/web/src/shell/AppShellLayout.tsx` | Sidebar mais larga e mais executiva, topbar/frame com espaçamento ajustado, fundo de aplicação menos plano |
-| `apps/web/src/shell/ShellTopBar.tsx` | Topbar mais densa, busca mais larga, comandos e menu com peso visual corporativo |
-| `apps/web/src/shell/ShellNavList.tsx` | Navegação lateral com seleção ativa mais clara, grupos mais legíveis e contraste refinado |
-| `apps/web/src/shell/shell.css` | Sombra/borda estrutural da sidebar e ajuste de breadcrumbs |
-| `apps/web/src/shell/module-layout.css` | Tabelas, toolbars e seções legadas mais densas, com bordas e raio menores |
-| `apps/web/src/ui/module-layout.tsx` | `ModuleTableCard` e classes de tabela alinhadas à gramática visual corporativa |
+| `apps/web/src/shell/ShellTopBar.tsx`    | Topbar mais densa, busca mais larga, comandos e menu com peso visual corporativo                           |
+| `apps/web/src/shell/ShellNavList.tsx`   | Navegação lateral com seleção ativa mais clara, grupos mais legíveis e contraste refinado                  |
+| `apps/web/src/shell/shell.css`          | Sombra/borda estrutural da sidebar e ajuste de breadcrumbs                                                 |
+| `apps/web/src/shell/module-layout.css`  | Tabelas, toolbars e seções legadas mais densas, com bordas e raio menores                                  |
+| `apps/web/src/ui/module-layout.tsx`     | `ModuleTableCard` e classes de tabela alinhadas à gramática visual corporativa                             |
 
 ### Validação
 
@@ -16975,9 +17010,9 @@ alterada; nenhum backend, API, migration, seed, permissão ou contrato tocado.
 
 ### Arquivos alterados
 
-| Arquivo | Papel |
-| ------- | ----- |
-| `apps/web/src/contracts/pages/ContractsCreatePage.tsx` | página do formulário |
+| Arquivo                                                    | Papel                         |
+| ---------------------------------------------------------- | ----------------------------- |
+| `apps/web/src/contracts/pages/ContractsCreatePage.tsx`     | página do formulário          |
 | `apps/web/src/contracts/components/ContractFormFields.tsx` | campos diretamente importados |
 
 ### Defeitos REAIS medidos (DOM renderizado, Chromium 1440x900, dev server real)
@@ -16994,14 +17029,14 @@ Um espaçador de fim de fluxo devolveu o vão, sem deslocar a primeira dobra.
 
 ### Evidência antes → depois
 
-| Medida | Antes | Depois |
-| ------ | ----- | ------ |
-| Campos cobertos pela barra | 1 (Moeda, 28px) | **0** |
-| Clique em "Moeda" | interceptado pela barra | **recebe foco; aceita digitação** |
-| Gaps rótulo→controle | 12 e 38 | **12 (uniforme)** |
-| Colunas da grade | 2/2/1/3/2 | **2/2/1/3/2 preservadas** |
-| `docOverflowX` / `clippedCount` | 0 / 0 | **0 / 0** |
-| `<h1>` / ação primária | 1 / 1 | **1 / 1** |
+| Medida                          | Antes                   | Depois                            |
+| ------------------------------- | ----------------------- | --------------------------------- |
+| Campos cobertos pela barra      | 1 (Moeda, 28px)         | **0**                             |
+| Clique em "Moeda"               | interceptado pela barra | **recebe foco; aceita digitação** |
+| Gaps rótulo→controle            | 12 e 38                 | **12 (uniforme)**                 |
+| Colunas da grade                | 2/2/1/3/2               | **2/2/1/3/2 preservadas**         |
+| `docOverflowX` / `clippedCount` | 0 / 0                   | **0 / 0**                         |
+| `<h1>` / ação primária          | 1 / 1                   | **1 / 1**                         |
 
 ### Alteração global REVERTIDA (decisão declarada)
 
@@ -17046,12 +17081,12 @@ Durante a revisão desta função foi **afirmado** que "status ACTIVE é apresen
 Essa afirmação era uma **inferência não verificada**, derivada do texto agregado da página, e
 estava **ERRADA**. A medição do DOM a refuta objetivamente:
 
-| Status | Badge | Passo com `aria-current="step"` | Realce |
-| ------ | ----- | ------------------------------- | ------ |
-| ACTIVE | Ativo | **Ativo** | `bg-brand-600 text-white` |
-| DRAFT | Rascunho | Rascunho | correto |
-| CLOSED | Encerrado | Encerrado | correto |
-| EXPIRED | Expirado | Expirado | correto |
+| Status  | Badge     | Passo com `aria-current="step"` | Realce                    |
+| ------- | --------- | ------------------------------- | ------------------------- |
+| ACTIVE  | Ativo     | **Ativo**                       | `bg-brand-600 text-white` |
+| DRAFT   | Rascunho  | Rascunho                        | correto                   |
+| CLOSED  | Encerrado | Encerrado                       | correto                   |
+| EXPIRED | Expirado  | Expirado                        | correto                   |
 
 No estado ACTIVE, `Encerrado` aparece apenas como o passo TERMINAL PENDENTE (`text-gray-500
 italic`), que é o futuro do ciclo de vida e não o estado corrente. A falha de leitura veio de
@@ -18648,15 +18683,15 @@ contrato de dados tocado. Nenhuma biblioteca nova instalada. Stack preservada.
 
 ### Subetapas executadas (serialmente, uma por vez)
 
-| # | Subetapa | Commit | Estado |
-| - | -------- | ------ | ------ |
-| 1 | Tokens, superficie, densidade, worklist, filtros | `0b7819b` | FROZEN |
-| 2 | Filtros + Saved Views | `e56a280` | FROZEN |
-| 3 | Object Experience | `08fcf13` | FROZEN |
-| 4 | Context Drawers | `593a41d` | FROZEN |
-| 5 | Forms | `3b8b423` | FROZEN |
-| 6 | States / Skeleton | `121ebfd` | FROZEN |
-| 7 | Command Surface | `9b02847` | FROZEN |
+| #   | Subetapa                                         | Commit    | Estado |
+| --- | ------------------------------------------------ | --------- | ------ |
+| 1   | Tokens, superficie, densidade, worklist, filtros | `0b7819b` | FROZEN |
+| 2   | Filtros + Saved Views                            | `e56a280` | FROZEN |
+| 3   | Object Experience                                | `08fcf13` | FROZEN |
+| 4   | Context Drawers                                  | `593a41d` | FROZEN |
+| 5   | Forms                                            | `3b8b423` | FROZEN |
+| 6   | States / Skeleton                                | `121ebfd` | FROZEN |
+| 7   | Command Surface                                  | `9b02847` | FROZEN |
 
 ### Alteracao aplicada
 
@@ -18689,11 +18724,11 @@ contrato de dados tocado. Nenhuma biblioteca nova instalada. Stack preservada.
 
 Medido por geometria, computed styles e `elementFromPoint` — nenhuma analise por imagem.
 
-| Rota | cardLike | dividers | occluded | docOverflowX | main/aside |
-| ---- | -------- | -------- | -------- | ------------ | ---------- |
-| `/app/clients` | 0 | 6 | 0 | -15 | — |
-| `/app/finance/receivables` | 0 | 5 | 0 | -15 | 3.69 |
-| `/app/clients/:id` | 0 | 3 | 0 | -15 | 3.31 |
+| Rota                       | cardLike | dividers | occluded | docOverflowX | main/aside |
+| -------------------------- | -------- | -------- | -------- | ------------ | ---------- |
+| `/app/clients`             | 0        | 6        | 0        | -15          | —          |
+| `/app/finance/receivables` | 0        | 5        | 0        | -15          | 3.69       |
+| `/app/clients/:id`         | 0        | 3        | 0        | -15          | 3.31       |
 
 - **Bug real encontrado e corrigido**: em `/app/finance/receivables` a coluna de trabalho tinha
   637px com 720px de conteudo e `overflow-x: visible`; os botoes "Prévia" das ultimas colunas
@@ -18746,10 +18781,10 @@ Retomada dos modulos sobre a Enterprise Visual Foundation congelada. Uma funcao 
 Nenhuma regra empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed,
 permissao ou contrato de dados tocado.
 
-| Funcao | Modulo | Classificacao | Commit | Estado |
-| ------ | ------ | ------------- | ------ | ------ |
-| Lista de fornecedores | Fornecedores | WORKLIST | `e1491a1` | FROZEN |
-| Lista de Pessoas | Pessoas | WORKLIST | `a64b100` | FROZEN |
+| Funcao                | Modulo       | Classificacao | Commit    | Estado |
+| --------------------- | ------------ | ------------- | --------- | ------ |
+| Lista de fornecedores | Fornecedores | WORKLIST      | `e1491a1` | FROZEN |
+| Lista de Pessoas      | Pessoas      | WORKLIST      | `a64b100` | FROZEN |
 
 ### Fornecedores — lista operacional
 
@@ -18762,12 +18797,12 @@ permissao ou contrato de dados tocado.
 
 Evidencia DOM (Chromium 1440x900, dev server real):
 
-| Metrica | Antes | Depois |
-| ------- | ----- | ------ |
-| Altura da pagina | 1675px | **1280px** |
-| Registros na primeira dobra | 5 | **7** |
-| Wrappers tipo card | 0 | 0 |
-| Overlap / overflow-x | 0 / 0 | 0 / 0 |
+| Metrica                     | Antes  | Depois     |
+| --------------------------- | ------ | ---------- |
+| Altura da pagina            | 1675px | **1280px** |
+| Registros na primeira dobra | 5      | **7**      |
+| Wrappers tipo card          | 0      | 0          |
+| Overlap / overflow-x        | 0 / 0  | 0 / 0      |
 
 ### Pessoas — lista operacional
 
@@ -18792,6 +18827,7 @@ Evidencia DOM: `occluded = 0`, `docOverflowX = 0`, `cardLike = 0`.
 
 Na primeira tentativa de Fornecedores, 3 testes falharam por regressao REAL introduzida pela
 propria alteracao:
+
 1. a faixa de registros passou a aparecer DUAS vezes (na barra de filtro e no rodape);
 2. a proxima acao ("Reativar para comprar") foi removida da celula de estado.
 
@@ -18823,10 +18859,10 @@ Continuidade da elevacao serial dos modulos sobre a foundation congelada.
 Nenhuma regra empresarial criada, promovida ou alterada; nenhum backend, API, migration, seed,
 permissao ou contrato de dados tocado.
 
-| Funcao | Modulo | Classificacao | Commit | Estado |
-| ------ | ------ | ------------- | ------ | ------ |
-| Carteira de clientes | Clientes | WORKLIST | `59deba9` | FROZEN |
-| Fila de solicitacoes | Solicitacoes | WORK QUEUE | `0542289` | FROZEN |
+| Funcao               | Modulo       | Classificacao | Commit    | Estado |
+| -------------------- | ------------ | ------------- | --------- | ------ |
+| Carteira de clientes | Clientes     | WORKLIST      | `59deba9` | FROZEN |
+| Fila de solicitacoes | Solicitacoes | WORK QUEUE    | `0542289` | FROZEN |
 
 ### Clientes — carteira
 
@@ -18850,13 +18886,13 @@ Alteracao:
 
 Evidencia depois:
 
-| Metrica | Antes | Depois |
-| ------- | ----- | ------ |
-| Altura de linha | 61–96px | **42–62px** |
-| Registros na primeira dobra | 8 | **11** |
-| Fundo da grade | 1588px | **1339px** |
-| Tamanhos de fonte crus | 9 tipos / 157 usos | **0** |
-| Overlap / overflow-x | 0 / 0 | 0 / 0 |
+| Metrica                     | Antes              | Depois      |
+| --------------------------- | ------------------ | ----------- |
+| Altura de linha             | 61–96px            | **42–62px** |
+| Registros na primeira dobra | 8                  | **11**      |
+| Fundo da grade              | 1588px             | **1339px**  |
+| Tamanhos de fonte crus      | 9 tipos / 157 usos | **0**       |
+| Overlap / overflow-x        | 0 / 0              | 0 / 0       |
 
 ### Solicitacoes — fila
 
@@ -18901,8 +18937,8 @@ STATUS: **PASS**
 
 ### Escopo executado
 
-| Funcao | Modulo | Classificacao | Commit | Estado |
-| ------ | ------ | ------------- | ------ | ------ |
+| Funcao                                      | Modulo            | Classificacao     | Commit    | Estado |
+| ------------------------------------------- | ----------------- | ----------------- | --------- | ------ |
 | Cockpit da carteira de OS + grade da engine | Ordens de Servico | WORKSPACE + GRADE | `b4f5d40` | FROZEN |
 
 Classificacao: **interpretacao de engenharia visual / experiencia operacional**.
@@ -18938,14 +18974,14 @@ uma tinha UMA linha de 18,5px. A causa nao era a celula:
 
 ### Evidencia depois
 
-| Metrica | Antes | Depois |
-| ------- | ----- | ------ |
-| Altura de linha | 105px (uniforme) | **35px** (uniforme) |
-| Cabecalho da grade | 61px | **29px** |
-| Wrappers tipo card | 2 | **0** |
-| Fundo da grade | 2044px | **1259px** |
-| Registros na primeira dobra | 0 | **4** |
-| Overlap / overflow-x | 0 / 0 | 0 / 0 |
+| Metrica                     | Antes            | Depois              |
+| --------------------------- | ---------------- | ------------------- |
+| Altura de linha             | 105px (uniforme) | **35px** (uniforme) |
+| Cabecalho da grade          | 61px             | **29px**            |
+| Wrappers tipo card          | 2                | **0**               |
+| Fundo da grade              | 2044px           | **1259px**          |
+| Registros na primeira dobra | 0                | **4**               |
+| Overlap / overflow-x        | 0 / 0            | 0 / 0               |
 
 ### Validacao
 
@@ -18988,14 +19024,14 @@ Commit: `733f239` — feat(web): rebuild clients as operational work area with r
 Recomposição de `/app/clients` de "lista de cadastros" para AREA OPERACIONAL. A mudança é
 estrutural e medida por DOM, não afirmada em prosa.
 
-| Modelo anterior | Modelo novo |
-| --------------- | ----------- |
+| Modelo anterior                        | Modelo novo                                                                                       |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | header → contadores → filtros → tabela | operating-header → saved-view-surface → command-filter-surface → worklist-master → context-region |
-| barra de filtros como formulário web | superfície única de comando/filtro, busca como comando principal |
-| Saved Views atrás de dropdown "Visões" | faixa própria, sempre visível, na work area |
-| drawer decorativo (eco da linha) | drawer com `GET /api/v1/clients/:id`, comando real e skeleton localizado |
-| badge verde em toda linha ativa | EXCEPTION-FIRST: selo e cor só na exceção |
-| página que rola inteira | superfície de trabalho STICKY; a fila é o conteúdo que rola |
+| barra de filtros como formulário web   | superfície única de comando/filtro, busca como comando principal                                  |
+| Saved Views atrás de dropdown "Visões" | faixa própria, sempre visível, na work area                                                       |
+| drawer decorativo (eco da linha)       | drawer com `GET /api/v1/clients/:id`, comando real e skeleton localizado                          |
+| badge verde em toda linha ativa        | EXCEPTION-FIRST: selo e cor só na exceção                                                         |
+| página que rola inteira                | superfície de trabalho STICKY; a fila é o conteúdo que rola                                       |
 
 ### Alteracao aplicada
 
@@ -19016,16 +19052,16 @@ estrutural e medida por DOM, não afirmada em prosa.
 Regiões medidas: `work-surface` top=149 h=182 `position: sticky`; `operating-header` 93px;
 `saved-view-surface` 47px; `command-filter-surface` 42px; `worklist-master` **902px**.
 
-| Criterio de aceite | Medido |
-| ------------------ | ------ |
-| "Abrir cadastro" repetido por linha | **0** |
-| Links por linha (só identidade) | **[1,1,1,1]** |
-| Selos em linhas normais (ruído) | **[0,0,0,0,0,0]** |
-| Worklist domina a área útil | 902px vs 182px de superfícies |
-| Clique na linha abre contexto | dialog "Contexto do cliente" |
-| Dado exclusivo do detalhe aparece | "Pedido de compra: Não exige" |
-| Fila preservada com painel aberto | `worklistStillMounted = true` |
-| Overlap / overflow-x | **0 / 0** |
+| Criterio de aceite                  | Medido                        |
+| ----------------------------------- | ----------------------------- |
+| "Abrir cadastro" repetido por linha | **0**                         |
+| Links por linha (só identidade)     | **[1,1,1,1]**                 |
+| Selos em linhas normais (ruído)     | **[0,0,0,0,0,0]**             |
+| Worklist domina a área útil         | 902px vs 182px de superfícies |
+| Clique na linha abre contexto       | dialog "Contexto do cliente"  |
+| Dado exclusivo do detalhe aparece   | "Pedido de compra: Não exige" |
+| Fila preservada com painel aberto   | `worklistStillMounted = true` |
+| Overlap / overflow-x                | **0 / 0**                     |
 
 ### Validacao
 
@@ -19037,6 +19073,7 @@ Regiões medidas: `work-surface` top=149 h=182 `position: sticky`; `operating-he
 ### Regressões causadas e corrigidas nesta rodada (registradas)
 
 Ao recompor, 12 testes falharam por contratos que a alteração quebrou:
+
 1. nome acessível da tabela renomeado para "Carteira de clientes" (contrato: "Lista de clientes");
 2. label do filtro avançado trocado (contrato: "Exigência de pedido de compra");
 3. nome acessível do painel trocado (contrato: "Contexto do cliente");
@@ -19088,19 +19125,19 @@ regiao de contexto, e um link primario "Abrir ficha" REPETIDO em toda linha.
 
 ### Evidencia DOM (Chromium 1440x900, dev server real)
 
-| Criterio | Medido |
-| -------- | ------ |
-| `work-surface` | `position: sticky`, h=166 |
-| operating-header / saved-view / command-filter | 78px / **46px** / 42px |
-| worklist-master | presente (regiao medida) |
-| "Abrir" repetido por linha | **0** |
-| Links por linha | **[1]** (so identidade) |
-| Selos em linha normal | **[0]** |
-| Clique na linha | dialog "Contexto da pessoa" |
-| Dado exclusivo do detalhe | Codigo `EMP-DEV-001`, Funcao `Operador` |
-| Comando real com motivo | `Motivo (obrigatorio para inativar)` + `Inativar pessoa` |
-| Fila preservada | `worklistStillMounted: true` |
-| Overlap / overflow-x | **0 / 0** |
+| Criterio                                       | Medido                                                   |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `work-surface`                                 | `position: sticky`, h=166                                |
+| operating-header / saved-view / command-filter | 78px / **46px** / 42px                                   |
+| worklist-master                                | presente (regiao medida)                                 |
+| "Abrir" repetido por linha                     | **0**                                                    |
+| Links por linha                                | **[1]** (so identidade)                                  |
+| Selos em linha normal                          | **[0]**                                                  |
+| Clique na linha                                | dialog "Contexto da pessoa"                              |
+| Dado exclusivo do detalhe                      | Codigo `EMP-DEV-001`, Funcao `Operador`                  |
+| Comando real com motivo                        | `Motivo (obrigatorio para inativar)` + `Inativar pessoa` |
+| Fila preservada                                | `worklistStillMounted: true`                             |
+| Overlap / overflow-x                           | **0 / 0**                                                |
 
 ### Limitacao registrada (nao ocultada)
 
@@ -19152,13 +19189,13 @@ painel de contexto ecoava a LINHA da fila, sem carregar o detalhe.
 
 ### Evidencia DOM (Chromium 1440x900, dev server real)
 
-| Regiao | top | altura |
-| ------ | --- | ------ |
-| `work-surface` (sticky) | 149 | 189 |
-| operating-header | 149 | 39 |
-| **saved-view-surface** | 246 | 46 |
-| command-filter-surface | 292 | 46 |
-| worklist-master | 338 | 1491 |
+| Regiao                  | top | altura |
+| ----------------------- | --- | ------ |
+| `work-surface` (sticky) | 149 | 189    |
+| operating-header        | 149 | 39     |
+| **saved-view-surface**  | 246 | 46     |
+| command-filter-surface  | 292 | 46     |
+| worklist-master         | 338 | 1491   |
 
 `occluded = 0`; `docOverflowX = -15`; ordem das regioes conforme a gramatica obrigatoria.
 
@@ -19207,12 +19244,12 @@ Categoria **A — WORKLIST** (workspace operacional com grade da engine). Contra
 
 ### Evidencia DOM (Chromium 1440x900, dev server real — 17 ordens carregadas)
 
-| Criterio | Medido |
-| -------- | ------ |
+| Criterio                | Medido                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
 | `data-region` presentes | work-surface, operating-header, saved-view-surface, bulk-command-surface, worklist-master, context-region |
-| Linhas carregadas | 17 |
-| Altura de linha | 35px |
-| Overlap / overflow-x | **0 / 0** |
+| Linhas carregadas       | 17                                                                                                        |
+| Altura de linha         | 35px                                                                                                      |
+| Overlap / overflow-x    | **0 / 0**                                                                                                 |
 
 ### RESTRICAO REGISTRADA (nao ocultada)
 
@@ -19266,20 +19303,20 @@ Categoria **A — WORKLIST**. Contrato verificado: `GET /finance/receivables/:id
 
 ### Evidencia DOM (Chromium 1440x900, dev server real)
 
-| Regiao | top | altura |
-| ------ | --- | ------ |
-| operating-header | 149 | 43 |
-| **saved-view-surface** | 276 | 43 |
-| command-filter-surface | 319 | 42 |
-| worklist-master | 391 | 429 |
+| Regiao                 | top | altura |
+| ---------------------- | --- | ------ |
+| operating-header       | 149 | 43     |
+| **saved-view-surface** | 276 | 43     |
+| command-filter-surface | 319 | 42     |
+| worklist-master        | 391 | 429    |
 
-| Criterio de aceite | Medido |
-| ------------------ | ------ |
-| Link repetido por linha ("Abrir cliente") | **0** |
-| Links por linha | **[0,0,0]** |
-| Overlap (hit test no centro real) | **0** |
-| Overflow horizontal | **0** (`docOverflowX = -15`) |
-| Linhas / altura de linha | 3 / 31px |
+| Criterio de aceite                        | Medido                       |
+| ----------------------------------------- | ---------------------------- |
+| Link repetido por linha ("Abrir cliente") | **0**                        |
+| Links por linha                           | **[0,0,0]**                  |
+| Overlap (hit test no centro real)         | **0**                        |
+| Overflow horizontal                       | **0** (`docOverflowX = -15`) |
+| Linhas / altura de linha                  | 3 / 31px                     |
 
 ### RESTRICAO REGISTRADA (nao ocultada)
 
@@ -19327,12 +19364,12 @@ Categoria **A — WORKLIST**. Contrato verificado: `GET /finance/payables/:id` (
 
 ### Evidencia DOM (Chromium 1440x900, dev server real)
 
-| Regiao | top | altura |
-| ------ | --- | ------ |
-| operating-header | 149 | 43 |
-| **saved-view-surface** | 276 | 43 |
-| command-filter-surface | 319 | 42 |
-| worklist-master | 391 | 154 |
+| Regiao                 | top | altura |
+| ---------------------- | --- | ------ |
+| operating-header       | 149 | 43     |
+| **saved-view-surface** | 276 | 43     |
+| command-filter-surface | 319 | 42     |
+| worklist-master        | 391 | 154    |
 
 `occluded = 0`; `docOverflowX = 0`.
 
@@ -19394,19 +19431,19 @@ Categoria **A — WORKLIST** (fila de decisão comercial, com dado real: 14 prop
 
 ### Evidencia DOM (Chromium 1440x900, dev server real, cache desabilitado)
 
-| Regiao | top | altura |
-| ------ | --- | ------ |
-| operating-header | 149 | 43 |
-| command-filter-surface | 237 | 48 |
-| worklist-master | 285 | 1569 |
+| Regiao                 | top | altura |
+| ---------------------- | --- | ------ |
+| operating-header       | 149 | 43     |
+| command-filter-surface | 237 | 48     |
+| worklist-master        | 285 | 1569   |
 
-| Criterio de aceite | Medido |
-| ------------------ | ------ |
-| "Abrir" repetido por linha | **0** |
-| Botoes repetidos por linha | **[]** (nenhum) |
+| Criterio de aceite                 | Medido                                   |
+| ---------------------------------- | ---------------------------------------- |
+| "Abrir" repetido por linha         | **0**                                    |
+| Botoes repetidos por linha         | **[]** (nenhum)                          |
 | Links da 1a linha (drillback real) | `PROP-2026-0B709E3F`, `SR-2026-4F7C5EA9` |
-| Linhas carregadas | **14** |
-| Overlap / overflow-x | 0 / `-15` |
+| Linhas carregadas                  | **14**                                   |
+| Overlap / overflow-x               | 0 / `-15`                                |
 
 ### RESTRICAO REGISTRADA — DENSIDADE NAO RESOLVIDA
 
@@ -19453,24 +19490,24 @@ Commit: `6e90eaf` — feat(web): recompose proposals rows and integrate saved vi
 
 ### Os 16 criterios, medidos por DOM
 
-| # | Criterio | Medido |
-| - | -------- | ------ |
-| 1 | Identidade principal clara | `PROP-2026-0B709E3F` |
-| 2 | Cliente subordinado | inline na identidade |
-| 3 | Titulo sem redundancia | 1 linha truncada |
-| 4 | Money | `formatMoney` |
-| 5 | Validade | `formatDateTime` |
-| 6 | Estado com baixo ruido | selo + passo, uma linha |
-| 7 | Proxima acao sem duplicar command | sem botao por linha |
-| 8 | "Abrir" repetido | **0** |
-| 9 | Row drillback real | linha abre contexto; codigo navega |
-| 10 | Saved Views | `saved-view-surface` top=237 h=42 |
-| 11 | Filtros server-side | preservados (URL -> servidor) |
-| 12 | Contexto preserva a fila | `ContextDrawer` |
-| 13 | Exception-first | chips so na excecao |
-| 14 | Overflow | `docOverflowX = -15` |
-| 15 | Overlap | `occluded = 0` |
-| 16 | Keyboard/focus | links reais; **0** botoes repetidos |
+| #   | Criterio                          | Medido                              |
+| --- | --------------------------------- | ----------------------------------- |
+| 1   | Identidade principal clara        | `PROP-2026-0B709E3F`                |
+| 2   | Cliente subordinado               | inline na identidade                |
+| 3   | Titulo sem redundancia            | 1 linha truncada                    |
+| 4   | Money                             | `formatMoney`                       |
+| 5   | Validade                          | `formatDateTime`                    |
+| 6   | Estado com baixo ruido            | selo + passo, uma linha             |
+| 7   | Proxima acao sem duplicar command | sem botao por linha                 |
+| 8   | "Abrir" repetido                  | **0**                               |
+| 9   | Row drillback real                | linha abre contexto; codigo navega  |
+| 10  | Saved Views                       | `saved-view-surface` top=237 h=42   |
+| 11  | Filtros server-side               | preservados (URL -> servidor)       |
+| 12  | Contexto preserva a fila          | `ContextDrawer`                     |
+| 13  | Exception-first                   | chips so na excecao                 |
+| 14  | Overflow                          | `docOverflowX = -15`                |
+| 15  | Overlap                           | `occluded = 0`                      |
+| 16  | Keyboard/focus                    | links reais; **0** botoes repetidos |
 
 Regioes (ordem da gramatica): operating-header 149 / saved-view 237 / command-filter 279 /
 worklist-master 327.
@@ -19505,14 +19542,14 @@ existem. Nao interpreta imagem.
 
 ### DEPOIS (medido agora, cache desabilitado)
 
-| # | Bloco | papel | top | altura | cards |
-| - | ----- | ----- | --- | ------ | ----- |
-| 1 | operating-header | `operating-header` | 149 | 43 | 0 |
-| 2 | faixa de decisao | `section` | 192 | 37 | 0 |
-| 3 | saved views | `saved-view-surface` | 237 | 42 | 0 |
-| 4 | comando/filtro | `command-filter-surface` | 279 | 48 | 0 |
-| 5 | fila | `worklist-master` | 327 | **882** | 0 |
-| 6 | paginacao | `nav` | 1209 | 34 | 0 |
+| #   | Bloco            | papel                    | top  | altura  | cards |
+| --- | ---------------- | ------------------------ | ---- | ------- | ----- |
+| 1   | operating-header | `operating-header`       | 149  | 43      | 0     |
+| 2   | faixa de decisao | `section`                | 192  | 37      | 0     |
+| 3   | saved views      | `saved-view-surface`     | 237  | 42      | 0     |
+| 4   | comando/filtro   | `command-filter-surface` | 279  | 48      | 0     |
+| 5   | fila             | `worklist-master`        | 327  | **882** | 0     |
+| 6   | paginacao        | `nav`                    | 1209 | 34      | 0     |
 
 - `gridOrTablePresent`: **false** — a funcao NAO e uma tabela generica;
 - `cards`: **0** — nenhuma cardification;
@@ -19544,14 +19581,14 @@ NAO acrescentar a gramatica nova sobre a antiga. A antiga foi SUBSTITUIDA.
 
 ### Duplicacao — criterio de aceite, contado no arquivo
 
-| Item | Contagem |
-| ---- | -------- |
-| `DynamicSavedViewsBar` | **1** |
-| `WorklistFilterBar` | **1** |
-| Containers de tabela | **1** |
+| Item                              | Contagem          |
+| --------------------------------- | ----------------- |
+| `DynamicSavedViewsBar`            | **1**             |
+| `WorklistFilterBar`               | **1**             |
+| Containers de tabela              | **1**             |
 | `RowActionCell` / `RowActionMenu` | **0** (removidos) |
-| `worklistTableCardClass` | **0** (removido) |
-| `data-region` | **4** |
+| `worklistTableCardClass`          | **0** (removido)  |
+| `data-region`                     | **4**             |
 
 Durante a recomposicao eu criei de fato uma abertura duplicada de Saved Views; ela foi corrigida e
 a contagem acima e a verificacao de que nao sobrou camada dupla.
@@ -19570,12 +19607,12 @@ a contagem acima e a verificacao de que nao sobrou camada dupla.
 
 ### Gate de gramatica (DOM, cache desabilitado)
 
-| # | Bloco | papel | top | altura | cards |
-| - | ----- | ----- | --- | ------ | ----- |
-| 1 | operating-header ("Pedidos de compra") | `operating-header` | 149 | 79 | 0 |
-| 2 | visoes salvas | `saved-view-surface` | 228 | 42 | 0 |
-| 3 | comando/filtro | `command-filter-surface` | 270 | 42 | 0 |
-| 4 | fila | `worklist-master` | 312 | **734** | 0 |
+| #   | Bloco                                  | papel                    | top | altura  | cards |
+| --- | -------------------------------------- | ------------------------ | --- | ------- | ----- |
+| 1   | operating-header ("Pedidos de compra") | `operating-header`       | 149 | 79      | 0     |
+| 2   | visoes salvas                          | `saved-view-surface`     | 228 | 42      | 0     |
+| 3   | comando/filtro                         | `command-filter-surface` | 270 | 42      | 0     |
+| 4   | fila                                   | `worklist-master`        | 312 | **734** | 0     |
 
 `cards: 0`; `regions: 4`; ordem = OPERATING HEADER -> SAVED VIEWS -> COMMAND/FILTER -> WORK QUEUE.
 A gramatica NAO e mais `breadcrumb -> titulo -> filtros -> tabela`.
@@ -19614,17 +19651,17 @@ camada compartilhada para que paginas **nunca editadas** mudem por heranca.
 
 ### Arquivos compartilhados alterados (9; +359 / -56)
 
-| Arquivo | Camada |
-| ------- | ------ |
-| `apps/web/src/ui/theme.css` | governanca global: superficie, raio, elevacao, divisores de regiao, densidade de grade, estados, foco |
-| `apps/web/src/shell/shell.css` | workspace canvas, moldura da pagina, faixa de orientacao, loading |
-| `apps/web/src/shell/AppShellLayout.tsx` | margem morta do work area |
-| `apps/web/src/ui/PageHeader.tsx` | faixa de identidade do workspace |
-| `apps/web/src/ui/Breadcrumb.tsx` | trilha de orientacao (wayfinding, nao titulo) |
-| `apps/web/src/ui/Badge.tsx` | token de estado na grade de densidade |
-| `apps/web/src/ui/enterprise-list.tsx` | superficie de comando / superficie de filtro |
-| `apps/web/src/ui/module-layout.tsx` | `FilterCard` -> superficie de filtro |
-| `apps/web/src/engine/DynamicFilterBar.tsx` | superficie de filtro |
+| Arquivo                                    | Camada                                                                                                |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `apps/web/src/ui/theme.css`                | governanca global: superficie, raio, elevacao, divisores de regiao, densidade de grade, estados, foco |
+| `apps/web/src/shell/shell.css`             | workspace canvas, moldura da pagina, faixa de orientacao, loading                                     |
+| `apps/web/src/shell/AppShellLayout.tsx`    | margem morta do work area                                                                             |
+| `apps/web/src/ui/PageHeader.tsx`           | faixa de identidade do workspace                                                                      |
+| `apps/web/src/ui/Breadcrumb.tsx`           | trilha de orientacao (wayfinding, nao titulo)                                                         |
+| `apps/web/src/ui/Badge.tsx`                | token de estado na grade de densidade                                                                 |
+| `apps/web/src/ui/enterprise-list.tsx`      | superficie de comando / superficie de filtro                                                          |
+| `apps/web/src/ui/module-layout.tsx`        | `FilterCard` -> superficie de filtro                                                                  |
+| `apps/web/src/engine/DynamicFilterBar.tsx` | superficie de filtro                                                                                  |
 
 ### Mudanca estrutural (nao cosmetica)
 
@@ -19658,31 +19695,31 @@ Instrumento: `tmp/foundation-canary-gate.mjs` (CDP, Chromium 1440x900, cache des
 real). "OFF" e EMULADO por stylesheet com os valores exatos anteriores a esta wave (padding de
 shell/moldura, margem de breadcrumb, fundo/borda/raio da moldura). **Nenhum stash, nenhum reset.**
 
-| Metrica | `/app/catalog` | `/app/suppliers/new` | `/app/finance/payables` |
-| ------- | -------------- | -------------------- | ----------------------- |
-| usable width ON/OFF | **1063 / 1007** | **1078 / 1022** | **1078 / 1022** |
-| dead margin lateral ON/OFF | **16 / 32** | **16 / 32** | **16 / 32** |
-| content padding left ON/OFF | **16 / 32** | **16 / 32** | **16 / 32** |
-| frame padding left ON/OFF | **12 / 24** | **12 / 24** | **12 / 24** |
-| frame bg/borda/raio ON | `transparent` / 0 / 0 | `transparent` / 0 / 0 | `transparent` / 0 / 0 |
-| frame bg/borda/raio OFF | `#fff` / 1 / 2 | `#fff` / 1 / 2 | `#fff` / 1 / 2 |
-| topo do cabecalho ON/OFF | **118 / 147** | **118 / 147** | **118 / 147** |
-| margem inferior do breadcrumb ON/OFF | **4 / 16** | **4 / 16** | **4 / 16** |
-| altura do cabecalho ON=OFF | 79 | 42 | 43 |
-| control height | 30 | 34 | 26 |
-| filter surface | **30** | — (sem filtro) | — (sem registro) |
-| grade: th / fonte / transform / thBg | **26px / 11px / uppercase / rgb(241,243,246)** | — | — |
-| grade: padding da celula | **2px** | — | — |
-| grade: altura de linha | 41 | — | — |
-| linhas / na dobra | **20 / 12** | — | — |
-| superficies: claras / contornadas / sombreadas / aninhamento | 1 / 0 / **0** / 0 | 0 / 0 / **0** / 0 | 3 / 1 / **0** / 1 |
-| regioes sticky | 5 (nenhuma acima da dobra) | 0 | 0 |
-| main/aside | 3,69 | 3,74 | 3,74 |
-| overflow horizontal | -15 (barra de rolagem) | 0 | 0 |
-| overlap (`elementFromPoint`, sem clamp) | **0** | **0** | **0** |
-| regua dupla | **0** | **0** | **0** |
-| regua sobre coluna | **0** | **0** | **0** |
-| erros de console | 0 | 0 | 0 |
+| Metrica                                                      | `/app/catalog`                                 | `/app/suppliers/new`  | `/app/finance/payables` |
+| ------------------------------------------------------------ | ---------------------------------------------- | --------------------- | ----------------------- |
+| usable width ON/OFF                                          | **1063 / 1007**                                | **1078 / 1022**       | **1078 / 1022**         |
+| dead margin lateral ON/OFF                                   | **16 / 32**                                    | **16 / 32**           | **16 / 32**             |
+| content padding left ON/OFF                                  | **16 / 32**                                    | **16 / 32**           | **16 / 32**             |
+| frame padding left ON/OFF                                    | **12 / 24**                                    | **12 / 24**           | **12 / 24**             |
+| frame bg/borda/raio ON                                       | `transparent` / 0 / 0                          | `transparent` / 0 / 0 | `transparent` / 0 / 0   |
+| frame bg/borda/raio OFF                                      | `#fff` / 1 / 2                                 | `#fff` / 1 / 2        | `#fff` / 1 / 2          |
+| topo do cabecalho ON/OFF                                     | **118 / 147**                                  | **118 / 147**         | **118 / 147**           |
+| margem inferior do breadcrumb ON/OFF                         | **4 / 16**                                     | **4 / 16**            | **4 / 16**              |
+| altura do cabecalho ON=OFF                                   | 79                                             | 42                    | 43                      |
+| control height                                               | 30                                             | 34                    | 26                      |
+| filter surface                                               | **30**                                         | — (sem filtro)        | — (sem registro)        |
+| grade: th / fonte / transform / thBg                         | **26px / 11px / uppercase / rgb(241,243,246)** | —                     | —                       |
+| grade: padding da celula                                     | **2px**                                        | —                     | —                       |
+| grade: altura de linha                                       | 41                                             | —                     | —                       |
+| linhas / na dobra                                            | **20 / 12**                                    | —                     | —                       |
+| superficies: claras / contornadas / sombreadas / aninhamento | 1 / 0 / **0** / 0                              | 0 / 0 / **0** / 0     | 3 / 1 / **0** / 1       |
+| regioes sticky                                               | 5 (nenhuma acima da dobra)                     | 0                     | 0                       |
+| main/aside                                                   | 3,69                                           | 3,74                  | 3,74                    |
+| overflow horizontal                                          | -15 (barra de rolagem)                         | 0                     | 0                       |
+| overlap (`elementFromPoint`, sem clamp)                      | **0**                                          | **0**                 | **0**                   |
+| regua dupla                                                  | **0**                                          | **0**                 | **0**                   |
+| regua sobre coluna                                           | **0**                                          | **0**                 | **0**                   |
+| erros de console                                             | 0                                              | 0                     | 0                       |
 
 Ganho medido por heranca, igual nas tres: **+56px de largura util**, margem morta lateral pela metade
 (32 -> 16), **29px recuperados antes do cabecalho do workspace**, moldura sem folha/borda/raio.
@@ -19691,11 +19728,11 @@ Ganho medido por heranca, igual nas tres: **+56px de largura util**, margem mort
 
 `tmp/foundation-states-gate.mjs` em `/app/catalog` (28 controles focaveis, 20 linhas):
 
-| Prova | OFF | ON |
-| ----- | --- | -- |
-| controle SEM indicacao propria | `outline-style: none` | **`solid 2px rgb(35,127,120)`** |
-| controle que declara `outline-none` (usa ring) | `none` | `none` (sem indicacao dobrada) |
-| linha de grade com alvo, `:hover` | `rgba(0,0,0,0)` | **`rgb(238,247,246)`** |
+| Prova                                          | OFF                   | ON                              |
+| ---------------------------------------------- | --------------------- | ------------------------------- |
+| controle SEM indicacao propria                 | `outline-style: none` | **`solid 2px rgb(35,127,120)`** |
+| controle que declara `outline-none` (usa ring) | `none`                | `none` (sem indicacao dobrada)  |
+| linha de grade com alvo, `:hover`              | `rgba(0,0,0,0)`       | **`rgb(238,247,246)`**          |
 
 ### Confirmacao de que NAO e "CRUD mais plano"
 
@@ -19764,10 +19801,10 @@ a tipografia global, a densidade global, row height, Saved Views nem a command s
 
 ### Arquivos alterados (2; +468 / -135)
 
-| Arquivo | Papel |
-| ------- | ----- |
-| `apps/web/src/proposals/pages/ProposalsListPage.tsx` | contexto autoritativo + contagem honesta |
-| `apps/web/src/engine/DynamicContextDrawer.tsx` | defeito de acessibilidade medido no gate (ver abaixo) |
+| Arquivo                                              | Papel                                                 |
+| ---------------------------------------------------- | ----------------------------------------------------- |
+| `apps/web/src/proposals/pages/ProposalsListPage.tsx` | contexto autoritativo + contagem honesta              |
+| `apps/web/src/engine/DynamicContextDrawer.tsx`       | defeito de acessibilidade medido no gate (ver abaixo) |
 
 ### ALVO 1 — CONTEXT REGION AUTORITATIVA
 
@@ -19794,13 +19831,13 @@ Motivo de rejeicao/cancelamento vai SÓ quando o operador digita (contrato os ma
 CONTRATO VERIFICADO (nao presumido): `ProposalListResponse = { items, limit, offset }` — **nao
 existe `total`**. Portanto nenhuma contagem global e possivel, e nenhuma foi inventada.
 
-| Antes | Depois |
-| ----- | ------ |
+| Antes                                                                                  | Depois                                                                                                                        |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | cabecalho com numero sem escopo; contexto dizia apenas "Decisao comercial pendente..." | contexto visivel: "Pagina N — decisao comercial por proposta. Esta lista nao publica total; a contagem acima e desta pagina." |
-| faixa `aria-label="Fila de decisao"` | `aria-label="Decisao nesta pagina"` |
-| "aguardando decisao" / "validade critica" | "aguardando decisao **nesta pagina**" / "validade critica **nesta pagina**" |
-| "{n} decididas no recorte" | "{n} decididas **nesta pagina**" |
-| tooltips afirmando o conjunto | tooltips delimitando a pagina e declarando que a API nao publica total |
+| faixa `aria-label="Fila de decisao"`                                                   | `aria-label="Decisao nesta pagina"`                                                                                           |
+| "aguardando decisao" / "validade critica"                                              | "aguardando decisao **nesta pagina**" / "validade critica **nesta pagina**"                                                   |
+| "{n} decididas no recorte"                                                             | "{n} decididas **nesta pagina**"                                                                                              |
+| tooltips afirmando o conjunto                                                          | tooltips delimitando a pagina e declarando que a API nao publica total                                                        |
 
 Nenhum KPI decorativo foi criado; a faixa continua sendo o mesmo recorte local, agora declarado.
 
@@ -19818,18 +19855,18 @@ Instrumento: `tmp/proposals-veracity-gate.mjs`. Amostra: 14 propostas reais; son
 (`/proposals/00000000-0000-4000-8000-*/...`, 404 por desenho) foram CLASSIFICADAS A PARTE para nao
 entrarem na prova.
 
-| # | Prova exigida | Resultado medido |
-| - | ------------- | ---------------- |
-| 1 | selecionar dispara detalhe real | **6 GET de detalhe** para 3 selecoes, com o id EXATO da linha clicada (`d5c5885b…`, `44c5dbf7…`, `1046d707…`) |
-| 2 | contexto usa payload de detalhe | `payloadCode = domCode = PROP-2026-DC14E998`; `globalSalePrice 7500` BRL → **"VALOR R$ 7.500,00"**; `versionNumber 1` → **"REVISAO Revisao 1"**; `nextStep AWAIT_CLIENT_DECISION` → **"Aguardar decisao do cliente"** |
-| 3 | loading so no contexto | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 14, worklistPresent: true}` |
-| 4 | worklist nao desmonta | `rows = 14` em TODOS os estados (e `1` com o recorte ISSUED aplicado) |
-| 5 | filtros permanecem | `filterPresent` e `savedViewPresent` = true em todos os estados |
-| 6 | scroll permanece | `260 → 260 → 260` (antes, apos selecionar, apos fechar) |
-| 7 | trocar selecao troca contexto | A `PROP-2026-B5C0D628` → B `PROP-2026-AD7BC889`, com novo GET do novo id |
-| 8 | fechar nao limpa a fila | `drawerPresent: false`, `contextRegionPresent: false`, `rows: 14`, filtros intactos |
-| 9 | nenhum dado inventado | `clientName` vazio no payload → **"Nao identificado neste acesso"** (nao inventa nome); `validUntil` nulo → "Sem validade" |
-| 10 | nenhuma capability inferida | `availableTransitions = [accept, reject, expire, cancel, revise]` → DOM `["Registrar aceite","Rejeitar","Marcar como expirada","Cancelar"]`; `everyCommandPublished: true`; `revise` ausente por decisao documentada |
+| #   | Prova exigida                   | Resultado medido                                                                                                                                                                                                      |
+| --- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | selecionar dispara detalhe real | **6 GET de detalhe** para 3 selecoes, com o id EXATO da linha clicada (`d5c5885b…`, `44c5dbf7…`, `1046d707…`)                                                                                                         |
+| 2   | contexto usa payload de detalhe | `payloadCode = domCode = PROP-2026-DC14E998`; `globalSalePrice 7500` BRL → **"VALOR R$ 7.500,00"**; `versionNumber 1` → **"REVISAO Revisao 1"**; `nextStep AWAIT_CLIENT_DECISION` → **"Aguardar decisao do cliente"** |
+| 3   | loading so no contexto          | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 14, worklistPresent: true}`                                                                                                                             |
+| 4   | worklist nao desmonta           | `rows = 14` em TODOS os estados (e `1` com o recorte ISSUED aplicado)                                                                                                                                                 |
+| 5   | filtros permanecem              | `filterPresent` e `savedViewPresent` = true em todos os estados                                                                                                                                                       |
+| 6   | scroll permanece                | `260 → 260 → 260` (antes, apos selecionar, apos fechar)                                                                                                                                                               |
+| 7   | trocar selecao troca contexto   | A `PROP-2026-B5C0D628` → B `PROP-2026-AD7BC889`, com novo GET do novo id                                                                                                                                              |
+| 8   | fechar nao limpa a fila         | `drawerPresent: false`, `contextRegionPresent: false`, `rows: 14`, filtros intactos                                                                                                                                   |
+| 9   | nenhum dado inventado           | `clientName` vazio no payload → **"Nao identificado neste acesso"** (nao inventa nome); `validUntil` nulo → "Sem validade"                                                                                            |
+| 10  | nenhuma capability inferida     | `availableTransitions = [accept, reject, expire, cancel, revise]` → DOM `["Registrar aceite","Rejeitar","Marcar como expirada","Cancelar"]`; `everyCommandPublished: true`; `revise` ausente por decisao documentada  |
 
 Gate da contagem: `shownCount` = `rows` nos dois recortes (`14/14` sem filtro, `1/1` com ISSUED); o
 texto visivel de escopo, a `aria-label` da faixa e os tooltips foram lidos do DOM.
@@ -19897,11 +19934,11 @@ O catálogo **não publica tabela de transições** (diferente de Propostas, que
 `readiness.availableTransitions`). A barreira da esquerda é o estado que o contrato já nomeia:
 `status` da linhaça (`CATALOG_LINEAGE_STATUSES`, 2 valores) e a existência de versão em `DRAFT`:
 
-| Comando | Estado publicado que o habilita | Motivo |
-| ------- | ------------------------------- | ------ |
-| `publish` | existe versão com situação `DRAFT` | publica a versão em rascunho |
-| `deactivate` | linhaça `ACTIVE` | `DeactivateDefinitionPayload.reason` é **obrigatório** |
-| `activate` | linhaça `INACTIVE` | sem motivo no contrato |
+| Comando      | Estado publicado que o habilita    | Motivo                                                 |
+| ------------ | ---------------------------------- | ------------------------------------------------------ |
+| `publish`    | existe versão com situação `DRAFT` | publica a versão em rascunho                           |
+| `deactivate` | linhaça `ACTIVE`                   | `DeactivateDefinitionPayload.reason` é **obrigatório** |
+| `activate`   | linhaça `INACTIVE`                 | sem motivo no contrato                                 |
 
 A barreira da direita é `capabilities.can{Publish,Deactivate,Activate}`. Onde o contrato exige
 motivo, a tela exige e o botão fica desabilitado sem ele; onde não exige, a tela **não** fabrica texto
@@ -19913,20 +19950,20 @@ a grade continuaria afirmando o estado anterior.
 Instrumento: `tmp/catalog-dom-gate.mjs`. Sondas de capability (`/service-definitions/00000000-…`, 404
 por desenho) classificadas à parte.
 
-| Prova | Resultado medido |
-| ----- | ---------------- |
-| ordem das regiões no DOM | `operating-header > saved-view-surface > command-filter-surface > worklist-master` e, com o painel aberto, `… > context-region` |
-| **tamanho REAL do dataset** | paginado com o próprio controle da tela: **p1=20, p2=20, p3=20, p4=10 → 70 registros**, `nextDisabled: true` na p4 |
-| contagem honesta | `shownCount = rows` em TODAS as páginas (20/20/20/10); rodapé "1–20 nesta página"; cabeçalho declara ausência de total |
-| leitura real no contexto | **4 GET de linhaça + 4 GET de versões** para 2 seleções (2 cada = duplo disparo de efeito em dev), com o id EXATO da linha clicada |
-| painel usa o payload | código, categoria ("Portfólio CISNE Rondônia") e "v1 publicada" conferidos contra o corpo da resposta |
-| loading só no painel | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 20, worklistPresent: true}` |
-| fila não desmonta | 20 linhas em todos os estados |
-| filtros e visões salvas | presentes em todos os estados |
-| scroll | `240 → 240 → 240` |
-| fechar não limpa a fila | painel e região somem; 20 linhas; filtros e visões intactos |
+| Prova                       | Resultado medido                                                                                                                                                                                                                       |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ordem das regiões no DOM    | `operating-header > saved-view-surface > command-filter-surface > worklist-master` e, com o painel aberto, `… > context-region`                                                                                                        |
+| **tamanho REAL do dataset** | paginado com o próprio controle da tela: **p1=20, p2=20, p3=20, p4=10 → 70 registros**, `nextDisabled: true` na p4                                                                                                                     |
+| contagem honesta            | `shownCount = rows` em TODAS as páginas (20/20/20/10); rodapé "1–20 nesta página"; cabeçalho declara ausência de total                                                                                                                 |
+| leitura real no contexto    | **4 GET de linhaça + 4 GET de versões** para 2 seleções (2 cada = duplo disparo de efeito em dev), com o id EXATO da linha clicada                                                                                                     |
+| painel usa o payload        | código, categoria ("Portfólio CISNE Rondônia") e "v1 publicada" conferidos contra o corpo da resposta                                                                                                                                  |
+| loading só no painel        | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 20, worklistPresent: true}`                                                                                                                                              |
+| fila não desmonta           | 20 linhas em todos os estados                                                                                                                                                                                                          |
+| filtros e visões salvas     | presentes em todos os estados                                                                                                                                                                                                          |
+| scroll                      | `240 → 240 → 240`                                                                                                                                                                                                                      |
+| fechar não limpa a fila     | painel e região somem; 20 linhas; filtros e visões intactos                                                                                                                                                                            |
 | nenhuma capability inferida | `Inativar` é o ÚNICO comando visível: habilitado porque `status = ACTIVE`, **desabilitado** porque o motivo obrigatório está vazio, e `Publicar rascunho` **não aparece** porque o payload de versões só tem `PUBLISHED` (sem `DRAFT`) |
-| densidade e defeitos | `rowHeights [41]`, 12 linhas na dobra, `shadows 0`, `boxes 0`, `aninhamento 0`, `régua dupla 0`, `régua sobre coluna 0`, `occluded 0`, `overflowX -15` |
+| densidade e defeitos        | `rowHeights [41]`, 12 linhas na dobra, `shadows 0`, `boxes 0`, `aninhamento 0`, `régua dupla 0`, `régua sobre coluna 0`, `occluded 0`, `overflowX -15`                                                                                 |
 
 ### Gates técnicos
 
@@ -19967,13 +20004,13 @@ Commit: `feat(web): give physical assets a real context region and drop per-row 
 Função escolhida por MEDIÇÃO, não por preferência. Antes de abrir a rodada, os endpoints candidatos
 foram consultados com a sessão real para saber onde existe dado que permita verificação por DOM:
 
-| Endpoint | Registros |
-| -------- | --------- |
-| `/commercial/contracts` | **0** |
-| `/inventory/items`, `/inventory/warehouses`, `/procurement/requests`, `/procurement/orders` | **0** |
-| `/finance/expenses`, `/finance/budgets` | 3 cada |
-| `/resources/physical-assets` | **8, com `total` autoritativo** |
-| `/requests/service-requests` | 17 (já elevada em rodada anterior) |
+| Endpoint                                                                                    | Registros                          |
+| ------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `/commercial/contracts`                                                                     | **0**                              |
+| `/inventory/items`, `/inventory/warehouses`, `/procurement/requests`, `/procurement/orders` | **0**                              |
+| `/finance/expenses`, `/finance/budgets`                                                     | 3 cada                             |
+| `/resources/physical-assets`                                                                | **8, com `total` autoritativo**    |
+| `/requests/service-requests`                                                                | 17 (já elevada em rodada anterior) |
 
 Contratos **não** têm registro no dataset de desenvolvimento: elevar a tela ali produziria uma rodada
 sem prova possível. Ativos foi escolhido por ter dado real E `total` autoritativo — o que permite uma
@@ -19981,11 +20018,11 @@ prova mais forte que a de Propostas e Catálogo.
 
 ### Arquivos alterados (3)
 
-| Arquivo | Papel |
-| ------- | ----- |
-| `apps/web/src/assets/pages/PhysicalAssetsListPage.tsx` | regiões, contexto autoritativo, comandos, remoção do menu de linha |
-| `apps/web/src/assets/components/AssetSummaryStrip.tsx` | nome acessível declarado por quem usa |
-| `apps/web/src/assets/pages/PhysicalAssetsListPage.test.tsx` | contrato reescrito para o novo padrão |
+| Arquivo                                                     | Papel                                                              |
+| ----------------------------------------------------------- | ------------------------------------------------------------------ |
+| `apps/web/src/assets/pages/PhysicalAssetsListPage.tsx`      | regiões, contexto autoritativo, comandos, remoção do menu de linha |
+| `apps/web/src/assets/components/AssetSummaryStrip.tsx`      | nome acessível declarado por quem usa                              |
+| `apps/web/src/assets/pages/PhysicalAssetsListPage.test.tsx` | contrato reescrito para o novo padrão                              |
 
 ### Defeitos corrigidos
 
@@ -20005,13 +20042,13 @@ prova mais forte que a de Propostas e Catálogo.
 Diferente de Propostas e Catálogo, `PhysicalAssetListResponse` publica **`total`**, e o resumo vem de
 endpoint próprio (`/physical-assets/summary`) — ou seja, **não é contagem de página**. Medido:
 
-| Fonte | Valor |
-| ----- | ----- |
-| corpo da listagem (`limit=20, offset=0`) | `total = 8`, `items = 8` |
-| corpo do summary | `{ total: 8, available: 0, allocated: 8, unavailable: 0 }` |
-| DOM | `rows = 8`, `shownCount = 8`, rodapé "1–8 de 8 ativos" |
-| `countMatchesPayload` | **true** |
-| `summaryTotalMatchesListTotal` | **true** |
+| Fonte                                    | Valor                                                      |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| corpo da listagem (`limit=20, offset=0`) | `total = 8`, `items = 8`                                   |
+| corpo do summary                         | `{ total: 8, available: 0, allocated: 8, unavailable: 0 }` |
+| DOM                                      | `rows = 8`, `shownCount = 8`, rodapé "1–8 de 8 ativos"     |
+| `countMatchesPayload`                    | **true**                                                   |
+| `summaryTotalMatchesListTotal`           | **true**                                                   |
 
 Nenhum número desta tela deriva da página carregada — e por isso nada aqui foi rotulado "nesta
 página": rotular de página um agregado de dataset seria errar na direção oposta.
@@ -20021,19 +20058,19 @@ página": rotular de página um agregado de dataset seria errar na direção opo
 Instrumento: `tmp/assets-dom-gate.mjs`. Sondas de capability (`/physical-assets/00000000-…`) e a
 listagem-sonda (`limit=1`, 204) classificadas à parte.
 
-| Prova | Resultado medido |
-| ----- | ---------------- |
-| ordem das regiões | `operating-header > command-filter-surface > worklist-master` e, com o painel aberto, `… > context-region` |
-| grade sem menu repetido | `actionsColumnPresent: false`, `rowsWithActionMenu: 0` |
-| leitura real no contexto | **16 GET de detalhe** para 8 seleções (2 cada = duplo disparo em dev), cada um com o **id exato** da linha clicada |
-| painel usa o payload | `payloadCode` de cada uma das 8 seleções confere com a linha clicada (`EXCAVATOR-…`, `TRUCK-…`, `WATER_TRUCK-…`) |
+| Prova                                | Resultado medido                                                                                                     |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| ordem das regiões                    | `operating-header > command-filter-surface > worklist-master` e, com o painel aberto, `… > context-region`           |
+| grade sem menu repetido              | `actionsColumnPresent: false`, `rowsWithActionMenu: 0`                                                               |
+| leitura real no contexto             | **16 GET de detalhe** para 8 seleções (2 cada = duplo disparo em dev), cada um com o **id exato** da linha clicada   |
+| painel usa o payload                 | `payloadCode` de cada uma das 8 seleções confere com a linha clicada (`EXCAVATOR-…`, `TRUCK-…`, `WATER_TRUCK-…`)     |
 | **comando segue o estado publicado** | 8 seleções, todas `ACTIVE`, **zero violações**: só `Inativar ativo`, nunca `Reativar ativo`, mais os três drillbacks |
-| loading só no painel | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 8, worklistPresent: true}` |
-| fila não desmonta | 8 linhas em todos os estados |
-| filtros | presentes em todos os estados |
-| fechar não limpa a fila | painel e região somem; 8 linhas; worklist e filtros intactos |
-| densidade | `rowHeights [47, 61]`, 8 linhas na dobra (dataset inteiro) |
-| defeitos | `shadows 0`, `boxes 0`, `aninhamento 0`, `régua dupla 0`, `régua sobre coluna 0`, `occluded 0`, `overflowX 0` |
+| loading só no painel                 | `{contextBusy: true, moduleLoading: false, rowsDuringLoading: 8, worklistPresent: true}`                             |
+| fila não desmonta                    | 8 linhas em todos os estados                                                                                         |
+| filtros                              | presentes em todos os estados                                                                                        |
+| fechar não limpa a fila              | painel e região somem; 8 linhas; worklist e filtros intactos                                                         |
+| densidade                            | `rowHeights [47, 61]`, 8 linhas na dobra (dataset inteiro)                                                           |
+| defeitos                             | `shadows 0`, `boxes 0`, `aninhamento 0`, `régua dupla 0`, `régua sobre coluna 0`, `occluded 0`, `overflowX 0`        |
 
 ### Gates técnicos
 
@@ -20103,20 +20140,20 @@ A faixa declarava escopo que não tem. Agora:
 Instrumento: `tmp/receivables-scope-gate.mjs`. O esperado de cada indicador foi derivado do PRÓPRIO
 corpo da resposta, não de regra nova.
 
-| Prova | Resultado |
-| ----- | --------- |
-| corpo da listagem | `total = 3`, `limit = 50`, `items = 3`, `statuses = [PAID, OVERDUE, PAID]` |
-| esperado do payload | vencidos 1 · a vencer 0 · recebidos 2 · em aberto 1 |
-| rótulo declara escopo de página | **true** |
-| rótulo publica o total do recorte | **true** |
-| total do rótulo = `payload.total` | **true** (3 = 3) |
-| valores do DOM = conteúdo da página | **true** nos quatro |
-| todo `hint` declara escopo | **true** |
-| todo `aria-label` declara escopo | **true** |
-| drill-downs preservados | `?status=OVERDUE`, `?status=OPEN`, `?status=PAID`, carteira |
-| contagem do cabeçalho = `payload.total` | **true** |
-| ordem das regiões | `operating-header > drilldown-surface > saved-view-surface > command-filter-surface > bulk-command-surface > worklist-master` |
-| erros de console | **0** |
+| Prova                                   | Resultado                                                                                                                     |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| corpo da listagem                       | `total = 3`, `limit = 50`, `items = 3`, `statuses = [PAID, OVERDUE, PAID]`                                                    |
+| esperado do payload                     | vencidos 1 · a vencer 0 · recebidos 2 · em aberto 1                                                                           |
+| rótulo declara escopo de página         | **true**                                                                                                                      |
+| rótulo publica o total do recorte       | **true**                                                                                                                      |
+| total do rótulo = `payload.total`       | **true** (3 = 3)                                                                                                              |
+| valores do DOM = conteúdo da página     | **true** nos quatro                                                                                                           |
+| todo `hint` declara escopo              | **true**                                                                                                                      |
+| todo `aria-label` declara escopo        | **true**                                                                                                                      |
+| drill-downs preservados                 | `?status=OVERDUE`, `?status=OPEN`, `?status=PAID`, carteira                                                                   |
+| contagem do cabeçalho = `payload.total` | **true**                                                                                                                      |
+| ordem das regiões                       | `operating-header > drilldown-surface > saved-view-surface > command-filter-surface > bulk-command-surface > worklist-master` |
+| erros de console                        | **0**                                                                                                                         |
 
 ### Gates técnicos
 
@@ -20140,7 +20177,7 @@ corpo da resposta, não de regra nova.
    existe) ainda não é usada. Registrado.
 3. **`settleReceivable` / `cancelReceivable` NÃO foram ligados à tela**, e o motivo é de contrato:
    `FinanceCapabilities` publica apenas `{ canListReceivables, canListPayables, canListTreasury,
-   canReadReconciliation }` — **não há flag de permissão para liquidar ou cancelar**. Ligar os
+canReadReconciliation }` — **não há flag de permissão para liquidar ou cancelar**. Ligar os
    comandos sem capability significaria oferecer ação cuja permissão a tela não conhece. Os dois
    exigem payload real (`settle`: `amount` + `idempotencyKey`; `cancel`: `cancelReason` obrigatório),
    e o cancelamento exige motivo digitado pelo operador. Pendência: ou o backend publica as flags, ou
@@ -20183,17 +20220,17 @@ mudou.**
 
 Instrumento: `tmp/expenses-scope-gate.mjs`. Esperado derivado do PRÓPRIO corpo da resposta.
 
-| Prova | Resultado |
-| ----- | --------- |
-| corpo da listagem | `total = 3`, `limit = 20`, `items = 3`, `statuses = [APPROVED, SUBMITTED, DRAFT]` |
-| esperado do payload | página 3 · enviadas 1 · rascunhos 1 · aprovadas 1 |
-| indicadores na faixa | **5** |
-| TODO `aria-label` declara escopo | **true** — `metricsWithoutScope: []` |
-| total do recorte exposto | **true** ("3 no recorte") |
-| contagem do cabeçalho = `payload.total` | **true** (3 = 3) |
-| valores do DOM = conteúdo da página | **true** nos quatro |
-| destinos preservados | `/app/finance/expenses`, `?status=SUBMITTED`, `?status=DRAFT`, `?status=APPROVED` |
-| erros de console | **0** |
+| Prova                                   | Resultado                                                                         |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| corpo da listagem                       | `total = 3`, `limit = 20`, `items = 3`, `statuses = [APPROVED, SUBMITTED, DRAFT]` |
+| esperado do payload                     | página 3 · enviadas 1 · rascunhos 1 · aprovadas 1                                 |
+| indicadores na faixa                    | **5**                                                                             |
+| TODO `aria-label` declara escopo        | **true** — `metricsWithoutScope: []`                                              |
+| total do recorte exposto                | **true** ("3 no recorte")                                                         |
+| contagem do cabeçalho = `payload.total` | **true** (3 = 3)                                                                  |
+| valores do DOM = conteúdo da página     | **true** nos quatro                                                               |
+| destinos preservados                    | `/app/finance/expenses`, `?status=SUBMITTED`, `?status=DRAFT`, `?status=APPROVED` |
+| erros de console                        | **0**                                                                             |
 
 ### Gates técnicos
 
@@ -20249,16 +20286,16 @@ declaração.
 
 ### Gate de DOM (mesmo instrumento da rodada 18, reexecutado)
 
-| Prova | Resultado |
-| ----- | --------- |
-| ordem das regiões no DOM | `operating-header > drilldown-surface > saved-view-surface > command-filter-surface > worklist-master` |
-| `pageHasRegionMarkers` | **true** (era `false` — lacuna fechada) |
-| superfícies presentes | visões salvas, filtro e fila: **true** |
-| escopo no `aria-label` dos 5 indicadores | **true** (`metricsWithoutScope: []`) |
-| total do recorte exposto / cabeçalho = `payload.total` | **true / true** (3 = 3) |
-| valores do DOM = conteúdo da página | **true** nos quatro |
-| destinos preservados | `?status=SUBMITTED`, `?status=DRAFT`, `?status=APPROVED` |
-| erros de console | **0** |
+| Prova                                                  | Resultado                                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| ordem das regiões no DOM                               | `operating-header > drilldown-surface > saved-view-surface > command-filter-surface > worklist-master` |
+| `pageHasRegionMarkers`                                 | **true** (era `false` — lacuna fechada)                                                                |
+| superfícies presentes                                  | visões salvas, filtro e fila: **true**                                                                 |
+| escopo no `aria-label` dos 5 indicadores               | **true** (`metricsWithoutScope: []`)                                                                   |
+| total do recorte exposto / cabeçalho = `payload.total` | **true / true** (3 = 3)                                                                                |
+| valores do DOM = conteúdo da página                    | **true** nos quatro                                                                                    |
+| destinos preservados                                   | `?status=SUBMITTED`, `?status=DRAFT`, `?status=APPROVED`                                               |
+| erros de console                                       | **0**                                                                                                  |
 
 As cinco provas de VERACIDADE da rodada 18 seguem passando depois da reordenação — a mudança de
 ordem não tocou nenhuma delas.
@@ -20312,17 +20349,17 @@ Correção: `SavedViewsBar` movido para ANTES do `BudgetSearchForm`, e as quatro
 
 ### Gate de DOM (REDE + DOM, CDP, cache desabilitado, servidor real)
 
-| Prova | Resultado |
-| ----- | --------- |
-| ordem das regiões no DOM | `operating-header > saved-view-surface > command-filter-surface > worklist-master` |
-| `savedViewsBeforeFilter` / `familyOrderFull` | **true / true** |
-| superfícies presentes | visões salvas, filtro e fila: **true** |
-| linhas = `items` do corpo | **true** (3 = 3) |
-| contagem do cabeçalho = `payload.total` | **true** (3 = 3) |
-| rodapé publica o total autoritativo | **true** ("1–3 de 3 · Página 1") |
-| `occluded` | **0** |
-| `overflowX` | **0** |
-| erros de console | **0** |
+| Prova                                        | Resultado                                                                          |
+| -------------------------------------------- | ---------------------------------------------------------------------------------- |
+| ordem das regiões no DOM                     | `operating-header > saved-view-surface > command-filter-surface > worklist-master` |
+| `savedViewsBeforeFilter` / `familyOrderFull` | **true / true**                                                                    |
+| superfícies presentes                        | visões salvas, filtro e fila: **true**                                             |
+| linhas = `items` do corpo                    | **true** (3 = 3)                                                                   |
+| contagem do cabeçalho = `payload.total`      | **true** (3 = 3)                                                                   |
+| rodapé publica o total autoritativo          | **true** ("1–3 de 3 · Página 1")                                                   |
+| `occluded`                                   | **0**                                                                              |
+| `overflowX`                                  | **0**                                                                              |
+| erros de console                             | **0**                                                                              |
 
 ### DEFEITO NO MEU PRÓPRIO INSTRUMENTO — e a correção vale mais que o número
 
@@ -20377,12 +20414,12 @@ Commit: `feat(web): put the fleet worklist in family region order`
 
 Antes de abrir a rodada, os candidatos restantes foram medidos com a sessão real:
 
-| Endpoint | Registros |
-| -------- | --------- |
+| Endpoint                                                        | Registros                       |
+| --------------------------------------------------------------- | ------------------------------- |
 | `/resources/physical-assets?classification=VEHICLE` (**Frota**) | **4, com `total` autoritativo** |
-| `/fiscal/documents`, `/fiscal/periods` | 0 |
-| `/accounting/charts`, `/accounting/posting-requests` | 0 |
-| `/accounting/fixed-assets` | 400 (exige outro parâmetro) |
+| `/fiscal/documents`, `/fiscal/periods`                          | 0                               |
+| `/accounting/charts`, `/accounting/posting-requests`            | 0                               |
+| `/accounting/fixed-assets`                                      | 400 (exige outro parâmetro)     |
 
 Frota foi escolhida por ter dado real. Fato de contrato registrado: `fleet-api.ts` **não tem endpoint
 próprio** — ele reusa `/api/v1/resources/physical-assets` com `classification=VEHICLE`. Frota e
@@ -20399,17 +20436,17 @@ declaradas — `operating-header > saved-view-surface > command-filter-surface >
 
 ### Gate de DOM (REDE + DOM, CDP, cache desabilitado, servidor real)
 
-| Prova | Resultado |
-| ----- | --------- |
-| ordem das regiões no DOM | `operating-header > saved-view-surface > command-filter-surface > worklist-master` |
-| `familyOrderFull` / `savedViewsBeforeFilter` | **true / true** |
-| superfícies presentes | **true** nas quatro |
-| barra de visões salvas | presente; `data-persisted-locally = true` |
-| linhas = `items` do corpo | **true** (4 = 4) |
-| contagem do cabeçalho = `payload.total` | **true** (4 = 4) |
-| rodapé publica o total autoritativo | **true** ("1–4 de 4 veículos") |
-| **toda linha é VEÍCULO** | **true** — `classifications = [VEHICLE]`, provando que a tela mostra o recorte que ela afirma |
-| `occluded` / `overflowX` / erros de console | **0 / 0 / 0** |
+| Prova                                        | Resultado                                                                                     |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| ordem das regiões no DOM                     | `operating-header > saved-view-surface > command-filter-surface > worklist-master`            |
+| `familyOrderFull` / `savedViewsBeforeFilter` | **true / true**                                                                               |
+| superfícies presentes                        | **true** nas quatro                                                                           |
+| barra de visões salvas                       | presente; `data-persisted-locally = true`                                                     |
+| linhas = `items` do corpo                    | **true** (4 = 4)                                                                              |
+| contagem do cabeçalho = `payload.total`      | **true** (4 = 4)                                                                              |
+| rodapé publica o total autoritativo          | **true** ("1–4 de 4 veículos")                                                                |
+| **toda linha é VEÍCULO**                     | **true** — `classifications = [VEHICLE]`, provando que a tela mostra o recorte que ela afirma |
+| `occluded` / `overflowX` / erros de console  | **0 / 0 / 0**                                                                                 |
 
 ### Erro do meu próprio instrumento, de novo — e registrado
 
@@ -20472,10 +20509,10 @@ encontrada na prática. Corrigir tela a tela reproduziria o problema na tela seg
 
 ### Correção em três camadas
 
-| Camada | Mudança |
-| ------ | ------- |
-| `auth/context/AuthProvider.tsx` | novo `useOptionalIdentityId(): string \| null` — acesso que **NÃO lança** fora do provider |
-| `engine/DynamicSavedViews.tsx` | `useSavedViews(owner: string \| null, entity)`; **sem dono, não lê e não grava**; novo campo `persistable` |
+| Camada                            | Mudança                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `auth/context/AuthProvider.tsx`   | novo `useOptionalIdentityId(): string \| null` — acesso que **NÃO lança** fora do provider                       |
+| `engine/DynamicSavedViews.tsx`    | `useSavedViews(owner: string \| null, entity)`; **sem dono, não lê e não grava**; novo campo `persistable`       |
 | `engine/DynamicSavedViewsBar.tsx` | `persistable=false` → a barra **declara** a indisponibilidade em vez de oferecer um "Salvar visão" que não salva |
 
 E **13 arquivos de página** atualizados: as 4 com o literal (`fleet`, `contracts`, `rentals`,
@@ -20487,14 +20524,14 @@ E **13 arquivos de página** atualizados: as 4 com o literal (`fleet`, `contract
 
 Instrumento: `tmp/saved-views-identity-gate.mjs`. A identidade esperada vem de `GET /auth/session`.
 
-| Prova | Resultado |
-| ----- | --------- |
-| identidade real da sessão | `6f007b51-e7de-494f-b34a-75c5955fb511` |
-| barra presente e formulário oferecido | **true / true** |
-| visão salva pelo caminho REAL da UI | **true** ("Verificação de identidade" aparece na barra) |
+| Prova                                            | Resultado                                               |
+| ------------------------------------------------ | ------------------------------------------------------- |
+| identidade real da sessão                        | `6f007b51-e7de-494f-b34a-75c5955fb511`                  |
+| barra presente e formulário oferecido            | **true / true**                                         |
+| visão salva pelo caminho REAL da UI              | **true** ("Verificação de identidade" aparece na barra) |
 | **chave de armazenamento usa a identidade real** | **true** — `cisne.saved-views.6f007b51-…fleet-vehicles` |
-| **nenhuma chave contém `local-operator`** | **true** |
-| erros de console | **0** |
+| **nenhuma chave contém `local-operator`**        | **true**                                                |
+| erros de console                                 | **0**                                                   |
 
 Verificação de fonte: `local-operator` **não existe mais em código vivo** — as únicas ocorrências
 restantes são comentários que documentam a remoção. `'anonymous'` saiu de todos os chamadores.
@@ -20601,9 +20638,9 @@ Commit: `docs(governance): close the operator saved-views owner gate and correct
 
 ### CORREÇÃO DE UMA AFIRMAÇÃO FALSA REGISTRADA NA RODADA 23
 
-A entrada anterior afirma: *"Chave da identidade conferida por cálculo independente:
+A entrada anterior afirma: _"Chave da identidade conferida por cálculo independente:
 `hashScope('6f007b51-…')` = `19scmwb`, replicado no gate a partir do algoritmo do módulo — a chave
-esperada era a certa"*.
+esperada era a certa"_.
 
 **Isso é FALSO e fica retificado.** A função real (`operator/smart-list/useSavedViews.ts`) inicializa
 `let hash = 5381` (djb2). O gate replicou com `hash = 0`, produziu o dono **errado** (`19scmwb`) e
@@ -20615,13 +20652,13 @@ vem catalogando.
 
 `PROVADO: lê a loja da identidade e NÃO lê a loja sem dono.`
 
-| Evidência | Valor |
-| --------- | ----- |
-| dono correto (djb2, semente 5381) | `12su0kw` |
-| chave semeada da identidade | `cisne:operator:views:v1:commercial.clients:12su0kw` |
-| chave semeada sem dono | `cisne:operator:views:v1:commercial.clients:anon` |
+| Evidência                             | Valor                                                |
+| ------------------------------------- | ---------------------------------------------------- |
+| dono correto (djb2, semente 5381)     | `12su0kw`                                            |
+| chave semeada da identidade           | `cisne:operator:views:v1:commercial.clients:12su0kw` |
+| chave semeada sem dono                | `cisne:operator:views:v1:commercial.clients:anon`    |
 | barra renderiza a visão da identidade | **true** — "VISAO DA IDENTIDADE" visível em "VISÕES" |
-| barra renderiza a visão anônima | **false** |
+| barra renderiza a visão anônima       | **false**                                            |
 
 ### TRÊS BLOQUEADORES, TODOS DO INSTRUMENTO — e nenhum do produto
 
@@ -20664,16 +20701,16 @@ Varredura estática de TODAS as páginas que renderizam uma barra de visões sal
 posição do bloco da barra com a do bloco de filtro. Resultado: **21 páginas usam a barra, 13 estão
 corretas e 8 estavam INVERTIDAS** — a barra DEPOIS do filtro.
 
-| Página | barra | filtro | Estado |
-| ------ | ----- | ------ | ------ |
-| `RentalsListPage` | 263 | 220 | **corrigida nesta rodada** |
-| `AccountingPostingOriginsPage` | 328 | 241 | invertida |
-| `ContractsListPage` | 326 | 273 | invertida |
-| `DocumentsPage` | 314 | 274 | invertida |
-| `BankReconciliationPage` | 646 | 576 | invertida |
-| `FiscalDocumentsPage` | 547 | 442 | invertida |
-| `InventoryPage` | 375 | 240 | invertida |
-| `ServiceOrdersEngineListPage` | 682 | 651 | invertida |
+| Página                         | barra | filtro | Estado                     |
+| ------------------------------ | ----- | ------ | -------------------------- |
+| `RentalsListPage`              | 263   | 220    | **corrigida nesta rodada** |
+| `AccountingPostingOriginsPage` | 328   | 241    | invertida                  |
+| `ContractsListPage`            | 326   | 273    | invertida                  |
+| `DocumentsPage`                | 314   | 274    | invertida                  |
+| `BankReconciliationPage`       | 646   | 576    | invertida                  |
+| `FiscalDocumentsPage`          | 547   | 442    | invertida                  |
+| `InventoryPage`                | 375   | 240    | invertida                  |
+| `ServiceOrdersEngineListPage`  | 682   | 651    | invertida                  |
 
 Isto encerra a contagem por tela: o defeito não estava em "seis telas" como eu vinha registrando por
 amostragem — eram **oito**, mais as seis já corrigidas nas rodadas anteriores.
@@ -20740,6 +20777,7 @@ COMMIT: docs log (postgres-hardening) - sem mudancas de codigo/migration.
 WORKING TREE: DIRTY (WIP preservado).
 NEXT: decisao de infra (roles/SSL/timeouts) + re-run quality gate.
 ```
+
 ---
 
 ## PROPAGAÇÃO DE CAPABILITIES ENTERPRISE — WORKLISTS FINANCEIRAS (rodada 26) — 2026-10-13
@@ -20751,10 +20789,10 @@ Commits: `c9b66b9d` (bulk bar), `c7c8d29a` (despesas/orçamentos)
 
 A varredura de capabilities nas 18 worklists mostrou duas lacunas reais, não hipotéticas:
 
-| Capability | Onde faltava |
-| ---------- | ------------ |
-| Processamento em lote | 17 de 18 worklists (só Ordens de serviço tinha) |
-| Filtro composto | Recebíveis, Pagáveis, Orçamentos, Despesas, Fornecedores |
+| Capability            | Onde faltava                                             |
+| --------------------- | -------------------------------------------------------- |
+| Processamento em lote | 17 de 18 worklists (só Ordens de serviço tinha)          |
+| Filtro composto       | Recebíveis, Pagáveis, Orçamentos, Despesas, Fornecedores |
 
 Antes de propagar, corrigi um defeito no PRIMITIVO que a propagação iria multiplicar.
 
@@ -20800,13 +20838,13 @@ para a leitura atual sem nova dependência por render.
 
 ### VALIDAÇÃO
 
-| Gate | Resultado |
-| ---- | --------- |
-| `pnpm lint` | PASS (4/4 tasks) |
-| `pnpm typecheck` | PASS (3/3 packages) |
-| Testes focados (despesas, orçamentos, operator) | 38/38 PASS |
-| `git diff --check` | PASS |
-| scripts gate / source-size ratchet | PASS |
+| Gate                                            | Resultado           |
+| ----------------------------------------------- | ------------------- |
+| `pnpm lint`                                     | PASS (4/4 tasks)    |
+| `pnpm typecheck`                                | PASS (3/3 packages) |
+| Testes focados (despesas, orçamentos, operator) | 38/38 PASS          |
+| `git diff --check`                              | PASS                |
+| scripts gate / source-size ratchet              | PASS                |
 
 As 12 falhas em `finance-backoffice`/`finance-smart-list` e as 39 do `Unit tests` do CI **reproduzem
 em árvore limpa com stash** (mesma contagem antes e depois), portanto são pré-existentes e não foram
@@ -20814,15 +20852,15 @@ mascaradas.
 
 ### DEPLOY (Railway, produção)
 
-| Item | Estado |
-| ---- | ------ |
-| Commit | `c7c8d29a5cf98d631ff904169edab920f5f9bfb1` |
-| `@cisne/web` build/deploy | SUCCESS (deployment criado pelo push) |
-| `@cisne/api` build/deploy | SKIPPED — "No changes to watched files" (correto: mudança só de web) |
-| Health API `ready`/`live` | 200 / 200 (`database up`) |
-| Health WEB | 200 |
-| Revisão ativa | confirmada: bundle `index-Bk6Ch_Q1.js` (o anterior `index-1WnaqygT.js` responde 404) |
-| Bundle contém a capability | "Enviar para aprovação", "Aprovar selecionados" e as 3 mensagens de lote parcial |
+| Item                       | Estado                                                                               |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| Commit                     | `c7c8d29a5cf98d631ff904169edab920f5f9bfb1`                                           |
+| `@cisne/web` build/deploy  | SUCCESS (deployment criado pelo push)                                                |
+| `@cisne/api` build/deploy  | SKIPPED — "No changes to watched files" (correto: mudança só de web)                 |
+| Health API `ready`/`live`  | 200 / 200 (`database up`)                                                            |
+| Health WEB                 | 200                                                                                  |
+| Revisão ativa              | confirmada: bundle `index-Bk6Ch_Q1.js` (o anterior `index-1WnaqygT.js` responde 404) |
+| Bundle contém a capability | "Enviar para aprovação", "Aprovar selecionados" e as 3 mensagens de lote parcial     |
 
 ### RESTRIÇÕES CONHECIDAS
 
@@ -20857,13 +20895,13 @@ contrato.
 
 ### O que foi implementado (backend real, sem mecanismo paralelo)
 
-| Camada | Mudança |
-| ------ | ------- |
-| Contrato | `finance/repositories/receivable-list-sql.ts` — allow-list + tradução por condição, reusando o parser genérico que os módulos comerciais já compartilham |
-| Repositório | `receivables.repository.ts` — o predicado composto entra como UM clause, por conjunção com escopo, situação, janela e busca |
-| Controller | valida contra o allow-list da entidade e converte filtro inválido em **400** (descartar em silêncio devolveria a lista inteira como se o recorte tivesse sido aplicado) |
-| Frontend | árvore convertida por `advancedFilterFromGroup` com spec que espelha o servidor; `byBuilder` deixou de refiltrar |
-| Banco | migration **0094** liga os marcadores `in_filter` no metadata store — sem eles o construtor não renderiza campo algum |
+| Camada      | Mudança                                                                                                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contrato    | `finance/repositories/receivable-list-sql.ts` — allow-list + tradução por condição, reusando o parser genérico que os módulos comerciais já compartilham                |
+| Repositório | `receivables.repository.ts` — o predicado composto entra como UM clause, por conjunção com escopo, situação, janela e busca                                             |
+| Controller  | valida contra o allow-list da entidade e converte filtro inválido em **400** (descartar em silêncio devolveria a lista inteira como se o recorte tivesse sido aplicado) |
+| Frontend    | árvore convertida por `advancedFilterFromGroup` com spec que espelha o servidor; `byBuilder` deixou de refiltrar                                                        |
+| Banco       | migration **0094** liga os marcadores `in_filter` no metadata store — sem eles o construtor não renderiza campo algum                                                   |
 
 **`status` fica FORA do allow-list composto, e a razão é de domínio:** o título não tem coluna de
 situação. O status que o operador lê é DERIVADO de lifecycle + liquidações + vencimento, e o filtro
@@ -20899,14 +20937,14 @@ descartada para que não seja reaberta.
 
 ### VALIDAÇÃO
 
-| Gate | Resultado |
-| ---- | --------- |
-| `pnpm lint` | PASS (4/4 tasks) |
-| `pnpm typecheck` | PASS (3/3 packages) |
-| Web financeiro | **90/90** (era 78/90 — as 12 falhas eram estas) |
-| API financeiro + test | 66/66, incluindo **13 testes novos** do contrato |
-| `git diff --check` | PASS |
-| scripts gate / source-size ratchet | PASS |
+| Gate                               | Resultado                                        |
+| ---------------------------------- | ------------------------------------------------ |
+| `pnpm lint`                        | PASS (4/4 tasks)                                 |
+| `pnpm typecheck`                   | PASS (3/3 packages)                              |
+| Web financeiro                     | **90/90** (era 78/90 — as 12 falhas eram estas)  |
+| API financeiro + test              | 66/66, incluindo **13 testes novos** do contrato |
+| `git diff --check`                 | PASS                                             |
+| scripts gate / source-size ratchet | PASS                                             |
 
 ### CI
 
@@ -20917,13 +20955,13 @@ dívida de gate restante, ainda não tratada.
 
 ### DEPLOY (Railway, produção)
 
-| Item | Estado |
-| ---- | ------ |
-| Commit | `61f4db52095f76835ace88c6ac5a99ca8373cce4` |
-| `@cisne/web` | **SUCCESS** |
-| `@cisne/api` | **SUCCESS** — pre-deploy aplicou a migration 0094 |
-| Health | API `ready` 200 (`database up`), API `live` 200, WEB `/health` 200 |
-| Revisão ativa | bundle `index-iI2-umc5.js` (o anterior responde **404**) |
+| Item          | Estado                                                             |
+| ------------- | ------------------------------------------------------------------ |
+| Commit        | `61f4db52095f76835ace88c6ac5a99ca8373cce4`                         |
+| `@cisne/web`  | **SUCCESS**                                                        |
+| `@cisne/api`  | **SUCCESS** — pre-deploy aplicou a migration 0094                  |
+| Health        | API `ready` 200 (`database up`), API `live` 200, WEB `/health` 200 |
+| Revisão ativa | bundle `index-iI2-umc5.js` (o anterior responde **404**)           |
 
 ### RESTRIÇÕES CONHECIDAS
 
@@ -20964,13 +21002,13 @@ executa. As duas telas agora declaram os seus, e cada um espelha o seu par no se
 
 ### Implementação
 
-| Camada | Mudança |
-| ------ | ------- |
-| Contrato | `finance/repositories/payable-list-sql.ts` — allow-list próprio + tradução por condição, pelo parser genérico já compartilhado |
-| Repositório | predicado composto como UM clause, por conjunção com escopo, situação, janela e busca |
-| Controller | valida contra o allow-list da entidade; filtro inválido vira **400**, nunca recorte ignorado |
-| Frontend | árvore convertida por `advancedFilterFromGroup` com `PAYABLE_TITLE_FILTER_SPECS` |
-| Banco | migration **0095** liga os marcadores `in_filter` |
+| Camada      | Mudança                                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Contrato    | `finance/repositories/payable-list-sql.ts` — allow-list próprio + tradução por condição, pelo parser genérico já compartilhado |
+| Repositório | predicado composto como UM clause, por conjunção com escopo, situação, janela e busca                                          |
+| Controller  | valida contra o allow-list da entidade; filtro inválido vira **400**, nunca recorte ignorado                                   |
+| Frontend    | árvore convertida por `advancedFilterFromGroup` com `PAYABLE_TITLE_FILTER_SPECS`                                               |
+| Banco       | migration **0095** liga os marcadores `in_filter`                                                                              |
 
 `status`/`lifecycle`, `counterparty_id` e `unit_id` ficam FORA pelos motivos já documentados em
 recebíveis: situação é derivada (não existe coluna) e contraparte/unidade já são o filtro simples e
@@ -20990,14 +21028,14 @@ lançava. Passou a mirar a coluna (`[data-field="external_reference"]`) — que 
 
 ### VALIDAÇÃO
 
-| Gate | Resultado |
-| ---- | --------- |
-| `pnpm lint` | PASS (4/4 tasks) |
-| `pnpm typecheck` | PASS (3/3 packages) |
-| Web financeiro | **93/93** |
-| API financeiro + test | 79/79, incluindo **13 testes novos** do contrato de pagáveis |
-| `git diff --check` | PASS |
-| scripts gate / source-size ratchet | PASS |
+| Gate                               | Resultado                                                    |
+| ---------------------------------- | ------------------------------------------------------------ |
+| `pnpm lint`                        | PASS (4/4 tasks)                                             |
+| `pnpm typecheck`                   | PASS (3/3 packages)                                          |
+| Web financeiro                     | **93/93**                                                    |
+| API financeiro + test              | 79/79, incluindo **13 testes novos** do contrato de pagáveis |
+| `git diff --check`                 | PASS                                                         |
+| scripts gate / source-size ratchet | PASS                                                         |
 
 ### CI
 
@@ -21007,12 +21045,12 @@ Nenhuma regressão; +3 testes passando em relação à rodada 27.
 
 ### DEPLOY (Railway, produção)
 
-| Item | Estado |
-| ---- | ------ |
-| Commit | `9a73b0cc4dc88a1d46b7496bd6f95984acf1a93c` |
-| `@cisne/api` | **SUCCESS** — pre-deploy aplicou a migration 0095 |
-| `@cisne/web` | **SUCCESS** |
-| Health | API `ready` 200 (`database up`), WEB `/health` 200 |
+| Item          | Estado                                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Commit        | `9a73b0cc4dc88a1d46b7496bd6f95984acf1a93c`                                                                                   |
+| `@cisne/api`  | **SUCCESS** — pre-deploy aplicou a migration 0095                                                                            |
+| `@cisne/web`  | **SUCCESS**                                                                                                                  |
+| Health        | API `ready` 200 (`database up`), WEB `/health` 200                                                                           |
 | Revisão ativa | bundle `index-SF0Q3JCO.js` (o anterior responde **404**); contém `originReference`, `costCenterCode` e o parâmetro `filters` |
 
 ### RESTRIÇÕES CONHECIDAS
@@ -21042,10 +21080,10 @@ paginação e contagem seguem coerentes com o recorte, e nada é refiltrado no n
 
 ### `status` ENTRA AQUI — e a diferença é de DOMÍNIO, não de gosto
 
-| Entidade | Situação | Recorte composto por situação |
-| -------- | -------- | ----------------------------- |
-| recebíveis / pagáveis | DERIVADA (lifecycle + liquidações + vencimento); **não há coluna** | excluída |
-| **orçamentos** | **COLUNA real** (`fin.budget_status`, ACTIVE/INACTIVE), já usada pelo filtro simples | **incluída** |
+| Entidade              | Situação                                                                             | Recorte composto por situação |
+| --------------------- | ------------------------------------------------------------------------------------ | ----------------------------- |
+| recebíveis / pagáveis | DERIVADA (lifecycle + liquidações + vencimento); **não há coluna**                   | excluída                      |
+| **orçamentos**        | **COLUNA real** (`fin.budget_status`, ACTIVE/INACTIVE), já usada pelo filtro simples | **incluída**                  |
 
 O teste fixa essa diferença em vez de assumir que as três telas são iguais — foi justamente copiar
 allow-list entre entidades que a rodada anterior recusou.
@@ -21061,23 +21099,23 @@ marcadores `in_filter`.
 
 ### VALIDAÇÃO
 
-| Gate | Resultado |
-| ---- | --------- |
-| `pnpm lint` | PASS (4/4 tasks) |
-| `pnpm typecheck` | PASS (3/3 packages) |
-| Web financeiro | **96/96** |
-| API financeiro + test | 79/79, com **14 testes novos** do contrato de orçamentos |
-| `git diff --check` | PASS |
-| scripts gate / journal coverage / source-size | PASS |
+| Gate                                          | Resultado                                                |
+| --------------------------------------------- | -------------------------------------------------------- |
+| `pnpm lint`                                   | PASS (4/4 tasks)                                         |
+| `pnpm typecheck`                              | PASS (3/3 packages)                                      |
+| Web financeiro                                | **96/96**                                                |
+| API financeiro + test                         | 79/79, com **14 testes novos** do contrato de orçamentos |
+| `git diff --check`                            | PASS                                                     |
+| scripts gate / journal coverage / source-size | PASS                                                     |
 
 ### DEPLOY (Railway, produção)
 
-| Item | Estado |
-| ---- | ------ |
-| Commit | `b799a8b2fd107aa2ba0e5267d7e57fccabd7cbbc` |
-| `@cisne/api` | **SUCCESS** — pre-deploy aplicou a migration 0096 |
-| `@cisne/web` | **SUCCESS** |
-| Health | API `ready` 200 (`database up`), WEB `/health` 200 |
+| Item          | Estado                                                   |
+| ------------- | -------------------------------------------------------- |
+| Commit        | `b799a8b2fd107aa2ba0e5267d7e57fccabd7cbbc`               |
+| `@cisne/api`  | **SUCCESS** — pre-deploy aplicou a migration 0096        |
+| `@cisne/web`  | **SUCCESS**                                              |
+| Health        | API `ready` 200 (`database up`), WEB `/health` 200       |
 | Revisão ativa | bundle `index-BVYvBSeI.js` (o anterior responde **404**) |
 
 ### RESTRIÇÕES CONHECIDAS
@@ -21233,7 +21271,6 @@ Autorização: solicitação explícita para abrir PR da branch `theme/midnight-
 2. Revisar capturas de tela das rotas principais antes do aceite visual.
 3. Tratar separadamente o mapeamento residual de `blue-*` e a recomposição do dashboard.
 
-
 ## CORREÇÃO DOS CONTRATOS DE TESTE DE UI DO PR 14 — 2026-10-16
 
 STATUS: **IN_PROGRESS** — correções candidatas; CI remoto ainda deve validar o novo SHA.
@@ -21303,7 +21340,6 @@ Evidência de execução: `master-business-bypass.e2e.spec.ts` 5/5 PASS; `advers
 
 Commit `07960ba7` no PR #120. Sondas temporárias de diagnóstico removidas; `packages/database/scripts/tmp-u.mjs` excluído.
 
-
 ## ORDEM DIRETA — ERP TIER 1 EXPERIENCE — 2026-10-29
 
 STATUS: **IN_PROGRESS**.
@@ -21333,7 +21369,6 @@ Validação local: browser gate structure 16/16; browser gate behavior 17/17; ve
 Readiness: `production-readiness-gate.md` permanece NO-GO por blockers de go-live independentes; `productionValidated=CONDITIONAL` não é GO. Evidência empresarial real observada previamente permanece ausente no recorte de produção; nenhum dado foi criado ou removido.
 
 Próxima ação: executar gates de lint/typecheck e validar o workflow no CI após publicar o delta. Não promover produção empresarial enquanto o read model não puder provar billing e Economic Trace completos.
-
 
 Atualização de publicação (2026-10-29): correção commitada localmente sobre `ca1b6e143ff76d485b9217c3a1d72b87fa3c5e80`, após rebase da branch de trabalho sobre o `main` que já continha a contribuição dos cinco arquivos UI. `git push -u origin HEAD` foi tentado e recusado pelo ambiente por falta de credencial GitHub interativa (`could not read Username for 'https://github.com': No such device or address`). CI/Release Ready/GHCR/Coolify/smoke/Chromium remotos não iniciados; produção não alterada. A classificação local condicional não constitui release publicada.
 
@@ -21407,7 +21442,6 @@ A suite WEB completa apresentou **1 falha variavel** — `service-requests.e2e`,
 3. Listagem de documento de origem (treasury) e de registro de ativo imobilizado — ABERTOS.
 4. Edicao de contrato de FOLHA nao existe no backend.
 
-
 ## MASTER 003 — SEGUNDA FRENTE: PERÍODO CONTÁBIL COMO REFERÊNCIA HUMANA — 2026-11-05
 
 Autorizacao: continuidade do objetivo MASTER 003 (rodada 2). Classificacao: interpretacao de engenharia sobre requisito confirmado.
@@ -21448,17 +21482,16 @@ Categoria de despesa e centro de custo sao cadastros **GLOBAIS** (sem `unit_id`)
 
 ### Estado dos PARK de referencia humana
 
-| Item | Estado |
-| --- | --- |
-| Centro de custo | FECHADO (1ª frente) |
-| Categoria de despesa | FECHADO (1ª frente) |
-| Periodo contabil/fiscal | FECHADO (esta frente) |
-| Documento de origem (treasury) | **ABERTO** |
-| Registro de ativo imobilizado | **ABERTO** |
+| Item                              | Estado                          |
+| --------------------------------- | ------------------------------- |
+| Centro de custo                   | FECHADO (1ª frente)             |
+| Categoria de despesa              | FECHADO (1ª frente)             |
+| Periodo contabil/fiscal           | FECHADO (esta frente)           |
+| Documento de origem (treasury)    | **ABERTO**                      |
+| Registro de ativo imobilizado     | **ABERTO**                      |
 | Pessoa juridica / estabelecimento | **PARK por decisao de produto** |
 
 Documento de origem e ativo imobilizado permanecem abertos e exigem modelagem propria; nao foram tocados para nao inventar contrato.
-
 
 ## MASTER 003 — TERCEIRA FRENTE: ORIGEM DO MOVIMENTO DE TESOURARIA — 2026-11-05
 
@@ -21482,9 +21515,9 @@ O `PARK` dizia "documento de origem sem endpoint de listagem". Havia **um defeit
 
 Nao existe "documento" generico. `originKind` determina **qual listagem autorizada responde**:
 
-| originKind | Listagem |
-| --- | --- |
-| `PAYABLE_PAYMENT` | `GET finance/payables` |
+| originKind              | Listagem                  |
+| ----------------------- | ------------------------- |
+| `PAYABLE_PAYMENT`       | `GET finance/payables`    |
 | `RECEIVABLE_SETTLEMENT` | `GET finance/receivables` |
 
 Sem tipo, a funcao devolve `[]` e **nao chama o servidor**. Buscar em todas as origens de uma vez ofereceria titulo de natureza errada — pagar uma conta a receber como se fosse a pagar inverte a direcao economica do lancamento.
@@ -21503,17 +21536,16 @@ O caso `reports every required field that is missing` esperava 4 campos ausentes
 
 ### Estado final dos PARK de referencia humana
 
-| Item | Estado |
-| --- | --- |
-| Centro de custo | FECHADO |
-| Categoria de despesa | FECHADO |
-| Periodo contabil/fiscal | FECHADO |
-| Documento de origem (treasury) | **FECHADO (esta frente)** |
-| Registro de ativo imobilizado | **ABERTO** |
+| Item                              | Estado                          |
+| --------------------------------- | ------------------------------- |
+| Centro de custo                   | FECHADO                         |
+| Categoria de despesa              | FECHADO                         |
+| Periodo contabil/fiscal           | FECHADO                         |
+| Documento de origem (treasury)    | **FECHADO (esta frente)**       |
+| Registro de ativo imobilizado     | **ABERTO**                      |
 | Pessoa juridica / estabelecimento | **PARK por decisao de produto** |
 
 Permanecem abertos: listagem de registro de ativo imobilizado (o `GET` existente e consulta por ativo operacional) e o gating de `issuer/establishments`, que e decisao de produto, nao de engenharia.
-
 
 ## MASTER 003 — QUARTA FRENTE: LISTAGEM DO REGISTRO DE ATIVO IMOBILIZADO — 2026-11-05
 
@@ -21528,6 +21560,7 @@ Efeito no produto: o operador de contabilidade nao tinha como descobrir quais re
 ### Entregue
 
 **Backend**
+
 - `FixedAssetAccountingRepository.list` e `.count`, sobre `buildFixedAssetFilter` compartilhado — listagem e contagem atravessam a MESMA funcao, entao `total` nao tem como divergir do conjunto paginado.
 - `FixedAssetAccountingAccessService.list` com `FixedAssetListResponse` (`{ items, limit, offset, total, totalPages }`, mesmo contrato das demais listagens). Cada linha e serializada **sem movimentos** (`movements: []`): carregar historico por linha seria N+1 e a tela de lista nao o exibe.
 - `AccountingAccessAuthz.assertFixedAssetList` via `assertListAccess`. Nao usa `assertAccountingAction` porque nao existe registro unico para compor contexto — a listagem e anterior a escolha. Sem este gate, quem nao tem concessao receberia `{ items: [], total: 0 }` em vez de 403.
@@ -21536,10 +21569,10 @@ Efeito no produto: o operador de contabilidade nao tinha como descobrir quais re
 
 **Contrato preservado.** A distincao e pela presenca de `operationalAssetId`, nao por rota nova:
 
-| Requisicao | Comportamento |
-| --- | --- |
+| Requisicao                       | Comportamento                              |
+| -------------------------------- | ------------------------------------------ |
 | `?unitId=X&operationalAssetId=Y` | registro DAQUELE ativo (anterior, intacto) |
-| `?unitId=X` | LISTA os registros da unidade (novo) |
+| `?unitId=X`                      | LISTA os registros da unidade (novo)       |
 
 ### Prova
 
@@ -21595,12 +21628,12 @@ Base medida: `fde3d448c4408030dce61a56a9d743ca42d8c3da` (`main`).
 
 ### Gates locais medidos
 
-| Gate | Comando | Resultado |
-| --- | --- | --- |
-| Instalação | `pnpm install --frozen-lockfile` | PASS |
-| Lint | `pnpm lint` | PASS — 4/4 tarefas |
-| Typecheck | `pnpm typecheck` | PASS — 3/3 tarefas |
-| Unit | `pnpm exec turbo run test` | PASS — 4/4 tarefas; API 1927 testes (299 arquivos), web 1476 (242), database 46 (8) |
+| Gate       | Comando                          | Resultado                                                                           |
+| ---------- | -------------------------------- | ----------------------------------------------------------------------------------- |
+| Instalação | `pnpm install --frozen-lockfile` | PASS                                                                                |
+| Lint       | `pnpm lint`                      | PASS — 4/4 tarefas                                                                  |
+| Typecheck  | `pnpm typecheck`                 | PASS — 3/3 tarefas                                                                  |
+| Unit       | `pnpm exec turbo run test`       | PASS — 4/4 tarefas; API 1927 testes (299 arquivos), web 1476 (242), database 46 (8) |
 
 Ressalva registrada: runner local com Node v22.23.4, enquanto `engines` exige `>=24.0.0 <25.0.0`. Equivalência com o runner conforme é `HIPÓTESE`, não comprovada. Os testes da API emitiram logs `ERROR` de `PlatformMetricsCollectorService` (coletor de métricas sem banco real) sem falhar teste; não investigado nesta rodada. Não executados: integração PostgreSQL, API E2E, Playwright/Visual Full local, HML, perf, UAT, readiness.
 
