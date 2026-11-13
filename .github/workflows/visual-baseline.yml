@@ -13,9 +13,14 @@ on:
         required: true
         default: 'accounting.visual finance.visual login.visual'
       exclude_specs:
-        description: 'Testes excluidos do baseline, formato spec:NN,NN (testes tem titulo "NN ..."). Baseline draft NAO inclui 08/10/11 ate #291 mergear e ser verificado.'
+        description: 'Testes excluidos do baseline, formato spec:NN,NN (testes tem titulo "NN ..."). Vazio = nenhum excluido.'
         required: false
-        default: 'accounting.visual:08,10,11'
+        # ERA 'accounting.visual:08,10,11' com a justificativa "ate #291 mergear e ser
+        # verificado". O #291 esta MERGED desde 2026-11-08, e os testes 08/10/11 (fechamentos,
+        # ativo imobilizado, central de fechamento) sao cobertos por fixtures reais desde
+        # de464efc/daef29ce. Manter a exclusao deixaria tres telas SEM baseline -- falha
+        # permanente no Visual Full por ausencia de referencia, nao por imagem errada.
+        default: ''
 
 permissions:
   contents: write
@@ -47,13 +52,64 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
+        # MESMAS FLAGS DO build-release / visual-full.yml / ci.yml (commit eacc631c).
+        #
+        # DEFEITO MEDIDO (run 43503895960, ja com o fix de shell): sem `VITE_FEATURE_MODULE_*`
+        # o bundle compila os 13 modulos DESLIGADOS (conservative-default, fail-closed) e o
+        # `GatedModulePage` substitui a tela. Resultado: 87 falhas com
+        # `getByRole('heading',{level:1,name:'Plano de contas'})` -> "element(s) not found"
+        # em /app/accounting/chart, e o mesmo em toda rota gated.
+        #
+        # Sem esta correcao o workflow gravaria como baseline a PAGINA DE MODULO DESLIGADO --
+        # congelando no repositorio uma interface que nao existe no produto. Corrigir as flags
+        # aqui e pre-requisito para qualquer atualizacao de snapshot.
+        #
+        # rentals e transport permanecem DESLIGADOS (STUB, sem backend real).
+        env:
+          VITE_CISNE_SURFACE: 'dev'
+          VITE_FEATURE_MODULE_FINANCE: 'true'
+          VITE_FEATURE_MODULE_FISCAL: 'true'
+          VITE_FEATURE_MODULE_ACCOUNTING: 'true'
+          VITE_FEATURE_MODULE_INVENTORY: 'true'
+          VITE_FEATURE_MODULE_PAYROLL: 'true'
+          VITE_FEATURE_MODULE_PROCUREMENT: 'true'
+          VITE_FEATURE_MODULE_SUPPLIERS: 'true'
+          VITE_FEATURE_MODULE_CONTRACTS: 'true'
+          VITE_FEATURE_MODULE_PEOPLE: 'true'
+          VITE_FEATURE_MODULE_ALERTS: 'true'
+          VITE_FEATURE_MODULE_REPORTS: 'true'
+          VITE_FEATURE_MODULE_APPROVAL_MATRIX: 'true'
+          VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true'
         run: pnpm build
       - name: Verify Playwright runtime and fonts
         run: node scripts/ci/visual-runtime-verify.mjs
       - name: Update snapshots (apenas os specs informados)
+        # O container playwright:v1.62.1-noble roda o `run` sob `sh` (dash), que NAO aceita
+        # `set -o pipefail` -- o step morria com "Illegal option -o pipefail" antes de gerar
+        # qualquer baseline. Mesmo padrao ja usado em visual-full.yml/ci.yml.
+        shell: bash
         env:
           SPECS: ${{ inputs.specs }}
           EXCLUDE: ${{ inputs.exclude_specs }}
+          # O `webServer` do playwright.config.ts roda `pnpm run build && pnpm run preview:visual`
+          # DENTRO deste step. Sem as flags aqui, o rebuild do servidor de preview sai com os
+          # modulos DESLIGADOS e o teste mede a tela fail-closed mesmo com o build anterior certo.
+          # visual-full.yml repete o mesmo env nos dois steps (Build e suite) por esta razao.
+          CI: 'true'
+          VITE_CISNE_SURFACE: 'dev'
+          VITE_FEATURE_MODULE_FINANCE: 'true'
+          VITE_FEATURE_MODULE_FISCAL: 'true'
+          VITE_FEATURE_MODULE_ACCOUNTING: 'true'
+          VITE_FEATURE_MODULE_INVENTORY: 'true'
+          VITE_FEATURE_MODULE_PAYROLL: 'true'
+          VITE_FEATURE_MODULE_PROCUREMENT: 'true'
+          VITE_FEATURE_MODULE_SUPPLIERS: 'true'
+          VITE_FEATURE_MODULE_CONTRACTS: 'true'
+          VITE_FEATURE_MODULE_PEOPLE: 'true'
+          VITE_FEATURE_MODULE_ALERTS: 'true'
+          VITE_FEATURE_MODULE_REPORTS: 'true'
+          VITE_FEATURE_MODULE_APPROVAL_MATRIX: 'true'
+          VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true'
         run: |
           set -euo pipefail
           files=""
@@ -69,6 +125,8 @@ jobs:
           cd apps/web
           pnpm exec playwright test $files "${grep_args[@]}" --update-snapshots --retries=0
       - name: Abrir PR draft com os PNGs
+        # Idem: `set -euo pipefail` exige bash. Sob dash o step falhava antes de commitar.
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF: ${{ inputs.ref }}
@@ -84,6 +142,31 @@ jobs:
           git add 'apps/web/e2e/**/*.png'
           git commit -m "test(visual): baseline regerado no container playwright:v1.62.1-noble (${SPECS}) a partir de ${REF}"
           git push origin "$branch"
-          gh pr create --draft --base main --head "$branch" \
-            --title "test(visual): baseline (${SPECS}) — DRAFT, revisar tela a tela" \
-            --body "Gerado por workflow_dispatch no container pinado a partir de \`${REF}\`. Revisar cada PNG antes de marcar ready. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          # `gh` NAO EXISTE no container playwright:v1.62.1-noble.
+          #
+          # MEDIDO (run 43506629526): o step morria em `gh pr create` com exit 127
+          # ("command not found") DEPOIS de ja ter empurrado o branch. Resultado: os PNGs
+          # existiam em `bot/visual-baseline-*` mas o PR draft de revisao NUNCA era aberto —
+          # quebrando a politica declarada no topo deste arquivo ("O PNG so existe depois de
+          # revisao humana do PR"). Sem superficie de revisao, a baseline acaba incorporada
+          # sem o passo de aprovacao previsto.
+          #
+          # Correcao minima: API REST do GitHub via curl + jq, ambos ja presentes na imagem.
+          # Sem dependencia nova, sem pipeline novo, sem gate afrouxado. `draft: true` mantido.
+          payload=$(jq -n \
+            --arg t "test(visual): baseline (${SPECS}) - DRAFT, revisar tela a tela" \
+            --arg h "$branch" \
+            --arg b "main" \
+            --arg body "Gerado por workflow_dispatch no container pinado a partir de ${REF}. Revisar CADA PNG antes de marcar ready. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{title: $t, head: $h, base: $b, draft: true, body: $body}')
+          code=$(curl -sS -o /tmp/pr-response.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -d "$payload" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/pulls")
+          if [ "$code" != "201" ]; then
+            echo "::error::Falha ao abrir PR draft (HTTP ${code}): $(cat /tmp/pr-response.json)"
+            exit 1
+          fi
+          echo "PR draft aberto: #$(jq -r '.number' /tmp/pr-response.json) $(jq -r '.html_url' /tmp/pr-response.json)"
