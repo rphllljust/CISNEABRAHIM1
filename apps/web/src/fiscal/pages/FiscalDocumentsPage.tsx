@@ -45,6 +45,7 @@ import {
   submitFiscalDocument,
 } from '../api/fiscal-api';
 import { mapFiscalErrorToMessage } from '../api/fiscal-error-messages';
+import { resolveFiscalDocumentUnitScope } from '../utils/fiscal-document-unit-scope';
 import { useOperationalUnits, OperationalUnitOptions } from '../../shell/hooks/useOperationalUnits';
 import { FinanceStatusBadge } from '../../finance/components/FinanceStatusBadge';
 import { ActivityTimeline, SavedViewsBar, useSmartList } from '../../operator';
@@ -254,7 +255,7 @@ function FiscalDocumentsList() {
    * fiscal, contabilidade e folha. Nenhum campo livre e nenhum identificador digitado.
    */
   const { units, options: unitOptions, unitId: defaultUnitId } = useOperationalUnits();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   /**
    * Drill-down da Mesa de Fechamento: `/app/fiscal/documents?status=REJECTED&unitId=...`.
@@ -265,27 +266,31 @@ function FiscalDocumentsList() {
    * enviado à API. A autorização continua no servidor, por unidade.
    */
   const unitFromQuery = searchParams.get('unitId') ?? '';
-  const [unitId, setUnitId] = useState(unitFromQuery);
+  const [unitId, setUnitId] = useState(() => resolveFiscalDocumentUnitScope(unitFromQuery, defaultUnitId));
   const [page, setPage] = useState(0);
-
-  // Link profundo sem unidade não obriga o operador a digitar nada: a primeira unidade
-  // visível para ele é selecionada, como já acontece nas demais listas de backoffice.
+  // Reconciliar a URL inclusive quando o parâmetro é removido pelo histórico do navegador.
+  // Sem isso a listagem mantinha um recorte anterior, apesar da URL indicar outra unidade.
   useEffect(() => {
-    if (!unitId && defaultUnitId) {
-      setUnitId(defaultUnitId);
-    }
-  }, [defaultUnitId, unitId]);
+    setUnitId(resolveFiscalDocumentUnitScope(unitFromQuery, defaultUnitId));
+  }, [unitFromQuery, defaultUnitId]);
 
   /**
    * A situação vive na URL e em visão salva (mecanismo compartilhado do operador): é o que
    * faz o Ctrl+K, a visão embutida e o drill-down abrirem a fila já recortada. Somente
    * valores enumerados entram — nenhum identificador de registro vai para a URL.
    */
+  // A sincronização genérica de SmartList remove parâmetros fora da allow-list,
+  // inclusive unitId. Nesta tela, situação e unidade são recortes independentes:
+  // ambos precisam sobreviver ao deep-link e à navegação do operador.
+  const statusFromQuery = searchParams.get('status') ?? '';
+  const validStatusFromQuery =
+    (STATUS_FILTERS as readonly string[]).includes(statusFromQuery) ? statusFromQuery : '';
   const smartList = useSmartList({
     scope: SCOPE,
     builtInViews: FISCAL_DOCUMENTS_BUILT_IN_VIEWS,
     allowedFilters: FISCAL_DOCUMENTS_ALLOWED_FILTERS,
-    urlSync: true,
+    initialFilters: validStatusFromQuery ? { status: validStatusFromQuery } : {},
+    urlSync: false,
   });
   const statusFilter = smartList.filters.status ?? '';
   // Só valor que é uma opção real do domínio vira filtro: token desconhecido no URL não é
@@ -293,11 +298,24 @@ function FiscalDocumentsList() {
   const status = (STATUS_FILTERS as readonly string[]).includes(statusFilter) ? statusFilter : '';
   const { setFilter } = smartList;
 
+  // Uma nova navegação na mesma rota também pode alterar o recorte de situação.
   useEffect(() => {
-    if (statusFilter !== status) {
-      setFilter('status', '');
+    if (statusFilter !== validStatusFromQuery) {
+      setFilter('status', validStatusFromQuery);
     }
-  }, [setFilter, status, statusFilter]);
+  }, [setFilter, statusFilter, validStatusFromQuery]);
+
+  // Atualiza somente o parâmetro gerenciado, mantendo unitId e o restante da URL.
+  const setFiscalStatus = useCallback((nextStatus: string) => {
+    const validated = (STATUS_FILTERS as readonly string[]).includes(nextStatus) ? nextStatus : '';
+    setFilter('status', validated);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (validated) next.set('status', validated);
+      else next.delete('status');
+      return next;
+    }, { replace: true });
+  }, [setFilter, setSearchParams]);
 
   /**
    * Competência: escolha humana alimentada pela lista REAL de períodos fiscais da unidade
@@ -358,8 +376,10 @@ function FiscalDocumentsList() {
           },
           signal,
         );
+        if (signal?.aborted) return;
         setState({ phase: 'ready', items: response.items, total: response.total, page: response.page });
       } catch (error) {
+        if (signal?.aborted) return;
         setState({
           phase: 'error',
           message:
@@ -401,10 +421,10 @@ function FiscalDocumentsList() {
   const activePeriod = periods.find((period) => period.periodKey === competence) ?? null;
 
   const clearFilters = useCallback(() => {
-    setFilter('status', '');
+    setFiscalStatus('');
     setCompetence('');
     setPage(0);
-  }, [setFilter]);
+  }, [setFiscalStatus]);
 
   return (
     <ModulePage layout="wide">
@@ -464,7 +484,14 @@ function FiscalDocumentsList() {
             className={worklistSelectClass}
             value={unitId}
             onChange={(event) => {
-              setUnitId(event.target.value);
+              const nextUnitId = event.target.value;
+              setUnitId(nextUnitId);
+              setSearchParams((current) => {
+                const next = new URLSearchParams(current);
+                if (nextUnitId) next.set('unitId', nextUnitId);
+                else next.delete('unitId');
+                return next;
+              }, { replace: true });
               setPage(0);
             }}
           >
@@ -529,7 +556,7 @@ function FiscalDocumentsList() {
             className={worklistSelectClass}
             value={status}
             onChange={(event) => {
-              setFilter('status', event.target.value);
+              setFiscalStatus(event.target.value);
               setPage(0);
             }}
           >
@@ -550,6 +577,16 @@ function FiscalDocumentsList() {
         activeViewId={smartList.activeViewId}
         onApply={(view) => {
           smartList.applyView(view);
+          // Preserva a identificação da visão salva: não chamar setFilter aqui,
+          // pois setFilter limparia activeViewId logo após aplicar a visão.
+          const nextStatus = view.config.filters.status ?? '';
+          const validated = (STATUS_FILTERS as readonly string[]).includes(nextStatus) ? nextStatus : '';
+          setSearchParams((current) => {
+            const next = new URLSearchParams(current);
+            if (validated) next.set('status', validated);
+            else next.delete('status');
+            return next;
+          }, { replace: true });
           setPage(0);
         }}
         onSave={smartList.savedViews.saveView}
