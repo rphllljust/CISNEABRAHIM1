@@ -64,7 +64,18 @@ test.describe('finance visual', () => {
      * A prova continua a mesma: a grade existe e mostra os registros do servidor.
      */
     await expect(page.getByRole('table').first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Operação 2026' })).toBeVisible();
+    /*
+     * A LINHA É O ACESSÍVEL, não o nome.
+     *
+     * Medido no DOM real da grade de Orçamentos: o link da linha publica
+     * `Abrir orçamento ORC-2026-OPER`, e o nome ("Operação 2026") é o CONTEÚDO da célula, não o
+     * nome do link. A asserção anterior exigia `link` nomeado "Operação 2026", o que a grade não
+     * publica — drift de spec.
+     *
+     * A prova continua: a linha do registro do servidor está na grade, com nome e código.
+     */
+    await expect(page.getByRole('link', { name: /Abrir orçamento ORC-2026-OPER/ })).toBeVisible();
+    await expect(page.getByText('Operação 2026', { exact: true })).toBeVisible();
     await expect(page.getByText('ORC-2026-MANUT')).toBeVisible();
     await expect(page.getByLabel(/identificador do orçamento/i)).toHaveCount(0);
     await assertNoPageLevelHorizontalOverflow(page);
