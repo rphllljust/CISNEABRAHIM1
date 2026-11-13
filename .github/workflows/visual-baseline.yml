@@ -51,6 +51,9 @@ jobs:
       - name: Verify Playwright runtime and fonts
         run: node scripts/ci/visual-runtime-verify.mjs
       - name: Update snapshots (apenas os specs informados)
+        # O container playwright roda `run` sob `sh` (dash), que nao aceita `set -o pipefail`
+        # (run 43503308219: "set: Illegal option -o pipefail"). Mesmo padrao de visual-full.yml.
+        shell: bash
         env:
           SPECS: ${{ inputs.specs }}
           EXCLUDE: ${{ inputs.exclude_specs }}
@@ -69,6 +72,8 @@ jobs:
           cd apps/web
           pnpm exec playwright test $files "${grep_args[@]}" --update-snapshots --retries=0
       - name: Abrir PR draft com os PNGs
+        # Idem: `set -euo pipefail` exige bash.
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REF: ${{ inputs.ref }}

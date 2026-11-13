@@ -21586,3 +21586,34 @@ Permanece **PARK por decisao de produto**: `issuer/establishments` — backend c
 - Inventário: `AppRoutes.tsx` registra 137 declarações / 136 caminhos únicos (130 `/app`); duas rotas receberam inspeção e patch; 134 permanecem sem evidência desta rodada. Detalhes em `master-010-route-inventory.md`.
 - Gates não comprovados nesta rodada: lint, typecheck, unit, PostgreSQL, API E2E, Playwright, Visual Full, HML, reconciliação real; não extrapolar resultados do PR #238 já mesclado.
 - Rastreabilidade: `docs/CISNE_FINISH_MATRIX.md`, `docs/00-governance/master-010-route-inventory.md`, PR #248.
+
+## RODADA AUTOMÁTICA DE CORREÇÃO DE CI — 2026-11-13 (20:46 UTC)
+
+Origem: rotina diária automatizada. Classificação: **interpretação de engenharia** sobre medição de gates. Nenhuma regra empresarial, autorização, migration, segredo ou baseline visual foi alterado; nenhuma ação sobre produção; nada mesclado ou publicado.
+
+Base medida: `fde3d448c4408030dce61a56a9d743ca42d8c3da` (`main`).
+
+### Gates locais medidos
+
+| Gate | Comando | Resultado |
+| --- | --- | --- |
+| Instalação | `pnpm install --frozen-lockfile` | PASS |
+| Lint | `pnpm lint` | PASS — 4/4 tarefas |
+| Typecheck | `pnpm typecheck` | PASS — 3/3 tarefas |
+| Unit | `pnpm exec turbo run test` | PASS — 4/4 tarefas; API 1927 testes (299 arquivos), web 1476 (242), database 46 (8) |
+
+Ressalva registrada: runner local com Node v22.23.4, enquanto `engines` exige `>=24.0.0 <25.0.0`. Equivalência com o runner conforme é `HIPÓTESE`, não comprovada. Os testes da API emitiram logs `ERROR` de `PlatformMetricsCollectorService` (coletor de métricas sem banco real) sem falhar teste; não investigado nesta rodada. Não executados: integração PostgreSQL, API E2E, Playwright/Visual Full local, HML, perf, UAT, readiness.
+
+### CI remoto na `main` (SHA `fde3d448`)
+
+CI, HML isolated end-to-end, Coolify Release Images e Production TLS hardening: `success`. **Falhando:** Visual full (schedule, 2026-11-13T12:16Z), Production Business Evidence (2026-11-13T17:45Z) e Visual baseline (dispatch, 2026-11-13T20:37Z).
+
+### Corrigido nesta rodada
+
+- **Visual baseline (dispatch), run 43503308219:** o job `Gerar baseline no container` falhou com `set: Illegal option -o pipefail` (container roda `run` sob `sh`/dash). Correção: `shell: bash` nos dois steps com `set -euo pipefail` em `.github/workflows/visual-baseline.yml`. Mesmo padrão de `visual-full.yml`. Correção mínima de workflow; nenhum limiar, teste ou PNG tocado. Validação local: YAML válido e Prettier OK; o efeito real só é comprovável por novo `workflow_dispatch`, **não executado** por esta rotina. A branch `fix/visual-baseline-workflow-shell-20261113` do responsável contém o mesmo ajuste empilhado sobre o PR #323 (sem PR próprio) e também altera o default `exclude_specs`; esse segundo ponto **não** foi replicado aqui por ser decisão do responsável.
+
+### Pendente (não corrigido por esta rotina)
+
+- **Visual Full (`main` e PR #323):** 150 testes falhando em 2026-11-12 (ver rodada anterior); a causa predominante é divergência de geometria entre baseline e captura. Já tratado pelos PRs do responsável (#323, #322, #319, #318, #315, #313 e outros); corrigir exigiria mexer em baselines em bloco ou duplicar PRs existentes. O CI do PR #323 (run 43497931085) falha em `Visual full` e `Release ready` (esta última, provavelmente consequência do primeiro; não confirmado).
+- **Production Business Evidence:** job `Authenticated read-only business evidence` falha após `Runtime SHA and authenticated smoke passed`; o artefato `business-attestation.json` não é gerado. Estado/evidência de produção, não defeito de código reproduzível; conforme PR #301, evidência recusada deve permanecer FAIL. Decisão do dono do projeto.
+- Default `exclude_specs` do baseline (`accounting.visual:08,10,11`): decisão do responsável.
