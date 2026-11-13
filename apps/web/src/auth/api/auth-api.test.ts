@@ -54,6 +54,23 @@ describe('auth-api', () => {
     expect(getApiBaseUrl()).toBe('https://api.runtime.example');
   });
 
+  it('uses same-origin API when production configuration is missing or malformed', () => {
+    const production = { isDev: false, browserHostname: 'cisne.example.test' };
+    expect(buildApiBaseUrlCandidates(undefined, production)).toEqual(['']);
+    expect(buildApiBaseUrlCandidates('', production)).toEqual(['']);
+    expect(buildApiBaseUrlCandidates('not a valid absolute URL', production)).toEqual(['']);
+  });
+
+  it('rejects non-HTTP URL schemes instead of requesting an invalid origin', () => {
+    const production = { isDev: false, browserHostname: 'cisne.example.test' };
+    for (const invalid of ['javascript:alert(1)', 'data:text/plain,hello', 'file:///tmp/private']) {
+      expect(buildApiBaseUrlCandidates(invalid, production)).toEqual(['']);
+    }
+    expect(buildApiBaseUrlCandidates('https://api.cisne.example.test/v1', production)).toEqual([
+      'https://api.cisne.example.test',
+    ]);
+  });
+
   it('prefers vite proxy for LAN browser access before direct API host', () => {
     const candidates = buildApiBaseUrlCandidates('http://localhost:3000', {
       isDev: true,
