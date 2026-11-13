@@ -16,8 +16,31 @@ const WorkspaceContext = createContext<{
   setOpen: (id: string, open: boolean) => void;
 } | null>(null);
 
-/** One dock per page; portals preserve the caller's data, commands and React context. */
-export function WorkspaceContextHost({ children }: { children: ReactNode }) {
+/**
+ * One dock per page; portals preserve the caller's data, commands and React context.
+ *
+ * `stretchContent` — VARIANTE EXPLÍCITA DA GRADE.
+ *
+ * O `<main>` de `ModulePage layout="workspace"` recebe a altura disponível (804px em 1600x900) e
+ * esta grade já dimensiona a linha corretamente (`gridTemplateRows: 804px`). Faltava a CÉLULA
+ * herdar essa altura: com `items-start`, cada célula é medida pelo próprio CONTEÚDO.
+ *
+ * Esse comportamento é CORRETO para telas de conteúdo longo — medido no Painel operacional, cujo
+ * conteúdo tem 1350px dentro de uma grade de 804px e precisa transbordar. Forçá-lo a esticar
+ * comprime a composição e a coluna de contexto SOBREPÕE a fila (clique em "Fechar contexto"
+ * interceptado por `Fila prioritária`, 3/3 execuções).
+ *
+ * As worklists de conteúdo curto — Contas a receber e Contas a pagar — declaram `stretchContent`
+ * e o esticamento fica ESCOPADO nesta grade. O Dashboard não declara e mantém o comportamento
+ * aprovado. Rejeitados por medição: `items-stretch` no container e `self-stretch` na célula.
+ */
+export function WorkspaceContextHost({
+  children,
+  stretchContent = false,
+}: {
+  children: ReactNode;
+  stretchContent?: boolean;
+}) {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [panels, setPanels] = useState<ReadonlySet<string>>(new Set());
   const setOpen = useCallback((id: string, open: boolean) => {
@@ -35,17 +58,31 @@ export function WorkspaceContextHost({ children }: { children: ReactNode }) {
       <div
         className={cn(
           'grid min-h-0 min-w-0 flex-1 items-start',
+          stretchContent && 'grid-rows-[minmax(0,1fr)]',
           panels.size > 0 && 'xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-4',
         )}
         data-layout="context-workbench"
         data-context-open={panels.size > 0}
+        data-stretch-content={stretchContent ? 'true' : undefined}
       >
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
+        {/*
+          A CÉLULA ESTICA SÓ QUANDO A TELA DECLARA.
+          O `<aside>` do dock mantém `self-start`: continua encolhido ao próprio conteúdo e fora
+          do caminho de cliques da bancada.
+        */}
+        <div
+          className={cn(
+            'flex min-h-0 min-w-0 flex-1 flex-col',
+            stretchContent && 'self-stretch',
+          )}
+        >
+          {children}
+        </div>
         <aside
           ref={setHost}
           hidden={panels.size === 0}
           aria-label="Contexto da seleção"
-          className="sticky top-3 min-h-0 max-h-[calc(100dvh-7rem)] overflow-y-auto border-l border-[var(--erp-border)] bg-white"
+          className="sticky top-3 min-h-0 max-h-[calc(100dvh-7rem)] self-start overflow-y-auto border-l border-[var(--erp-border)] bg-white"
         />
       </div>
     </WorkspaceContext.Provider>
