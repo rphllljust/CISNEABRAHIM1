@@ -66,7 +66,24 @@ async function measure(page: Page) {
   return page.evaluate(() => {
     const doc = document.documentElement;
     const table = document.querySelector('table');
-    const rows = Array.from(document.querySelectorAll('tbody tr'));
+    /*
+     * AS LINHAS TÊM DE SER AS DA TABELA MEDIDA.
+     *
+     * DEFEITO DE CONTRATO DO PRÓPRIO TESTE: `table` é a PRIMEIRA `<table>` do documento, mas
+     * `rows` era `document.querySelectorAll('tbody tr')` — TODAS as linhas de TODAS as tabelas da
+     * página. A métrica "altura de linha densa" então reportava o PIOR caso da página inteira, e
+     * não a densidade da grade que o `tableTop` estava medindo.
+     *
+     * MEDIDO em /app/inventory (390x844): as tabelas Depósitos e Itens de estoque têm linhas de
+     * 47px — densas. A tabela Reservas tem UMA linha de 116px, porque a célula empilha
+     * "Cabo de aço 10mm" + "SKU-CABO-10" em duas linhas no viewport estreito. O `Math.max`
+     * escolhia justamente esse 116px e reprovava a tela cuja grade principal estava correta.
+     *
+     * A prova pretendida — "a grade não virou a folha folgada de antes" — é sobre a grade
+     * principal. A medição passa a ser escopada nela, coerente com `tableTop`. O limite de 64px
+     * NÃO foi alterado.
+     */
+    const rows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
     const filtersBar =
       document.querySelector('[data-testid="filters-bar"]') ??
       document.querySelector('[aria-label="Filtros da lista"]') ??

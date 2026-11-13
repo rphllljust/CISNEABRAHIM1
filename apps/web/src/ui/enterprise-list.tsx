@@ -79,10 +79,29 @@ export function EnterpriseMetric({
   label: string;
   tone?: MetricTone;
 }) {
+  /*
+   * DENSIDADE RESPONSIVA — O INDICADOR NÃO PODE VIRAR PAREDE NO MOBILE.
+   *
+   * DEFEITO MEDIDO (390x844, /app/billing): `min-h-[72px] min-w-[132px]` era RÍGIDO. Em 390px
+   * cabia UM indicador por linha, e os 8 da faixa de situação empilhavam em 632px — o que
+   * empurrava a barra de filtros para y=884 e a GRADE para y=936, fora da primeira dobra
+   * (viewport 844). O operador abria Faturamento no celular e não via faturamento nenhum: via
+   * uma coluna de cartões e precisava rolar para encontrar a fila de trabalho.
+   *
+   * A largura mínima de 132px é o que garantia o aspecto de cartão em telas largas; no estreito
+   * ela é justamente o que impede o aproveitamento horizontal. Abaixo de `sm` o indicador vira
+   * um ITEM DENSO de linha — altura natural, largura mínima menor —, e a faixa volta a ocupar
+   * duas ou três linhas em vez de oito. A partir de `sm` (640px) o comportamento anterior é
+   * integralmente preservado.
+   *
+   * Isto AUMENTA a informação visível no mobile (8 indicadores na dobra, em vez de 1-2), não
+   * reduz: nenhum rótulo, valor ou estado é omitido.
+   */
   return (
     <span
       className={cn(
-        'inline-flex min-h-[72px] min-w-[132px] flex-col items-start justify-center gap-1 rounded-md border px-2.5 py-2 text-xs',
+        'inline-flex flex-col items-start justify-center gap-1 rounded-md border px-2.5 py-2 text-xs',
+        'min-h-[52px] min-w-[104px] sm:min-h-[72px] sm:min-w-[132px]',
         METRIC_TONE[tone],
       )}
     >
