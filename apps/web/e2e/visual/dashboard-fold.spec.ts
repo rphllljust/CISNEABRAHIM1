@@ -45,7 +45,7 @@ const WORK_INBOX_PAGE = {
 };
 
 test.describe('visao geral — fila decisoria exercitada', () => {
-  test.use({ viewport: { width: 1440, height: 900 } });
+  test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
 
 
   test('primeira dobra com fila, excecao, acao, contexto e fluxo', async ({ page }) => {
@@ -95,12 +95,26 @@ test.describe('visao geral — fila decisoria exercitada', () => {
     await expect(processFlow.getByText('Ordem de serviço', { exact: true })).toBeVisible();
     await expect(processFlow.getByText('Recebimento', { exact: true })).toBeVisible();
 
-    // 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
-    await expect(page.getByRole('heading', { name: /ordens por situação/i })).toBeVisible();
-    await expect(page.getByRole('heading', { name: /atraso por faixa/i })).toBeVisible();
-    // Cada segmento abre a lista filtrada que produziu o numero.
-    const drill = page.getByRole('link', { name: /EM EXECUÇÃO|Em execução: \d+ ordens/i }).first();
-    await expect(drill).toHaveAttribute('href', /status=/);
+    /* 6. ANALYTICS COM DRILLDOWN REAL na coluna lateral (drawer FECHADO).
+     *
+     * A estrutura do bloco analítico MUDOU e este spec estava medindo a silhueta antiga.
+     *
+     * Antes: dois gráficos com título próprio — "Ordens por situação" (donut) e "Atraso por faixa".
+     * Agora: a área publica "Situação operacional" e, dentro dela, a região "Indicadores
+     * operacionais" com os MESMOS fatos como LINHAS de indicador, cada uma com drilldown real para
+     * a lista filtrada que produziu o número.
+     *
+     * A prova que importa — "o analítico existe e cada número abre o conjunto que o gerou" —
+     * continua idêntica, ancorada no contrato que a tela publica hoje. Nenhum limiar alterado.
+     */
+    const situation = page.getByRole('region', { name: /situação operacional/i });
+    await expect(situation).toBeVisible();
+    await expect(
+      situation.getByRole('heading', { name: /indicadores operacionais/i }),
+    ).toBeVisible();
+    // Cada indicador abre a lista filtrada que produziu o numero.
+    const drill = situation.getByRole('link', { name: /ordens de serviço vencidas/i }).first();
+    await expect(drill).toHaveAttribute('href', /filter=overdue/);
     // ESTADO A: a fila continua na primeira dobra com o drawer fechado.
     const queueVisible = page.getByRole('heading', { name: /fila de trabalho/i });
     expect((await queueVisible.boundingBox())!.y).toBeLessThan(fold);
@@ -120,19 +134,34 @@ test.describe('visao geral — fila decisoria exercitada', () => {
 
     await page.screenshot({ path: 'tmp-dashboard-1440.png', fullPage: false });
 
-    // ESTADO B: clicar no item da fila ABRE o drawer com o contexto, sem perder a fila.
-    await page
-      .getByRole('button', { name: /OS-2026-0184.*Execução de manutenção preventiva/i })
-      .click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText('OS-2026-0184')).toBeVisible();
+    // ESTADO B: clicar no item da fila ABRE o painel de contexto, sem perder a fila.
+    //
+    // A fila é hoje uma GRADE: o gatilho de seleção é o BOTÃO do identificador da linha
+    // ("OS-2026-0184"), não um botão que agregue identificador + título. Ancorar no identificador
+    // é o contrato estável — o título vive na célula, ao lado.
+    await page.getByRole('button', { name: 'OS-2026-0184', exact: true }).click();
+
+    /*
+     * O CONTEXTO NÃO É UM MODAL — é a coluna de contexto ancorada (`ContextDrawer` em variante
+     * `inline`). Ela se publica como `<section aria-labelledby="...">` com um `<h2>` de título e um
+     * comando próprio "Fechar contexto"; não existe `role="dialog"` nesse desenho, e exigir um
+     * teria reprovado a tela correta.
+     *
+     * A âncora semântica é o heading do painel (`<h2 id>` referenciado por `aria-labelledby`),
+     * e o conteúdo é verificado DENTRO dele — o identificador da OS que o operador clicou precisa
+     * aparecer no contexto, senão o painel abriu vazio.
+     */
+    const contextPanel = page.locator('section[aria-labelledby]').filter({
+      has: page.getByRole('heading', { name: /contexto/i }),
+    });
+    await expect(contextPanel.first()).toBeVisible();
+    await expect(contextPanel.first().getByText('OS-2026-0184').first()).toBeVisible();
     await expect(queueVisible).toBeVisible();
     await page.screenshot({ path: 'tmp-dashboard-drawer-1440.png', fullPage: false });
 
-    // ESTADO C: fechar LIMPA a selecao — o drawer nao permanece visivel sem objeto.
-    await dialog.getByRole('button', { name: /fechar/i }).first().click();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    // ESTADO C: fechar LIMPA a selecao — o painel nao permanece visivel sem objeto.
+    await page.getByRole('button', { name: 'Fechar contexto' }).first().click();
+    await expect(page.getByRole('button', { name: 'Fechar contexto' })).toHaveCount(0);
     await expect(queueVisible).toBeVisible();
   });
 });

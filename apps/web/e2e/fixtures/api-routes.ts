@@ -30,13 +30,53 @@ export type ApiMockProfile =
   | 'procurement'
   | 'inventory'
   | 'finance'
-  | 'measurement';
+  | 'measurement'
+  /*
+   * ATOR SEM GRANT EM SUPERFICIE PROTEGIDA.
+   *
+   * Existe para provar BLOQUEIO. Nao e o mesmo que `shell`: `shell` nao mocka as rotas de
+   * modulo, entao a sonda falha por rede (`error`) em vez de autorizacao (`denied`), e a tela
+   * mostra estado de erro — nao a mensagem de acesso negado que o operador precisa ler.
+   *
+   * `probeRealListAccess` so interpreta 403 como "sem acesso"; qualquer outro status lanca.
+   * Este perfil responde 403 nas rotas protegidas, que e o UNICO caminho honesto para medir o
+   * comportamento de negacao da interface.
+   */
+  | 'denied';
 
 type RouteContext = {
   profile: ApiMockProfile;
 };
 
 const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string[]>> = {
+  /*
+   * INVENTORY — Estoque exige `inventory:stock:read`.
+   *
+   * `/app/inventory` é protegido por `InventoryRoute` → `BackofficeCapabilityRoute`, que só
+   * renderiza o workspace depois que `probeInventoryReadAccess` obtém 2xx em
+   * `GET /api/v1/inventory/items?limit=1&offset=0`. O perfil `inventory` já mocka essa rota
+   * (`inventory-api-routes.ts`), mas não publicava capability nenhuma: a página negava acesso
+   * corretamente e o teste falhava ANTES do snapshot — `mainCount: 0`, `h1Count: 0`.
+   *
+   * Isso não é cobertura dispensada: o módulo continua na suíte, com a interface HABILITADA.
+   * O caso de bloqueio (capability ausente ⇒ nega) continua provado pelo perfil `dashboard`,
+   * que não publica `inventory:stock:read` — ver `inventory.visual.spec.ts`.
+   */
+  inventory: [
+    'inventory:stock:read',
+    'inventory:stock:list',
+    'inventory:item:read',
+    'inventory:warehouse:read',
+  ],
+  /*
+   * DASHBOARD — perfil de shell/painel, sem capability de módulo.
+   *
+   * `geometry.visual.spec.ts` percorre uma rota por domínio usando este perfil. Telas de módulo
+   * protegido (`/app/closing`) NÃO podem ser exercitadas sob ele: o `AccountingRoute` nega acesso
+   * por falta de `accounting:journal:read`, e a falha é do PERFIL, não da tela. A cobertura
+   * habilitada de Fechamento é feita pela família contábil (`accounting.visual.spec.ts`), que
+   * instala os mocks próprios e concede a capability. O bloqueio continua verificado aqui.
+   */
   /*
    * BILLING — a suíte visual de faturamento usa o perfil `billing-empty`, mas ele não publicava
    * capability nenhuma. Sem `billing:billing-record:read` a página de Faturamento interno nega
@@ -243,6 +283,29 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
 
   if (context.profile === 'inventory' && (await handleInventoryApiRoute(route))) {
     return;
+  }
+
+  /*
+   * ATOR SEM GRANT — responde 403 nas rotas de modulo protegido.
+   *
+   * `probeRealListAccess` trata APENAS 403 como "sem acesso" e lanca em qualquer outro status.
+   * Sem este caminho o teste de bloqueio mede estado de erro de rede, e a tela nao publica a
+   * mensagem de negacao que o operador precisa ler. O escopo e deliberadamente estreito: so as
+   * rotas de leitura que as sondas de capability consultam.
+   */
+  if (context.profile === 'denied') {
+    const deniedPrefixes = [
+      '/api/v1/inventory',
+      '/api/v1/accounting',
+    ];
+    if (deniedPrefixes.some((prefix) => pathname.startsWith(prefix))) {
+      await fulfillJson(
+        route,
+        { error: { code: 'AUTHZ_DENIED', message: 'Access denied.' } },
+        403,
+      );
+      return;
+    }
   }
 
   if (context.profile === 'finance' && (await handleFinanceApiRoute(route))) {

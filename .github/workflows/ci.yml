@@ -813,6 +813,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
+        # Mesmas flags do job `build-release` — sem elas o bundle compila com os 13 modulos
+        # DESLIGADOS (`conservative-default`) e a suite visual mede uma interface inexistente:
+        # 10 das 11 rotas contabeis falhavam em `heading level 1` antes de chegar ao snapshot.
+        # Ver a justificativa completa em `visual-full.yml`.
+        env:
+          VITE_CISNE_SURFACE: 'dev'
+          VITE_FEATURE_MODULE_FINANCE: 'true'
+          VITE_FEATURE_MODULE_FISCAL: 'true'
+          VITE_FEATURE_MODULE_ACCOUNTING: 'true'
+          VITE_FEATURE_MODULE_INVENTORY: 'true'
+          VITE_FEATURE_MODULE_PAYROLL: 'true'
+          VITE_FEATURE_MODULE_PROCUREMENT: 'true'
+          VITE_FEATURE_MODULE_SUPPLIERS: 'true'
+          VITE_FEATURE_MODULE_CONTRACTS: 'true'
+          VITE_FEATURE_MODULE_PEOPLE: 'true'
+          VITE_FEATURE_MODULE_ALERTS: 'true'
+          VITE_FEATURE_MODULE_REPORTS: 'true'
+          VITE_FEATURE_MODULE_APPROVAL_MATRIX: 'true'
+          VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true'
         run: pnpm build
       # Mesmo cache de browser do `visual-critical`: o custo dominante e download +
       # apt, nao a suite. Chave pela versao do lockfile; miss cai no install completo.
@@ -834,8 +853,26 @@ jobs:
           fi
       - name: Web visual regression (full suite)
         id: web-visual
+        # `continue-on-error` NAO aprova nada: o veredito de vermelho/verde fica nos gates
+        # abaixo. Sair cedo aqui impediria o upload dos diagnosticos e a analise do ratchet —
+        # que e justamente o que precisa existir quando a suite falha.
         continue-on-error: true
+        shell: bash
         run: |
+          # `pipefail` e OBRIGATORIO e NAO era aplicado neste step.
+          #
+          # MEDIDO (run 43334934200, job `Visual full`, 14m49s): sem `pipefail`,
+          # `pnpm ... | tee` devolve o status do `tee` — sempre 0. O step era registrado como
+          # `success` mesmo com 150 testes visuais falhando; o job ficava verde e `Release ready`
+          # passava. O GitHub reportava `Visual full: pass` com a suite inteira vermelha.
+          #
+          # Um gate que sempre passa e pior que gate nenhum: ele AFIRMA uma validacao visual que
+          # nao aconteceu. Foi por isso que o debito de 150 falhas sobreviveu tanto tempo — o
+          # caminho critico nunca reprovava.
+          #
+          # `visual-full.yml` ja carregava esta protecao (L112). A duplicacao manteve no caminho
+          # critico a versao SEM ela. Alinhar os dois e o que torna o resultado verificavel.
+          set -euo pipefail
           mkdir -p artifacts/ci
           pnpm --filter @cisne/web test:visual 2>&1 | tee artifacts/ci/web-visual.log
         env:
@@ -857,6 +894,29 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
         run: node scripts/ci/visual-regression-ratchet.mjs artifacts/ci/web-visual.log
+      - name: Enforce strict Visual Full acceptance
+        # `if: always()`: este gate TEM de rodar mesmo quando o step anterior falha — e
+        # exatamente nesse caso que ele precisa reprovar a promocao.
+        if: always()
+        shell: bash
+        env:
+          VISUAL_OUTCOME: ${{ steps.web-visual.outcome }}
+        run: |
+          # O RATCHET E O GATE TERMINAL SAO CONTRATOS DIFERENTES.
+          #
+          #   ratchet      : reprova REGRESSAO NOVA (atual > baseline). Um ratchet verde diz
+          #                  "nada piorou" — NAO diz "a suite passa".
+          #   este gate    : exige a suite VERDE. Debito visual existente NAO e suite verde.
+          #
+          # Sem este gate, um `pipefail` sozinho ainda deixaria `Visual full` verde enquanto o
+          # ratchet considerasse o debito como baseline legitimo. Os dois juntos fecham o
+          # caminho: nada piora E a suite passa.
+          #
+          # `skipped`, `cancelled` e `neutral` NAO sao aprovacao: so `success` libera.
+          if [[ "${VISUAL_OUTCOME}" != "success" ]]; then
+            echo "::error::Visual Full blocked: Playwright did not pass (outcome=${VISUAL_OUTCOME}). Pre-existing visual debt is not a green suite."
+            exit 1
+          fi
 
   release-ready:
     name: Release ready

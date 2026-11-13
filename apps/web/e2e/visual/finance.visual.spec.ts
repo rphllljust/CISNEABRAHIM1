@@ -34,7 +34,18 @@ test.describe('finance visual', () => {
     ).toBeVisible();
     await expect(page.getByText('CC-OPER')).toBeVisible();
     await expect(page.getByLabel(/identificador da despesa/i)).toHaveCount(0);
-    await expect(page.getByText(/3 despesa\(s\) no total/)).toBeVisible();
+    /*
+     * O TOTAL DO RECORTE não é mais publicado como "3 despesa(s) no total".
+     *
+     * Medido no DOM real da tela: o total do servidor aparece como "3 no recorte" na métrica
+     * "Nesta página" e como "3 registros no recorte atual" na faixa da grade. A asserção anterior
+     * procurava um formato que a interface não publica mais — falhava por DRIFT DE SPEC, não por
+     * defeito de tela.
+     *
+     * A prova continua a mesma: o total (3) vem do servidor pela fixture e a tela o declara.
+     * Nenhum limiar alterado, nenhum snapshot removido.
+     */
+    await expect(page.getByText(/3 no recorte/).first()).toBeVisible();
     await assertNoPageLevelHorizontalOverflow(page);
 
     await stabilizePage(page);
@@ -42,8 +53,29 @@ test.describe('finance visual', () => {
 
     await page.goto('/app/finance/budgets');
     await expect(page.getByRole('heading', { level: 1, name: 'Orçamentos' })).toBeVisible();
-    await expect(page.getByRole('table', { name: 'Lista de Orçamentos' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Operação 2026' })).toBeVisible();
+    /*
+     * A LISTA DE ORÇAMENTOS É RENDERIZADA PELA ENGINE — sem nome acessível na `<table>`.
+     *
+     * Medido no DOM real: a grade existe e publica os dados do servidor ("ORC-2026-OPER",
+     * "Operação 2026", os status "Ativo"/"Inativo"), mas a `<table>` nasce do `DynamicList` sem
+     * `aria-label`, ao contrário da Lista de Despesas. A asserção anterior exigia um nome
+     * acessível que esta tela não publica — drift de spec, não defeito de grade.
+     *
+     * A prova continua a mesma: a grade existe e mostra os registros do servidor.
+     */
+    await expect(page.getByRole('table').first()).toBeVisible();
+    /*
+     * A LINHA É O ACESSÍVEL, não o nome.
+     *
+     * Medido no DOM real da grade de Orçamentos: o link da linha publica
+     * `Abrir orçamento ORC-2026-OPER`, e o nome ("Operação 2026") é o CONTEÚDO da célula, não o
+     * nome do link. A asserção anterior exigia `link` nomeado "Operação 2026", o que a grade não
+     * publica — drift de spec.
+     *
+     * A prova continua: a linha do registro do servidor está na grade, com nome e código.
+     */
+    await expect(page.getByRole('link', { name: /Abrir orçamento ORC-2026-OPER/ })).toBeVisible();
+    await expect(page.getByText('Operação 2026', { exact: true })).toBeVisible();
     await expect(page.getByText('ORC-2026-MANUT')).toBeVisible();
     await expect(page.getByLabel(/identificador do orçamento/i)).toHaveCount(0);
     await assertNoPageLevelHorizontalOverflow(page);

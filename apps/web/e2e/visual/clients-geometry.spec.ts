@@ -43,7 +43,7 @@ async function measure(page: Page) {
 }
 
 test.describe('clients composition metrics', () => {
-  test.use({ viewport: { width: 1600, height: 900 } });
+  test.use({ viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false });
 
   test.beforeEach(async ({ page }) => {
     await prepareAuthenticatedSession(page, 'clients');
@@ -81,17 +81,29 @@ test.describe('clients composition metrics', () => {
     const after = await measure(page);
     console.log('WORKSPACE_SELECTED_METRICS ' + JSON.stringify(after));
 
-    // A PROPORÇÃO É O ACEITE: a fila domina e a coluna de contexto coexiste com ela.
-    const split = await page.evaluate(() => {
-      const list = document.querySelector('[data-region="worklist-master"]');
-      const ctx = document.querySelector('[data-region="context-column"]');
-      const lw = list ? list.getBoundingClientRect().width : 0;
-      const cw = ctx ? ctx.getBoundingClientRect().width : 0;
-      return { listWidth: Math.round(lw), contextWidth: Math.round(cw), ratio: lw + cw ? Math.round((lw / (lw + cw)) * 100) : 0 };
-    });
-    console.log('SPLIT ' + JSON.stringify(split));
-    expect(split.ratio).toBeGreaterThanOrEqual(70);
-    expect(split.ratio).toBeLessThanOrEqual(78);
+    /*
+     * A PROPORÇÃO É O ACEITE: a fila domina e a coluna de contexto coexiste com ela.
+     *
+     * DEFEITO DE SELETOR, não de layout. A medição anterior (`measure`) já apura a coluna de
+     * contexto em `contextRegion` — 327px contra 944px de fila, ou seja 74,3% e DENTRO da faixa
+     * aprovada de 70–78%. O cálculo abaixo consultava `[data-region="context-column"]`, um atributo
+     * que a tela não publica mais, e obtinha `contextWidth: 0` — o que fazia a razão virar 100% e
+     * reprovar uma composição correta.
+     *
+     * O seletor passa a ser o mesmo que `measure` usa (`contextRegion`), e a proporção é calculada
+     * sobre os valores JÁ medidos. Nenhum limite foi alterado: continua 70–78%.
+     */
+    const split = {
+      listWidth: Math.round(after.worklist?.w ?? 0),
+      contextWidth: Math.round(after.contextRegion?.w ?? 0),
+    };
+    const ratio =
+      split.listWidth + split.contextWidth > 0
+        ? Math.round((split.listWidth / (split.listWidth + split.contextWidth)) * 100)
+        : 0;
+    console.log('SPLIT ' + JSON.stringify({ ...split, ratio }));
+    expect(ratio).toBeGreaterThanOrEqual(70);
+    expect(ratio).toBeLessThanOrEqual(78);
 
     await page.screenshot({ path: 'test-results/geometry/workspace-selected.png', fullPage: false });
     expect(before.rows).toBeGreaterThan(0);

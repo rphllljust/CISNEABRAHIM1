@@ -387,7 +387,7 @@ export function ReceivablesListPage() {
   ];
 
   return (
-    <ModulePage layout="workspace">
+    <ModulePage layout="workspace" stretchContent>
       {/*
         GRAMATICA DE REGIOES — a MESMA das worklists Tier-1 do produto.
         `work-surface` agrupa a bancada; `operating-header` isola a faixa de orientacao para que a
