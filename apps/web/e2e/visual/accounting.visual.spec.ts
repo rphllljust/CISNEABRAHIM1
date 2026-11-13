@@ -114,6 +114,20 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
 
     // AÇÃO EXISTENTE: abrir o detalhe com as ações decididas pelo backend.
     await page.getByRole('link', { name: 'Abrir' }).first().click();
+    /*
+     * O CLIQUE É NAVEGAÇÃO DE CLIENTE — A ÁRVORE DA ROTA AINDA NÃO ESTÁ MONTADA.
+     *
+     * DEFEITO MEDIDO (run 43505943330, `--retries=0`): nesta janela o shell publica
+     * "Carregando navegação…" e o `<h1>` do detalhe ainda não existe, então a asserção abaixo
+     * lia `element(s) not found` — falha de SINCRONIZAÇÃO, não de tela. A prova de que é corrida
+     * (e não defeito de produto): com retry o mesmo teste passava na tentativa seguinte e
+     * seguia até o snapshot `accounting-journals.png`.
+     *
+     * A espera é por um estado OBSERVÁVEL do produto — o mesmo sinal já usado por `stabilizePage`
+     * desde 818c9c8f. Nenhuma expectativa foi afrouxada: as asserções de heading, grade, comando
+     * de estorno e botão Postar continuam exigidas e inalteradas.
+     */
+    await expect(page.getByText('Carregando navegação…')).toHaveCount(0);
     await expect(page.getByRole('heading', { level: 1, name: 'Lançamento' })).toBeVisible();
     await expect(page.getByRole('table', { name: /linhas do lançamento/i })).toBeVisible();
     // Escopo no comando de estorno: o nome 'Estornar' (substring) também casava a barra de
