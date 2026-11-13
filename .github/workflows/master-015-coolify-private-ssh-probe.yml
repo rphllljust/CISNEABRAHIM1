@@ -1,0 +1,67 @@
+name: MASTER 015 — authenticated SSH loopback tunnel capability probe
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  secure-tunnel:
+    name: Test SSH prerequisite presence and pinned host key tunnel (no writes)
+    if: github.repository == 'rphllljust/CISNEABRAHIM1' && github.actor == 'rphllljust' && github.ref == 'refs/heads/ops/master-015-hml-access-probe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Inspect 22/TCP and establish SSH loopback ONLY with existing pinned credentials
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_SSH_USER: ${{ secrets.COOLIFY_SSH_USER }}
+          COOLIFY_SSH_PRIVATE_KEY: ${{ secrets.COOLIFY_SSH_PRIVATE_KEY }}
+          COOLIFY_SSH_KNOWN_HOSTS: ${{ secrets.COOLIFY_SSH_KNOWN_HOSTS }}
+        run: |
+          node --input-type=module <<'NODE'
+          import net from 'node:net';
+          import fs from 'node:fs';
+          import os from 'node:os';
+          import path from 'node:path';
+          import { spawnSync } from 'node:child_process';
+          const report={kind:'MASTER015_SECURE_SSH_TUNNEL_AUDIT',sshTcp22:'NOT_TESTED',sshPrerequisites:{},pinnedSshTunnel:'NOT_ATTEMPTED',loopbackApiStatus:'NOT_ATTEMPTED',writesAttempted:false,secretsLogged:false,plaintextPublicCredentials:false};
+          let url;
+          try{url=new URL(process.env.COOLIFY_BASE_URL);if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.pathname.replace(/\/$/,'')!=='/api/v1')throw Error();}
+          catch{report.pinnedSshTunnel='INVALID_COOLIFY_BASE_URL';console.log('MASTER015_SSH='+JSON.stringify(report));process.exit(0);}
+          const host=url.hostname;
+          const port22=await new Promise(resolve=>{
+            const s=net.connect({host,port:22,timeout:4500});let done=false;
+            const finish=x=>{if(done)return;done=true;s.destroy();resolve(x);};
+            s.once('connect',()=>finish('CONNECTED'));s.once('timeout',()=>finish('TIMEOUT'));s.once('error',e=>finish(['ECONNREFUSED','ETIMEDOUT','EHOSTUNREACH','ENETUNREACH'].includes(e.code)?e.code:'UNREACHABLE'));
+          });
+          report.sshTcp22=port22;
+          const required=['COOLIFY_TOKEN','COOLIFY_SSH_USER','COOLIFY_SSH_PRIVATE_KEY','COOLIFY_SSH_KNOWN_HOSTS'];
+          for(const key of required) report.sshPrerequisites[key]=Boolean(process.env[key])?'PRESENT':'MISSING';
+          if(port22!=='CONNECTED' || required.some(k=>report.sshPrerequisites[k]==='MISSING')){
+            report.pinnedSshTunnel='PREREQUISITES_NOT_MET';console.log('MASTER015_SSH='+JSON.stringify(report));process.exit(0);
+          }
+          const user=process.env.COOLIFY_SSH_USER;
+          if(!/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/.test(user)){
+            report.pinnedSshTunnel='SSH_USER_INVALID';console.log('MASTER015_SSH='+JSON.stringify(report));process.exit(0);
+          }
+          const dir=fs.mkdtempSync(path.join(os.tmpdir(),'cisne-hml-ssh-'));
+          const keyfile=path.join(dir,'key'), knownfile=path.join(dir,'known_hosts');
+          try {
+            fs.writeFileSync(keyfile,process.env.COOLIFY_SSH_PRIVATE_KEY,{mode:0o600});
+            fs.writeFileSync(knownfile,process.env.COOLIFY_SSH_KNOWN_HOSTS,{mode:0o600});
+            const args=['-fN','-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes',
+              '-o','UserKnownHostsFile='+knownfile,'-o','ExitOnForwardFailure=yes','-o','ConnectTimeout=5',
+              '-i',keyfile,'-L','127.0.0.1:18880:127.0.0.1:8000',user+'@'+host];
+            const result=spawnSync('ssh',args,{stdio:'ignore',timeout:14000});
+            if(result.status!==0){report.pinnedSshTunnel='AUTH_OR_PINNING_FAILED';}
+            else {
+              report.pinnedSshTunnel='ESTABLISHED_PINNED_AND_AUTHENTICATED';
+              try{
+                const r=await fetch('http://127.0.0.1:18880/api/v1/projects',{method:'GET',redirect:'error',
+                  headers:{authorization:'Bearer '+process.env.COOLIFY_TOKEN,accept:'application/json'},
+                  signal:AbortSignal.timeout(4500)});
+                report.loopbackApiStatus=String(r.status);
+              }catch{report.loopbackApiStatus='LOOPBACK_API_UNREACHABLE';}
+            }
+          }finally{fs.rmSync(dir,{recursive:true,force:true});}
+          console.log('MASTER015_SSH='+JSON.stringify(report));
+          NODE
