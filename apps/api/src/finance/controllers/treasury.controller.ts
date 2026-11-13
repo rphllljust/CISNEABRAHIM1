@@ -1,7 +1,8 @@
-import { Controller, Get, HttpCode, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, HttpCode, Param, Post, Req, UseFilters, UseGuards } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { CurrentAuth } from '../../auth/decorators/current-auth.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { FinanceValidationFilter } from '../errors/finance-validation.filter';
 import type { AccessTokenClaims } from '../../auth/services/token.service';
 import {
   validatePostTreasuryMovementInput,
@@ -10,6 +11,7 @@ import {
 import { TreasuryAccessService } from '../services/treasury-access.service';
 
 @Controller('finance/treasury')
+@UseFilters(FinanceValidationFilter)
 @UseGuards(JwtAuthGuard)
 export class TreasuryController {
   constructor(private readonly treasuryAccess: TreasuryAccessService) {}
