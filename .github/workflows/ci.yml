@@ -813,6 +813,25 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
+        # Mesmas flags do job `build-release` — sem elas o bundle compila com os 13 modulos
+        # DESLIGADOS (`conservative-default`) e a suite visual mede uma interface inexistente:
+        # 10 das 11 rotas contabeis falhavam em `heading level 1` antes de chegar ao snapshot.
+        # Ver a justificativa completa em `visual-full.yml`.
+        env:
+          VITE_CISNE_SURFACE: 'dev'
+          VITE_FEATURE_MODULE_FINANCE: 'true'
+          VITE_FEATURE_MODULE_FISCAL: 'true'
+          VITE_FEATURE_MODULE_ACCOUNTING: 'true'
+          VITE_FEATURE_MODULE_INVENTORY: 'true'
+          VITE_FEATURE_MODULE_PAYROLL: 'true'
+          VITE_FEATURE_MODULE_PROCUREMENT: 'true'
+          VITE_FEATURE_MODULE_SUPPLIERS: 'true'
+          VITE_FEATURE_MODULE_CONTRACTS: 'true'
+          VITE_FEATURE_MODULE_PEOPLE: 'true'
+          VITE_FEATURE_MODULE_ALERTS: 'true'
+          VITE_FEATURE_MODULE_REPORTS: 'true'
+          VITE_FEATURE_MODULE_APPROVAL_MATRIX: 'true'
+          VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true'
         run: pnpm build
       # Mesmo cache de browser do `visual-critical`: o custo dominante e download +
       # apt, nao a suite. Chave pela versao do lockfile; miss cai no install completo.
