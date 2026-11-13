@@ -72,7 +72,13 @@ test.describe('aceite visual final — 1600x900', () => {
     await prepareAuthenticatedSession(page, 'finance');
   });
 
-  test('contas a receber — situacao, toolbar de consulta e contexto', async ({ page }) => {
+  test('contas a receber — situacao, toolbar de consulta e contexto', async ({ page }, testInfo) => {
+    /* CONTRATO FIXO 1600x900: 	est.use acima fixa o viewport e desliga isMobile/hasTouch.
+       Como o Playwright roda os tres projetos, este teste executava 3x com o MESMO viewport e
+       gerava -desktop/-tablet/-mobile identicos (medido por hash SHA-256). Teste chamado
+       mobile que nao exercita mobile nao prova responsividade. Padrao do repo:
+       login.visual.spec.ts:60 / dashboard-mobile-layout.spec.ts:6. */
+    test.skip(testInfo.project.name !== 'desktop', 'Contrato fixo 1600x900 — roda uma vez no projeto desktop.');
     await page.goto('/app/finance/receivables');
     await expect(page.getByRole('heading', { level: 1, name: 'Contas a receber' })).toBeVisible();
     await stabilizePage(page);
@@ -106,7 +112,13 @@ test.describe('aceite visual final — 1600x900', () => {
     });
   });
 
-  test('contas a pagar — faixa persistida e mesmo padrao operacional', async ({ page }) => {
+  test('contas a pagar — faixa persistida e mesmo padrao operacional', async ({ page }, testInfo) => {
+    /* CONTRATO FIXO 1600x900: 	est.use acima fixa o viewport e desliga isMobile/hasTouch.
+       Como o Playwright roda os tres projetos, este teste executava 3x com o MESMO viewport e
+       gerava -desktop/-tablet/-mobile identicos (medido por hash SHA-256). Teste chamado
+       mobile que nao exercita mobile nao prova responsividade. Padrao do repo:
+       login.visual.spec.ts:60 / dashboard-mobile-layout.spec.ts:6. */
+    test.skip(testInfo.project.name !== 'desktop', 'Contrato fixo 1600x900 — roda uma vez no projeto desktop.');
     await page.goto('/app/finance/payables');
     await expect(page.getByRole('heading', { level: 1, name: 'Contas a pagar' })).toBeVisible();
     await stabilizePage(page);
@@ -131,7 +143,13 @@ test.describe('aceite visual final — 1600x900', () => {
     });
   });
 
-  test('financeiro — central de operacoes financeiras', async ({ page }) => {
+  test('financeiro — central de operacoes financeiras', async ({ page }, testInfo) => {
+    /* CONTRATO FIXO 1600x900: 	est.use acima fixa o viewport e desliga isMobile/hasTouch.
+       Como o Playwright roda os tres projetos, este teste executava 3x com o MESMO viewport e
+       gerava -desktop/-tablet/-mobile identicos (medido por hash SHA-256). Teste chamado
+       mobile que nao exercita mobile nao prova responsividade. Padrao do repo:
+       login.visual.spec.ts:60 / dashboard-mobile-layout.spec.ts:6. */
+    test.skip(testInfo.project.name !== 'desktop', 'Contrato fixo 1600x900 — roda uma vez no projeto desktop.');
     await page.goto('/app/finance');
     await expect(page.getByRole('heading', { level: 1, name: 'Financeiro' })).toBeVisible();
     await stabilizePage(page);

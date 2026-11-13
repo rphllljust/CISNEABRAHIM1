@@ -156,7 +156,13 @@ test.describe('aceite visual final — service orders e creates', () => {
   test.use({ viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false });
 
 
-  test('ordens de servico — workspace operacional, nao CRUD', async ({ page }) => {
+  test('ordens de servico — workspace operacional, nao CRUD', async ({ page }, testInfo) => {
+    /* CONTRATO FIXO 1600x900: 	est.use acima fixa o viewport e desliga isMobile/hasTouch.
+       Como o Playwright roda os tres projetos, este teste executava 3x com o MESMO viewport e
+       gerava -desktop/-tablet/-mobile identicos (medido por hash SHA-256). Teste chamado
+       mobile que nao exercita mobile nao prova responsividade. Padrao do repo:
+       login.visual.spec.ts:60 / dashboard-mobile-layout.spec.ts:6. */
+    test.skip(testInfo.project.name !== 'desktop', 'Contrato fixo 1600x900 — roda uma vez no projeto desktop.');
     /*
      * O PERFIL DE MOCK E POR ROTA, NAO GLOBAL.
      *
@@ -183,7 +189,13 @@ test.describe('aceite visual final — service orders e creates', () => {
     });
   });
 
-  test('guided create — nova OS com cabecalho de tarefa e superficie de acao', async ({ page }) => {
+  test('guided create — nova OS com cabecalho de tarefa e superficie de acao', async ({ page }, testInfo) => {
+    /* CONTRATO FIXO 1600x900: 	est.use acima fixa o viewport e desliga isMobile/hasTouch.
+       Como o Playwright roda os tres projetos, este teste executava 3x com o MESMO viewport e
+       gerava -desktop/-tablet/-mobile identicos (medido por hash SHA-256). Teste chamado
+       mobile que nao exercita mobile nao prova responsividade. Padrao do repo:
+       login.visual.spec.ts:60 / dashboard-mobile-layout.spec.ts:6. */
+    test.skip(testInfo.project.name !== 'desktop', 'Contrato fixo 1600x900 — roda uma vez no projeto desktop.');
     await prepareAuthenticatedSession(page, 'dashboard');
     await installEngineMetadata(page);
     await page.goto('/app/service-orders/new');
@@ -226,7 +238,13 @@ test.describe('aceite visual final — service orders e creates', () => {
    * WORK INBOX — VERIFICADA sob o perfil `dashboard` (confirmado por sonda: h1 presente e a rota
    * permanece em `/app/work-inbox`, sem cair em `/app/no-access`).
    */
-  test('central de trabalho — fila e contexto da decisao', async ({ page }) => {
+  test('central de trabalho — fila e contexto da decisao', async ({ page }, testInfo) => {
+    /* CONTRATO FIXO 1600x900: 	est.use acima fixa o viewport e desliga isMobile/hasTouch.
+       Como o Playwright roda os tres projetos, este teste executava 3x com o MESMO viewport e
+       gerava -desktop/-tablet/-mobile identicos (medido por hash SHA-256). Teste chamado
+       mobile que nao exercita mobile nao prova responsividade. Padrao do repo:
+       login.visual.spec.ts:60 / dashboard-mobile-layout.spec.ts:6. */
+    test.skip(testInfo.project.name !== 'desktop', 'Contrato fixo 1600x900 — roda uma vez no projeto desktop.');
     await prepareAuthenticatedSession(page, 'dashboard');
     await page.goto('/app/work-inbox');
     await stabilizePage(page);
