@@ -32,9 +32,25 @@ export function WorkspaceContextHost({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({ host, setOpen }), [host, setOpen]);
   return (
     <WorkspaceContext.Provider value={value}>
+      {/*
+        A BANCADA PRECISA ESTICAR ATÉ A DOBRA — E `items-start` IMPEDIA ISSO.
+        
+        DEFEITO MEDIDO (1600x900, Contas a receber): `#main-content` recebia 804px (y=76 → 880),
+        mas o `work-surface` dentro dele media 655px e a bancada terminava em y=751. Faltavam
+        109px para a dobra; em Contas a pagar, 148px.
+
+        A causa não estava na tela nem na cadeia de `flex-1` (que estava íntegra): era este `grid`
+        com `items-start`. Em CSS Grid, `items-start` faz cada célula ser medida pelo PRÓPRIO
+        CONTEÚDO em vez de esticar à altura da linha — então a coluna de trabalho nunca recebia
+        os 804px disponíveis, por mais `flex-1` que houvesse abaixo.
+
+        `items-start` existia para o `<aside>` do contexto não esticar junto. Ele continua sem
+        esticar por `self-start` no PRÓPRIO aside, que é o lugar correto para declarar essa
+        intenção — sem impedir que a bancada ocupe a altura que tem de ocupar.
+      */}
       <div
         className={cn(
-          'grid min-h-0 min-w-0 flex-1 items-start',
+          'grid min-h-0 min-w-0 flex-1 items-stretch',
           panels.size > 0 && 'xl:grid-cols-[minmax(0,1fr)_22rem] xl:gap-4',
         )}
         data-layout="context-workbench"
@@ -45,7 +61,7 @@ export function WorkspaceContextHost({ children }: { children: ReactNode }) {
           ref={setHost}
           hidden={panels.size === 0}
           aria-label="Contexto da seleção"
-          className="sticky top-3 min-h-0 max-h-[calc(100dvh-7rem)] overflow-y-auto border-l border-[var(--erp-border)] bg-white"
+          className="sticky top-3 min-h-0 max-h-[calc(100dvh-7rem)] self-start overflow-y-auto border-l border-[var(--erp-border)] bg-white"
         />
       </div>
     </WorkspaceContext.Provider>
