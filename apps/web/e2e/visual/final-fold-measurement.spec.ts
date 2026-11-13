@@ -40,7 +40,7 @@ async function rectOf(page: import('@playwright/test').Page, selector: string): 
 }
 
 test.describe('medicao da primeira dobra — 1600x900', () => {
-  test.use({ viewport: { width: 1600, height: 900 } });
+  test.use({ viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false });
 
   test.beforeEach(async ({ page }) => {
     await prepareAuthenticatedSession(page, 'finance');

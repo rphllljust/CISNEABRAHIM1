@@ -66,7 +66,7 @@ async function assertNoImplementationLanguage(page: import('@playwright/test').P
 }
 
 test.describe('aceite visual final — 1600x900', () => {
-  test.use({ viewport: { width: 1600, height: 900 } });
+  test.use({ viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false });
 
   test.beforeEach(async ({ page }) => {
     await prepareAuthenticatedSession(page, 'finance');

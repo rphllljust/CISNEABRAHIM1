@@ -45,7 +45,7 @@ const WORK_INBOX_PAGE = {
 };
 
 test.describe('visao geral — fila decisoria exercitada', () => {
-  test.use({ viewport: { width: 1440, height: 900 } });
+  test.use({ viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false });
 
 
   test('primeira dobra com fila, excecao, acao, contexto e fluxo', async ({ page }) => {
