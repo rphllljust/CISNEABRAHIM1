@@ -428,6 +428,7 @@ export function WorkspaceBody({
   context,
   contextWidth = 'clamp(320px, 24vw, 380px)',
   className,
+  omitFrame = false,
 }: {
   children: ReactNode;
   /** Coluna de contexto/suporte. `null` = grade de uma coluna. */
@@ -435,10 +436,26 @@ export function WorkspaceBody({
   /** Largura da coluna de contexto. Padrao 320-380px conforme a largura do monitor. */
   contextWidth?: string;
   className?: string;
+  /**
+   * `omitFrame` — NAO publica a moldura de contexto desta instancia.
+   *
+   * Existe para o caso em que o consumidor JA tem um `WorkspaceBody` em volta: publicar a
+   * moldura duas vezes duplica o botao "Contexto do processo" e a regiao "Area de trabalho e
+   * contexto" na mesma tela.
+   *
+   * DEFEITO MEDIDO (captura de producao do Financeiro): `WorkspaceQueueSurface` monta o proprio
+   * `WorkspaceBody` e o `FinanceOverviewPage` a envolvia em outro — dois botoes "Contexto do
+   * processo" lado a lado. O teste `workspace-ui-helpers.ts` contornava com `getAllByRole` +
+   * filtro em vez de reprovar.
+   *
+   * Com `omitFrame`, a instancia aninhada entrega apenas a GRADE de uma coluna; a moldura e o
+   * toggle ficam com quem realmente os declara.
+   */
+  omitFrame?: boolean;
 }) {
   const [contextOpen, setContextOpen] = useState(false);
   const desktop = useMediaQuery('(min-width: 80rem)');
-  if (!context) {
+  if (!context || omitFrame) {
     return (
       <div
         className={cn('grid min-h-0 min-w-0 flex-1 grid-cols-1', className)}

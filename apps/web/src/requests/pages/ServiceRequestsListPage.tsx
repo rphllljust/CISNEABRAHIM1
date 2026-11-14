@@ -550,7 +550,7 @@ export function ServiceRequestsListPage() {
     <div className="flex shrink-0 items-center gap-3 border-b border-[color:var(--color-divider)] bg-[color:var(--color-surface-header)] px-3 py-1.5 text-[length:var(--type-micro-size)] font-semibold tracking-wide text-[color:var(--color-grid-head-ink)] uppercase">
       <span>Solicitação e demanda</span>
       <span className="ml-auto">Situação</span>
-      <span className="w-28 shrink-0 text-right">Idade</span>
+      <span className="w-28 shrink-0 text-right">Prioridade</span>
     </div>
   );
 

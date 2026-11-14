@@ -1128,6 +1128,13 @@ export function FinanceOverviewPage() {
           Nao existe contador financeiro paralelo: o que a zona mostra e o que a Central de
           trabalho mostra sob o mesmo recorte.
         */}
+          {/*
+            EMBEDDED — esta pagina JA declara o contexto operacional financeiro no
+            WorkspaceBody acima (excecoes, posicao, carteiras, tesouraria).
+
+            Sem `embedded` a tela publicava DOIS botoes "Contexto do processo" lado a lado:
+            um do WorkspaceBody desta pagina e outro do WorkspaceBody interno da superficie.
+          */}
           <WorkspaceQueueSurface
             title="Fila financeira"
             ariaLabel="Fila financeira de trabalho"
@@ -1136,6 +1143,7 @@ export function FinanceOverviewPage() {
             savedViewsScope="workspace.FINANCEIRO"
             scopeSource="local"
             lockDomain="FINANCEIRO"
+            embedded
           />
         </WorkspaceBody>
       </div>
