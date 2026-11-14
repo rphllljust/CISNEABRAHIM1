@@ -51,7 +51,10 @@ test.describe('purchase orders visual regression', () => {
     await expect(objectTitle).toBeVisible();
     await expect(objectTitle).not.toHaveText('PO-CLIENTE-41926266');
     // 3) estado real do processo;
-    await expect(page.getByLabel('Status: Registrado')).toBeVisible();
+    //    `.first()`: o no PURCHASE_ORDER da cadeia de negocio tambem publica
+    //    `Status: Registrado`, e sem escopo o locator cai em strict mode (2 elementos).
+    //    O estado do PROCESSO e o do cabecalho do objeto — que vem primeiro na arvore.
+    await expect(page.getByLabel('Status: Registrado').first()).toBeVisible();
     // 4) acao primaria permitida (registrar e o proximo passo do estado RASCUNHO; aqui o
     //    pedido esta REGISTRADO, entao a prova e a acao destrutiva separada no menu);
     await expect(page.getByRole('button', { name: 'Mais ações' })).toBeVisible();
