@@ -70,7 +70,7 @@ export class DocumentsAccessService {
     metadata: CreateDocumentUploadInput,
     file: UploadedFileInput,
   ): Promise<{ document: DocumentResponse; version: DocumentVersionResponse }> {
-    this.endpointRateLimit.assertAllowed('upload', actor.identityId);
+    await this.endpointRateLimit.assertAllowed('upload', actor.identityId);
     await this.authz.assertCreateAction(actor, metadata.unitId);
     await this.assertUnitRegistered(metadata.unitId);
     this.assertSingleFile(file);
@@ -149,7 +149,7 @@ export class DocumentsAccessService {
     documentId: string,
     file: UploadedFileInput,
   ): Promise<DocumentVersionResponse> {
-    this.endpointRateLimit.assertAllowed('upload', actor.identityId);
+    await this.endpointRateLimit.assertAllowed('upload', actor.identityId);
     assertValidDocumentId(documentId);
     const document = await this.documentsRepository.findDocumentById(documentId);
     if (!document) {

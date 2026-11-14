@@ -10,29 +10,29 @@ describe('LoginRateLimiterService', () => {
     process.env = { ...originalEnv };
   });
 
-  it('allows requests within the limit', () => {
+  it('allows requests within the limit', async () => {
     process.env['SECURITY_RATE_LOGIN_MAX'] = '3';
-    const limiter = new LoginRateLimiterService(new EndpointRateLimitService());
-    expect(() => limiter.assertAllowed('client-a')).not.toThrow();
-    expect(() => limiter.assertAllowed('client-a')).not.toThrow();
-    expect(() => limiter.assertAllowed('client-a')).not.toThrow();
+    const limiter = new LoginRateLimiterService(new EndpointRateLimitService(null));
+    await expect(limiter.assertAllowed('client-a')).resolves.toBeUndefined();
+    await expect(limiter.assertAllowed('client-a')).resolves.toBeUndefined();
+    await expect(limiter.assertAllowed('client-a')).resolves.toBeUndefined();
   });
 
-  it('blocks repeated abuse for the same client key', () => {
+  it('blocks repeated abuse for the same client key', async () => {
     process.env['SECURITY_RATE_LOGIN_MAX'] = '3';
-    const limiter = new LoginRateLimiterService(new EndpointRateLimitService());
-    limiter.assertAllowed('client-b');
-    limiter.assertAllowed('client-b');
-    limiter.assertAllowed('client-b');
-    expect(() => limiter.assertAllowed('client-b')).toThrow(RateLimitExceededError);
+    const limiter = new LoginRateLimiterService(new EndpointRateLimitService(null));
+    await limiter.assertAllowed('client-b');
+    await limiter.assertAllowed('client-b');
+    await limiter.assertAllowed('client-b');
+    await expect(limiter.assertAllowed('client-b')).rejects.toThrow(RateLimitExceededError);
   });
 
-  it('isolates buckets per client key', () => {
+  it('isolates buckets per client key', async () => {
     process.env['SECURITY_RATE_LOGIN_MAX'] = '3';
-    const limiter = new LoginRateLimiterService(new EndpointRateLimitService());
-    limiter.assertAllowed('client-c');
-    limiter.assertAllowed('client-c');
-    limiter.assertAllowed('client-c');
-    expect(() => limiter.assertAllowed('client-d')).not.toThrow();
+    const limiter = new LoginRateLimiterService(new EndpointRateLimitService(null));
+    await limiter.assertAllowed('client-c');
+    await limiter.assertAllowed('client-c');
+    await limiter.assertAllowed('client-c');
+    await expect(limiter.assertAllowed('client-d')).resolves.toBeUndefined();
   });
 });

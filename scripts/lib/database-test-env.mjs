@@ -278,6 +278,10 @@ const MIGRATION_EFFECT_CHECKS = {
   // `fin.expenses.cost_center_id` always assumed but never had. Probe the TABLE, not an index:
   // the table is what closes `PARK: HUMAN_LOOKUP_API_GAP` for four consumers.
   '0118_cost_center_reference': { table: ['fin', 'cost_centers'] },
+  // 0119 introduces the SHARED rate-limit counter. Probe the table, not the index: the table is
+  // what makes the limit hold across replicas, and an index-only probe would let the migrator
+  // mark a database applied while the counter table (and therefore the shared limit) is missing.
+  '0119_shared_rate_limit_bucket': { table: ['sec', 'rate_limit_bucket'] },
 };
 
 /**

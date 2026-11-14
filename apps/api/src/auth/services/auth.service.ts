@@ -44,7 +44,7 @@ export class AuthService {
 
   async login(input: LoginInput, context: AuthRequestContext): Promise<AuthTokenResponseV1> {
     try {
-      this.loginRateLimiter.assertAllowed(context.clientKey);
+      await this.loginRateLimiter.assertAllowed(context.clientKey);
     } catch {
       await this.securityAudit.record({
         action: SECURITY_AUDIT_ACTIONS.AuthLoginFailure,
@@ -140,7 +140,7 @@ export class AuthService {
   ): Promise<AuthTokenResponseV1> {
     if (context.clientKey) {
       try {
-        this.endpointRateLimit.assertAllowed('refresh', context.clientKey);
+        await this.endpointRateLimit.assertAllowed('refresh', context.clientKey);
       } catch {
         throw new AuthHttpException(
           HttpStatus.TOO_MANY_REQUESTS,
