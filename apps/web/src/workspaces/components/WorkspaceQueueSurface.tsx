@@ -183,6 +183,22 @@ export type WorkspaceQueueSurfaceProps = {
   emptyTitle?: string;
   emptyDescription?: string;
   className?: string;
+  /**
+   * `embedded` — o consumidor JA monta o `WorkspaceBody` em volta desta superficie.
+   *
+   * DEFEITO MEDIDO (captura de producao do Financeiro): esta superficie publica o botao
+   * "Contexto do processo" e a regiao "Area de trabalho e contexto". O `FinanceOverviewPage`
+   * a colocava DENTRO de outro `WorkspaceBody` que tambem publica os dois — resultado
+   * visivel: DOIS botoes "Contexto do processo" lado a lado na mesma barra.
+   *
+   * O proprio `workspace-ui-helpers.ts` contornava isso no teste (`getAllByRole` plural +
+   * filtro ate sobrar um) em vez de reprovar o defeito.
+   *
+   * Com `embedded`, a moldura e o toggle ficam com quem realmente os declara (a pagina);
+   * esta superficie entrega apenas a bancada. O drawer de contexto abaixo de `xl` continua
+   * funcionando, porque independe da moldura.
+   */
+  embedded?: boolean;
 };
 
 export function WorkspaceQueueSurface({
@@ -201,6 +217,7 @@ export function WorkspaceQueueSurface({
   emptyTitle,
   emptyDescription,
   className,
+  embedded = false,
 }: WorkspaceQueueSurfaceProps) {
   const identityId = useOptionalIdentityId();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -288,6 +305,7 @@ export function WorkspaceQueueSurface({
         de contexto continuam montados; o que muda e apenas o miolo da grade.
       */}
       <WorkspaceBody
+        omitFrame={embedded}
         context={
           <WorkspacePane
             aria-label="Contexto da decisão"

@@ -132,32 +132,26 @@ function clientStatusLabel(status: ClientSummary['status']): string {
 }
 
 /**
- * PROXIMA ACAO de um cadastro, derivada do ESTADO real e da CAPABILITY real.
+ * PROXIMA ACAO de um cadastro — REMOVIDA DESTE ARQUIVO.
  *
- * Cadastro ativo e a condicao normal da carteira: nao ha trabalho pendente, entao a acao e a
- * leitura do objeto. Cadastro inativo e a EXCECAO — ele nao pode ser usado em novas
- * solicitacoes, propostas, pedidos nem faturamento, e por isso pede o operador.
+ * A funcao era uma DUPLICATA de `deriveClientNextAction`
+ * (`utils/client-workspace-presentation.ts`), que e a que o painel de contexto
+ * (`ClientNextActionStrip`) usa. Manter duas copias criou a divergencia que produziu o
+ * defeito da coluna Atencao: a grade consumia a copia local e publicava o rotulo da acao
+ * como se fosse sinal de qualidade.
  *
- * O destino e a object page, e nao uma transicao disparada da linha: a projecao de listagem
- * (`ClientSummary`) NAO publica `version`, e `deactivate`/`activate` exigem `version` para
- * preservar concorrencia otimista. Executar daqui exigiria uma busca extra por linha — entao a
- * linha faz DRILLBACK para onde o comando real roda com o contrato de escrita intacto.
- * PARK registrado: publicar `version` na listagem para habilitar o comando em linha.
+ * O comentario original fica preservado como registro do contrato:
+ *
+ *   Cadastro ativo e a condicao normal da carteira: nao ha trabalho pendente, entao a acao e
+ *   a leitura do objeto. Cadastro inativo e a EXCECAO — ele nao pode ser usado em novas
+ *   solicitacoes, propostas, pedidos nem faturamento, e por isso pede o operador.
+ *
+ *   O destino e a object page, e nao uma transicao disparada da linha: a projecao de listagem
+ *   (`ClientSummary`) NAO publica `version`, e `deactivate`/`activate` exigem `version` para
+ *   preservar concorrencia otimista. Executar daqui exigiria uma busca extra por linha — entao
+ *   a linha faz DRILLBACK para onde o comando real roda com o contrato de escrita intacto.
+ *   PARK registrado: publicar `version` na listagem para habilitar o comando em linha.
  */
-function clientNextAction(
-  client: ClientSummary,
-  capabilities: { canActivate: boolean; canDeactivate: boolean; canRead: boolean },
-): { label: string; pending: boolean } {
-  if (client.status === CLIENT_STATUSES.Inactive) {
-    return capabilities.canActivate
-      ? { label: 'Reativar cadastro', pending: true }
-      : { label: 'Cadastro inativo', pending: false };
-  }
-  if (capabilities.canDeactivate) {
-    return { label: 'Abrir cadastro', pending: false };
-  }
-  return { label: capabilities.canRead ? 'Abrir cadastro' : 'Sem ação disponível', pending: false };
-}
 
 export function ClientsListPage() {
   const { capabilities } = useClientCapabilities();
@@ -1238,7 +1232,12 @@ export function ClientsListPage() {
                     {items.map((client) => {
                       const href = navigateToClient ? navigateToClient(client) : null;
                       const isInactive = client.status === CLIENT_STATUSES.Inactive;
-                      const nextAction = clientNextAction(client, capabilities);
+                      /*
+                       * `clientNextAction` NÃO é chamada aqui de propósito: o rótulo da próxima
+                       * ação pertence ao painel de contexto (`ClientNextActionStrip`). Publicá-lo
+                       * na coluna Atenção misturava sinal de exceção com comando — era esse
+                       * vazamento que fazia a grade repetir "Abrir cadastro" em toda linha.
+                       */
                       /*
                        * ESTRUTURA E ATENÇÃO SÃO DERIVADAS DO PAYLOAD DA LINHA.
                        *
@@ -1401,12 +1400,31 @@ export function ClientsListPage() {
                               <span
                                 className={cn(
                                   'cisne-type-helper min-w-0 truncate',
-                                  nextAction.pending
+                                  attention.level === 'blocking' || attention.level === 'attention'
                                     ? 'font-medium text-brand-700'
                                     : 'text-gray-400',
                                 )}
                               >
-                                {attention.reason ?? nextAction.label}
+                                {/*
+                                  A COLUNA ATENÇÃO NÃO PODE PUBLICAR A PRÓXIMA AÇÃO.
+  
+                                  DEFEITO MEDIDO (captura de produção): a célula exibia
+                                  "Abrir cadastro" para um cliente Ativo e sem qualidade carregada.
+                                  O `??` caía em `nextAction.label` sempre que `attention.reason`
+                                  era null — que é justamente o caso `unknown` (qualidade não
+                                  carregada para a linha).
+  
+                                  Isso CONTRADIZ o contrato documentado duas vezes neste arquivo:
+                                  (a) "a grade não repete 'Abrir cadastro' em cada linha" (L631); e
+                                  (b) "`unknown` é exibido como tal — nunca como 'em dia', que
+                                  afirmaria uma avaliação que ninguém fez" (L1391).
+  
+                                  O rótulo da próxima ação pertence ao painel de contexto
+                                  (`ClientNextActionStrip`), não à coluna de sinal. Aqui o vazio
+                                  significa "sem avaliação carregada" e passa a dizer isso.
+                                */}
+                                {attention.reason ??
+                                  (attention.level === 'ok' ? 'Em dia' : 'Sem avaliação')}
                               </span>
                             </span>
                           </td>
