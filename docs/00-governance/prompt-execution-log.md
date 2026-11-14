@@ -21586,3 +21586,79 @@ Permanece **PARK por decisao de produto**: `issuer/establishments` — backend c
 - Inventário: `AppRoutes.tsx` registra 137 declarações / 136 caminhos únicos (130 `/app`); duas rotas receberam inspeção e patch; 134 permanecem sem evidência desta rodada. Detalhes em `master-010-route-inventory.md`.
 - Gates não comprovados nesta rodada: lint, typecheck, unit, PostgreSQL, API E2E, Playwright, Visual Full, HML, reconciliação real; não extrapolar resultados do PR #238 já mesclado.
 - Rastreabilidade: `docs/CISNE_FINISH_MATRIX.md`, `docs/00-governance/master-010-route-inventory.md`, PR #248.
+
+## RODADA AUTOMÁTICA DE CORREÇÃO DE CI — 2026-11-14
+
+Origem: rotina diária automatizada de correção do repositório. Classificação: **interpretação de engenharia** sobre medição de gates. Nenhuma regra empresarial, autorização, migration, segredo ou baseline visual foi alterado; nenhuma decisão pendente foi fechada; nenhuma ação sobre produção foi executada (o código alterado só lê logs via API do Coolify quando o workflow o executa).
+
+Base medida: `fde3d448c4408030dce61a56a9d743ca42d8c3da` (`main`, sem commits novos desde a rodada de 2026-11-13).
+
+### Gates locais medidos nesta rodada
+
+| Gate | Comando | Resultado |
+| --- | --- | --- |
+| Instalação | `pnpm install --frozen-lockfile` | PASS |
+| Lint | `pnpm lint` (inclui `check-scripts` e `check-source-size-budget`) | PASS — 4/4 tarefas |
+| Typecheck | `pnpm typecheck` (com `@cisne/database` buildado) | PASS — 3/3 tarefas |
+| Unit | `pnpm exec turbo run test` | PASS — 4/4 tarefas; `@cisne/database` 46 testes/8 arquivos; `@cisne/api` 1927 testes/299 arquivos; `@cisne/web` 1476 testes/242 arquivos |
+| Testes de scripts CD | `node --test scripts/cd/*.test.mjs` | **1 FALHA pré-existente na `main`** (177 testes, 176 PASS) — ver Achado 3. Na branch desta rodada: 180 testes, 179 PASS, mesma 1 falha |
+
+Observação de ambiente, registrada e não omitida: runner local com Node v22.23.4 enquanto `engines` exige `>=24.0.0 <25.0.0`. Equivalência com runner conforme é `HIPÓTESE`, não comprovada. Os logs do `pnpm exec turbo run test` contêm linhas `ERROR` de coletores de métricas; são saída esperada de testes com banco simulado e o gate terminou com exit 0.
+
+Gates **não** executados (sem evidência, não extrapolar): integração PostgreSQL, API E2E, Playwright/Visual Full local, HML, perf, UAT, readiness.
+
+### CI remoto na `main` (SHA `fde3d44`)
+
+| Workflow | Resultado | Evento |
+| --- | --- | --- |
+| CI / HML isolated end-to-end / Coolify Release Images / Production TLS hardening | `success` (2026-11-11) | push / workflow_run |
+| **Visual full** | **`failure`** (2026-11-12, 13 e 14) | schedule |
+| **Production Business Evidence** | **`failure`** (2026-11-12, 13 e 14) | schedule |
+
+### Achado 1 — Production Business Evidence: causa de código nova e corrigida (2026-11-13 e 2026-11-14)
+
+Fato verificado em log (runs `43475937398` e `43616592174`, job `Authenticated read-only business evidence`, passo *Verify production runtime SHA and authenticated smoke (read only)*):
+
+```text
+[coolify-postdeploy] FALHA: migrations: log da API nao confirmou MIGRATIONS OK para esta inicializacao (lidas 2000 linhas, limite 2000)
+```
+
+Isto difere da rodada de 2026-11-12, cujo erro era `BUSINESS_EVIDENCE_INCOMPLETE` (camada de evidência empresarial). Nos dois runs mais recentes o workflow falha **antes**, no smoke técnico, por defeito de janela de leitura: `scripts/cd/coolify-postdeploy-smoke.mjs` lia exatamente 2000 linhas do log da API e exigia nelas a linha `MIGRATIONS OK`. Com o container no ar desde o deploy de 2026-11-11, a linha de inicialização saiu da janela (a janela veio cheia: 2000 de 2000). É a mesma classe de defeito já documentada no próprio arquivo (release `513e2d5c`, janela de 200 linhas), agora com a janela de 2000.
+
+Correção (branch `fix/auto-20261114-postdeploy-migrations-log-window`, PR em rascunho): quando a janela vem **cheia** e a prova não aparece, a leitura do log **da API** sobe para 10000 e depois 50000 linhas. Sem afrouxamento do gate: sem a prova na maior janela, o deploy segue `DeployRefusedError`, agora com o volume realmente lido na mensagem. Não amplia se o log inteiro já coube na leitura inicial. Varredura de 5xx e logs de worker/web permanecem na janela original de 2000 linhas (evita trazer 5xx antigos ao veredito).
+
+Evidência: 3 testes novos em `coolify-postdeploy-smoke.test.mjs` (prova fora da janela inicial é encontrada na de 10000; ausência total recusa e informa `lidas 50000 linhas, limite 50000`; log curto não escala) — `node --test scripts/cd/coolify-postdeploy-smoke.test.mjs`: 24/24 PASS. `node scripts/check-scripts.mjs` e `check-source-size-budget.mjs` PASS.
+
+**Limites da evidência (não declarar resolvido):** (a) não foi possível provar contra o Coolify real que o parâmetro `lines` aceita 10000/50000 — foi usado apenas dublê de teste; (b) mesmo com a prova de migrations encontrada, o passo seguinte do workflow pode voltar a falhar com `BUSINESS_EVIDENCE_INCOMPLETE`, que é a pendência do dono do projeto registrada em 2026-11-13 (decisão 2). O workflow não será considerado verde sem um run real após merge.
+
+### Achado 2 — Visual Full: sem correção nesta rodada
+
+O run agendado de 2026-11-14 (`43590394107`) segue com falhas Playwright em specs do projeto `[mobile]` (accounting, billing, clients, dashboard e outros), no passo *Visual regression debt ratchet* e *Enforce strict Visual Full acceptance* (falha fechada, correta). O assunto já tem PRs abertos do responsável, entre eles #313, #322, #323 e #325 (todos ainda abertos; #323 e #325 com `mergeable_state: clean`). Não foi aberta correção para não duplicar, e a causa exige decisão sobre baseline (ver pendência 1). Nenhuma referência visual foi alterada.
+
+### Achado 3 — Teste de workflow desatualizado (não corrigido, decisão pendente)
+
+`scripts/cd/coolify-release-workflow.test.mjs`, caso *separa release técnica de ausência empresarial sem aprovar business* (linha ~171), falha **na `main`** (`fde3d44`): exige em `.github/workflows/coolify-release.yml` as marcações `businessEvidenceAvailable=false`, `businessVerified=false`, `productionBusinessValidated=NOT_APPLICABLE`, `productionValidated=CONDITIONAL` etc. no passo *Browser gate against production*, que o workflow atual não emite (a avaliação empresarial migrou para o workflow separado de evidência de negócio). O job `CI` da `main` executa apenas uma lista fixa de testes de `scripts/cd/` (`.github/workflows/ci.yml`, linha 106), que inclui `coolify-postdeploy-smoke.test.mjs` mas **não** inclui `coolify-release-workflow.test.mjs`; por isso o `CI` aparece `success` apesar da falha.
+
+Interpretação de engenharia (`HIPÓTESE`): o teste ficou desatualizado após a separação release técnico × evidência empresarial (`5e573277`, #301). **Não foi alterado**: as asserções codificam semântica de release e de aprovação empresarial; decidir se o teste ou o workflow é a fonte de verdade cabe ao dono do projeto (AGENTS.md itens 12 e 13).
+
+### Resultado da rodada
+
+```text
+Estado: PASS_WITH_RESTRICTIONS
+Correção de código: 1 (smoke pós-deploy — janela de log), em PR rascunho
+PRs de correção abertos por esta rodada: 1 (rascunho)
+Visual Full: vermelho, sem correção por esta rodada (PRs do responsável já abertos)
+Production Business Evidence: vermelho na main; correção proposta não comprovada contra produção real
+```
+
+### Pendências que dependem de decisão do dono do projeto
+
+| # | Pendência | Classificação |
+| --- | --- | --- |
+| 1 | Visual Full: diferença de geometria é mudança de UI intencional ou deriva de ambiente (decide baseline × layout)? Sequência de merge entre #299, #307, #313, #315, #318, #319, #322, #323, #325. | `DECISÃO PENDENTE` |
+| 2 | Production Business Evidence: após corrigir a janela de log, a cadeia empresarial real continua `BUSINESS_EVIDENCE_INCOMPLETE`? Decidir se é ausência de operação elegível (`CONDITIONAL`) ou defeito de produção. | `DECISÃO PENDENTE` |
+| 3 | Teste `coolify-release-workflow` desatualizado após #301: atualizar o teste ou restaurar a marcação no workflow. | `DECISÃO PENDENTE` |
+| 4 | Divergência entre `engines` (Node >=24) e o runtime do agente (Node 22). | `HIPÓTESE` / ambiente |
+| 5 | O CI da `main` executa só uma lista fixa de testes de `scripts/cd/` e omite `coolify-release-workflow.test.mjs`; a falha do item 3 passou despercebida. Incluir esse teste no CI é decisão de governança de CI (ADR-001, PR #293). | `DECISÃO PENDENTE` |
+
+Não há, nesta rodada, autorização para declarar o CI verde, o release pronto ou a produção validada.

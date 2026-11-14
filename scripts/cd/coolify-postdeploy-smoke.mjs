@@ -141,6 +141,9 @@ function findFiveHundreds(text) {
   );
 }
 
+// Degraus de ampliacao da leitura do log da API para achar a prova de migrations (ver abaixo).
+const MIGRATIONS_LOG_ESCALATION_LINES = [10000, 50000];
+
 export async function verifyProduction({
   client,
   fetchImpl = fetch,
@@ -397,13 +400,39 @@ export async function verifyProduction({
   );
 
   const logsByKey = Object.fromEntries(logPayloads);
-  const apiLogLines = String(logsByKey.api ?? '').split('\n').filter((l) => l.trim()).length;
-  if (!/MIGRATIONS OK:\s*applied=\d+\s+total=\d+/i.test(logsByKey.api ?? '')) {
+  const countLines = (text) => String(text ?? '').split('\n').filter((l) => l.trim()).length;
+  const MIGRATIONS_PROOF = /MIGRATIONS OK:\s*applied=\d+\s+total=\d+/i;
+
+  // DEFEITO MEDIDO (Production Business Evidence de 2026-11-13 e 2026-11-14, SHA fde3d44):
+  // "lidas 2000 linhas, limite 2000". Com o container no ar ha dias, o trafego (inclusive o
+  // proprio smoke agendado) empurrou a linha de inicializacao para fora da janela fixa de 2000
+  // linhas. A janela estava CHEIA — sinal de que a prova pode existir mais atras.
+  //
+  // Correcao: so quando a janela veio cheia e a prova nao apareceu, o smoke amplia a leitura do
+  // log da API em degraus limitados. Nao ha afrouxamento: se a prova nao aparecer nem na maior
+  // janela, o deploy continua RECUSADO, agora com o volume efetivamente lido na mensagem.
+  // A varredura de 5xx abaixo continua restrita a janela original (logs RECENTES): ampliar
+  // aquela leitura traria 5xx antigos para o veredito.
+  let migrationsProofText = logsByKey.api ?? '';
+  let apiLogLines = countLines(migrationsProofText);
+  let apiLogLimit = LOG_LINES;
+  for (const widerLimit of MIGRATIONS_LOG_ESCALATION_LINES) {
+    if (MIGRATIONS_PROOF.test(migrationsProofText)) break;
+    // Janela anterior nao veio cheia: o log inteiro ja foi lido, ampliar nao acrescenta nada.
+    if (apiLogLines < apiLogLimit) break;
+    const widerPayload = await client.call(
+      `/applications/${uuids.api}/logs?lines=${widerLimit}&show_timestamps=true`,
+    );
+    migrationsProofText = logsText(widerPayload);
+    apiLogLines = countLines(migrationsProofText);
+    apiLogLimit = widerLimit;
+  }
+  if (!MIGRATIONS_PROOF.test(migrationsProofText)) {
     // Mensagem inclui o VOLUME lido: se o problema for a janela de log, o proximo a ler
     // sabe disso sem investigar do zero.
     throw new DeployRefusedError(
       `migrations: log da API nao confirmou MIGRATIONS OK para esta inicializacao ` +
-        `(lidas ${apiLogLines} linhas, limite ${LOG_LINES})`,
+        `(lidas ${apiLogLines} linhas, limite ${apiLogLimit})`,
     );
   }
 
