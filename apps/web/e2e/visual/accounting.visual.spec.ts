@@ -137,34 +137,29 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
      *     - navigation "Breadcrumb": ... - text: "Lancamento #1"
      *     - heading "Venda de servicos de manutencao" [level=1]
      *
-     * Em mobile o `<h1>` é a DESCRIÇÃO do lançamento; em desktop é o rótulo genérico
-     * "Lançamento". Exigir `name: 'Lançamento'` em 390px reprovava a tela CORRETA — mesma
-     * classe de defeito já corrigida nesta frente no contrato de CNPJ por viewport (59928a5f).
+     * CORRECAO DE CONTRATO (revisao visual da baseline, agora com leitura de PNG):
+     * eu havia concluido que o `<h1>` era "Lancamento" em desktop e a descricao em mobile —
+     * um contrato "responsivo". Estava ERRADO. Lendo `JournalsPage.tsx`:
      *
-     * A prova continua integral nos dois viewports: o cabeçalho de identidade do lançamento
-     * (nível 1) tem de estar visível e o breadcrumb tem de dizer "Lançamento #N". Muda apenas
-     * QUAL texto é o `<h1>` em cada largura — contrato real do produto.
+     *   L659  `title="Lancamento"`            <- WorklistHeader do estado NAO-pronto
+     *   L778  `title={journal.description || 'Lancamento contabil'}`  <- ObjectPage quando PRONTO
+     *
+     * Ou seja: "Lancamento" e o titulo do ESTADO DE CARREGAMENTO, nao da tela carregada.
+     * Quando o lancamento chega do servidor, o `<h1>` e SEMPRE a descricao do lancamento,
+     * nos DOIS viewports. Exigir "Lancamento" em desktop exigia o estado intermediario —
+     * e por isso a assercao falhava de forma intermitente conforme a corrida de carga.
+     *
+     * A prova continua integral: o `<h1>` de identidade do lancamento tem de estar visivel
+     * (a descricao real do fixture), e o breadcrumb tem de dizer "Lancamento #N".
      */
-    const isNarrowViewport = (page.viewportSize()?.width ?? 1280) < 1024;
     /*
-     * A ROTA DO DETALHE AINDA ESTA CARREGANDO QUANDO ESTA ASSERCAO RODA.
-     *
-     * MEDIDO (run 43620058855, desktop): `getByRole('heading',{name:'Lancamento'})` falhou
-     * com `element(s) not found` de forma intermitente. A espera por
-     * 'Carregando navegacao...' cobre a transicao do SHELL, mas nao a carga de DADOS da
-     * object page: `ModuleLoadingState` publica um bloco `role="status" aria-busy="true"`
-     * enquanto as linhas do lancamento chegam do servidor.
-     *
-     * A espera passa a ser por esse estado OBSERVAVEL do produto (aria-busy ausente), em vez
-     * de relogio. Nenhuma expectativa e afrouxada: o heading, o breadcrumb, a grade de linhas,
-     * o comando de estorno e o botao Postar continuam exigidos logo abaixo.
+     * ESPERA OBSERVAVEL: `ModuleLoadingState` publica `role="status" aria-busy="true"`
+     * enquanto as linhas chegam do servidor. Asserir o `<h1>` nessa janela le o cabecalho
+     * do estado de carga ("Lancamento"), nao o da tela pronta. Esperamos o fim da carga.
      */
     await expect(page.locator('[role="status"][aria-busy="true"]')).toHaveCount(0);
     await expect(
-      page.getByRole('heading', {
-        level: 1,
-        name: isNarrowViewport ? /^Venda de serviços de manutenção$/ : 'Lançamento',
-      }),
+      page.getByRole('heading', { level: 1, name: /^Venda de serviços de manutenção$/ }),
     ).toBeVisible();
     await expect(page.getByText(/Lançamento #\d+/)).toBeVisible();
     await expect(page.getByRole('table', { name: /linhas do lançamento/i })).toBeVisible();
