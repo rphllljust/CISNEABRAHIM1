@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { ServiceOrdersApiError } from './service-orders-api';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
@@ -21,7 +22,7 @@ async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
     throw new ServiceOrdersApiError(401, undefined, 'denied');
   }
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}${path}`, {
       ...init,
       headers: {
         Accept: 'application/json',

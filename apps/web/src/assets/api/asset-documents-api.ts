@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import type { DocumentDetail } from '../../documents/types/document.types';
@@ -15,7 +16,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = tokenStore.getAccessToken();
   if (!token) throw new AssetDocumentsApiError('denied');
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}${path}`, {
       ...init,
       headers: {
         Accept: 'application/json',

@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 
@@ -33,7 +34,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
   if (!accessToken) throw new EmbeddedBiError(401);
   let response: Response;
   try {
-    response = await fetch(getApiBaseUrl() + path, {
+    response = await fetchWithSession(getApiBaseUrl() + path, {
       ...init,
       cache: 'no-store',
       headers: {

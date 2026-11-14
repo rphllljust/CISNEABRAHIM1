@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../../auth/api/auth-api';
 import { tokenStore } from '../../auth/storage/token-store';
 import type {
@@ -54,7 +55,7 @@ function authHeaders(): HeadersInit {
 
 async function requestJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   try {
-    const response = await fetch(`${getApiBaseUrl()}${path}`, {
+    const response = await fetchWithSession(`${getApiBaseUrl()}${path}`, {
       method: 'GET',
       headers: authHeaders(),
       signal,

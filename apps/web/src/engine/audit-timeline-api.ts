@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../auth/api/auth-api';
 import { tokenStore } from '../auth/storage/token-store';
 
@@ -93,7 +94,7 @@ export async function fetchAuditTimeline(
   const url = `${getApiBaseUrl()}${path}${query.length > 0 ? `?${query}` : ''}`;
 
   try {
-    const response = await fetch(url, { method: 'GET', headers: authHeaders(), signal });
+    const response = await fetchWithSession(url, { method: 'GET', headers: authHeaders(), signal });
     if (!response.ok) {
       throw new AuditTimelineApiError(response.status);
     }

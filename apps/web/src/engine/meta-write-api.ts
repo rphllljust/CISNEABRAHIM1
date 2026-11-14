@@ -1,3 +1,4 @@
+import { fetchWithSession } from '../auth/api/session-recovery';
 import { getApiBaseUrl, isNetworkError } from '../auth/api/auth-api';
 import { tokenStore } from '../auth/storage/token-store';
 import type { MetaEntitySchema, MetaField, MetaView } from './types';
@@ -93,7 +94,7 @@ async function writeJson(
 
   let response: Response;
   try {
-    response = await fetch(`${getApiBaseUrl()}${path}`, {
+    response = await fetchWithSession(`${getApiBaseUrl()}${path}`, {
       method: 'PATCH',
       headers: {
         Accept: 'application/json',
