@@ -78,12 +78,14 @@ describe('security regression suite', () => {
   });
 
   describe('rate limiting', () => {
-    it('limits refresh surface independently from login', () => {
+    it('limits refresh surface independently from login', async () => {
       process.env['SECURITY_RATE_REFRESH_MAX'] = '1';
-      const limiter = new EndpointRateLimitService();
-      limiter.assertAllowed('refresh', 'ip:ua');
-      expect(() => limiter.assertAllowed('refresh', 'ip:ua')).toThrow(RateLimitExceededError);
-      expect(() => limiter.assertAllowed('login', 'ip:ua')).not.toThrow();
+      const limiter = new EndpointRateLimitService(null);
+      await limiter.assertAllowed('refresh', 'ip:ua');
+      await expect(limiter.assertAllowed('refresh', 'ip:ua')).rejects.toThrow(
+        RateLimitExceededError,
+      );
+      await expect(limiter.assertAllowed('login', 'ip:ua')).resolves.toBeUndefined();
     });
   });
 });

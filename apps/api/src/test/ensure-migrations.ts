@@ -1243,6 +1243,23 @@ $$;`);
       await applySqlFile(pool, '0118_cost_center_reference.sql');
     }
 
+    /*
+     * 0119 — shared rate-limit counter. The endpoint rate limiter counted in a per-process
+     * `Map`; `PROD_API_REPLICAS` is 1-2, so the effective limit was multiplied by the number
+     * of replicas. Verify the TABLE (not the index on `window_started_at`): the table is what
+     * makes the limit hold across replicas. Journal-reconciling a database without it would
+     * leave the shared limit silently degraded to per-process.
+     */
+    const rateLimitBucket = await pool.query<{ exists: boolean }>(
+      `SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'sec' AND table_name = 'rate_limit_bucket'
+      ) AS exists`,
+    );
+    if (!rateLimitBucket.rows[0]?.exists) {
+      await applySqlFile(pool, '0119_shared_rate_limit_bucket.sql');
+    }
+
     await syncDrizzleJournal(pool);
   } finally {
     await pool.end();

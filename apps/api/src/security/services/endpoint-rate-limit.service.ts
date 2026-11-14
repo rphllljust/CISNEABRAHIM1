@@ -1,41 +1,56 @@
 import { Injectable } from '@nestjs/common';
-import { loadSecurityConfig, type SecurityConfig, type RateLimitSurface } from '../config/security.config';
+import {
+  loadSecurityConfig,
+  type RateLimitSurface,
+  type SecurityConfig,
+} from '../config/security.config';
 import { RateLimitExceededError } from '../errors/rate-limit-exceeded.error';
+import {
+  createRateLimitStore,
+  type RateLimitStore,
+  type RateLimitQueryExecutor,
+} from './rate-limit-store';
 
-type Bucket = {
-  count: number;
-  resetAtMs: number;
-};
-
+/**
+ * RATE LIMIT DE ENDPOINT.
+ *
+ * Substitui o contador em `Map` por processo. O motivo esta em
+ * `docs/19-operations/production-infrastructure.md`: a API roda com 1-2
+ * replicas, e um bucket por processo multiplica o limite efetivo pelo numero de
+ * replicas. O store escolhido (compartilhado em Postgres quando ha banco) fica
+ * em `rate-limit-store.ts`.
+ *
+ * A interface publica mudou de sincrona para assincrona porque um store
+ * compartilhado faz I/O. Manter `assertAllowed` sincrono exigiria um cache
+ * local que reintroduziria exatamente a divergencia entre replicas que esta
+ * mudanca remove.
+ *
+ * `mode` e publicado para que o bootstrap exponha a degradacao: caindo em
+ * `memory`, o operador sabe que o limite voltou a ser por processo.
+ */
 @Injectable()
 export class EndpointRateLimitService {
-  private readonly buckets = new Map<string, Bucket>();
   private readonly config: SecurityConfig;
+  private readonly store: RateLimitStore;
 
-  constructor() {
+  constructor(executor: RateLimitQueryExecutor | null = null) {
     this.config = loadSecurityConfig();
+    this.store = createRateLimitStore(executor);
   }
 
-  assertAllowed(surface: RateLimitSurface, key: string): void {
+  get mode(): string {
+    return this.store.mode;
+  }
+
+  async assertAllowed(surface: RateLimitSurface, key: string): Promise<void> {
     const policy = this.config.rateLimits[surface];
-    const bucketKey = `${surface}:${key}`;
-    const now = Date.now();
-    const existing = this.buckets.get(bucketKey);
-
-    if (!existing || existing.resetAtMs <= now) {
-      this.buckets.set(bucketKey, { count: 1, resetAtMs: now + policy.windowMs });
-      return;
-    }
-
-    if (existing.count >= policy.maxRequests) {
+    const decision = await this.store.consume(surface, key, policy);
+    if (!decision.allowed) {
       throw new RateLimitExceededError(surface);
     }
-
-    existing.count += 1;
-    this.buckets.set(bucketKey, existing);
   }
 
-  reset(surface: RateLimitSurface, key: string): void {
-    this.buckets.delete(`${surface}:${key}`);
+  async reset(surface: RateLimitSurface, key: string): Promise<void> {
+    await this.store.reset(surface, key);
   }
 }
