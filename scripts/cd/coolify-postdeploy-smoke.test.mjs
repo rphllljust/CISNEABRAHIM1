@@ -144,6 +144,56 @@ test('recusa producao sem prova de migrations no log da API', async()=>{
   );
 });
 
+// REGRESSAO (Production Business Evidence 2026-11-13/14): a janela de 2000 linhas veio cheia e a
+// linha de inicializacao ficou para tras. O smoke amplia a leitura SO do log da API.
+function windowedLogsClient(base, { totalLines, proofLineFromEnd }) {
+  const calls = [];
+  const client = {
+    ...base,
+    call: async (path) => {
+      calls.push(path);
+      if (!path.includes('api-uuid')) return { logs: 'runtime ok' };
+      const lines = Number(/lines=(\d+)/.exec(path)[1]);
+      const all = Array.from({ length: totalLines }, (_, i) => `api request ${i}`);
+      if (proofLineFromEnd != null) all[totalLines - proofLineFromEnd] = 'MIGRATIONS OK: applied=0 total=104';
+      return { logs: all.slice(-lines).join('\n') };
+    },
+  };
+  return { client, calls };
+}
+
+test('amplia a janela de log quando a prova de migrations ficou fora das 2000 linhas', async()=>{
+  const {client:base,fetchImpl}=fixture();
+  const {client,calls}=windowedLogsClient(base,{totalLines:6000,proofLineFromEnd:5000});
+  const result=await verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'});
+  assert.equal(result.migrations,'ok');
+  const apiCalls=calls.filter((c)=>c.includes('api-uuid')).map((c)=>/lines=(\d+)/.exec(c)[1]);
+  assert.deepEqual(apiCalls,['2000','10000']);
+  // Worker e Web seguem lendo so a janela original.
+  assert.ok(calls.filter((c)=>!c.includes('api-uuid')).every((c)=>c.includes('lines=2000')));
+});
+
+test('continua recusando quando a prova nao existe nem na maior janela, informando o volume lido', async()=>{
+  const {client:base,fetchImpl}=fixture();
+  const {client,calls}=windowedLogsClient(base,{totalLines:80000,proofLineFromEnd:null});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /MIGRATIONS OK.*lidas 50000 linhas, limite 50000/,
+  );
+  const apiCalls=calls.filter((c)=>c.includes('api-uuid')).map((c)=>/lines=(\d+)/.exec(c)[1]);
+  assert.deepEqual(apiCalls,['2000','10000','50000']);
+});
+
+test('nao amplia a janela quando o log inteiro ja cabia na leitura inicial', async()=>{
+  const {client:base,fetchImpl}=fixture();
+  const {client,calls}=windowedLogsClient(base,{totalLines:300,proofLineFromEnd:null});
+  await assert.rejects(
+    ()=>verifyProduction({client,fetchImpl,sourceSha:SHA,repositories:repos,uuids,login:'smoke',password:'secret'}),
+    /lidas 300 linhas, limite 2000/,
+  );
+  assert.equal(calls.filter((c)=>c.includes('api-uuid')).length,1);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // REGRESSAO DO BUG REAL: "Nao foi possivel conectar ao servidor" na tela de login.
 //
