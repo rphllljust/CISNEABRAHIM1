@@ -261,6 +261,70 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     return;
   }
 
+  /*
+   * BUSINESS CHAIN — UMA requisicao monta a linhagem inteira da object page.
+   *
+   * DEFEITO MEDIDO (revisao visual da baseline `purchase-order-detail-registered`):
+   * a secao "Cadeia de negocio do pedido" renderizava
+   *   "Nao foi possivel carregar a cadeia deste registro." + botao Tentar novamente
+   * porque `GET /api/v1/business-chain/:kind/:id` NAO era mockado e caia no catch-all.
+   *
+   * A baseline anterior (960x1108) escondia o problema porque terminava em "Regras de
+   * faturamento" — a secao nao existia no produto quando ela foi capturada. Quando a secao
+   * passou a existir, o snapshot passou a congelar um ESTADO DE ERRO DE REDE como se fosse
+   * a tela valida. Nenhuma spec asseria essa regiao.
+   *
+   * O mock abaixo devolve a cadeia REAL do pedido do fixture (PO-2026-0038, Cliente Visual),
+   * com os nos que o backend autorizado publicaria para este perfil, em ordem de negocio.
+   */
+  if (pathname.startsWith('/api/v1/business-chain/') && method === 'GET') {
+    const [, , , , anchorKind, anchorId] = pathname.split('/');
+    const clientNodeId = '33333333-3333-4333-8333-333333333333';
+    const purchaseOrderNodeId = '44444444-4444-4444-8444-444444444444';
+    await fulfillJson(route, {
+      anchor: { kind: anchorKind, id: anchorId },
+      nodes: [
+        {
+          id: clientNodeId,
+          kind: 'CLIENT',
+          businessReference: 'Cliente Visual',
+          status: 'Ativo',
+          occurredAt: '2026-08-21T08:00:00.000Z',
+          route: '/app/clients/c-001',
+          relation: 'ROOT',
+          summary: 'Cliente do pedido',
+          unitId: null,
+          clientId: null,
+        },
+        {
+          id: purchaseOrderNodeId,
+          kind: 'PURCHASE_ORDER',
+          businessReference: 'PO-2026-0038',
+          status: 'Registrado',
+          occurredAt: '2026-08-22T09:45:00.000Z',
+          route: '/app/purchase-orders/po-2026-0038',
+          relation: 'RESULT',
+          summary: 'Escavadeira hidraulica — locacao mensal',
+          unitId: null,
+          clientId: clientNodeId,
+        },
+      ],
+      milestones: [
+        {
+          label: 'Pedido criado',
+          evidence: 'PO-2026-0038',
+          occurredAt: '2026-08-21T08:00:00.000Z',
+        },
+        {
+          label: 'Pedido registrado',
+          evidence: 'PO-2026-0038',
+          occurredAt: '2026-08-22T09:45:00.000Z',
+        },
+      ],
+    });
+    return;
+  }
+
   if (context.profile === 'commercial' && (await handleCommercialApiRoute(route))) {
     return;
   }

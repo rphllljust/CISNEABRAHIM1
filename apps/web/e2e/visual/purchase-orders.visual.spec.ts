@@ -57,6 +57,25 @@ test.describe('purchase orders visual regression', () => {
     await expect(page.getByRole('button', { name: 'Mais ações' })).toBeVisible();
     // 5) conteudo principal e continuidade: itens + cadeia relacionada do pedido.
     await expect(page.getByRole('table', { name: 'Itens do pedido' })).toBeVisible();
+    /*
+     * A CADEIA DE NEGOCIO TEM DE CARREGAR — NAO BASTA A SECAO EXISTIR.
+     *
+     * DEFEITO MEDIDO (revisao visual da baseline regenerada): a secao renderizava
+     * "Nao foi possivel carregar a cadeia deste registro." + "Tentar novamente", porque
+     * `GET /api/v1/business-chain/:kind/:id` nao era mockado. A baseline antiga nao tinha
+     * esta secao (terminava em "Regras de faturamento"), entao o defeito ficou invisivel:
+     * quando a secao passou a existir, o snapshot congelou um estado de ERRO DE REDE como
+     * se fosse tela valida, e nenhuma assercao olhava para ca.
+     *
+     * A prova abaixo exige o estado CARREGADO e os nos reais do pedido — e proibe
+     * explicitamente o estado de erro. O mock vive em `fixtures/api-routes.ts`.
+     */
+    const chain = page.getByRole('list', { name: 'Linhagem de negócio' });
+    await expect(chain).toBeVisible();
+    await expect(
+      page.getByText('Não foi possível carregar a cadeia deste registro.'),
+    ).toHaveCount(0);
+    await expect(chain.getByText('PO-2026-0038')).toBeVisible();
     // Data de Emissão é campo de negócio específico; a mesma data pode reaparecer no histórico.
     await expect(
       page.locator('[data-layout="object-identity"] dl > div')

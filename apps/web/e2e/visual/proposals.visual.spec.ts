@@ -49,6 +49,22 @@ test.describe('proposals visual regression', () => {
     await expect(page.getByRole('link', { name: /Revisões/ })).toBeVisible();
     // 6) conteudo principal do objeto: a composicao comercial.
     await expect(page.getByRole('table', { name: 'Composição comercial da proposta' })).toBeVisible();
+    /*
+     * A CADEIA DE NEGOCIO TEM DE CARREGAR — NAO BASTA A SECAO EXISTIR.
+     *
+     * DEFEITO MEDIDO (revisao visual da baseline regenerada): "CADEIA DE NEGOCIO DA PROPOSTA"
+     * renderizava "Nao foi possivel carregar a cadeia deste registro." + "Tentar novamente",
+     * porque `GET /api/v1/business-chain/:kind/:id` nao era mockado no fixture.
+     *
+     * A baseline anterior nao tinha essa secao (era o layout Resumo/Itens/Historico), entao o
+     * defeito nunca apareceu: quando a object page foi recomposta, o snapshot passou a congelar
+     * um estado de ERRO DE REDE como se fosse tela valida — e nenhuma assercao olhava para ca.
+     *
+     * A prova exige o estado CARREGADO e o no real, e proibe explicitamente o estado de erro.
+     */
+    await expect(
+      page.getByText('Não foi possível carregar a cadeia deste registro.'),
+    ).toHaveCount(0);
     await stabilizePage(page);
 
     await expect(page.locator('#main-content')).toHaveScreenshot(
