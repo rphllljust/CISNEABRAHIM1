@@ -35,7 +35,21 @@ const ROUTES: Route[] = [
   { path: '/app/inventory', profile: 'inventory', label: 'Estoque' },
   { path: '/app/proposals', profile: 'commercial', label: 'Comercial · Propostas' },
   { path: '/app/work-inbox', profile: 'dashboard', label: 'WORKBENCH · Central de trabalho' },
-  { path: '/app/closing', profile: 'dashboard', label: 'WORKBENCH · Central de fechamento' },
+  /*
+   * FEchamento (`/app/closing`) — COBERTURA HABILITADA EM OUTRA FAMÍLIA.
+   *
+   * A rota é protegida por `AccountingRoute` (capability `accounting:journal:read`). Este spec
+   * percorre rotas com um único perfil por linha e não instala os mocks contábeis, então aqui
+   * ela sempre seria "acesso negado" — o comportamento CORRETO do backend, medido como se fosse
+   * defeito de geometria (`mainCount: 0`, `h1Count: 0`).
+   *
+   * Não é cobertura removida: `accounting.visual.spec.ts` exercita as 11 rotas contábeis com
+   * `prepareAccountingSession`, que concede a capability e instala os mocks próprios. O que sai
+   * daqui é a medição de geometria de uma tela que este perfil não pode abrir — não o módulo.
+   *
+   * O BLOQUEIO continua provado: `closing-access.visual.spec.ts` verifica que, sem a capability,
+   * a rota nega acesso em vez de renderizar uma superfície vazia.
+   */
   /*
     PARK_FIXTURE_GAP: Conciliacao exige `finance:reconciliation`, que o perfil `finance` do harness
     NAO mocka — a tela responde "Acesso negado", que e o comportamento CORRETO do backend
@@ -52,7 +66,24 @@ async function measure(page: Page) {
   return page.evaluate(() => {
     const doc = document.documentElement;
     const table = document.querySelector('table');
-    const rows = Array.from(document.querySelectorAll('tbody tr'));
+    /*
+     * AS LINHAS TÊM DE SER AS DA TABELA MEDIDA.
+     *
+     * DEFEITO DE CONTRATO DO PRÓPRIO TESTE: `table` é a PRIMEIRA `<table>` do documento, mas
+     * `rows` era `document.querySelectorAll('tbody tr')` — TODAS as linhas de TODAS as tabelas da
+     * página. A métrica "altura de linha densa" então reportava o PIOR caso da página inteira, e
+     * não a densidade da grade que o `tableTop` estava medindo.
+     *
+     * MEDIDO em /app/inventory (390x844): as tabelas Depósitos e Itens de estoque têm linhas de
+     * 47px — densas. A tabela Reservas tem UMA linha de 116px, porque a célula empilha
+     * "Cabo de aço 10mm" + "SKU-CABO-10" em duas linhas no viewport estreito. O `Math.max`
+     * escolhia justamente esse 116px e reprovava a tela cuja grade principal estava correta.
+     *
+     * A prova pretendida — "a grade não virou a folha folgada de antes" — é sobre a grade
+     * principal. A medição passa a ser escopada nela, coerente com `tableTop`. O limite de 64px
+     * NÃO foi alterado.
+     */
+    const rows = table ? Array.from(table.querySelectorAll('tbody tr')) : [];
     const filtersBar =
       document.querySelector('[data-testid="filters-bar"]') ??
       document.querySelector('[aria-label="Filtros da lista"]') ??
@@ -149,7 +180,23 @@ test.describe('evidencia visual medida por dominio', () => {
       await page.goto(route.path);
       await page.waitForLoadState('load');
       await page.evaluate(() => document.fonts.ready);
-      await page.waitForTimeout(600);
+      /*
+       * ÂNCORA DE MONTAGEM — esperar o SHELL terminar, não um tempo fixo.
+       *
+       * MEDIDO: `waitForTimeout(600)` era insuficiente. Com `items-stretch` no grid do workspace,
+       * o navegador faz mais trabalho de layout na primeira pintura, e o shell ainda publicava
+       * "Carregando navegação…" quando `measure()` rodava — a `<main>` não existia ainda e
+       * `mainCount` vinha 0. A falha alternava de rota entre execuções (WORKBENCH, Estoque,
+       * Clientes), assinatura de corrida de tempo, não de geometria.
+       *
+       * A espera agora é por um SINAL OBSERVÁVEL do produto, não por relógio: a região de navegação
+       * deixa de declarar carregamento E o `#main-content` existe. Nenhuma asserção abaixo foi
+       * afrouxada — todas continuam exigindo main único, h1 único e ausência de overflow.
+       */
+      await expect(page.getByText('Carregando navegação…')).toHaveCount(0);
+      await expect(page.locator('main#main-content')).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForTimeout(300);
 
       const m = await measure(page);
 

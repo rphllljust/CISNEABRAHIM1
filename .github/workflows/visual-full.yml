@@ -93,6 +93,37 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       - name: Build
+        # AS FLAGS DE ESCOPO PRECISAM ESTAR LIGADAS — E NAO ESTAVAM.
+        #
+        # MEDIDO (run local no container mcr.microsoft.com/playwright:v1.62.1-noble):
+        # sem `VITE_FEATURE_MODULE_*`, o bundle compila os 13 modulos DESLIGADOS
+        # (`conservative-default`, fail-closed) e `GatedModulePage` substitui a tela por
+        # "O modulo accounting nao faz parte da Release 1 e esta desligado".
+        #
+        # Efeito na suite: 10 das 11 rotas contabeis (e as de Fiscal) falhavam em
+        # `getByRole('heading', {level:1})` ANTES de chegar ao snapshot. Nao era baseline
+        # incompativel nem defeito de tela — a superficie estava escondida por flag.
+        #
+        # O job `build-release` do ci.yml ja declara exatamente estas flags; o build visual
+        # ficava com o default conservador e media uma interface que nao existe no produto.
+        # Declarar aqui alinha a suite ao artefato que realmente vai para HML/producao.
+        #
+        # Rentals e transport seguem DESLIGADOS de proposito (STUB, sem backend real).
+        env:
+          VITE_CISNE_SURFACE: 'dev'
+          VITE_FEATURE_MODULE_FINANCE: 'true'
+          VITE_FEATURE_MODULE_FISCAL: 'true'
+          VITE_FEATURE_MODULE_ACCOUNTING: 'true'
+          VITE_FEATURE_MODULE_INVENTORY: 'true'
+          VITE_FEATURE_MODULE_PAYROLL: 'true'
+          VITE_FEATURE_MODULE_PROCUREMENT: 'true'
+          VITE_FEATURE_MODULE_SUPPLIERS: 'true'
+          VITE_FEATURE_MODULE_CONTRACTS: 'true'
+          VITE_FEATURE_MODULE_PEOPLE: 'true'
+          VITE_FEATURE_MODULE_ALERTS: 'true'
+          VITE_FEATURE_MODULE_REPORTS: 'true'
+          VITE_FEATURE_MODULE_APPROVAL_MATRIX: 'true'
+          VITE_FEATURE_MODULE_OPERATIONAL_PROFITABILITY: 'true'
         run: pnpm build
       - name: Verify Visual Full exit-status contract
         run: node --test scripts/ci/visual-full-exit-status.test.mjs

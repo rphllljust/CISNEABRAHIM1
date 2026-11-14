@@ -30,13 +30,53 @@ export type ApiMockProfile =
   | 'procurement'
   | 'inventory'
   | 'finance'
-  | 'measurement';
+  | 'measurement'
+  /*
+   * ATOR SEM GRANT EM SUPERFICIE PROTEGIDA.
+   *
+   * Existe para provar BLOQUEIO. Nao e o mesmo que `shell`: `shell` nao mocka as rotas de
+   * modulo, entao a sonda falha por rede (`error`) em vez de autorizacao (`denied`), e a tela
+   * mostra estado de erro — nao a mensagem de acesso negado que o operador precisa ler.
+   *
+   * `probeRealListAccess` so interpreta 403 como "sem acesso"; qualquer outro status lanca.
+   * Este perfil responde 403 nas rotas protegidas, que e o UNICO caminho honesto para medir o
+   * comportamento de negacao da interface.
+   */
+  | 'denied';
 
 type RouteContext = {
   profile: ApiMockProfile;
 };
 
 const VISUAL_PROFILE_PERMISSIONS: Partial<Record<ApiMockProfile, readonly string[]>> = {
+  /*
+   * INVENTORY — Estoque exige `inventory:stock:read`.
+   *
+   * `/app/inventory` é protegido por `InventoryRoute` → `BackofficeCapabilityRoute`, que só
+   * renderiza o workspace depois que `probeInventoryReadAccess` obtém 2xx em
+   * `GET /api/v1/inventory/items?limit=1&offset=0`. O perfil `inventory` já mocka essa rota
+   * (`inventory-api-routes.ts`), mas não publicava capability nenhuma: a página negava acesso
+   * corretamente e o teste falhava ANTES do snapshot — `mainCount: 0`, `h1Count: 0`.
+   *
+   * Isso não é cobertura dispensada: o módulo continua na suíte, com a interface HABILITADA.
+   * O caso de bloqueio (capability ausente ⇒ nega) continua provado pelo perfil `dashboard`,
+   * que não publica `inventory:stock:read` — ver `inventory.visual.spec.ts`.
+   */
+  inventory: [
+    'inventory:stock:read',
+    'inventory:stock:list',
+    'inventory:item:read',
+    'inventory:warehouse:read',
+  ],
+  /*
+   * DASHBOARD — perfil de shell/painel, sem capability de módulo.
+   *
+   * `geometry.visual.spec.ts` percorre uma rota por domínio usando este perfil. Telas de módulo
+   * protegido (`/app/closing`) NÃO podem ser exercitadas sob ele: o `AccountingRoute` nega acesso
+   * por falta de `accounting:journal:read`, e a falha é do PERFIL, não da tela. A cobertura
+   * habilitada de Fechamento é feita pela família contábil (`accounting.visual.spec.ts`), que
+   * instala os mocks próprios e concede a capability. O bloqueio continua verificado aqui.
+   */
   /*
    * BILLING — a suíte visual de faturamento usa o perfil `billing-empty`, mas ele não publicava
    * capability nenhuma. Sem `billing:billing-record:read` a página de Faturamento interno nega
@@ -221,6 +261,122 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     return;
   }
 
+  /*
+   * BUSINESS CHAIN — UMA requisicao monta a linhagem inteira da object page.
+   *
+   * DEFEITO MEDIDO (revisao visual da baseline `purchase-order-detail-registered`):
+   * a secao "Cadeia de negocio do pedido" renderizava
+   *   "Nao foi possivel carregar a cadeia deste registro." + botao Tentar novamente
+   * porque `GET /api/v1/business-chain/:kind/:id` NAO era mockado e caia no catch-all.
+   *
+   * A baseline anterior (960x1108) escondia o problema porque terminava em "Regras de
+   * faturamento" — a secao nao existia no produto quando ela foi capturada. Quando a secao
+   * passou a existir, o snapshot passou a congelar um ESTADO DE ERRO DE REDE como se fosse
+   * a tela valida. Nenhuma spec asseria essa regiao.
+   *
+   * O mock abaixo devolve a cadeia REAL do pedido do fixture (PO-2026-0038, Cliente Visual),
+   * com os nos que o backend autorizado publicaria para este perfil, em ordem de negocio.
+   */
+  if (pathname.startsWith('/api/v1/business-chain/') && method === 'GET') {
+    const [, , , , anchorKind, anchorId] = pathname.split('/');
+    const clientNodeId = '33333333-3333-4333-8333-333333333333';
+    const purchaseOrderNodeId = '44444444-4444-4444-8444-444444444444';
+    await fulfillJson(route, {
+      anchor: { kind: anchorKind, id: anchorId },
+      nodes: [
+        {
+          id: clientNodeId,
+          kind: 'CLIENT',
+          businessReference: 'Cliente Visual',
+          status: 'Ativo',
+          occurredAt: '2026-08-21T08:00:00.000Z',
+          route: '/app/clients/c-001',
+          relation: 'ROOT',
+          summary: 'Cliente do pedido',
+          unitId: null,
+          clientId: null,
+        },
+        {
+          id: purchaseOrderNodeId,
+          kind: 'PURCHASE_ORDER',
+          businessReference: 'PO-2026-0038',
+          status: 'Registrado',
+          occurredAt: '2026-08-22T09:45:00.000Z',
+          route: '/app/purchase-orders/po-2026-0038',
+          relation: 'RESULT',
+          summary: 'Escavadeira hidraulica — locacao mensal',
+          unitId: null,
+          clientId: clientNodeId,
+        },
+      ],
+      milestones: [
+        {
+          label: 'Pedido criado',
+          evidence: 'PO-2026-0038',
+          occurredAt: '2026-08-21T08:00:00.000Z',
+        },
+        {
+          label: 'Pedido registrado',
+          evidence: 'PO-2026-0038',
+          occurredAt: '2026-08-22T09:45:00.000Z',
+        },
+      ],
+    });
+    return;
+  }
+
+  /*
+   * WORK INBOX — a fila de trabalho do Painel Operacional.
+   *
+   * DEFEITO MEDIDO (revisao visual da baseline `dashboard-ready`): o painel renderizava
+   *   "Nao foi possivel falar com o servidor para montar a fila de trabalho."
+   * porque `GET /api/v1/work-inbox` nao era mockado no fixture e caia no catch-all.
+   *
+   * O problema ja era conhecido e documentado em `dashboard-fold.spec.ts:7`
+   * ("O fixture generico de `dashboard` nao mocka `/work-inbox`, entao a fila nao era
+   * exercitada"), mas cada spec resolvia com um mock INLINE e `dashboard.visual.spec.ts`
+   * — o unico que tira snapshot do painel — nunca resolveu. O resultado e que a baseline
+   * congelou o estado de ERRO como se fosse a tela valida.
+   *
+   * Centralizar aqui corrige todos os consumidores de uma vez, sem duplicar payload em
+   * 3 specs. O item e o MESMO das outras fixtures (OS-2026-0184, prazo vencido).
+   */
+  if (pathname.startsWith('/api/v1/work-inbox') && method === 'GET') {
+    await fulfillJson(route, {
+      items: [
+        {
+          id: 'wi-1',
+          domain: 'OPERACOES',
+          kind: 'OVERDUE',
+          businessReference: 'OS-2026-0184',
+          title: 'Execução de manutenção preventiva',
+          contextLabel: 'Cliente Alfa · Unidade autorizada',
+          status: 'OVERDUE',
+          reason: 'Prazo de execução vencido e ainda sem conclusão registrada',
+          occurredAt: '2026-08-01T10:00:00.000Z',
+          dueAt: '2026-08-19T10:00:00.000Z',
+          actionLabel: 'Abrir ordem',
+          targetRoute: '/app/service-orders',
+          unitId: 'UN-DEV-001',
+        },
+      ],
+      limit: 6,
+      offset: 0,
+      total: 1,
+      totalPages: 1,
+      byDomain: {
+        FINANCEIRO: 0,
+        FISCAL: 0,
+        CONTABILIDADE: 0,
+        OPERACOES: 1,
+        COMERCIAL: 0,
+        SUPRIMENTOS: 0,
+      },
+      unavailableDomains: [],
+    });
+    return;
+  }
+
   if (context.profile === 'commercial' && (await handleCommercialApiRoute(route))) {
     return;
   }
@@ -243,6 +399,29 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
 
   if (context.profile === 'inventory' && (await handleInventoryApiRoute(route))) {
     return;
+  }
+
+  /*
+   * ATOR SEM GRANT — responde 403 nas rotas de modulo protegido.
+   *
+   * `probeRealListAccess` trata APENAS 403 como "sem acesso" e lanca em qualquer outro status.
+   * Sem este caminho o teste de bloqueio mede estado de erro de rede, e a tela nao publica a
+   * mensagem de negacao que o operador precisa ler. O escopo e deliberadamente estreito: so as
+   * rotas de leitura que as sondas de capability consultam.
+   */
+  if (context.profile === 'denied') {
+    const deniedPrefixes = [
+      '/api/v1/inventory',
+      '/api/v1/accounting',
+    ];
+    if (deniedPrefixes.some((prefix) => pathname.startsWith(prefix))) {
+      await fulfillJson(
+        route,
+        { error: { code: 'AUTHZ_DENIED', message: 'Access denied.' } },
+        403,
+      );
+      return;
+    }
   }
 
   if (context.profile === 'finance' && (await handleFinanceApiRoute(route))) {

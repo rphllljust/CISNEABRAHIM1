@@ -374,7 +374,7 @@ export function PayablesListPage() {
   ];
 
   return (
-    <ModulePage layout="workspace">
+    <ModulePage layout="workspace" stretchContent>
       <div className="flex min-h-0 flex-1 flex-col" data-region="work-surface">
         <div data-region="operating-header">
           <WorklistHeader

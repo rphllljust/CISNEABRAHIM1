@@ -28,11 +28,24 @@ export function ModulePage({
   children,
   className,
   layout = 'standard',
+  stretchContent = false,
 }: {
   children: ReactNode;
   className?: string;
   /** Modo de layout da superficie. Ver `shell/page-layout.ts` para o teto de cada modo. */
   layout?: PageLayoutMode;
+  /**
+   * `stretchContent` — a bancada desta página ocupa a altura disponível, e não o próprio conteúdo.
+   *
+   * Na prática, sem isto, o `<main>` recebe 804px mas a célula da grade interna é medida pelo
+   * conteúdo (a grade usa `items-start`), e a bancada de Contas a receber terminava em y=751 em
+   * um viewport de 900 — 109px antes da dobra.
+   *
+   * NÃO é o padrão porque telas de conteúdo longo (o Painel operacional, com 1350px de conteúdo)
+   * PRECISAM transbordar; esticá-las comprime a composição e faz a coluna de contexto sobrepor a
+   * fila. Só as worklists de conteúdo curto declaram esta variante.
+   */
+  stretchContent?: boolean;
 }) {
   useDeclarePageLayoutMode(layout);
   /*
@@ -56,7 +69,7 @@ export function ModulePage({
       )}
       data-layout-mode={layout}
     >
-      <WorkspaceContextHost>{children}</WorkspaceContextHost>
+      <WorkspaceContextHost stretchContent={stretchContent}>{children}</WorkspaceContextHost>
     </main>
   );
 }

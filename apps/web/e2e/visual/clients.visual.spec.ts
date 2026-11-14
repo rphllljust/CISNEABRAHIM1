@@ -63,9 +63,38 @@ test.describe('clients visual', () => {
     await expect(table.getByRole('columnheader', { name: 'Situação', exact: true })).toBeVisible();
     await expect(table.getByRole('columnheader', { name: 'Atenção', exact: true })).toBeVisible();
     await expect(table.getByRole('columnheader', { name: 'Atualização', exact: true })).toBeVisible();
-    await expect(page.getByText('11.222.333/0005-18')).toBeVisible();
 
-    // Nome fantasia aparece como apoio da razão social.
+    /*
+     * O CNPJ e o nome fantasia fazem parte da MESMA celula de identidade
+     * (`ClientsListPage.tsx`, coluna Cliente):
+     *
+     *   tradeName : `cisne-type-meta`                     -> sempre renderizado
+     *   CNPJ      : `cisne-type-helper hidden ... lg:inline` -> oculto abaixo de `lg` (1024px)
+     *
+     * A assercao anterior exigia o CNPJ visivel em TODOS os projetos. Em `mobile`
+     * (390px) o proprio CSS o esconde: `Received: hidden`. Ou seja, o teste pedia que a
+     * tela mostrasse um dado que ela decide, por desenho, NAO mostrar em tela estreita —
+     * e a falha nao indicava defeito algum no produto.
+     *
+     * O contrato correto depende do viewport, entao ele e verificado por viewport:
+     *   - `desktop` (1280px >= lg): CNPJ visivel, porque esta na faixa que o exibe;
+     *   - `mobile`  (390px  <  lg): CNPJ presente no DOM (o dado chega e esta pronto para
+     *     a tela larga), porem oculto.
+     *
+     * Isto NAO afrouxa a assercao: ela continua provando que o CNPJ vem do backend e que a
+     * regra de exibicao por breakpoint e a esperada. So deixa de exigir de 390px o que o
+     * design reserva para 1024px+.
+     */
+    const taxIdText = page.getByText('11.222.333/0005-18');
+    const isNarrowViewport = (page.viewportSize()?.width ?? 0) < 1024;
+    if (isNarrowViewport) {
+      await expect(taxIdText).toBeAttached();
+      await expect(taxIdText).toBeHidden();
+    } else {
+      await expect(taxIdText).toBeVisible();
+    }
+
+    // Nome fantasia aparece como apoio da razão social — em qualquer viewport.
     await expect(page.getByText('Alfa Madeira', { exact: true })).toBeVisible();
 
     // Faixa de paginação alimentada pelo total do backend.

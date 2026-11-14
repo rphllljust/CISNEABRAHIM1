@@ -77,7 +77,7 @@ const ROUTES: Array<{ path: string; label: string }> = [
 ];
 
 test.describe('route geometry audit', () => {
-  test.use({ viewport: { width: 1600, height: 900 } });
+  test.use({ viewport: { width: 1600, height: 900 }, isMobile: false, hasTouch: false });
 
   test.beforeEach(async ({ page }) => {
     await prepareAuthenticatedSession(page, 'clients');

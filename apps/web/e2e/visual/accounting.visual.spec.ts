@@ -114,7 +114,54 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
 
     // AÇÃO EXISTENTE: abrir o detalhe com as ações decididas pelo backend.
     await page.getByRole('link', { name: 'Abrir' }).first().click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Lançamento' })).toBeVisible();
+    /*
+     * O CLIQUE É NAVEGAÇÃO DE CLIENTE — A ÁRVORE DA ROTA AINDA NÃO ESTÁ MONTADA.
+     *
+     * DEFEITO MEDIDO (run 43505943330, `--retries=0`): nesta janela o shell publica
+     * "Carregando navegação…" e o `<h1>` do detalhe ainda não existe, então a asserção abaixo
+     * lia `element(s) not found` — falha de SINCRONIZAÇÃO, não de tela. A prova de que é corrida
+     * (e não defeito de produto): com retry o mesmo teste passava na tentativa seguinte e
+     * seguia até o snapshot `accounting-journals.png`.
+     *
+     * A espera é por um estado OBSERVÁVEL do produto — o mesmo sinal já usado por `stabilizePage`
+     * desde 818c9c8f. Nenhuma expectativa foi afrouxada: as asserções de heading, grade, comando
+     * de estorno e botão Postar continuam exigidas e inalteradas.
+     */
+    await expect(page.getByText('Carregando navegação…')).toHaveCount(0);
+    /*
+     * O `<h1>` DO DETALHE É RESPONSIVO — E A ASSERÇÃO EXIGIA SÓ O NOME DO DESKTOP.
+     *
+     * MEDIDO no DOM real (error-context da run 43507333821, viewport mobile):
+     *
+     *   - main:
+     *     - navigation "Breadcrumb": ... - text: "Lancamento #1"
+     *     - heading "Venda de servicos de manutencao" [level=1]
+     *
+     * CORRECAO DE CONTRATO (revisao visual da baseline, agora com leitura de PNG):
+     * eu havia concluido que o `<h1>` era "Lancamento" em desktop e a descricao em mobile —
+     * um contrato "responsivo". Estava ERRADO. Lendo `JournalsPage.tsx`:
+     *
+     *   L659  `title="Lancamento"`            <- WorklistHeader do estado NAO-pronto
+     *   L778  `title={journal.description || 'Lancamento contabil'}`  <- ObjectPage quando PRONTO
+     *
+     * Ou seja: "Lancamento" e o titulo do ESTADO DE CARREGAMENTO, nao da tela carregada.
+     * Quando o lancamento chega do servidor, o `<h1>` e SEMPRE a descricao do lancamento,
+     * nos DOIS viewports. Exigir "Lancamento" em desktop exigia o estado intermediario —
+     * e por isso a assercao falhava de forma intermitente conforme a corrida de carga.
+     *
+     * A prova continua integral: o `<h1>` de identidade do lancamento tem de estar visivel
+     * (a descricao real do fixture), e o breadcrumb tem de dizer "Lancamento #N".
+     */
+    /*
+     * ESPERA OBSERVAVEL: `ModuleLoadingState` publica `role="status" aria-busy="true"`
+     * enquanto as linhas chegam do servidor. Asserir o `<h1>` nessa janela le o cabecalho
+     * do estado de carga ("Lancamento"), nao o da tela pronta. Esperamos o fim da carga.
+     */
+    await expect(page.locator('[role="status"][aria-busy="true"]')).toHaveCount(0);
+    await expect(
+      page.getByRole('heading', { level: 1, name: /^Venda de serviços de manutenção$/ }),
+    ).toBeVisible();
+    await expect(page.getByText(/Lançamento #\d+/)).toBeVisible();
     await expect(page.getByRole('table', { name: /linhas do lançamento/i })).toBeVisible();
     // Escopo no comando de estorno: o nome 'Estornar' (substring) também casava a barra de
     // comandos ('Estornar lançamento'); o id do comando é a âncora estável.
