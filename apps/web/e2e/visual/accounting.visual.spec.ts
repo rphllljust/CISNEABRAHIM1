@@ -146,6 +146,20 @@ test.describe('contabilidade (Família 4) — 11 rotas', () => {
      * QUAL texto é o `<h1>` em cada largura — contrato real do produto.
      */
     const isNarrowViewport = (page.viewportSize()?.width ?? 1280) < 1024;
+    /*
+     * A ROTA DO DETALHE AINDA ESTA CARREGANDO QUANDO ESTA ASSERCAO RODA.
+     *
+     * MEDIDO (run 43620058855, desktop): `getByRole('heading',{name:'Lancamento'})` falhou
+     * com `element(s) not found` de forma intermitente. A espera por
+     * 'Carregando navegacao...' cobre a transicao do SHELL, mas nao a carga de DADOS da
+     * object page: `ModuleLoadingState` publica um bloco `role="status" aria-busy="true"`
+     * enquanto as linhas do lancamento chegam do servidor.
+     *
+     * A espera passa a ser por esse estado OBSERVAVEL do produto (aria-busy ausente), em vez
+     * de relogio. Nenhuma expectativa e afrouxada: o heading, o breadcrumb, a grade de linhas,
+     * o comando de estorno e o botao Postar continuam exigidos logo abaixo.
+     */
+    await expect(page.locator('[role="status"][aria-busy="true"]')).toHaveCount(0);
     await expect(
       page.getByRole('heading', {
         level: 1,
