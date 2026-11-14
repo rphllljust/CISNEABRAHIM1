@@ -21637,7 +21637,7 @@ O run agendado de 2026-11-14 (`43590394107`) segue com falhas Playwright em spec
 
 ### Achado 3 — Teste de workflow desatualizado (não corrigido, decisão pendente)
 
-`scripts/cd/coolify-release-workflow.test.mjs`, caso *separa release técnica de ausência empresarial sem aprovar business* (linha ~171), falha **na `main`** (`fde3d44`): exige em `.github/workflows/coolify-release.yml` as marcações `businessEvidenceAvailable=false`, `businessVerified=false`, `productionBusinessValidated=NOT_APPLICABLE`, `productionValidated=CONDITIONAL` etc. no passo *Browser gate against production*, que o workflow atual não emite (a avaliação empresarial migrou para o workflow separado de evidência de negócio). O job `CI` da `main` não executa `scripts/cd/*.test.mjs`, por isso o `CI` aparece `success`.
+`scripts/cd/coolify-release-workflow.test.mjs`, caso *separa release técnica de ausência empresarial sem aprovar business* (linha ~171), falha **na `main`** (`fde3d44`): exige em `.github/workflows/coolify-release.yml` as marcações `businessEvidenceAvailable=false`, `businessVerified=false`, `productionBusinessValidated=NOT_APPLICABLE`, `productionValidated=CONDITIONAL` etc. no passo *Browser gate against production*, que o workflow atual não emite (a avaliação empresarial migrou para o workflow separado de evidência de negócio). O job `CI` da `main` executa apenas uma lista fixa de testes de `scripts/cd/` (`.github/workflows/ci.yml`, linha 106), que inclui `coolify-postdeploy-smoke.test.mjs` mas **não** inclui `coolify-release-workflow.test.mjs`; por isso o `CI` aparece `success` apesar da falha.
 
 Interpretação de engenharia (`HIPÓTESE`): o teste ficou desatualizado após a separação release técnico × evidência empresarial (`5e573277`, #301). **Não foi alterado**: as asserções codificam semântica de release e de aprovação empresarial; decidir se o teste ou o workflow é a fonte de verdade cabe ao dono do projeto (AGENTS.md itens 12 e 13).
 
@@ -21659,6 +21659,6 @@ Production Business Evidence: vermelho na main; correção proposta não comprov
 | 2 | Production Business Evidence: após corrigir a janela de log, a cadeia empresarial real continua `BUSINESS_EVIDENCE_INCOMPLETE`? Decidir se é ausência de operação elegível (`CONDITIONAL`) ou defeito de produção. | `DECISÃO PENDENTE` |
 | 3 | Teste `coolify-release-workflow` desatualizado após #301: atualizar o teste ou restaurar a marcação no workflow. | `DECISÃO PENDENTE` |
 | 4 | Divergência entre `engines` (Node >=24) e o runtime do agente (Node 22). | `HIPÓTESE` / ambiente |
-| 5 | O CI da `main` não executa `scripts/cd/*.test.mjs`; a falha do item 3 passou despercebida. Incluir esses testes no CI é decisão de governança de CI (ADR-001, PR #293). | `DECISÃO PENDENTE` |
+| 5 | O CI da `main` executa só uma lista fixa de testes de `scripts/cd/` e omite `coolify-release-workflow.test.mjs`; a falha do item 3 passou despercebida. Incluir esse teste no CI é decisão de governança de CI (ADR-001, PR #293). | `DECISÃO PENDENTE` |
 
 Não há, nesta rodada, autorização para declarar o CI verde, o release pronto ou a produção validada.
