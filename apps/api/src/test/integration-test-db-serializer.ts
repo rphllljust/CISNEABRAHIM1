@@ -131,12 +131,50 @@ beforeAll(async () => {
     await acquireAdvisoryLockWithTimeout(serializerClient, INTEGRATION_TEST_DB_LOCK_KEY, 180_000);
     lockHeld = true;
     await ensureTestDefaultIssuer(serializerClient);
+    await clearRateLimitBuckets(serializerClient);
   } catch (error) {
     releaseSerializerClient(true);
     throw error;
   }
 }, 180_000);
 
+/**
+ * LIMPA O CONTADOR DE RATE LIMIT ENTRE ARQUIVOS DE TESTE.
+ *
+ * Antes do rate limit compartilhado (`sec.rate_limit_bucket`), o contador vivia em um `Map`
+ * por processo. Cada arquivo de teste tinha, na pratica, o proprio teto, e ~30 logins
+ * espalhados pelas suites E2E nunca somavam.
+ *
+ * Com o contador no banco — que e o que faz o limite valer entre replicas em producao — essas
+ * mesmas chamadas caem no MESMO bucket: `clientKey` e `ip:user-agent`, e suites que nao enviam
+ * `user-agent` compartilham a chave `127.0.0.1:unknown`. O sexto login da execucao recebia 429
+ * e suites alheias ao rate limit passavam a falhar (`expected 429 to be 200`).
+ *
+ * A limpeza e POR ARQUIVO, nunca por requisicao: dentro de um arquivo o limite continua valendo
+ * integralmente, e o teste autoritativo (`auth.e2e.spec.ts` › "rate limits abusive login
+ * attempts") segue provando o 429 real. Nada aqui toca a politica de producao: nenhum limiar
+ * muda, nenhum bypass e instalado na aplicacao.
+ *
+ * Sem isto, a alternativa seria isolar cada suite mandando um `user-agent` proprio — o que
+ * espalharia uma preocupacao de infraestrutura de teste por dezenas de specs e deixaria a
+ * proxima suite nova com o mesmo problema.
+ */
+async function clearRateLimitBuckets(client: PoolClient): Promise<void> {
+  try {
+    await client.query('DELETE FROM sec.rate_limit_bucket');
+  } catch (error) {
+    // A tabela pode nao existir em suites que rodam sobre um schema anterior a 0119.
+    // Nesse caso nao ha contador compartilhado a limpar — o store cai em memoria.
+    const code = (error as { code?: string }).code;
+    if (code !== '42P01') {
+      throw error;
+    }
+  }
+}
+
 afterAll(async () => {
+  if (serializerClient) {
+    await clearRateLimitBuckets(serializerClient);
+  }
   await shutdownSerializerPool();
 }, 180_000);

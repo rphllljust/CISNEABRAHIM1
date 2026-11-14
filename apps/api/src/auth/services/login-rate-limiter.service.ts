@@ -5,7 +5,7 @@ import { EndpointRateLimitService } from '../../security/services/endpoint-rate-
 export class LoginRateLimiterService {
   constructor(private readonly endpointRateLimit: EndpointRateLimitService) {}
 
-  assertAllowed(clientKey: string): void {
-    this.endpointRateLimit.assertAllowed('login', clientKey);
+  async assertAllowed(clientKey: string): Promise<void> {
+    await this.endpointRateLimit.assertAllowed('login', clientKey);
   }
 }
