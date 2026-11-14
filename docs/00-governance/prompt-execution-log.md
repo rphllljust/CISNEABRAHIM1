@@ -21586,3 +21586,91 @@ Permanece **PARK por decisao de produto**: `issuer/establishments` — backend c
 - Inventário: `AppRoutes.tsx` registra 137 declarações / 136 caminhos únicos (130 `/app`); duas rotas receberam inspeção e patch; 134 permanecem sem evidência desta rodada. Detalhes em `master-010-route-inventory.md`.
 - Gates não comprovados nesta rodada: lint, typecheck, unit, PostgreSQL, API E2E, Playwright, Visual Full, HML, reconciliação real; não extrapolar resultados do PR #238 já mesclado.
 - Rastreabilidade: `docs/CISNE_FINISH_MATRIX.md`, `docs/00-governance/master-010-route-inventory.md`, PR #248.
+
+## RODADA AUTOMÁTICA DE DIAGNÓSTICO DE CI — 2026-11-13
+
+Origem: rotina diária automatizada de correção do repositório. Classificação: **interpretação de engenharia** sobre medição de gates. Nenhuma regra empresarial foi alterada, nenhuma decisão pendente foi fechada, nenhum baseline visual foi atualizado, nenhuma ação sobre produção foi executada.
+
+Base medida: `fde3d448c4408030dce61a56a9d743ca42d8c3da` (`main`).
+
+### Gates locais medidos nesta rodada
+
+| Gate | Comando | Resultado |
+| --- | --- | --- |
+| Instalação | `pnpm install --frozen-lockfile` | PASS |
+| Lint | `pnpm lint` (inclui `check-scripts` e `check-source-size-budget`) | PASS — 4/4 tarefas |
+| Typecheck | `pnpm typecheck` (com `@cisne/database` buildado) | PASS — 3/3 tarefas |
+| Unit | `pnpm exec turbo run test` | PASS — 4/4 tarefas; `@cisne/web` 1476 testes em 242 arquivos |
+
+Observação de ambiente, registrada e não omitida: o runner local executou com Node v22.23.4 enquanto o `engines` do repositório exige `>=24.0.0 <25.0.0`. Os gates acima passaram mesmo assim, mas **não substituem** a execução em runner conforme. Classificação: `HIPÓTESE` de equivalência — não comprovada.
+
+Gates **não** executados nesta rodada (sem evidência, não extrapolar): integração PostgreSQL, API E2E, Playwright/Visual Full local, HML, perf, UAT, readiness.
+
+### CI remoto — estado por workflow na `main`
+
+| Workflow | Último resultado na `main` | Evento |
+| --- | --- | --- |
+| CI | `success` (2026-11-11) | push |
+| HML isolated end-to-end | `success` (2026-11-11) | push |
+| Coolify Release Images | `success` (2026-11-11) | workflow_run |
+| Production TLS hardening | `success` (2026-11-11) | workflow_run |
+| **Visual full** | **`failure` (2026-11-12)** | schedule |
+| **Production Business Evidence** | **`failure` (2026-11-12)** | schedule |
+
+### Achado 1 — Visual Full: a dívida é anterior ao vermelho, não posterior
+
+Fato verificado por leitura de log, não por inferência:
+
+- O último run da `main` que o GitHub marca como `success` no Visual Full é `42366745297`, de 2026-11-07. **Esse run contém `174 failed` do Playwright** e, mesmo assim, concluiu verde.
+- O primeiro `failure` é de 2026-11-08T00:14, imediatamente após `8eee639e` — *"fix(ci): impedir falso PASS no Visual Full após falha do Playwright (#265)"*.
+- O run agendado de 2026-11-12 (`43220993269`) registra `150 failed`, `2 flaky`, `11 skipped`, `137 passed`.
+
+Interpretação de engenharia: a passagem de verde para vermelho em 2026-11-08 **não é regressão de produto**. É a remoção do mascaramento. A suíte já estava vermelha antes; o workflow é que mentia. A contagem caiu de `174 failed` para `150 failed` no intervalo, ou seja, a dívida está sendo reduzida, não ampliada. Declarar que "o Visual Full quebrou em 08/11" seria falso.
+
+Causa predominante das falhas atuais: divergência de **geometria** entre baseline e captura, não diferença de conteúdo. Exemplo literal do run: `login-form.png` — *"Expected an image 1280px by 720px, received 1280px by 729px"*; `login-reference.png` — *"Expected an image 1016px by 707px, received 1016px by 661px"*. A divergência atinge `desktop` e `tablet` de forma transversal (accounting, fiscal, clients, finance, inventory, procurement, proposals, purchase-orders, suppliers, dashboard, login).
+
+Duas falhas **não** são de screenshot e foram marcadas `flaky` (passaram em retry): `Estoque: um unico main#main-content`, em `geometry.visual.spec.ts:147`.
+
+**Nenhuma correção foi aplicada por esta rodada**, por três motivos registrados:
+
+1. A correção exigiria atualização de baselines de referência, explicitamente proibida em bloco para esta rotina; e não há evidência autorizada de que a mudança de UI seja intencional.
+2. O assunto já possui PRs abertos do responsável: #323, #322, #319, #318, #315, #313, #307, #299. Duplicar correção é proibido.
+3. A natureza transversal (ambos os projetos, quase todas as telas, diferença de altura em px) é compatível tanto com deriva de ambiente de renderização quanto com mudança real de layout. **Distinguir as duas exige decisão do dono do projeto**, não preferência técnica do agente.
+
+### Achado 2 — Production Business Evidence: estado de produção, não defeito de código reproduzível
+
+O job `Authenticated read-only business evidence` falha com saída literal:
+
+```text
+[production-business-attestation] sanitized FAIL artifact: BUSINESS_EVIDENCE_INCOMPLETE
+[production-business-attestation] REFUSED: Incomplete, inconsistent, or failed business evidence: NOT ACCEPTED
+```
+
+Leitura de `scripts/cd/production-business-attestation.mjs`: a recusa ocorre quando o veredito do browser gate não corresponde **nem** à forma `PASS` (`REAL_BUSINESS_CHAIN_VERIFIED`) **nem** à forma `CONDITIONAL` (`NO_REAL_ELIGIBLE_OPERATION`). O passo anterior do workflow registra `Runtime SHA and authenticated smoke passed`, ou seja, o runtime e o release foram verificados; a recusa está na camada de **evidência empresarial**.
+
+O `verdict.log` do browser gate não é publicado como artefato, e o artefato `business-attestation.json` é sanitizado por projeto (PROD-ACCEPT-001). O download do artefato foi **tentado e bloqueado** pelo proxy de egresso desta sessão — registrado como limitação da rodada, não como ausência de evidência.
+
+Último `success` deste workflow na `main`: 2026-11-05 (`f9147c8`).
+
+**Nenhuma correção foi aplicada**: diagnosticar exige acesso autenticado a produção e os segredos correspondentes, e qualquer correção tocaria o ambiente de produção. Ambos estão fora do limite desta rotina. O PR #305 (*"fix(cd): expor diagnóstico empresarial sanitizado"*) já está aberto sobre exatamente esta superfície.
+
+### Resultado da rodada
+
+```text
+Estado: PASS_WITH_RESTRICTIONS
+Correções de código abertas por esta rodada: nenhuma
+PRs abertos por esta rodada: nenhum de correção
+```
+
+Nenhum PR de correção foi aberto porque nenhuma falha desta rodada reúne, simultaneamente, causa de código clara, correção pequena e segura, e ausência de PR aberto sobre o mesmo assunto.
+
+### Pendências que dependem de decisão do dono do projeto
+
+| # | Pendência | Classificação |
+| --- | --- | --- |
+| 1 | Visual Full: a diferença de geometria (ex.: 720→729 px em `login-form`) é mudança de UI **intencional** ou deriva de ambiente? A resposta decide se o baseline é atualizado ou se o layout é corrigido. | `DECISÃO PENDENTE` |
+| 2 | Production Business Evidence: produção não apresenta cadeia empresarial completa desde 2026-11-05. Decidir se é ausência de operação real elegível (caminho `CONDITIONAL`) ou defeito de produção. | `DECISÃO PENDENTE` |
+| 3 | Oito PRs abertos sobre a mesma frente visual (#299, #307, #313, #315, #318, #319, #322, #323) concorrem entre si. Sequência de merge é decisão do responsável. | `DECISÃO PENDENTE` |
+| 4 | Divergência entre `engines` (Node >=24) e o runtime disponível no agente (Node 22). | `HIPÓTESE` / ambiente |
+
+Não há, nesta rodada, autorização para declarar o CI verde, o release pronto ou a produção validada.
