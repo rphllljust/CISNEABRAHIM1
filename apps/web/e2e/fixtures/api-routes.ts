@@ -325,6 +325,58 @@ async function handleApiRoute(route: Route, context: RouteContext): Promise<void
     return;
   }
 
+  /*
+   * WORK INBOX — a fila de trabalho do Painel Operacional.
+   *
+   * DEFEITO MEDIDO (revisao visual da baseline `dashboard-ready`): o painel renderizava
+   *   "Nao foi possivel falar com o servidor para montar a fila de trabalho."
+   * porque `GET /api/v1/work-inbox` nao era mockado no fixture e caia no catch-all.
+   *
+   * O problema ja era conhecido e documentado em `dashboard-fold.spec.ts:7`
+   * ("O fixture generico de `dashboard` nao mocka `/work-inbox`, entao a fila nao era
+   * exercitada"), mas cada spec resolvia com um mock INLINE e `dashboard.visual.spec.ts`
+   * — o unico que tira snapshot do painel — nunca resolveu. O resultado e que a baseline
+   * congelou o estado de ERRO como se fosse a tela valida.
+   *
+   * Centralizar aqui corrige todos os consumidores de uma vez, sem duplicar payload em
+   * 3 specs. O item e o MESMO das outras fixtures (OS-2026-0184, prazo vencido).
+   */
+  if (pathname.startsWith('/api/v1/work-inbox') && method === 'GET') {
+    await fulfillJson(route, {
+      items: [
+        {
+          id: 'wi-1',
+          domain: 'OPERACOES',
+          kind: 'OVERDUE',
+          businessReference: 'OS-2026-0184',
+          title: 'Execução de manutenção preventiva',
+          contextLabel: 'Cliente Alfa · Unidade autorizada',
+          status: 'OVERDUE',
+          reason: 'Prazo de execução vencido e ainda sem conclusão registrada',
+          occurredAt: '2026-08-01T10:00:00.000Z',
+          dueAt: '2026-08-19T10:00:00.000Z',
+          actionLabel: 'Abrir ordem',
+          targetRoute: '/app/service-orders',
+          unitId: 'UN-DEV-001',
+        },
+      ],
+      limit: 6,
+      offset: 0,
+      total: 1,
+      totalPages: 1,
+      byDomain: {
+        FINANCEIRO: 0,
+        FISCAL: 0,
+        CONTABILIDADE: 0,
+        OPERACOES: 1,
+        COMERCIAL: 0,
+        SUPRIMENTOS: 0,
+      },
+      unavailableDomains: [],
+    });
+    return;
+  }
+
   if (context.profile === 'commercial' && (await handleCommercialApiRoute(route))) {
     return;
   }
