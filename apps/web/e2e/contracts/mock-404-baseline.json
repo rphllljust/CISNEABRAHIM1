@@ -1,0 +1,55 @@
+{
+  "clients": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/meta/client",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "documents": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "expenses": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "reports": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "alerts": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "billing": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "suppliers": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/meta/suppliers",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "inventory": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "proposals": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/meta/proposal",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ],
+  "work-inbox": [
+    "/api/v1/authz/access-admin/catalog",
+    "/api/v1/service-orders/command-catalog",
+    "/api/v1/work-inbox"
+  ]
+}
