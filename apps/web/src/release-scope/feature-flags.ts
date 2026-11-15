@@ -30,8 +30,8 @@ import { FEATURE_FLAG_ENV, type GatedModuleId } from './release-1-scope';
  *
  * Locações e Transporte reutilizam a OS canônica e podem ser homologados, mas
  * ainda não têm o aceite empresarial completo do MASTER 002. Portanto NÃO
- * integram BUILT_MODULES, pois esse conjunto é usado pelo CI como lista de
- * módulos obrigatoriamente liberados no artefato de produção.
+ * integram BUILT_MODULES. Ser construído não autoriza ativação em produção:
+ * SRC-009 cláusula 2-A mantém os módulos gated desligados na Release 1.
  */
 
 /**

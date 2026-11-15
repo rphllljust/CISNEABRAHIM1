@@ -5,21 +5,9 @@ import { BUILT_MODULES, HML_CANDIDATE_MODULES, STUB_MODULES, resolveModuleFlag }
 import { FEATURE_FLAG_ENV, GATED_MODULE_IDS } from './release-1-scope';
 
 /**
- * GATE DO ARTEFATO DE PRODUCAO — modulo construido nao pode viajar desligado.
- *
- * DEFEITO QUE ESTE TESTE FECHA (medido em 2026-10-23):
- *
- * O job `Build / artifacts` do CI gera o artefato imutavel que vai para producao.
- * Ele rodava `pnpm build` sem nenhuma variavel de superficie. Como `resolveModuleFlag`
- * cai em `conservative-default` quando `VITE_CISNE_SURFACE` esta ausente, o bundle era
- * compilado com os 13 modulos CONSTRUIDOS desligados.
- *
- * Sintoma ao operador: backend respondendo, menu sem os modulos, produto mutilado — e
- * nenhum gate vermelho, porque nada falhava.
- *
- * COMO PROVA: usa o MESMO resolvedor que o produto usa (`resolveModuleFlag`) sobre o
- * env que o workflow realmente declara. Nao replica regra em paralelo, nao reparseia
- * TypeScript: se a regra mudar, este teste acompanha automaticamente.
+ * SRC-009 clausula 2-A e ED-005: o artefato de producao R1 deve manter todos
+ * os modulos FEATURE_MODULE_* desligados ate UAT e decisao expressa por flag.
+ * A HML continua cobrindo os modulos construidos; build nao equivale a aceite.
  */
 
 const WORKFLOW = resolve(process.cwd(), '../../.github/workflows/ci.yml');
@@ -65,15 +53,10 @@ describe('artefato de producao: decisao de release dos modulos', () => {
     ).toBeTruthy();
   });
 
-  it('liga TODOS os modulos construidos no bundle de producao', () => {
+  it('mantem todos os modulos gated fora do bundle de producao R1', () => {
     const env = readProductionBuildEnv();
-    const off = [...BUILT_MODULES].filter((moduleId) => !resolveModuleFlag(moduleId, env).enabled);
-
-    expect(
-      off,
-      `modulos construidos desligados no artefato de producao: ${off.join(', ')}. ` +
-        'O operador receberia um produto mutilado sem nenhum gate vermelho.',
-    ).toEqual([]);
+    const enabled = GATED_MODULE_IDS.filter((moduleId) => resolveModuleFlag(moduleId, env).enabled);
+    expect(enabled, 'SRC-009 2-A nao autoriza ativar FEATURE_MODULE_* em producao').toEqual([]);
   });
 
   it('nao promove modulo STUB (sem backend real) em producao', () => {
@@ -91,14 +74,11 @@ describe('artefato de producao: decisao de release dos modulos', () => {
     }
   });
 
-  it('libera producao modulo a modulo, sem herdar de superficie de homologacao', () => {
+  it('declara explicitamente false para cada modulo construido no artefato R1', () => {
     const env = readProductionBuildEnv();
-    // Cada modulo construido precisa de flag explicita 'true'. Depender apenas de
-    // VITE_CISNE_SURFACE='production' nao ligaria nada, porque `production` nao esta
-    // em HOMOLOGATION_SURFACES — e se estivesse, ligaria STUB junto.
     for (const moduleId of BUILT_MODULES) {
       const flag = FEATURE_FLAG_ENV[moduleId];
-      expect(env[flag], `${flag} deveria estar 'true' explicitamente`).toBe('true');
+      expect(env[flag], `${flag} exige decisao explicita de escopo R1`).toBe('false');
       expect(resolveModuleFlag(moduleId, env).origin).toBe('explicit-env');
     }
   });
