@@ -22,6 +22,8 @@ export type ServiceOrderServiceSnapshot = {
   serviceCode: string;
   serviceName: string;
   billingEntitlementPolicy?: 'MEASUREMENT_APPROVED' | 'FIXED_PRICE' | 'PERIODIC' | 'MILESTONE';
+  /** Frozen server catalog policy; missing means unknown, never default to required. */
+  requiresPurchaseOrder?: boolean;
   measurementModel?: {
     mode: string;
     basis: string;

@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTokenStoreForTests, tokenStore } from '../../auth/storage/token-store';
 import { renderServiceOrderRoutes } from '../../test/render-service-order-routes';
+import { formatControlCenterBlocker } from './OperationsControlCenter';
 import {
   createServiceOrdersFetchMock,
   MOCK_SERVICE_ORDER_ID,
@@ -16,6 +17,16 @@ function renderControlCenter(options: Parameters<typeof createServiceOrdersFetch
     ).toBeInTheDocument();
   });
 }
+
+describe('Release blockers — server vocabulary shown to operators', () => {
+  it('labels each persisted domain precondition without inventing a new command', () => {
+    expect(formatControlCenterBlocker('CLIENT_REQUIRED')).toMatch(/cliente vinculado/i);
+    expect(formatControlCenterBlocker('CLIENT_INACTIVE')).toMatch(/inativo/i);
+    expect(formatControlCenterBlocker('PURCHASE_ORDER_REQUIRED')).toMatch(/pedido de compra registrado/i);
+    expect(formatControlCenterBlocker('SERVICE_SNAPSHOT_REQUIRED')).toMatch(/snapshot operacional/i);
+    expect(formatControlCenterBlocker('UNKNOWN_BACKEND_CODE')).toBe('UNKNOWN_BACKEND_CODE');
+  });
+});
 
 describe('OperationsControlCenter (service order)', () => {
   beforeEach(() => {

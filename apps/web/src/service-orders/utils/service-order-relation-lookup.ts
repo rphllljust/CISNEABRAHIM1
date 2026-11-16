@@ -1,3 +1,5 @@
+import { listServiceDefinitions } from '../../catalog/api/service-catalog-api';
+import { CATALOG_LINEAGE_STATUSES } from '../../catalog/types/service-catalog.types';
 import { listClients } from '../../clients/api/clients-api';
 import { listProposals } from '../../proposals/api/proposals-api';
 import { listPurchaseOrders } from '../../purchase-orders/api/purchase-orders-api';
@@ -35,6 +37,31 @@ import type { HumanLookupOption } from '../../financial-ui/HumanLookupField';
  *
  * NÃO inventam opção. Lista vazia significa lista vazia, e o `HumanLookupField` diz isso em voz alta.
  */
+
+/**
+ * Only active definitions with a published version may unblock PREPARE.
+ * The server owns filtering and ordering; a version ID is NOT guessed here.
+ * PATCH service-orders resolves and snapshots the current published version.
+ */
+export async function searchPublishedServicesForLookup(
+  term: string,
+  signal?: AbortSignal,
+): Promise<HumanLookupOption[]> {
+  const response = await listServiceDefinitions({
+    limit: LOOKUP_LIMIT,
+    offset: 0,
+    status: CATALOG_LINEAGE_STATUSES.Active,
+    versionFilter: 'HAS_PUBLISHED',
+    search: term.trim() || undefined,
+  }, signal);
+  return response.items
+    .filter(item => item.status === CATALOG_LINEAGE_STATUSES.Active && item.latestPublishedVersion !== null)
+    .map(item => ({
+      id: item.id,
+      label: item.name || item.code,
+      support: item.code + ' · versão ' + String(item.latestPublishedVersion),
+    }));
+}
 
 /** Um limite baixo é suficiente: o operador busca pelo código antes de escolher. */
 const LOOKUP_LIMIT = 20;
