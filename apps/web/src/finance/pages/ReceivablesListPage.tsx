@@ -121,7 +121,7 @@ export function ReceivablesListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [pageNumber, setPageNumber] = useState(1);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  /** O drawer so abre por intencao explicita ("Previa"); a selecao alimenta o contexto INLINE. */
+  /** A seleção explícita de um título (linha ou botão Prévia) abre o mesmo contexto autorizado. */
   const [drawerOpen, setDrawerOpen] = useState(false);
   /** Arvore do construtor visual. Estado da TELA — `useSmartList` nao a comporta. */
   const [filterGroup, setFilterGroup] = useState<FilterGroup>(() => emptyFilterGroup());
@@ -624,7 +624,12 @@ export function ReceivablesListPage() {
                         }
                       }
                     }}
-                    onRowClick={(row) => setPreviewId(String(row.id))}
+                    onRowClick={(row) => {
+                      // Clicking a title must open its context; selecting an ID alone
+                      // leaves the overlay/dock closed and makes the row a no-op.
+                      setPreviewId(String(row.id));
+                      setDrawerOpen(true);
+                    }}
                     renderRowActions={(row) => (
                       <button
                         type="button"

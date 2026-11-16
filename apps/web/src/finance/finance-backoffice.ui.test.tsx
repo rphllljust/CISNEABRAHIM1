@@ -11,6 +11,7 @@ import { BankReconciliationPage } from './pages/BankReconciliationPage';
 import { FinanceOverviewPage } from './pages/FinanceOverviewPage';
 import { ReceivableDetailPage } from './pages/ReceivableDetailPage';
 import { ReceivablesListPage } from './pages/ReceivablesListPage';
+import { PayablesListPage } from './pages/PayablesListPage';
 
 const VIEWPORTS = [320, 390, 768, 1024, 1440] as const;
 
@@ -58,6 +59,30 @@ describe('Finance backoffice UI', () => {
     });
     expect(screen.getByRole('table', { name: /lista de contas a receber/i })).toBeInTheDocument();
     expect(screen.getAllByText(/1\.500/).length).toBeGreaterThan(0);
+  });
+
+  it('opens the authorized receivable context when the operator clicks a row', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createFinanceFetchMock());
+    renderWithProviders(<ReceivablesListPage />, { metadata: true });
+    await waitFor(() => expect(rowIdentifiers()).toContain('AR-001'));
+
+    // A row is an actionable surface, not a silent ID selection.
+    expect(screen.queryByText('Contexto do título')).not.toBeInTheDocument();
+    await user.click(screen.getAllByTestId('dynamic-list-row')[0]!);
+    expect(await screen.findByText('Contexto do título')).toBeInTheDocument();
+  });
+
+  it('opens the authorized payable context when the operator clicks a row', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', createFinanceFetchMock());
+    renderWithProviders(<PayablesListPage />, { metadata: true });
+    await waitFor(() => expect(screen.getByRole('table', { name: /lista de contas a pagar/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByTestId('dynamic-list-row').length).toBeGreaterThan(0));
+
+    expect(screen.queryByText('Contexto do título')).not.toBeInTheDocument();
+    await user.click(screen.getAllByTestId('dynamic-list-row')[0]!);
+    expect(await screen.findByText('Contexto do título')).toBeInTheDocument();
   });
 
   it('shows empty state when the server returns no titles', async () => {

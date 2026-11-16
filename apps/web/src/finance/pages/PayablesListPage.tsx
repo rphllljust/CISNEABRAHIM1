@@ -635,7 +635,12 @@ export function PayablesListPage() {
                         }
                       }
                     }}
-                    onRowClick={(row) => setPreviewId(String(row.id))}
+                    onRowClick={(row) => {
+                      // Clicking a title must open its context; selecting an ID alone
+                      // leaves the overlay/dock closed and makes the row a no-op.
+                      setPreviewId(String(row.id));
+                      setDrawerOpen(true);
+                    }}
                     renderRowActions={(row) => (
                       <button
                         type="button"
