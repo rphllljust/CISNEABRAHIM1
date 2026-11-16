@@ -1,12 +1,12 @@
 # CISNE API — production-like image (cisne-backend standalone repo)
-FROM node:24-alpine AS builder
+FROM node:24.22.1-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@10.34.7 --activate
 WORKDIR /app
 COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
-FROM node:24-alpine AS runner
+FROM node:24.22.1-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable && corepack prepare pnpm@10.34.7 --activate

@@ -1,5 +1,5 @@
 # CISNE Web — static artifact from the same monorepo build
-FROM node:24-alpine AS builder
+FROM node:24.22.1-alpine AS builder
 ARG VITE_API_BASE_URL=http://localhost:3100
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 # Superfície de entrega: HML homologa o produto CONSTRUÍDO. Estes defaults refletem a política

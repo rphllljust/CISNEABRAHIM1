@@ -18,10 +18,15 @@ if (pkg.engines?.pnpm !== expectedEngine) {
   failures.push(`engines.pnpm=${pkg.engines?.pnpm ?? 'MISSING'} expected=${expectedEngine}`);
 }
 
-const nodeMajor = (await readFile(path.join(root, '.node-version'), 'utf8')).trim();
-if (pkg.engines?.node !== `>=${nodeMajor}.0.0 <${Number(nodeMajor) + 1}.0.0`) {
+const nodeVersion = (await readFile(path.join(root, '.node-version'), 'utf8')).trim();
+const nodeMatch = /^(\d+)\.(\d+)\.(\d+)$/.exec(nodeVersion);
+if (!nodeMatch) {
+  failures.push(`.node-version precisa pin exato X.Y.Z; recebido=${nodeVersion || 'MISSING'}`);
+}
+const nodeMajor = nodeMatch ? Number(nodeMatch[1]) : null;
+if (nodeMajor !== null && pkg.engines?.node !== `>=${nodeMajor}.0.0 <${nodeMajor + 1}.0.0`) {
   failures.push(
-    `engines.node=${pkg.engines?.node ?? 'MISSING'} diverge de .node-version=${nodeMajor}`,
+    `engines.node=${pkg.engines?.node ?? 'MISSING'} diverge do major de .node-version=${nodeVersion}`,
   );
 }
 
@@ -52,6 +57,20 @@ const pinnedFiles = [
   'scripts/split-repos/templates/Dockerfile.backend',
   'scripts/split-repos/templates/Dockerfile.frontend',
 ];
+
+const expectedNodeImage = `node:${nodeVersion}-alpine`;
+for (const relative of pinnedFiles) {
+  const source = await readFile(path.join(root, relative), 'utf8');
+  const bases = [...source.matchAll(/^FROM\s+(node:[^\s]+)(?:\s+AS\s+\S+)?$/gim)].map((m) => m[1]);
+  if (bases.length === 0) {
+    failures.push(`${relative}: base Node ausente`);
+  }
+  for (const base of bases) {
+    if (base !== expectedNodeImage) {
+      failures.push(`${relative}: base=${base} expected=${expectedNodeImage}`);
+    }
+  }
+}
 
 for (const relative of pinnedFiles) {
   const source = await readFile(path.join(root, relative), 'utf8');
@@ -84,5 +103,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `[toolchain-audit] PASS node=${nodeMajor} pnpm=${pnpmVersion} workflows=packageManager docker=pinned fail-closed-worker-arg=ok`,
+  `[toolchain-audit] PASS node=${nodeVersion} pnpm=${pnpmVersion} workflows=packageManager docker=pinned fail-closed-worker-arg=ok`,
 );

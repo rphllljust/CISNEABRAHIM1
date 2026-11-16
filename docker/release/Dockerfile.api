@@ -1,6 +1,6 @@
 # Runtime-only API image for an already validated CISNE release.
 # No application source is copied and no application build runs here.
-FROM node:24-alpine
+FROM node:24.22.1-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable && corepack prepare pnpm@10.34.7 --activate
