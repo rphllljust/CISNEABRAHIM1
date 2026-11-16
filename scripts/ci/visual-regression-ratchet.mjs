@@ -21,6 +21,16 @@ if (visualOutcome === 'success') {
   process.exit(0);
 }
 
+// Scheduled runs have no pull-request base or push 'before' SHA to compare.
+// Fail closed on a failing suite; the strict Visual Full gate remains authoritative.
+if (eventName === 'schedule') {
+  const failures = parseVisualFailures(await readFile(currentLogPath, 'utf8'));
+  console.error(
+    `Scheduled Visual Full failed (${failures.length} Playwright failures); no exact PR/push baseline exists. Strict Visual Full acceptance remains blocked.`,
+  );
+  process.exit(1);
+}
+
 
 async function github(path) {
   const response = await fetch(`https://api.github.com${path}`, {
