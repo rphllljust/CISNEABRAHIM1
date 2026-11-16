@@ -1,0 +1,30 @@
+name: MASTER 015 — Coolify TLS deep diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: master-015-deep-tls-diagnostic
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    name: DNS TCP SNI certificate and authenticated HTTPS
+    if: github.repository == 'rphllljust/CISNEABRAHIM1' && github.actor == 'rphllljust' && github.ref == 'refs/heads/ops/master-015-hml-access-probe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Verify no credential transmission without trusted TLS
+        run: |
+          node --check infra/superset/tools/coolify-https-deep-diagnostic.mjs
+          node --test infra/superset/tools/coolify-https-deep-diagnostic.test.mjs
+      - name: Diagnose existing Coolify admin hostname without secrets in logs
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: node infra/superset/tools/coolify-https-deep-diagnostic.mjs

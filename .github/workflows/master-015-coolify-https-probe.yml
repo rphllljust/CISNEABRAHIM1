@@ -1,0 +1,46 @@
+name: MASTER 015 — Coolify HTTPS upgrade probe
+
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  tls-check:
+    name: Verify only HTTPS alternatives of the existing Coolify host
+    if: github.repository == 'rphllljust/CISNEABRAHIM1' && github.actor == 'rphllljust' && github.ref == 'refs/heads/ops/master-015-hml-access-probe'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Try trusted HTTPS for the same configured host without exposing it
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          const result={kind:'MASTER015_COOLIFY_TLS_PROBE',httpsValidated:false,
+            checked:[],credentialsSentOverHttp:false,secretsChanged:false};
+          try {
+            const source=new URL(process.env.COOLIFY_BASE_URL);
+            const token=process.env.COOLIFY_TOKEN;
+            if(!token || source.pathname.replace(/\/$/,'')!=='/api/v1'||source.username||source.password)throw Error('not valid');
+            const candidates=[];
+            // Only reuse the exact hostname from the already authorized Coolify secret.
+            const a=new URL(source);a.protocol='https:';a.port='';candidates.push(a);
+            if(source.port && source.port!=='443'){
+              const b=new URL(source);b.protocol='https:';candidates.push(b);
+            }
+            for(let i=0;i<candidates.length;i++){
+              const c=candidates[i];if(c.protocol!=='https:')continue;
+              try {
+                const r=await fetch(c.href.replace(/\/$/,'')+'/projects',{
+                  method:'GET',redirect:'error',headers:{authorization:'Bearer '+token,accept:'application/json'},
+                  signal:AbortSignal.timeout(6000),
+                });
+                result.checked.push({candidate:i+1,status:r.status});
+                if(r.status===200){result.httpsValidated=true;result.candidate=i+1;break;}
+              }catch{result.checked.push({candidate:i+1,status:'TLS_OR_NETWORK_UNAVAILABLE'});}
+            }
+          }catch{result.checked.push({candidate:0,status:'CONFIG_INVALID'});}
+          console.log('MASTER015_COOLIFY_TLS='+JSON.stringify(result));
+          NODE
