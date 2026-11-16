@@ -29,7 +29,13 @@ function getBrowserHostname(): string | null {
 
 function sanitizeAbsoluteBaseUrl(baseUrl: string): string | null {
   try {
-    return new URL(baseUrl).origin;
+    const parsed = new URL(baseUrl);
+    // Only HTTP(S) origins can be legitimate API endpoints. Non-web schemes
+    // expose origin="null" and must never become fetch base URLs.
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return null;
+    }
+    return parsed.origin;
   } catch {
     return null;
   }
@@ -95,7 +101,9 @@ export function buildApiBaseUrlCandidates(
   }
 
   if (candidates.length === 0) {
-    candidates.push('http://localhost:3000');
+    // In a deployed browser, localhost points to the operator's machine, not
+    // the CISNE API. Prefer same-origin /api and fail visibly if no proxy exists.
+    candidates.push(options.isDev ? 'http://localhost:3000' : '');
   }
 
   return dedupe(candidates);
@@ -122,7 +130,7 @@ function getApiBaseUrlCandidatesFromRuntime(): string[] {
 }
 
 export function getApiBaseUrl(): string {
-  if (preferredApiBaseUrl) {
+  if (preferredApiBaseUrl !== null) {
     return preferredApiBaseUrl;
   }
   return getApiBaseUrlCandidatesFromRuntime()[0] ?? 'http://localhost:3000';
@@ -149,7 +157,7 @@ function shouldRetryWithNextCandidate(
 
 async function fetchApi(path: string, init: RequestInit): Promise<Response> {
   const candidates = getApiBaseUrlCandidatesFromRuntime();
-  const orderedCandidates = preferredApiBaseUrl
+  const orderedCandidates = preferredApiBaseUrl !== null
     ? [preferredApiBaseUrl, ...candidates.filter((candidate) => candidate !== preferredApiBaseUrl)]
     : candidates;
 
