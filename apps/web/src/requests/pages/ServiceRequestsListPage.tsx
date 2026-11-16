@@ -25,6 +25,7 @@ import {
   ServiceRequestsApiError,
 } from '../api/service-requests-api';
 import { mapRequestErrorToMessage } from '../api/request-error-messages';
+import { canApplyServiceRequestListResult } from '../utils/service-request-list-generation';
 import { useServiceRequestCapabilities } from '../hooks/useServiceRequestCapabilities';
 import { Button } from '../../ui/Button';
 import { Skeleton } from '../../ui/Skeleton';
@@ -263,6 +264,9 @@ export function ServiceRequestsListPage() {
   const [searchInput, setSearchInput] = useState('');
   const [moreOpen, setMoreOpen] = useState(false);
   const [listState, setListState] = useState<ListState>({ phase: 'loading' });
+  // Paginação manual e atualização de filtros podem ocorrer em paralelo.
+  // O token impede que uma leitura anterior prevaleça mesmo sem AbortSignal.
+  const listRequestGeneration = useRef(0);
   const [summary, setSummary] = useState<ServiceRequestListSummary | null>(null);
 
   /*
@@ -401,6 +405,7 @@ export function ServiceRequestsListPage() {
 
   const loadPage = useCallback(
     async (offset: number, activeFilters: QueueFilters, signal?: AbortSignal) => {
+      const requestGeneration = ++listRequestGeneration.current;
       setListState({ phase: 'loading' });
       try {
         const scopedFilters = {
@@ -434,6 +439,8 @@ export function ServiceRequestsListPage() {
           ),
           getServiceRequestSummary(scopedFilters, signal),
         ]);
+        // A consulta antiga pode concluir após a mudança de filtros ou saída da tela.
+        if (!canApplyServiceRequestListResult(requestGeneration, listRequestGeneration.current, signal)) return;
         setSummary(summaryResponse);
         /*
          * `offset` DO SERVIDOR, COM PISO NO OFFSET QUE A TELA PEDIU.
@@ -455,6 +462,8 @@ export function ServiceRequestsListPage() {
           hasMore: response.items.length === response.limit,
         });
       } catch (error) {
+        // Abort não é erro de negócio; jamais substitua uma consulta mais recente.
+        if (!canApplyServiceRequestListResult(requestGeneration, listRequestGeneration.current, signal)) return;
         if (error instanceof ServiceRequestsApiError) {
           if (error.kind === 'denied') {
             setListState({ phase: 'denied' });
