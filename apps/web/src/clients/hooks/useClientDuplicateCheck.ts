@@ -59,6 +59,11 @@ export type DuplicateCheckState = {
 
 const IDLE: DuplicateCheckState = { phase: 'idle', result: null, blocking: false };
 
+/** Uma nova consulta nunca herda o veto da identidade anteriormente digitada. */
+export function pendingDuplicateCheckState(): DuplicateCheckState {
+  return { phase: 'checking', result: null, blocking: false };
+}
+
 /** Há sinal suficiente para valer uma consulta? */
 export function hasDuplicateSignal(input: { legalName: string; taxId: string }): boolean {
   const digits = input.taxId.replace(/\D/g, '');
@@ -89,7 +94,7 @@ export function useClientDuplicateCheck(input: {
     const controller = new AbortController();
     // Marca de obsolescência: a resposta de um termo ANTIGO não pode sobrescrever a do atual.
     let superseded = false;
-    setState((current) => ({ ...current, phase: 'checking' }));
+    setState(pendingDuplicateCheckState());
 
     const timer = setTimeout(() => {
       void checkClientDuplicates(
