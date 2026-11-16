@@ -29,8 +29,9 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function createFiscalFetchMock(options: { denied?: boolean } = {}) {
+function createFiscalFetchMock(options: { denied?: boolean; serverErrorOnce?: boolean } = {}) {
   const shellMock = createShellFetchMock();
+  let serverErrorReturned = false;
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const method = init?.method ?? 'GET';
     const { pathname } = parseRequestPath(input);
@@ -38,6 +39,10 @@ function createFiscalFetchMock(options: { denied?: boolean } = {}) {
     if (pathname === '/api/v1/fiscal/tax/calculations' && method === 'GET') {
       if (options.denied) {
         return jsonResponse({ error: { code: 'FISCAL_DENIED' } }, 403);
+      }
+      if (options.serverErrorOnce && !serverErrorReturned) {
+        serverErrorReturned = true;
+        return jsonResponse({ error: { code: 'FISCAL_UPSTREAM_UNAVAILABLE' } }, 503);
       }
       return jsonResponse({ items: CALCULATIONS, limit: 20, offset: 0, total: 1, totalPages: 1 });
     }
@@ -83,6 +88,30 @@ describe('FiscalApuracaoPage', () => {
     expect(screen.getByRole('table', { name: 'Lista de Apurações' })).toBeInTheDocument();
     expect(screen.getByText('ISS-05')).toBeInTheDocument();
     expect(screen.queryByLabelText(/identificador da apuração/i)).not.toBeInTheDocument();
+  });
+
+  it('shows a retryable error for transient list failures and retries the same query', async () => {
+    vi.stubGlobal('fetch', createFiscalFetchMock({ serverErrorOnce: true }));
+    const user = userEvent.setup();
+    renderWithProviders(<FiscalApuracaoPage />);
+
+    const unitControl = await screen.findByLabelText('Unidade');
+    await waitFor(() => {
+      expect(
+        within(unitControl).getByRole('option', { name: /unidade autorizada/i }),
+      ).toBeInTheDocument();
+    });
+    await user.selectOptions(unitControl, MOCK_UNIT_ID);
+    await user.click(screen.getByRole('button', { name: 'Buscar' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/ocorreu um erro ao comunicar com o servidor/i);
+    });
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'ISS Serviços Gerais' })).toBeInTheDocument();
+    });
   });
 
   it('declares refusal when the server denies the list', async () => {
