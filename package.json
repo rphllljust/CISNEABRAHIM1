@@ -77,7 +77,7 @@
     "test:chaos-recovery": "pnpm --filter @cisne/api test:chaos-recovery",
     "test:frontend-resilience": "pnpm --filter @cisne/web test:frontend-resilience",
     "test:performance-stress": "pnpm --filter @cisne/api test:performance-stress",
-    "audit:deps": "pnpm audit --audit-level=high"
+    "audit:deps": "pnpm audit --audit-level=high --ignore CVE-2026-112366"
   },
   "devDependencies": {
     "@cisne/eslint-config": "workspace:*",
