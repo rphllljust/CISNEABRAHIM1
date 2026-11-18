@@ -250,6 +250,17 @@ export function buildControlCenter(input: {
 }): ControlCenterControl {
   const progression = buildControlCenterProgression(input);
   const next = nextServiceOrderStep(input.status);
+  // A etapa MEASURE é o próximo passo apenas quando a execução foi concluída
+  // mas ainda não existe medição autorizada. O status da OS, sozinho, não é
+  // suficiente: depois que medição e faturamento já existem, continuar
+  // publicando MEASURE cria uma ação enganosa ("Registrar medição") em uma OS
+  // financeiramente encerrada.
+  const downstreamStep =
+    input.status === SERVICE_ORDER_STATUSES.Completed && input.facts.measurement_status
+      ? input.facts.billing_status
+        ? 'CLOSED'
+        : 'BILLING'
+      : next.step;
   const effectiveTransition =
     next.transition && input.availableTransitions.includes(next.transition)
       ? next.transition
@@ -257,7 +268,7 @@ export function buildControlCenter(input: {
   const effectiveStep =
     next.transition && effectiveTransition === null
       ? 'WAITING'
-      : next.step;
+      : downstreamStep;
 
   const divergences: string[] = [];
   if (input.facts.planned_resource_count > 0 && input.facts.active_allocation_count === 0) {
